@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+
 export interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -56,4 +58,15 @@ export interface GitHubStatsResponse {
   syncedAt: string;
   nextSyncAt?: string | null;
   data?: Record<string, unknown>;
+}
+
+export interface PublicShareLink {
+  id: string;
+  token: string;
+  passwordHash: string | null;
+  expiresAt: string | Date | null;
+  snapshot: Prisma.JsonValue;
+  document: {
+    title: string;
+  };
 }

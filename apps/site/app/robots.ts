@@ -8,7 +8,9 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
+        disallow: "/og-generator",
       },
+
       {
         userAgent: [
           "GPTBot",
@@ -18,7 +20,9 @@ export default function robots(): MetadataRoute.Robots {
           "Google-Extended",
           "CCBot",
         ],
+
         allow: "/",
+        disallow: "/og-generator",
       },
     ],
 

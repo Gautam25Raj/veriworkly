@@ -4,19 +4,25 @@ import { Container } from "@veriworkly/ui";
 
 export default function AppLoading() {
   return (
-    <div className="surface-grid border-border/50 relative mx-auto mt-28 mb-20 flex min-h-[80vh] max-w-7xl items-center justify-center overflow-hidden rounded-3xl border lg:mt-36">
+    <main className="surface-grid border-border/50 relative mx-auto mt-28 mb-20 flex min-h-[80vh] max-w-7xl items-center justify-center overflow-hidden rounded-3xl border lg:mt-36">
       <div className="from-background/0 via-background/20 to-background/80 pointer-events-none absolute inset-0 bg-linear-to-b" />
 
       <Container className="relative flex flex-col items-center py-20 text-center">
         <div className="mb-8 flex h-16 w-16 items-center justify-center">
-          <Loader2 className="h-12 w-12 animate-spin opacity-15" />
+          <Loader2 className="h-12 w-12 animate-spin opacity-15" aria-hidden="true" />
         </div>
 
-        <p className="text-accent text-sm font-bold tracking-[0.2em] uppercase">Loading</p>
+        <p
+          role="status"
+          aria-live="polite"
+          className="text-accent text-sm font-bold tracking-[0.2em] uppercase"
+        >
+          Loading
+        </p>
 
-        <h1 className="text-foreground mt-4 text-4xl font-bold tracking-tight sm:text-6xl">
+        <p className="text-foreground mt-4 text-4xl font-bold tracking-tight sm:text-6xl">
           Preparing your experience
-        </h1>
+        </p>
 
         <p className="text-muted mt-6 max-w-md text-base leading-7">
           Please wait while we fetch the latest data and prepare the page for you.
@@ -28,6 +34,6 @@ export default function AppLoading() {
           </div>
         </div>
       </Container>
-    </div>
+    </main>
   );
 }

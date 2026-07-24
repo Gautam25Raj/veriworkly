@@ -5,7 +5,7 @@ import { Button, Container } from "@veriworkly/ui";
 
 const NotFound = () => {
   return (
-    <div className="surface-grid border-border/50 relative mx-auto mt-28 mb-20 flex min-h-[80vh] max-w-7xl items-center justify-center overflow-hidden rounded-3xl border lg:mt-36">
+    <main className="surface-grid border-border/50 relative mx-auto mt-28 mb-20 flex min-h-[80vh] max-w-7xl items-center justify-center overflow-hidden rounded-3xl border lg:mt-36">
       <div className="from-background/0 via-background/20 to-background/80 pointer-events-none absolute inset-0 bg-linear-to-b" />
 
       <Container className="relative flex flex-col items-center py-20 text-center">
@@ -34,7 +34,7 @@ const NotFound = () => {
           </Button>
         </div>
       </Container>
-    </div>
+    </main>
   );
 };
 

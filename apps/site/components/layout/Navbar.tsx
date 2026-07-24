@@ -1,22 +1,29 @@
-/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { siteConfig } from "@/config/site";
 import { NAVIGATION_ITEMS } from "./navbar/constants";
+import { useFocusTrap } from "@/hooks/use-focus-trap";
 import { cn } from "@veriworkly/ui";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, Moon, Sun, ArrowUpRight } from "lucide-react";
 import { useTheme } from "next-themes";
 
+const MOBILE_MENU_ID = "site-mobile-menu";
+
 const Navbar = () => {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const pathname = usePathname();
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+
+  const isDark = resolvedTheme === "dark";
+  const toggleTheme = () => setTheme(isDark ? "light" : "dark");
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -27,6 +34,10 @@ const Navbar = () => {
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  useFocusTrap(mobileMenuOpen, mobileMenuRef, {
+    onEscape: () => setMobileMenuOpen(false),
+  });
 
   return (
     <>
@@ -42,7 +53,14 @@ const Navbar = () => {
             href={siteConfig.links.main || "/"}
             className="group pointer-events-auto relative flex items-center gap-2 rounded-full border border-black/5 bg-white/70 px-5 py-2.5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] backdrop-blur-md transition-transform hover:scale-[1.02] dark:border-white/5 dark:bg-[#111]/70"
           >
-            <img src="/veriworkly-logo.png" alt="VeriWorkly" className="h-6 w-auto" />
+            <Image
+              src="/veriworkly-logo.png"
+              alt="VeriWorkly"
+              width={24}
+              height={24}
+              priority
+              className="h-6 w-auto"
+            />
             <span className="hidden font-mono font-bold tracking-tight text-gray-900 sm:block dark:text-white">
               {siteConfig.shortName || "VeriWorkly"}
             </span>
@@ -85,12 +103,13 @@ const Navbar = () => {
           <div className="pointer-events-auto hidden items-center gap-1 rounded-full border border-black/5 bg-white/70 p-1.5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] backdrop-blur-md md:flex dark:border-white/5 dark:bg-[#111]/70">
             {/* Theme Toggle */}
             <button
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              type="button"
+              onClick={toggleTheme}
               className="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-black/5 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
-              aria-label="Toggle theme"
+              aria-label={mounted ? `Switch to ${isDark ? "light" : "dark"} theme` : "Toggle theme"}
             >
               {mounted ? (
-                theme === "dark" ? (
+                isDark ? (
                   <Sun className="h-4 w-4" />
                 ) : (
                   <Moon className="h-4 w-4" />
@@ -108,9 +127,11 @@ const Navbar = () => {
               className="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-black/5 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
               aria-label="GitHub Repository"
             >
-              <img
+              <Image
                 src="/icons/socials/github.svg"
                 alt="GitHub"
+                width={16}
+                height={16}
                 className="h-4 w-4 opacity-80 transition-opacity hover:opacity-100 dark:invert"
               />
             </Link>
@@ -125,11 +146,19 @@ const Navbar = () => {
 
           {/* Mobile Menu Toggle */}
           <button
+            type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="pointer-events-auto rounded-full border border-black/5 bg-white/70 p-2.5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] backdrop-blur-md md:hidden dark:border-white/5 dark:bg-[#111]/70"
-            aria-label="Toggle menu"
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileMenuOpen}
+            aria-haspopup="dialog"
+            aria-controls={MOBILE_MENU_ID}
           >
-            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            {mobileMenuOpen ? (
+              <X className="h-5 w-5" aria-hidden="true" />
+            ) : (
+              <Menu className="h-5 w-5" aria-hidden="true" />
+            )}
           </button>
         </div>
       </header>
@@ -138,6 +167,12 @@ const Navbar = () => {
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div
+            ref={mobileMenuRef}
+            id={MOBILE_MENU_ID}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Site navigation"
+            tabIndex={-1}
             initial={{ opacity: 0, y: -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.95 }}
@@ -174,12 +209,15 @@ const Navbar = () => {
               <div className="flex items-center justify-between px-4">
                 <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Theme</span>
                 <button
-                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                  type="button"
+                  onClick={toggleTheme}
                   className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300"
-                  aria-label="Toggle theme"
+                  aria-label={
+                    mounted ? `Switch to ${isDark ? "light" : "dark"} theme` : "Toggle theme"
+                  }
                 >
                   {mounted ? (
-                    theme === "dark" ? (
+                    isDark ? (
                       <Sun className="h-5 w-5" />
                     ) : (
                       <Moon className="h-5 w-5" />
@@ -198,9 +236,11 @@ const Navbar = () => {
                   className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300"
                   aria-label="GitHub Repository"
                 >
-                  <img
+                  <Image
                     src="/icons/socials/github.svg"
                     alt="GitHub"
+                    width={20}
+                    height={20}
                     className="h-5 w-5 opacity-80 transition-opacity hover:opacity-100 dark:invert"
                   />
                 </Link>

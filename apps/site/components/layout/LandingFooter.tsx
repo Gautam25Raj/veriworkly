@@ -1,6 +1,3 @@
-"use client";
-
-import React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
@@ -194,9 +191,12 @@ export const LandingFooter = ({
           maskImage: "linear-gradient(to top, black 30%, transparent 100%)",
         }}
       >
-        <h1 className="text-[18vw] leading-none font-black tracking-tighter whitespace-nowrap text-gray-900/10 uppercase dark:text-white/10">
+        <span
+          aria-hidden="true"
+          className="text-[18vw] leading-none font-black tracking-tighter whitespace-nowrap text-gray-900/10 uppercase dark:text-white/10"
+        >
           {shortName}
-        </h1>
+        </span>
       </div>
     </footer>
   );

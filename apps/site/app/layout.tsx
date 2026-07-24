@@ -1,11 +1,24 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 
 import "./globals.css";
 
 import { siteConfig } from "@/config/site";
+import { jsonLdScriptProps } from "@/utils/json-ld";
 import { globalFontVariables } from "@veriworkly/ui";
 
 import { ThemeProvider } from "@/providers/theme-provider";
+import { MotionProvider } from "@/providers/motion-provider";
+
+export const viewport: Viewport = {
+  // Must match `--background` in @veriworkly/ui/styles/themes.css and the manifest's
+  // theme_color, otherwise the browser chrome / PWA status bar renders a colour the app
+  // never actually paints.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f5f4ef" },
+    { media: "(prefers-color-scheme: dark)", color: "#0d1117" },
+  ],
+  colorScheme: "light dark",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
@@ -44,7 +57,8 @@ export const metadata: Metadata = {
     description:
       "Build career documents and portfolios instantly with private AI assistance. Free, open-core, and privacy-first.",
     images: ["/og/landing-page-og.png"],
-    creator: "@noober_boy",
+    creator: siteConfig.twitter.handle,
+    site: siteConfig.twitter.site,
   },
 
   icons: {
@@ -79,72 +93,75 @@ export const metadata: Metadata = {
   },
 };
 
+const webApplicationSchema = {
+  "@context": "https://schema.org",
+  "@type": ["WebApplication", "SoftwareApplication"],
+
+  name: "VeriWorkly",
+  url: siteConfig.url,
+  description:
+    "Free privacy-first career workspace with AI resume builder, cover letter writer, and portfolio builder. No signup required. Create, tailor, and export professional resumes, cover letters, and web portfolios privately.",
+
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "All",
+  browserRequirements: "Requires JavaScript",
+
+  creator: {
+    "@type": "Person",
+    name: "Gautam Raj",
+  },
+
+  publisher: {
+    "@type": "Organization",
+    name: "VeriWorkly",
+  },
+
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+  },
+
+  featureList: [
+    "No login required & local-first",
+    "Privacy-first AI resume builder & tailoring",
+    "AI cover letter generator",
+    "AI portfolio publishing with subdomain hosting",
+    "GitHub & LinkedIn profile imports",
+    "Master Profile dynamic data sync",
+    "ATS-friendly visual customizers",
+  ],
+};
+
+const organizationSchema = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "VeriWorkly",
+  url: siteConfig.url,
+  logo: `${siteConfig.url}/veriworkly-logo.png`,
+  founder: {
+    "@type": "Person",
+    name: siteConfig.creator,
+  },
+  sameAs: [siteConfig.links.github, siteConfig.links.twitter, siteConfig.links.linkedin],
+};
+
 const RootLayout = ({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) => {
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": ["WebApplication", "SoftwareApplication"],
-
-    name: "VeriWorkly",
-    url: "https://veriworkly.com",
-    description:
-      "Free privacy-first career workspace with AI resume builder, cover letter writer, and portfolio builder. No signup required. Create, tailor, and export professional resumes, cover letters, and web portfolios privately.",
-
-    applicationCategory: "BusinessApplication",
-    operatingSystem: "All",
-    browserRequirements: "Requires JavaScript",
-
-    creator: {
-      "@type": "Person",
-      name: "Gautam Raj",
-    },
-
-    publisher: {
-      "@type": "Organization",
-      name: "VeriWorkly",
-    },
-
-    offers: {
-      "@type": "Offer",
-      price: "0",
-      priceCurrency: "USD",
-    },
-
-    featureList: [
-      "No login required & local-first",
-      "Privacy-first AI resume builder & tailoring",
-      "AI cover letter generator",
-      "AI portfolio publishing with subdomain hosting",
-      "GitHub & LinkedIn profile imports",
-      "Master Profile dynamic data sync",
-      "ATS-friendly visual customizers",
-    ],
-  };
-
   return (
     <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
-          }}
+          dangerouslySetInnerHTML={jsonLdScriptProps(webApplicationSchema)}
         />
 
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "Organization",
-              name: "VeriWorkly",
-              url: "https://veriworkly.com",
-              logo: "https://veriworkly.com/veriworkly-logo.png",
-            }),
-          }}
+          dangerouslySetInnerHTML={jsonLdScriptProps(organizationSchema)}
         />
       </head>
 
@@ -158,7 +175,7 @@ const RootLayout = ({
           disableTransitionOnChange
           storageKey="veriworkly-theme"
         >
-          {children}
+          <MotionProvider>{children}</MotionProvider>
         </ThemeProvider>
       </body>
     </html>

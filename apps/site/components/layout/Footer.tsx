@@ -1,6 +1,3 @@
-"use client";
-
-import React from "react";
 import { siteConfig } from "@/config/site";
 import {
   LandingFooter,
@@ -19,6 +16,7 @@ const footerColumns: LandingFooterColumn[] = [
       { name: "How It Works", href: "/how-it-works" },
       { name: "Template Gallery", href: "/templates" },
       { name: "Pricing", href: "/pricing" },
+      { name: "Compare", href: "/compare" },
     ],
   },
   {
@@ -28,6 +26,8 @@ const footerColumns: LandingFooterColumn[] = [
       { name: "Engineering Blog", href: siteConfig.links.blog, external: true },
       { name: "System Security", href: "/security" },
       { name: "Design System", href: "/style-guide" },
+      { name: "Brand Kit", href: "/brand-kit" },
+      { name: "Changelog", href: "/changelog" },
       { name: "FAQ & Help", href: "/faq" },
     ],
   },
@@ -53,7 +53,7 @@ const socialLinks: LandingFooterSocialLink[] = [
 const navLinks: LandingFooterLink[] = [
   { name: "Home", href: "/" },
   { name: "About Us", href: "/about" },
-  { name: "Reviews", href: "/reviews" },
+  { name: "Features", href: "/features" },
 ];
 
 const legalLinks: LandingFooterLink[] = [

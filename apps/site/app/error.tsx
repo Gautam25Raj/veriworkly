@@ -1,18 +1,27 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { OctagonAlert } from "lucide-react";
 
 import { Button, Container } from "@veriworkly/ui";
 
 export default function Error({
+  error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    console.error("Root error boundary caught error:", error);
+  }, [error]);
   return (
-    <div className="surface-grid border-border/50 relative mx-auto mt-28 mb-20 flex min-h-[80vh] max-w-7xl items-center justify-center overflow-hidden rounded-3xl border lg:mt-36">
+    <main className="surface-grid border-border/50 relative mx-auto mt-28 mb-20 flex min-h-[80vh] max-w-7xl items-center justify-center overflow-hidden rounded-3xl border lg:mt-36">
+      <p className="sr-only" role="alert">
+        Something went wrong. An unexpected error occurred.
+      </p>
+
       <div className="from-background/0 via-background/20 to-background/80 pointer-events-none absolute inset-0 bg-linear-to-b" />
 
       <Container className="relative flex flex-col items-center py-20 text-center">
@@ -43,6 +52,6 @@ export default function Error({
           </Button>
         </div>
       </Container>
-    </div>
+    </main>
   );
 }

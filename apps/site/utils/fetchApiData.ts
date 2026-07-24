@@ -1,3 +1,5 @@
+import { siteConfig } from "@/config/site";
+
 declare const process: {
   env: Record<string, string | undefined>;
 };
@@ -17,6 +19,14 @@ export class ApiRequestError extends Error {
     this.status = status;
   }
 }
+
+/**
+ * Wall-clock budget for a single backend call. Without this, a backend that accepts
+ * the connection but never responds pins a Node render worker indefinitely — a
+ * connection *refused* fails fast, but a connection that hangs does not. Callers that
+ * legitimately need longer can pass their own `signal`.
+ */
+export const DEFAULT_API_TIMEOUT_MS = 8_000;
 
 const NEXT_PUBLIC_BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/+$/, "") || "";
 
@@ -54,7 +64,14 @@ function firstPartyServerHeaders(headers?: HeadersInit) {
 
   if (typeof window !== "undefined") return normalizedHeaders;
 
-  const siteOrigin = process.env.SITE_URL ? new URL(process.env.SITE_URL).origin : "";
+  let siteOrigin = "";
+
+  try {
+    siteOrigin = siteConfig.url ? new URL(siteConfig.url).origin : "";
+  } catch {
+    siteOrigin = "";
+  }
+
   if (!siteOrigin) return normalizedHeaders;
 
   return {
@@ -65,29 +82,48 @@ function firstPartyServerHeaders(headers?: HeadersInit) {
 
 export async function fetchApiData<T>(
   path: string,
-  options: RequestInit & { errorMessage?: string } = {},
+  options: RequestInit & { errorMessage?: string; timeoutMs?: number } = {},
 ): Promise<T> {
-  const { errorMessage, ...fetchOptions } = options;
+  const { errorMessage, timeoutMs, ...fetchOptions } = options;
 
   const url = backendApiUrl(path);
 
-  const response = await fetch(url, {
-    ...fetchOptions,
-    credentials: fetchOptions.credentials ?? "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...firstPartyServerHeaders(fetchOptions.headers),
-    },
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(url, {
+      ...fetchOptions,
+      signal: fetchOptions.signal ?? AbortSignal.timeout(timeoutMs ?? DEFAULT_API_TIMEOUT_MS),
+      credentials: fetchOptions.credentials ?? "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...firstPartyServerHeaders(fetchOptions.headers),
+      },
+    });
+  } catch (cause) {
+    // A timeout surfaces as DOMException(name: "TimeoutError"); a hard network failure
+    // as TypeError. Both are normalised to ApiRequestError so every caller's existing
+    // `instanceof ApiRequestError` handling keeps working.
+    const timedOut = cause instanceof DOMException && cause.name === "TimeoutError";
+
+    throw new ApiRequestError(
+      errorMessage || (timedOut ? "Request to the backend timed out." : "Could not reach the backend."),
+      timedOut ? 504 : 503,
+    );
+  }
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
+    const errorData = await response.json().catch(() => ({}) as { message?: string });
     const message = errorMessage || errorData.message || `Request failed: ${response.status}`;
 
     throw new ApiRequestError(message, response.status);
   }
 
-  const payload = (await response.json()) as ApiSuccessResponse<T>;
+  const payload = await response.json().catch(() => null);
 
-  return payload.data;
+  if (!payload || typeof payload !== "object") {
+    throw new ApiRequestError(errorMessage || "Backend returned a malformed response.", 502);
+  }
+
+  return (payload as ApiSuccessResponse<T>).data;
 }

@@ -66,11 +66,17 @@ const PricingHero = ({
           </div>
         ) : null}
 
-        {error ? (
-          <p className="mt-8 rounded-2xl border border-red-500/25 bg-red-500/10 p-4 text-sm font-bold text-red-600 dark:text-red-400">
-            {error}
-          </p>
-        ) : null}
+        <div role="alert" aria-live="assertive">
+          {error ? (
+            <p className="mt-8 rounded-2xl border border-red-500/25 bg-red-500/10 p-4 text-sm font-bold text-red-600 dark:text-red-400">
+              {error}
+            </p>
+          ) : null}
+        </div>
+
+        <p className="sr-only" role="status" aria-live="polite">
+          {loading ? "Opening secure checkout" : ""}
+        </p>
 
         <div className="mt-16 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
           <PriceCard
@@ -86,7 +92,7 @@ const PricingHero = ({
               "Automatically expires",
             ]}
             loading={loading === "bundle:one_day"}
-            disabled={paymentsBlocked}
+            disabled={paymentsBlocked || Boolean(loading && loading !== "bundle:one_day")}
             onCheckout={() => void onCheckout("bundle", "one_day")}
           />
 
@@ -103,7 +109,7 @@ const PricingHero = ({
               "Automatically expires",
             ]}
             loading={loading === "bundle:seven_day"}
-            disabled={paymentsBlocked}
+            disabled={paymentsBlocked || Boolean(loading && loading !== "bundle:seven_day")}
             onCheckout={() => void onCheckout("bundle", "seven_day")}
           />
 
@@ -123,7 +129,7 @@ const PricingHero = ({
             note={bundlePrice.note}
             badge={bundlePrice.savings}
             loading={loading === `bundle:${bundleInterval}`}
-            disabled={paymentsBlocked}
+            disabled={paymentsBlocked || Boolean(loading && loading !== `bundle:${bundleInterval}`)}
             onCheckout={() => void onCheckout("bundle", bundleInterval)}
             toggle={<IntervalToggle value={bundleInterval} onChange={setBundleInterval} />}
           />

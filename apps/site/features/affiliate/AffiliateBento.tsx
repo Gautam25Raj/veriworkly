@@ -6,7 +6,7 @@ import { Sparkles, TrendingUp, BadgeDollarSign, ShieldCheck, Check, Terminal } f
 import { siteConfig } from "@/config/site";
 
 const AffiliateBento = () => {
-  const [username, setUsername] = useState("username");
+  const [username, setUsername] = useState("your-name");
   const [copied, setCopied] = useState(false);
   const [scans, setScans] = useState<string[]>(["Filter initialized.", "Network trace: OK."]);
 
@@ -19,9 +19,9 @@ const AffiliateBento = () => {
   useEffect(() => {
     const logs = [
       "Securing device session...",
-      "Self-referral check: clean.",
-      "Fraud footprint: negative.",
-      "IP reputation: verified.",
+      "Self-referral check: blocked at signup.",
+      "One referral per account: enforced.",
+      "Commission queued for manual review.",
       "Conversion locked successfully.",
     ];
     let i = 0;
@@ -170,7 +170,10 @@ const AffiliateBento = () => {
             <div className="space-y-1.5">
               <h3 className="text-foreground text-lg font-bold tracking-tight">Payout Floor</h3>
               <p className="text-muted-foreground text-xs leading-relaxed">
-                Stripe transfers queue dynamically. Withdraw balance as soon as you cross the lock.
+                Request a withdrawal as soon as you cross the minimum threshold ($25.00). Our team
+                reviews each request and issues payouts directly (bank transfer or local payout
+                methods) — billing runs on Dodo Payments, which doesn&apos;t yet support automated
+                payout transfers.
               </p>
             </div>
           </div>
@@ -186,7 +189,7 @@ const AffiliateBento = () => {
             </div>
             <div className="text-muted-foreground flex items-center gap-2 pl-1 text-[10px]">
               <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-amber-500" />
-              <span>Funds dispatch ready immediately</span>
+              <span>Reviewed and paid out by our team</span>
             </div>
           </div>
         </motion.div>
@@ -194,7 +197,7 @@ const AffiliateBento = () => {
         <motion.div
           whileHover={{ y: -4 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          className="border-zinc-805 group relative flex min-h-87.5 flex-col justify-between overflow-hidden rounded-3xl border bg-zinc-950 p-8 text-zinc-100 shadow-md md:col-span-2"
+          className="group relative flex min-h-87.5 flex-col justify-between overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 p-8 text-zinc-100 shadow-md md:col-span-2"
         >
           <div className="pointer-events-none absolute inset-px rounded-[23px] border border-white/5" />
           <div className="pointer-events-none absolute top-0 right-0 h-40 w-40 rounded-full bg-linear-to-bl from-rose-500/10 to-transparent blur-3xl" />
@@ -204,12 +207,11 @@ const AffiliateBento = () => {
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div className="space-y-2">
-              <h3 className="text-lg font-bold tracking-tight text-white">
-                Security & Fraud Filter
-              </h3>
+              <h3 className="text-lg font-bold tracking-tight text-white">Abuse Prevention</h3>
               <p className="max-w-md text-xs leading-relaxed text-zinc-400">
-                Continuous anti-abuse scanners monitor referrers. The local security system filters
-                self-referrals, browser masking, and malicious routing patterns.
+                Self-referrals are blocked automatically, each account can carry one referral for
+                life, and our team manually reviews commissions and payouts before they&apos;re
+                released.
               </p>
             </div>
           </div>

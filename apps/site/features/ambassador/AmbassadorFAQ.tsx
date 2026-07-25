@@ -24,7 +24,7 @@ const faqItems: FAQItem[] = [
   {
     question: "How does the upgrade boost work?",
     answer:
-      "If a classmate you invited upgrades to a paid plan (Portfolio Pro, AI Credits, or the Bundle), you receive a 1.2x boost of +20 points (totaling 30 points for that referral).",
+      "If a classmate you invited upgrades to a paid plan (Creator Pro, AI Credits, or the Bundle), you receive a 1.2x boost of +20 points (totaling 30 points for that referral).",
   },
   {
     question: "Do my points expire?",
@@ -42,9 +42,9 @@ const faqItems: FAQItem[] = [
       "Videos must be posted on LinkedIn or Twitter/X (videos uploaded on TikTok or YouTube are not credited). Articles and blog posts must be published on Medium, Dev.to, LinkedIn Articles, or a reputable personal blog. All posts are reviewed manually.",
   },
   {
-    question: "How do I redeem Portfolio Pro access and when does it expire?",
+    question: "How do I redeem Creator Pro access and when does it expire?",
     answer:
-      "You can redeem 30 days of Portfolio Pro at any time for 1,500 points. The 30-day Pro license begins the day you claim it and expires after 30 days, regardless of whether you keep a portfolio published or not.",
+      "You can redeem 30 days of Creator Pro at any time for 1,500 points. The 30-day Pro license begins the day you claim it and expires after 30 days, regardless of whether you keep a portfolio published or not.",
   },
   {
     question: "How is my student status verified?",
@@ -74,7 +74,7 @@ const AmbassadorFAQ = () => {
             <br />
             QUESTIONS
           </h2>
-          <p className="text-zinc-555 max-w-xs text-sm leading-relaxed dark:text-zinc-400">
+          <p className="max-w-xs text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
             Need clarification on points verification, caps, or voucher expirations?
           </p>
 
@@ -84,7 +84,7 @@ const AmbassadorFAQ = () => {
             </span>
             <a
               href={`mailto:${siteConfig.email}`}
-              className="hover:text-indigo-650 font-mono text-xs font-bold text-zinc-900 underline transition-colors dark:text-white dark:hover:text-indigo-400"
+              className="font-mono text-xs font-bold text-zinc-900 underline transition-colors hover:text-indigo-600 dark:text-white dark:hover:text-indigo-400"
             >
               {siteConfig.email}
             </a>
@@ -127,7 +127,7 @@ const AmbassadorFAQ = () => {
                       transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
                       className="overflow-hidden"
                     >
-                      <div className="text-zinc-555 pr-8 pb-6 text-xs leading-relaxed font-medium md:text-sm dark:text-zinc-400">
+                      <div className="pr-8 pb-6 text-xs leading-relaxed font-medium text-zinc-500 md:text-sm dark:text-zinc-400">
                         {faq.answer}
                       </div>
                     </motion.div>

@@ -6,10 +6,9 @@ import { ArrowLeft, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { siteConfig } from "@/config/site";
 
 const AmbassadorNav = () => {
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [hoveredLink, setHoveredLink] = useState<string | null>(null);
 
@@ -32,7 +31,7 @@ const AmbassadorNav = () => {
           className="flex items-center rounded-full border border-zinc-200/50 bg-white/60 px-4 py-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.05)] backdrop-blur-xl transition-all duration-300 hover:border-indigo-500/20 dark:border-white/5 dark:bg-zinc-950/60 dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
         >
           <Link href="/" className="group flex items-center gap-3 active:scale-[0.98]">
-            <div className="bg-zinc-150 relative flex h-7 w-7 items-center justify-center overflow-hidden rounded-xl shadow-inner dark:bg-white/5">
+            <div className="relative flex h-7 w-7 items-center justify-center overflow-hidden rounded-xl bg-zinc-100 shadow-inner dark:bg-white/5">
               <Image
                 src="/veriworkly-logo.png"
                 alt="VeriWorkly Logo"
@@ -44,7 +43,7 @@ const AmbassadorNav = () => {
             <span className="font-mono text-sm font-semibold tracking-tight text-zinc-900 dark:text-white">
               VeriWorkly
             </span>
-            <span className="text-indigo-650 rounded-full border border-indigo-500/10 bg-indigo-500/10 px-2 py-0.5 font-sans text-[8px] font-black tracking-widest uppercase dark:text-indigo-400">
+            <span className="rounded-full border border-indigo-500/10 bg-indigo-500/10 px-2 py-0.5 font-sans text-[8px] font-black tracking-widest text-indigo-600 uppercase dark:text-indigo-400">
               Campus
             </span>
           </Link>
@@ -69,7 +68,7 @@ const AmbassadorNav = () => {
               {hoveredLink === item.label && (
                 <motion.span
                   layoutId="nav-hover-pill"
-                  className="bg-zinc-150/85 absolute inset-0 z-0 rounded-full dark:bg-white/5"
+                  className="absolute inset-0 z-0 rounded-full bg-zinc-100/85 dark:bg-white/5"
                   transition={{ type: "spring", stiffness: 350, damping: 30 }}
                 />
               )}
@@ -88,12 +87,13 @@ const AmbassadorNav = () => {
 
           {mounted && (
             <button
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              type="button"
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
               className="cursor-pointer border-r border-zinc-200/50 p-1 pr-2.5 text-zinc-600 transition-all hover:text-zinc-900 active:scale-95 dark:border-white/10 dark:text-zinc-400 dark:hover:text-white"
-              aria-label="Toggle theme"
+              aria-label={`Switch to ${resolvedTheme === "dark" ? "light" : "dark"} theme`}
             >
               <AnimatePresence mode="wait">
-                {theme === "dark" ? (
+                {resolvedTheme === "dark" ? (
                   <motion.div
                     key="sun"
                     initial={{ scale: 0, rotate: -90 }}
@@ -119,7 +119,7 @@ const AmbassadorNav = () => {
           )}
 
           <Link
-            href={`${siteConfig.links.app}/ambassador`}
+            href="/ambassador/apply"
             className="py-1.8 relative inline-flex items-center justify-center rounded-full bg-zinc-950 px-4 text-[10px] font-black tracking-wider text-white uppercase transition-all duration-300 hover:bg-zinc-900 active:scale-[0.97] dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100"
           >
             Apply Program

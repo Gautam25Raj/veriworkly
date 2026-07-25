@@ -144,6 +144,7 @@ const AffiliateFooter = () => {
                 <Link
                   href={siteConfig.links.twitter}
                   target="_blank"
+                  rel="noopener noreferrer"
                   className="hover:text-foreground flex items-center gap-2 transition-colors"
                 >
                   <TwitterXIcon className="h-3.5 w-3.5" />
@@ -154,6 +155,7 @@ const AffiliateFooter = () => {
                 <Link
                   href={siteConfig.links.github}
                   target="_blank"
+                  rel="noopener noreferrer"
                   className="hover:text-foreground flex items-center gap-2 transition-colors"
                 >
                   <GithubIcon className="h-3.5 w-3.5" />
@@ -164,6 +166,7 @@ const AffiliateFooter = () => {
                 <Link
                   href={siteConfig.links.linkedin}
                   target="_blank"
+                  rel="noopener noreferrer"
                   className="hover:text-foreground flex items-center gap-2 transition-colors"
                 >
                   <LinkedInIcon className="h-3.5 w-3.5" />
@@ -174,6 +177,7 @@ const AffiliateFooter = () => {
                 <Link
                   href="https://discord.gg/veriworkly"
                   target="_blank"
+                  rel="noopener noreferrer"
                   className="hover:text-foreground flex items-center gap-2 transition-colors"
                 >
                   <MessageSquare className="h-3.5 w-3.5" />

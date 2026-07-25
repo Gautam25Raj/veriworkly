@@ -1,22 +1,28 @@
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
 import { siteConfig } from "@/config/site";
 import AmbassadorNav from "@/features/ambassador/AmbassadorNav";
 import AmbassadorHero from "@/features/ambassador/AmbassadorHero";
 import AmbassadorPerks from "@/features/ambassador/AmbassadorPerks";
-import AmbassadorPlaybook from "@/features/ambassador/AmbassadorPlaybook";
-import AmbassadorCalculator from "@/features/ambassador/AmbassadorCalculator";
 import AmbassadorLeaderboard from "@/features/ambassador/AmbassadorLeaderboard";
 import AmbassadorFAQ from "@/features/ambassador/AmbassadorFAQ";
 import AmbassadorFooter from "@/features/ambassador/AmbassadorFooter";
 import "./ambassador.css";
 
+const AmbassadorPlaybook = dynamic(() => import("@/features/ambassador/AmbassadorPlaybook"));
+const AmbassadorCalculator = dynamic(() => import("@/features/ambassador/AmbassadorCalculator"));
+
 const pageUrl = `${siteConfig.url}/ambassador`;
-const pageOgImage = `${siteConfig.url}/og/ambassador-page-og.png`;
+const pageOgImage = `${siteConfig.url}/api/og?title=${encodeURIComponent(
+  "Student Ambassador Program",
+)}&description=${encodeURIComponent(
+  "Represent VeriWorkly on campus and unlock free Creator Pro access.",
+)}`;
 
 export const metadata: Metadata = {
   title: "Student Ambassador Program | VeriWorkly",
   description:
-    "Gated campus program for college students. Share local-first career editors, earn points for social shares or peer referrals, and unlock free Portfolio Pro access.",
+    "Gated campus program for college students. Share local-first career editors, earn points for social shares or peer referrals, and unlock free Creator Pro access.",
   alternates: {
     canonical: pageUrl,
     languages: {
@@ -26,7 +32,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Student Ambassador Program | VeriWorkly",
     description:
-      "Help your peers build professional resumes and portfolios. Earn point multipliers and redeem them for free Portfolio Pro upgrades.",
+      "Help your peers build professional resumes and portfolios. Earn point multipliers and redeem them for free Creator Pro upgrades.",
     url: pageUrl,
     siteName: siteConfig.shortName,
     type: "website",
@@ -43,7 +49,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Student Ambassador Program | VeriWorkly",
     description:
-      "Earn campus points and redeem them for free Portfolio Pro access as a student ambassador.",
+      "Earn campus points and redeem them for free Creator Pro access as a student ambassador.",
     images: [pageOgImage],
   },
 };
@@ -62,17 +68,23 @@ const AmbassadorPage = () => {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(ambassadorSchema) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(ambassadorSchema).replace(/</g, "\\u003c"),
+        }}
       />
 
       <div className="bg-background relative min-h-screen">
         <AmbassadorNav />
-        <AmbassadorHero />
-        <AmbassadorPerks />
-        <AmbassadorPlaybook />
-        <AmbassadorCalculator />
-        <AmbassadorLeaderboard />
-        <AmbassadorFAQ />
+
+        <main>
+          <AmbassadorHero />
+          <AmbassadorPerks />
+          <AmbassadorPlaybook />
+          <AmbassadorCalculator />
+          <AmbassadorLeaderboard />
+          <AmbassadorFAQ />
+        </main>
+
         <AmbassadorFooter />
       </div>
     </>

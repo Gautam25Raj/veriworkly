@@ -162,16 +162,16 @@ const AmbassadorCalculator = () => {
       <div className="grid grid-cols-1 items-start gap-12 lg:grid-cols-[1fr_0.9fr]">
         <div className="space-y-8">
           <div className="space-y-3">
-            <span className="text-indigo-650 inline-flex items-center gap-1.5 font-mono text-[10px] font-black tracking-widest uppercase dark:text-indigo-400">
+            <span className="inline-flex items-center gap-1.5 font-mono text-[10px] font-black tracking-widest text-indigo-600 uppercase dark:text-indigo-400">
               <Sparkles className="h-3.5 w-3.5" />
               Points Offset Calculator
             </span>
             <h2 className="text-4xl leading-[0.95] font-black tracking-tight text-zinc-950 uppercase sm:text-5xl md:text-6xl dark:text-white">
               ESTIMATE <br /> YOUR POINTS
             </h2>
-            <p className="text-zinc-555 max-w-md text-sm leading-relaxed dark:text-zinc-400">
+            <p className="max-w-md text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
               Adjust peer invitations and content publications to calculate your point yield and
-              unlocked Portfolio Pro license vouchers.
+              unlocked Creator Pro license vouchers.
             </p>
           </div>
 
@@ -179,7 +179,10 @@ const AmbassadorCalculator = () => {
             <CounterStepper
               label="Standard Invites"
               value={standardInvites}
-              onChange={setStandardInvites}
+              onChange={(val) => {
+                setStandardInvites(val);
+                if (proUpgrades > val) setProUpgrades(val);
+              }}
               icon={Share2}
               description="+10 points per verified peer invite"
               colorClass="text-blue-500"
@@ -188,9 +191,10 @@ const AmbassadorCalculator = () => {
             <CounterStepper
               label="Pro Upgrades"
               value={proUpgrades}
-              onChange={setProUpgrades}
+              max={standardInvites}
+              onChange={(val) => setProUpgrades(Math.min(val, standardInvites))}
               icon={Trophy}
-              description="+30 points bonus per Pro upgrade"
+              description="+30 points bonus per Pro upgrade (from invites)"
               colorClass="text-amber-500"
             />
 
@@ -198,7 +202,7 @@ const AmbassadorCalculator = () => {
               label="Video Reviews"
               value={videoReviews}
               onChange={setVideoReviews}
-              max={15}
+              max={30}
               icon={Video}
               description="+50 points per approved video post"
               colorClass="text-rose-500"
@@ -208,7 +212,7 @@ const AmbassadorCalculator = () => {
               label="Blog Articles"
               value={blogArticles}
               onChange={setBlogArticles}
-              max={15}
+              max={30}
               icon={FileText}
               description="+40 points per written walkthrough"
               colorClass="text-emerald-500"

@@ -1,18 +1,24 @@
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
 import { siteConfig } from "@/config/site";
 import AffiliateNav from "@/features/affiliate/AffiliateNav";
 import AffiliateFooter from "@/features/affiliate/AffiliateFooter";
 import AffiliateHero from "@/features/affiliate/AffiliateHero";
 import AffiliateTiers from "@/features/affiliate/AffiliateTiers";
-import AffiliateCalculator from "@/features/affiliate/AffiliateCalculator";
 import AffiliateBento from "@/features/affiliate/AffiliateBento";
 import AffiliateComparison from "@/features/affiliate/AffiliateComparison";
 import AffiliateResources from "@/features/affiliate/AffiliateResources";
 import AffiliateFAQ from "@/features/affiliate/AffiliateFAQ";
 import "./affiliate.css";
 
+const AffiliateCalculator = dynamic(() => import("@/features/affiliate/AffiliateCalculator"));
+
 const pageUrl = `${siteConfig.url}/affiliate`;
-const pageOgImage = `${siteConfig.url}/og/affiliate-page-og.png`;
+const pageOgImage = `${siteConfig.url}/api/og?title=${encodeURIComponent(
+  "Partner Affiliate Program",
+)}&description=${encodeURIComponent(
+  "Earn recurring commissions of 2%, 3%, or 5% referring VeriWorkly.",
+)}`;
 
 export const metadata: Metadata = {
   title: "Partner Affiliate Program | VeriWorkly",
@@ -62,19 +68,24 @@ const AffiliatePage = () => {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(affiliateSchema) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(affiliateSchema).replace(/</g, "\\u003c"),
+        }}
       />
 
       <div className="bg-background text-foreground relative flex min-h-screen flex-col justify-between transition-colors duration-300">
         <div>
           <AffiliateNav />
-          <AffiliateHero />
-          <AffiliateTiers />
-          <AffiliateCalculator />
-          <AffiliateBento />
-          <AffiliateComparison />
-          <AffiliateResources />
-          <AffiliateFAQ />
+
+          <main>
+            <AffiliateHero />
+            <AffiliateTiers />
+            <AffiliateCalculator />
+            <AffiliateBento />
+            <AffiliateComparison />
+            <AffiliateResources />
+            <AffiliateFAQ />
+          </main>
         </div>
 
         <AffiliateFooter />

@@ -43,7 +43,7 @@ const AmbassadorFooter = () => {
   ];
 
   return (
-    <footer className="bg-background text-zinc-550 relative w-full overflow-hidden border-t border-zinc-200/80 pt-24 pb-12 text-xs transition-colors duration-300 dark:border-white/10 dark:text-zinc-400">
+    <footer className="bg-background relative w-full overflow-hidden border-t border-zinc-200/80 pt-24 pb-12 text-xs text-zinc-500 transition-colors duration-300 dark:border-white/10 dark:text-zinc-400">
       <div className="pointer-events-none absolute bottom-0 left-1/2 z-0 w-full -translate-x-1/2 overflow-hidden text-center select-none">
         <span className="block translate-y-[20%] text-[12vw] leading-none font-black tracking-tighter text-zinc-950/2 uppercase dark:text-white/1.5">
           VeriWorkly
@@ -89,7 +89,7 @@ const AmbassadorFooter = () => {
                 href={siteConfig.links.linkedin}
                 target="_blank"
                 rel="noreferrer"
-                className="dark:text-zinc-505 text-zinc-400 transition-colors duration-200 hover:text-zinc-900 dark:hover:text-white"
+                className="text-zinc-400 transition-colors duration-200 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-white"
                 aria-label="LinkedIn"
               >
                 <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24">
@@ -100,7 +100,7 @@ const AmbassadorFooter = () => {
                 href={siteConfig.links.twitter}
                 target="_blank"
                 rel="noreferrer"
-                className="dark:text-zinc-505 text-zinc-400 transition-colors duration-200 hover:text-zinc-900 dark:hover:text-white"
+                className="text-zinc-400 transition-colors duration-200 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-white"
                 aria-label="Twitter"
               >
                 <svg className="h-3.5 w-3.5 fill-current" viewBox="0 0 24 24">
@@ -111,7 +111,7 @@ const AmbassadorFooter = () => {
                 href="https://instagram.com/veriworkly"
                 target="_blank"
                 rel="noreferrer"
-                className="dark:text-zinc-505 text-zinc-400 transition-colors duration-200 hover:text-zinc-900 dark:hover:text-white"
+                className="text-zinc-400 transition-colors duration-200 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-white"
                 aria-label="Instagram"
               >
                 <svg
@@ -152,7 +152,7 @@ const AmbassadorFooter = () => {
           </div>
         </div>
 
-        <div className="text-zinc-450 flex flex-col items-center justify-between gap-6 border-t border-zinc-200 pt-8 text-[10px] font-bold tracking-wider uppercase md:flex-row dark:border-white/10 dark:text-zinc-500">
+        <div className="flex flex-col items-center justify-between gap-6 border-t border-zinc-200 pt-8 text-[10px] font-bold tracking-wider text-zinc-500 uppercase md:flex-row dark:border-white/10 dark:text-zinc-500">
           <div className="flex items-center gap-2 rounded-full border border-zinc-200/60 bg-zinc-50 px-3 py-1 shadow-inner dark:border-white/10 dark:bg-zinc-900/40">
             <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500" />
             <span>All systems operational</span>
@@ -168,13 +168,13 @@ const AmbassadorFooter = () => {
             </Link>
             <Link
               href="/terms"
-              className="hover:text-zinc-955 transition-colors duration-200 dark:hover:text-white"
+              className="transition-colors duration-200 hover:text-zinc-950 dark:hover:text-white"
             >
               Terms of Use
             </Link>
             <Link
               href="/cookies"
-              className="hover:text-zinc-955 transition-colors duration-200 dark:hover:text-white"
+              className="transition-colors duration-200 hover:text-zinc-950 dark:hover:text-white"
             >
               Cookie Settings
             </Link>
@@ -183,7 +183,7 @@ const AmbassadorFooter = () => {
           <div>
             <button
               onClick={scrollToTop}
-              className="text-zinc-955 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-zinc-200 bg-zinc-50 shadow-xs transition-all hover:border-zinc-900 active:scale-95 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:border-white"
+              className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-zinc-200 bg-zinc-50 text-zinc-950 shadow-xs transition-all hover:border-zinc-900 active:scale-95 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:border-white"
               aria-label="Scroll to top"
             >
               <ArrowUp className="h-4 w-4" />

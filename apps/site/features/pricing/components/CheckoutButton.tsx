@@ -22,10 +22,15 @@ const CheckoutButton = ({
       disabled={loading || disabled}
       onClick={onClick}
       type="button"
+      aria-busy={loading || undefined}
     >
-      {loading ? <LoaderCircle className="size-4 animate-spin" /> : <Coins className="size-4" />}
+      {loading ? (
+        <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+      ) : (
+        <Coins className="size-4" aria-hidden="true" />
+      )}
       {loading ? "Opening secure checkout" : children}
-      {!loading ? <ArrowRight className="size-4" /> : null}
+      {!loading ? <ArrowRight className="size-4" aria-hidden="true" /> : null}
     </button>
   );
 };

@@ -48,9 +48,9 @@ const steps: PlaybookStep[] = [
   {
     num: "03",
     title: "Claim Pro licenses",
-    subtitle: "Accumulate points and exchange for Portfolio Pro.",
+    subtitle: "Accumulate points and exchange for Creator Pro.",
     description:
-      "Redeem 1,500 point blocks for 30-day premium Portfolio Pro licenses. Tokens stack, allowing you to secure permanent pro access on your profile.",
+      "Redeem 1,500 point blocks for 30-day premium Creator Pro licenses. Tokens stack, allowing you to secure permanent pro access on your profile.",
     badgeLabel: "Step 3: Exchange",
     icon: Award,
   },
@@ -104,7 +104,7 @@ const AmbassadorPlaybook = () => {
     >
       <div className="playbook-card bg-background relative flex min-h-dvh items-center justify-center px-6">
         <div className="max-w-xl space-y-6 text-center">
-          <span className="text-indigo-650 flex items-center justify-center gap-2 text-[10px] font-black tracking-widest uppercase dark:text-indigo-400">
+          <span className="flex items-center justify-center gap-2 text-[10px] font-black tracking-widest text-indigo-600 uppercase dark:text-indigo-400">
             <ClipboardList className="h-4 w-4" />
             <span>Process</span>
           </span>
@@ -115,7 +115,7 @@ const AmbassadorPlaybook = () => {
             <br />
             WORKS
           </h2>
-          <p className="text-zinc-555 mx-auto max-w-md text-sm leading-relaxed dark:text-zinc-400">
+          <p className="mx-auto max-w-md text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
             Scroll down to watch steps stack and view the automated student leader credential
             process.
           </p>
@@ -141,7 +141,7 @@ const AmbassadorPlaybook = () => {
                     {step.num}
                   </span>
                   <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-[9px] font-bold tracking-widest text-zinc-900 uppercase dark:border-white/10 dark:bg-white/5 dark:text-white">
-                    <Icon className="text-indigo-650 h-3.5 w-3.5 dark:text-indigo-400" />
+                    <Icon className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
                     <span>{step.badgeLabel}</span>
                   </span>
                   <h3 className="text-3xl leading-[0.95] font-extrabold tracking-tight text-zinc-950 uppercase sm:text-4xl dark:text-white">
@@ -149,7 +149,7 @@ const AmbassadorPlaybook = () => {
                   </h3>
                 </div>
 
-                <p className="text-zinc-555 max-w-lg text-sm leading-relaxed dark:text-zinc-400">
+                <p className="max-w-lg text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
                   {step.description}
                 </p>
               </div>
@@ -161,7 +161,7 @@ const AmbassadorPlaybook = () => {
                     className="w-full max-w-90 space-y-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-md dark:border-white/10 dark:bg-zinc-900"
                   >
                     <div className="flex items-center justify-between border-b border-zinc-200 pb-3 dark:border-white/10">
-                      <span className="text-zinc-550 text-[10px] font-black tracking-widest uppercase dark:text-zinc-400">
+                      <span className="text-[10px] font-black tracking-widest text-zinc-500 uppercase dark:text-zinc-400">
                         Academic Validation
                       </span>
                       <span className="font-mono text-[9px] font-bold text-emerald-600 uppercase dark:text-emerald-400">
@@ -201,7 +201,7 @@ const AmbassadorPlaybook = () => {
                     className="w-full max-w-90 space-y-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-md dark:border-white/10 dark:bg-zinc-900"
                   >
                     <div className="flex items-center justify-between border-b border-zinc-200 pb-3 dark:border-white/10">
-                      <span className="text-zinc-550 text-[10px] font-black tracking-widest uppercase dark:text-zinc-400">
+                      <span className="text-[10px] font-black tracking-widest text-zinc-500 uppercase dark:text-zinc-400">
                         Share Verification
                       </span>
                       <span className="font-mono text-[9px] font-bold text-indigo-600 uppercase dark:text-indigo-400">
@@ -213,16 +213,16 @@ const AmbassadorPlaybook = () => {
                       <div className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-white/10 dark:bg-zinc-950">
                         <p className="text-xs leading-relaxed text-zinc-900 dark:text-white">
                           {'"Built my portfolio on '}
-                          <strong className="text-indigo-650 dark:text-indigo-400">
+                          <strong className="text-indigo-600 dark:text-indigo-400">
                             @veriworkly
                           </strong>
                           {" privately in 5 mins. Check it out: "}
-                          <span className="text-indigo-650 underline dark:text-indigo-400">
+                          <span className="text-indigo-600 underline dark:text-indigo-400">
                             alex.veriworkly.com
                           </span>
                           {'"'}
                         </p>
-                        <div className="dark:text-zinc-555 flex items-center gap-6 font-mono text-[10px] font-bold text-zinc-400">
+                        <div className="flex items-center gap-6 font-mono text-[10px] font-bold text-zinc-400 dark:text-zinc-500">
                           <span className="flex items-center gap-1">
                             <Heart className="h-3.5 w-3.5 fill-rose-500 text-rose-500" /> 148
                           </span>
@@ -246,7 +246,7 @@ const AmbassadorPlaybook = () => {
                     className="w-full max-w-90 space-y-4 rounded-2xl border border-zinc-200 bg-white p-6 shadow-md dark:border-white/10 dark:bg-zinc-900"
                   >
                     <div className="flex items-center justify-between border-b border-zinc-200 pb-3 dark:border-white/10">
-                      <span className="text-zinc-550 text-[10px] font-black tracking-widest uppercase dark:text-zinc-400">
+                      <span className="text-[10px] font-black tracking-widest text-zinc-500 uppercase dark:text-zinc-400">
                         Upgrade Hub
                       </span>
                       <span className="font-mono text-[9px] font-bold text-amber-600 uppercase dark:text-amber-500">
@@ -267,11 +267,11 @@ const AmbassadorPlaybook = () => {
 
                         <div className="flex items-start justify-between">
                           <div>
-                            <span className="text-zinc-450 block text-[8px] font-black tracking-widest uppercase">
+                            <span className="block text-[8px] font-black tracking-widest text-zinc-500 uppercase">
                               Upgrade Token
                             </span>
                             <h4 className="mt-0.5 text-xs font-bold tracking-tight text-white">
-                              Portfolio Pro Key
+                              Creator Pro Key
                             </h4>
                           </div>
                           <Award className="h-4.5 w-4.5 text-zinc-400" />

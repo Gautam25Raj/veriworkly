@@ -25,7 +25,7 @@ const AmbassadorPerks = () => {
       title: "Voucher Exchange",
       badge: "Milestone Claims",
       description:
-        "Claim permanent license keys instantly. Every block of 1,500 points can be redeemed for a 30-day premium Portfolio Pro voucher code.",
+        "Claim permanent license keys instantly. Every block of 1,500 points can be redeemed for a 30-day premium Creator Pro voucher code.",
       details: ["1500 points = 30-day upgrade key", "Stackable license extensions supported"],
     },
     {
@@ -49,7 +49,7 @@ const AmbassadorPerks = () => {
             <br />
             BENEFITS
           </h2>
-          <p className="text-zinc-555 max-w-sm text-sm leading-relaxed dark:text-zinc-400">
+          <p className="max-w-sm text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
             Structured points offsets, verification safeguards, and custom license inventory claims
             built for verified student leaders.
           </p>
@@ -65,7 +65,7 @@ const AmbassadorPerks = () => {
               transition={{ duration: 0.5, delay: idx * 0.05 }}
               className="group grid grid-cols-1 items-start gap-6 rounded-lg border-b border-zinc-200 px-4 py-10 transition-colors duration-300 hover:bg-zinc-50 md:grid-cols-[80px_1fr] dark:border-white/10 dark:hover:bg-white/2"
             >
-              <span className="group-hover:text-indigo-650 block font-mono text-4xl leading-none font-black text-zinc-300 transition-colors select-none dark:text-zinc-700 dark:group-hover:text-indigo-400">
+              <span className="block font-mono text-4xl leading-none font-black text-zinc-300 transition-colors select-none group-hover:text-indigo-600 dark:text-zinc-700 dark:group-hover:text-indigo-400">
                 {perk.num}
               </span>
 
@@ -74,16 +74,16 @@ const AmbassadorPerks = () => {
                   <h3 className="text-xl leading-none font-extrabold tracking-tight text-zinc-950 dark:text-white">
                     {perk.title}
                   </h3>
-                  <span className="text-zinc-555 rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-0.5 font-mono text-[9px] font-bold tracking-widest uppercase dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
+                  <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-0.5 font-mono text-[9px] font-bold tracking-widest text-zinc-500 uppercase dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
                     {perk.badge}
                   </span>
                 </div>
 
-                <p className="text-zinc-555 max-w-xl text-sm leading-relaxed dark:text-zinc-400">
+                <p className="max-w-xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
                   {perk.description}
                 </p>
 
-                <div className="text-zinc-450 flex flex-wrap gap-x-6 gap-y-2 pt-2 font-mono text-[10px] font-bold uppercase dark:text-zinc-500">
+                <div className="flex flex-wrap gap-x-6 gap-y-2 pt-2 font-mono text-[10px] font-bold text-zinc-500 uppercase dark:text-zinc-500">
                   {perk.details.map((detail, dIdx) => (
                     <span key={dIdx} className="flex items-center gap-1.5">
                       <span className="h-1.5 w-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400" />

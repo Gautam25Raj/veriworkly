@@ -1,5 +1,4 @@
-"use client";
-
+import type { ComponentType } from "react";
 import { ArrowUpRight, Check, X, Shield, Clock, BadgeDollarSign, Zap } from "lucide-react";
 
 interface ComparisonRow {
@@ -8,7 +7,7 @@ interface ComparisonRow {
   veriworkly: {
     value: string;
     description: string;
-    icon?: React.ComponentType<{ className?: string }>;
+    icon?: ComponentType<{ className?: string }>;
   };
   industry: {
     value: string;
@@ -31,16 +30,16 @@ const COMPARISON_DATA: ComparisonRow[] = [
     },
   },
   {
-    feature: "Cookie Attribution Window",
-    description: "Days allowed between referral click and signup.",
+    feature: "Referral Attribution",
+    description: "How long a referral link stays credited to you.",
     veriworkly: {
-      value: "60-Day Window",
-      description: "Attribution matches custom links up to two months.",
+      value: "No Expiry Window",
+      description: "Credited the first time your invitee signs in — it doesn't expire.",
       icon: Clock,
     },
     industry: {
       value: "30-Day Limit",
-      description: "Attribution drops after one month.",
+      description: "Attribution silently drops after about a month.",
     },
   },
   {
@@ -74,7 +73,7 @@ const COMPARISON_DATA: ComparisonRow[] = [
     description: "Tracking compliance and security.",
     veriworkly: {
       value: "Privacy Compliance",
-      description: "Cookie-safe tracking without invasive network pixels.",
+      description: "Referral clicks are logged directly, without third-party tracking pixels.",
       icon: Shield,
     },
     industry: {

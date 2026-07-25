@@ -1,28 +1,111 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+
 import { siteConfig } from "@/config/site";
+import { jsonLdScriptProps } from "@/utils/json-ld";
+import { buildPageMetadata } from "@/utils/metadata";
+import { isAdminUser } from "@/lib/admin";
+import { fetchServerApiData } from "@/lib/server-api";
 import PricingExperience from "@/features/pricing/PricingExperience";
 
-export const metadata: Metadata = {
-  title: "Pricing & AI Credit Packages | VeriWorkly",
+const pageUrl = `${siteConfig.url}/pricing`;
+const pageOgImage = `${siteConfig.url}/api/og?title=${encodeURIComponent(
+  "Pricing & AI Credit Packages",
+)}&description=${encodeURIComponent(
+  "Free resume builder, plus Creator Pro, AI credits, and time-boxed passes.",
+)}`;
+
+export const metadata: Metadata = buildPageMetadata({
+  path: "/pricing",
+  title: "Pricing: Free Resume Builder & AI Credit Packages | VeriWorkly",
   description:
-    "Get flexible access to VeriWorkly Portfolio Pro and AI credits for resume tailoring. Choose daily, weekly, monthly, or yearly packages.",
-  alternates: {
-    canonical: `${siteConfig.url}/pricing`,
-    languages: {
-      "en-US": `${siteConfig.url}/pricing`,
-    },
-  },
-  openGraph: {
-    title: "Pricing & AI Credit Packages | VeriWorkly",
-    description:
-      "Get flexible access to VeriWorkly Portfolio Pro and AI credits for resume tailoring. Choose daily, weekly, monthly, or yearly packages.",
-    url: `${siteConfig.url}/pricing`,
-    type: "website",
+    "The resume and cover letter editor is free, no login required. Add portfolio hosting, AI credits, or a short-term job-hunt pass when you need them.",
+  ogTitle: "Pay Only for What Your Job Search Actually Needs",
+  ogDescription:
+    "Free resume and cover letter editor. Add AI credits, portfolio hosting, or a 3-day/7-day pass — no forced bundle, no auto-renewal traps.",
+  twitterTitle: "Free resume builder. Pay only if you need more.",
+  twitterDescription:
+    "Creator Pro, standalone AI credits, or a time-boxed job-hunt pass — pick exactly what your search needs.",
+  image: pageOgImage,
+  imageAlt: "VeriWorkly Pricing & AI Credit Packages",
+  keywords: [
+    "VeriWorkly pricing",
+    "AI credit packages",
+    "resume builder pricing",
+    "portfolio hosting price",
+    "AI resume tailoring cost",
+  ],
+});
+
+const pricingSchema = {
+  "@context": "https://schema.org",
+  "@type": "Product",
+  name: "VeriWorkly Career Workspace",
+  description: siteConfig.description,
+  url: pageUrl,
+  brand: { "@type": "Brand", name: siteConfig.name },
+  offers: {
+    "@type": "AggregateOffer",
+    priceCurrency: "USD",
+    lowPrice: "0",
+    highPrice: "14.99",
+    offerCount: "7",
+    offers: [
+      { "@type": "Offer", name: "Free", price: "0", priceCurrency: "USD" },
+      { "@type": "Offer", name: "AI Standalone", price: "5.99", priceCurrency: "USD" },
+      { "@type": "Offer", name: "Creator Pro", price: "9.99", priceCurrency: "USD" },
+      {
+        "@type": "Offer",
+        name: "Job Hunter Bundle (monthly)",
+        price: "14.99",
+        priceCurrency: "USD",
+      },
+      {
+        "@type": "Offer",
+        name: "Job Hunter Bundle (annual, per month)",
+        price: "11.99",
+        priceCurrency: "USD",
+      },
+      { "@type": "Offer", name: "3-Day Sprint Pass", price: "2.99", priceCurrency: "USD" },
+      { "@type": "Offer", name: "7-Day Hunt Pass", price: "5.99", priceCurrency: "USD" },
+    ],
   },
 };
 
+/**
+ * Reads the session to decide whether checkout is unlocked. This is the only part of
+ * /pricing that touches cookies, so it is isolated behind its own Suspense boundary —
+ * otherwise the single `cookies()` call opts the entire route into dynamic rendering
+ * and the whole page (all of it static marketing content) is re-rendered per visit.
+ *
+ * Split out like this, the shell is prerendered and only this subtree streams in.
+ */
+const PricingGate = async () => {
+  const user = await fetchServerApiData<{ email: string | null }>("/users/me");
+  const paymentsBlocked = process.env.NODE_ENV === "production" && !isAdminUser(user);
+
+  return <PricingExperience paymentsBlocked={paymentsBlocked} />;
+};
+
 const PricingPage = () => {
-  return <PricingExperience />;
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={jsonLdScriptProps(pricingSchema)}
+      />
+
+      {/*
+        Fallback renders the identical page with checkout disabled. Every visitor except
+        the admin resolves to exactly this, so there is no visible swap — and defaulting
+        to "blocked" means a slow or failed session lookup can never flash an enabled
+        checkout button. The backend re-checks regardless.
+      */}
+      <Suspense fallback={<PricingExperience paymentsBlocked />}>
+        <PricingGate />
+      </Suspense>
+    </>
+  );
 };
 
 export default PricingPage;

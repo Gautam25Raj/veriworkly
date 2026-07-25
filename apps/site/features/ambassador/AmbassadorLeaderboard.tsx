@@ -65,9 +65,9 @@ const AmbassadorLeaderboard = () => {
             <br />
             STANDINGS
           </h2>
-          <p className="text-zinc-555 max-w-sm text-sm leading-relaxed dark:text-zinc-400">
-            Ranks are updated automatically based on peer registrations and approved creator
-            walkthroughs.
+          <p className="max-w-sm text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+            Sample campus standings. Leaderboard ranks are updated automatically based on active
+            peer registrations and approved creator walkthroughs.
           </p>
         </div>
 
@@ -82,12 +82,12 @@ const AmbassadorLeaderboard = () => {
                   className="group flex w-full cursor-pointer items-center justify-between rounded-lg px-4 py-6 text-left transition-colors duration-300 hover:bg-zinc-50 dark:hover:bg-white/2"
                 >
                   <div className="flex items-center gap-6">
-                    <span className="text-zinc-450 block w-8 font-mono text-xl leading-none font-black dark:text-zinc-500">
+                    <span className="block w-8 font-mono text-xl leading-none font-black text-zinc-500 dark:text-zinc-500">
                       {leader.rank}
                     </span>
 
                     <div>
-                      <h4 className="text-zinc-955 text-base font-extrabold tracking-tight dark:text-white">
+                      <h4 className="text-base font-extrabold tracking-tight text-zinc-950 dark:text-white">
                         {leader.name}
                       </h4>
                       <span className="mt-1 block font-mono text-[10px] tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
@@ -98,7 +98,7 @@ const AmbassadorLeaderboard = () => {
 
                   <div className="flex items-center gap-6">
                     <div className="text-right">
-                      <span className="text-zinc-955 block font-mono text-base font-black dark:text-white">
+                      <span className="block font-mono text-base font-black text-zinc-950 dark:text-white">
                         {leader.points.toLocaleString()}
                       </span>
                       <span className="mt-0.5 block text-[8px] font-black tracking-widest text-zinc-400 uppercase dark:text-zinc-500">

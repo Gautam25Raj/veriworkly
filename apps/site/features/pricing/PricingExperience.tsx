@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { siteConfig } from "@/config/site";
 import { ApiRequestError, fetchApiData } from "@/utils/fetchApiData";
 import { type ProductKey, type BillingInterval } from "./data/pricingData";
@@ -9,29 +9,15 @@ import PricingHero from "./components/PricingHero";
 import PricingAlaCarte from "./components/PricingAlaCarte";
 import PricingComparison from "./components/PricingComparison";
 
-const PricingExperience = () => {
+// `paymentsBlocked` is computed server-side (see app/(marketing)/pricing/page.tsx) from the
+// server-only ADMIN_EMAIL, so the admin's email address never reaches the client bundle — only
+// this boolean does. The backend's BillingController.assertPaymentsEnabled is still the actual
+// enforcement point; this only drives the pre-emptive disabled UI.
+const PricingExperience = ({ paymentsBlocked }: { paymentsBlocked: boolean }) => {
   const [bundleInterval, setBundleInterval] = useState<"monthly" | "annual">("annual");
   const [customPlan, setCustomPlan] = useState<"portfolio_pro" | "ai_credits">("portfolio_pro");
   const [loading, setLoading] = useState("");
   const [error, setError] = useState("");
-  const [user, setUser] = useState<{ email?: string | null } | null>(null);
-
-  useEffect(() => {
-    fetchApiData<{ email: string | null; name: string | null }>("/users/me")
-      .then((data) => {
-        setUser(data);
-      })
-      .catch(() => {
-        setUser(null);
-      });
-  }, []);
-
-  const isProd = process.env.NODE_ENV === "production";
-  const adminEmail = (
-    process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ashragautam25@gmail.com"
-  ).toLowerCase();
-  const isAdmin = user && user.email && user.email.toLowerCase() === adminEmail;
-  const paymentsBlocked = isProd && !isAdmin;
 
   const checkout = async (productKey: ProductKey, interval: BillingInterval) => {
     if (paymentsBlocked) return;
@@ -58,7 +44,7 @@ const PricingExperience = () => {
   };
 
   return (
-    <main className="bg-background text-foreground overflow-hidden">
+    <div className="bg-background text-foreground overflow-hidden">
       <PricingHero
         bundleInterval={bundleInterval}
         setBundleInterval={setBundleInterval}
@@ -81,7 +67,7 @@ const PricingExperience = () => {
         paymentsBlocked={paymentsBlocked}
         onCheckout={checkout}
       />
-    </main>
+    </div>
   );
 };
 

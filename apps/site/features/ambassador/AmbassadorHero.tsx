@@ -1,25 +1,31 @@
 "use client";
 
+import Image from "next/image";
 import { motion, LayoutGroup } from "framer-motion";
 import { ArrowRight, Sparkles, Award, Shield, Zap } from "lucide-react";
 import Link from "next/link";
 import Floating, { FloatingElement } from "@/components/ui/parallax-floating";
 import { TextRotate } from "@/components/ui/text-rotate";
-import { siteConfig } from "@/config/site";
 
 const AmbassadorHero = () => {
   return (
     <section className="ambassador-bg-noise relative flex min-h-dvh w-full flex-col items-center justify-center overflow-hidden pt-24 pb-20 md:overflow-visible">
       <Floating sensitivity={-0.5} className="pointer-events-none h-full select-none">
         <FloatingElement depth={0.6} className="top-[15%] left-[3%] z-10 md:top-[22%] md:left-[8%]">
-          <motion.img
-            src="https://images.unsplash.com/photo-1531482615713-2afd69097998?q=80&w=350&auto=format&fit=crop"
-            alt="Student Coder"
-            className="h-16 w-20 -rotate-6 cursor-pointer rounded-2xl border border-zinc-200/50 object-cover shadow-2xl transition-transform duration-200 hover:scale-105 sm:h-20 sm:w-28 md:h-24 md:w-32 lg:h-28 lg:w-36 dark:border-white/10"
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-          />
+            className="h-16 w-20 -rotate-6 overflow-hidden rounded-2xl border border-zinc-200/50 shadow-2xl transition-transform duration-200 hover:scale-105 sm:h-20 sm:w-28 md:h-24 md:w-32 lg:h-28 lg:w-36 dark:border-white/10"
+          >
+            <Image
+              src="https://images.unsplash.com/photo-1531482615713-2afd69097998?q=80&w=350&auto=format&fit=crop"
+              alt="Student Working on Code"
+              width={350}
+              height={280}
+              className="h-full w-full object-cover"
+            />
+          </motion.div>
         </FloatingElement>
 
         <FloatingElement
@@ -34,7 +40,7 @@ const AmbassadorHero = () => {
           >
             <div className="flex items-start justify-between">
               <div>
-                <span className="text-indigo-650 block text-[8px] leading-none font-black tracking-widest uppercase dark:text-indigo-400">
+                <span className="block text-[8px] leading-none font-black tracking-widest text-indigo-600 uppercase dark:text-indigo-400">
                   VW Milestone Key
                 </span>
                 <span className="mt-1.5 block font-mono text-xs font-bold tracking-widest text-zinc-900 dark:text-white">
@@ -57,7 +63,7 @@ const AmbassadorHero = () => {
             transition={{ delay: 0.9 }}
           >
             <div>
-              <span className="text-indigo-650 block text-[8px] font-black tracking-widest uppercase dark:text-indigo-400">
+              <span className="block text-[8px] font-black tracking-widest text-indigo-600 uppercase dark:text-indigo-400">
                 VeriWorkly Campus ID
               </span>
               <h4 className="mt-0.5 text-xs font-extrabold tracking-tight text-zinc-900 dark:text-white">
@@ -87,7 +93,7 @@ const AmbassadorHero = () => {
               <Zap className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
             </div>
             <div>
-              <span className="dark:text-zinc-505 block text-[8px] leading-none font-bold tracking-wider text-zinc-400 uppercase">
+              <span className="block text-[8px] leading-none font-bold tracking-wider text-zinc-400 uppercase dark:text-zinc-500">
                 Leader Points
               </span>
               <span className="mt-0.5 block text-xs font-extrabold tracking-tight text-zinc-900 dark:text-white">
@@ -101,14 +107,20 @@ const AmbassadorHero = () => {
           depth={0.8}
           className="top-[2%] left-[45%] z-10 -translate-x-1/2 md:top-[4%] md:left-[50%]"
         >
-          <motion.img
-            src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=350&auto=format&fit=crop"
-            alt="Student collaboration"
-            className="h-16 w-24 rotate-[4deg] cursor-pointer rounded-2xl border border-zinc-200/50 object-cover shadow-2xl transition-transform duration-200 hover:scale-105 sm:h-22 sm:w-32 md:h-26 md:w-36 lg:h-30 lg:w-40 dark:border-white/10"
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 1.3 }}
-          />
+            className="h-16 w-24 rotate-[4deg] overflow-hidden rounded-2xl border border-zinc-200/50 shadow-2xl transition-transform duration-200 hover:scale-105 sm:h-22 sm:w-32 md:h-26 md:w-36 lg:h-30 lg:w-40 dark:border-white/10"
+          >
+            <Image
+              src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=350&auto=format&fit=crop"
+              alt="Student Collaboration Session"
+              width={350}
+              height={280}
+              className="h-full w-full object-cover"
+            />
+          </motion.div>
         </FloatingElement>
       </Floating>
 
@@ -117,22 +129,32 @@ const AmbassadorHero = () => {
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="text-indigo-650 mb-6 inline-flex items-center gap-2 rounded-full border border-indigo-500/15 bg-indigo-500/5 px-4 py-1.5 font-sans text-[9px] font-black tracking-widest uppercase shadow-xs dark:border-indigo-500/20 dark:text-indigo-400"
+          className="mb-6 inline-flex items-center gap-2 rounded-full border border-indigo-500/15 bg-indigo-500/5 px-4 py-1.5 font-sans text-[9px] font-black tracking-widest text-indigo-600 uppercase shadow-xs dark:border-indigo-500/20 dark:text-indigo-400"
         >
           <Sparkles className="h-3.5 w-3.5 animate-pulse text-indigo-500 dark:text-indigo-400" />
           <span>Campus Network Program</span>
         </motion.div>
 
+        {/*
+          TextRotate splits its text into one element per grapheme to animate them, so
+          the rendered heading exposes an accessible name like "Make it f u n". A static
+          aria-label gives assistive tech (and anything reading the accessibility tree)
+          the real sentence, and the animated subtree is hidden from it entirely.
+        */}
         <motion.h1
+          aria-label="Represent VeriWorkly. Make it fun."
           className="text-3xl leading-[1.05] font-extrabold tracking-tight text-zinc-950 sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl dark:text-white"
           animate={{ opacity: 1, y: 0 }}
           initial={{ opacity: 0, y: 20 }}
           transition={{ duration: 0.2, ease: "easeOut", delay: 0.1 }}
         >
-          Represent VeriWorkly. <br />
+          <span aria-hidden="true">
+            Represent VeriWorkly. <br />
+          </span>
           <LayoutGroup>
             <motion.span
               layout
+              aria-hidden="true"
               className="flex flex-wrap items-center justify-center text-center whitespace-pre"
             >
               <motion.span
@@ -153,7 +175,7 @@ const AmbassadorHero = () => {
                   "fancy 💅",
                   "yours 🔥",
                 ]}
-                mainClassName="overflow-hidden pr-3 text-indigo-650 dark:text-indigo-450 py-0 pb-1 md:pb-2 rounded-xl"
+                mainClassName="overflow-hidden pr-3 text-indigo-600 dark:text-indigo-400 py-0 pb-1 md:pb-2 rounded-xl"
                 staggerDuration={0.03}
                 staggerFrom="last"
                 rotationInterval={2500}
@@ -164,13 +186,13 @@ const AmbassadorHero = () => {
         </motion.h1>
 
         <motion.p
-          className="text-zinc-550 mx-auto max-w-xl pt-6 text-sm font-semibold sm:pt-8 sm:text-base md:pt-10 md:text-lg lg:text-xl dark:text-zinc-400"
+          className="mx-auto max-w-xl pt-6 text-sm font-semibold text-zinc-500 sm:pt-8 sm:text-base md:pt-10 md:text-lg lg:text-xl dark:text-zinc-400"
           animate={{ opacity: 1, y: 0 }}
           initial={{ opacity: 0, y: 20 }}
           transition={{ duration: 0.2, ease: "easeOut", delay: 0.3 }}
         >
           Share local-first career editors with classmates on campus. Accumulate points, secure
-          nodes, and unlock permanent Portfolio Pro upgrades.
+          nodes, and unlock permanent Creator Pro upgrades.
         </motion.p>
 
         <motion.div
@@ -180,7 +202,7 @@ const AmbassadorHero = () => {
           className="mt-8 flex w-full flex-col items-center justify-center gap-4 sm:mt-12 sm:w-auto sm:flex-row"
         >
           <Link
-            href={`${siteConfig.links.app}/ambassador`}
+            href="/ambassador/apply"
             className="inline-flex w-full cursor-pointer items-center justify-center rounded-full border border-zinc-950/10 bg-zinc-950 px-8 py-4 text-xs font-black tracking-wider text-white uppercase shadow-lg transition-all hover:bg-zinc-900 active:scale-[0.98] sm:w-auto dark:border-white/20 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100"
           >
             Join Campus Crew

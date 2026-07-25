@@ -8,12 +8,12 @@ const faqItems = [
   {
     question: "How do referrals get tracked?",
     answer:
-      "When someone clicks your partner link, a cookie is saved in their browser with a 60-day duration. If they subscribe to any paid plan within those 60 days, the conversion is linked to your partner dashboard.",
+      "When someone visits your partner link, we log the click, and the referral is attached to their account the first time they sign in through that link. It stays linked to their account from that point on — there's no cookie or short attribution window to race against.",
   },
   {
     question: "When and how are payouts processed?",
     answer:
-      "Commission payouts are processed monthly. Once your dashboard balance reaches the minimum threshold of $25.00, you can request a payout. Transactions are reviewed manually to prevent abuse and processed via Stripe or local payout methods.",
+      "Payouts are reviewed manually. Once your dashboard balance reaches the minimum threshold of $25.00, you can request a payout. Our team reviews each request to prevent abuse before releasing funds. Billing runs on Dodo Payments; payouts themselves are currently issued directly by our team rather than on an automatic schedule.",
   },
   {
     question: "Why are VeriWorkly's commission rates set to 2% - 5% recurring?",
@@ -23,12 +23,12 @@ const faqItems = [
   {
     question: "Does my earned commission ever expire?",
     answer:
-      "For active accounts with balances under $25.00, your earnings will not expire. If your balance exceeds $25.00, we will send automatic reminders asking you to submit a withdrawal request. If your account is inactive (no logins for 3 months / 90 days), your status changes to 'Inactive'. You then have exactly 60 days to claim your accumulated balance. If unclaimed within this grace period, your balance expires and all associated referrals are lost.",
+      "No. Your earned commission balance does not expire. Commissions are reviewed and released to your available balance over time, and you can request a payout whenever you're above the $25.00 minimum — there's no inactivity window or deadline to claim it.",
   },
   {
     question: "Are self-referrals permitted?",
     answer:
-      "No. Self-referrals are strictly prohibited. The system filters IP addresses, devices, and payment email domains to identify and flag self-referral attempts automatically. Referrals must be genuine, independent users.",
+      "No. You can't enroll your own referral code on your own account, and each account can only ever be linked to one referrer. Our team manually reviews referral and commission activity for abuse, and we reserve the right to reverse commissions or suspend accounts that violate these terms.",
   },
   {
     question: "Can I run paid advertisements to my link?",

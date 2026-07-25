@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import { ArrowRight, Boxes, Clock3, FileWarning, Lock, ShieldAlert, Wrench } from "lucide-react";
 import { GithubIcon } from "@veriworkly/ui";
 import { siteConfig } from "@/config/site";
+import { buildPageMetadata } from "@/utils/metadata";
+import { jsonLdScriptProps } from "@/utils/json-ld";
 import InteractiveCTA from "@/features/marketing/cta/InteractiveCTA";
 import { Reveal } from "@/components/marketing/Reveal";
 import { SectionEyebrow } from "@/components/marketing/SectionEyebrow";
 import SecurityBoundaryDiagram from "@/features/security/SecurityBoundaryDiagram";
 
 const pageUrl = `${siteConfig.url}/security`;
-const pageOgImage = `${siteConfig.url}/og/security-page-og.png`;
 
 const supportEmail = siteConfig.email;
 const supportEmailHref = `mailto:${supportEmail}`;
@@ -16,40 +17,27 @@ const supportEmailHref = `mailto:${supportEmail}`;
 const githubDiscussionsUrl = `${siteConfig.links.github}/discussions`;
 const githubSecurityPolicyUrl = "https://github.com/VeriWorkly/veriworkly/blob/master/SECURITY.md";
 
-export const metadata: Metadata = {
-  title: "AI Security & Privacy Policy | VeriWorkly",
+export const metadata: Metadata = buildPageMetadata({
+  path: "/security",
+  title: "Security & Responsible Disclosure Policy | VeriWorkly",
   description:
-    "Learn how we secure your data: local-first browser storage, encrypted cloud sync, and stateless, privacy-first AI resume tailoring.",
-  alternates: {
-    canonical: pageUrl,
-    languages: {
-      "en-US": pageUrl,
-    },
-  },
-  openGraph: {
-    title: "Security & Encryption Policy | VeriWorkly",
-    description:
-      "Learn how we secure your resumes, web portfolios, and credentials using local-first storage and authenticated cloud encryption.",
-    url: pageUrl,
-    siteName: siteConfig.shortName,
-    type: "website",
-    images: [
-      {
-        url: pageOgImage,
-        width: 1200,
-        height: 630,
-        alt: `${siteConfig.shortName} Security Overview`,
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Security & Encryption Policy | VeriWorkly",
-    description:
-      "A deep dive into VeriWorkly's sandboxes, IndexedDB databases, and E2E security parameters.",
-    images: [pageOgImage],
-  },
-};
+    "How we secure your data: local-first browser storage, encrypted cloud sync, OTP authentication, and a responsible disclosure process for reporting flaws.",
+  ogTitle: "Sovereign Security for Your Career Records",
+  ogDescription:
+    "Local-first storage, decoupled document sandboxes, and a 24-hour response commitment on every security report.",
+  twitterTitle: "Found a bug? Here's exactly what happens next.",
+  twitterDescription:
+    "Our security architecture and responsible disclosure process, in plain language — report privately, get acknowledged within 24 hours.",
+  image: "/og/security-page-og.png",
+  imageAlt: `${siteConfig.shortName} Security Overview`,
+  keywords: [
+    "VeriWorkly security",
+    "responsible disclosure policy",
+    "local-first data security",
+    "secure resume builder",
+    "vulnerability disclosure program",
+  ],
+});
 
 const encryptionBoundaries = [
   {
@@ -104,13 +92,14 @@ const SecurityPage = () => {
     url: pageUrl,
     description:
       "Security architecture, sandbox boundaries, and responsible disclosure procedures.",
+    dateModified: "2026-07-23",
   };
 
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(webPageSchema) }}
+        dangerouslySetInnerHTML={jsonLdScriptProps(webPageSchema)}
       />
 
       <section className="relative w-full overflow-hidden bg-zinc-950 pt-32 pb-24 md:pt-40 md:pb-28">
@@ -118,15 +107,15 @@ const SecurityPage = () => {
 
         <div className="relative z-10 mx-auto grid max-w-350 gap-16 px-6 md:px-8 lg:grid-cols-12 lg:items-center lg:gap-12">
           <div className="lg:col-span-7">
-            <Reveal>
+            <Reveal priority>
               <SectionEyebrow icon={Lock} label="Security" />
             </Reveal>
-            <Reveal delay={0.06}>
+            <Reveal priority delay={0.06}>
               <h1 className="mt-6 text-[clamp(2.25rem,5vw,3.75rem)] leading-[1.05] font-semibold tracking-tighter text-balance text-white">
                 Sovereign security for your career records
               </h1>
             </Reveal>
-            <Reveal delay={0.12}>
+            <Reveal priority delay={0.12}>
               <p className="mt-6 max-w-xl text-lg leading-relaxed text-zinc-400">
                 Local-first browser storage, decoupled document sandboxes, and cloud sync you opt
                 into — never the other way around.

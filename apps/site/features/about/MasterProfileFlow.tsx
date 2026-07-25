@@ -1,11 +1,10 @@
-import { Briefcase, FileSignature, FileText, Globe, User } from "lucide-react";
+import { FileSignature, FileText, Globe, User } from "lucide-react";
 import { Reveal } from "@/components/marketing/Reveal";
 
 const documents = [
   { title: "Resume", icon: FileText },
   { title: "Cover Letter", icon: FileSignature },
-  { title: "Portfolio", icon: Globe },
-  { title: "Invoice", icon: Briefcase },
+  { title: "Web Portfolio", icon: Globe },
 ];
 
 export const MasterProfileFlow = () => {
@@ -33,7 +32,7 @@ export const MasterProfileFlow = () => {
         <div className="relative flex flex-1 flex-col gap-6">
           <div className="pointer-events-none absolute top-1/2 right-0 left-0 hidden h-px -translate-y-1/2 bg-linear-to-r from-blue-500/40 via-zinc-700 to-zinc-700 lg:block" />
 
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {documents.map((doc, idx) => {
               const Icon = doc.icon;
               return (

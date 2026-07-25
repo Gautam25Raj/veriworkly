@@ -27,6 +27,23 @@ export const BrandAssetsSection = () => {
           </div>
         </div>
 
+        <Link
+          href="/brand-kit"
+          className="group border-accent/30 bg-accent/5 hover:bg-accent/10 flex items-center justify-between rounded-2xl border p-4 transition-colors duration-200"
+        >
+          <div>
+            <p className="text-accent text-sm font-semibold">Need the full brand kit?</p>
+            <p className="text-muted mt-1 text-xs">
+              Logos in every size, colors, typography, voice guidelines, and a downloadable .zip.
+            </p>
+          </div>
+
+          <ExternalLink
+            className="text-accent h-5 w-5 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+            aria-hidden="true"
+          />
+        </Link>
+
         <div className="grid gap-4 md:grid-cols-2">
           <Link
             target="_blank"

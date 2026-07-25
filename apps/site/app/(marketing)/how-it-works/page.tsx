@@ -12,48 +12,41 @@ import {
 } from "lucide-react";
 import { GithubIcon } from "@veriworkly/ui";
 import { siteConfig } from "@/config/site";
+import { buildPageMetadata } from "@/utils/metadata";
+import { jsonLdScriptProps } from "@/utils/json-ld";
 import InteractiveCTA from "@/features/marketing/cta/InteractiveCTA";
 import { Reveal } from "@/components/marketing/Reveal";
 import { SectionEyebrow } from "@/components/marketing/SectionEyebrow";
 import PipelineTimeline from "@/features/how-it-works/PipelineTimeline";
 
 const pageUrl = `${siteConfig.url}/how-it-works`;
-const pageOgImage = `${siteConfig.url}/og/how-it-works-page-og.png`;
+const pageOgImage = `${siteConfig.url}/api/og?title=${encodeURIComponent(
+  "How It Works",
+)}&description=${encodeURIComponent(
+  "A privacy-first, local-first pipeline for resumes, cover letters, AI tailoring, and portfolios.",
+)}`;
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
+  path: "/how-it-works",
   title: `How It Works: Privacy-First AI Career Builder | ${siteConfig.shortName}`,
   description:
-    "Learn how our local-first storage, client-side WebAssembly compilers, privacy-first AI copywriting engine, and secure cloud sync protect your data.",
-  alternates: {
-    canonical: pageUrl,
-    languages: {
-      "en-US": pageUrl,
-    },
-  },
-  openGraph: {
-    title: `How It Works: Privacy-First AI Career Builder | ${siteConfig.shortName}`,
-    description:
-      "A deep dive into local browser databases, offline compilers, stateless AI credit engines, and secure cloud synchronization.",
-    url: pageUrl,
-    siteName: siteConfig.shortName,
-    type: "website",
-    images: [
-      {
-        url: pageOgImage,
-        width: 1200,
-        height: 630,
-        alt: "VeriWorkly Platform Architecture",
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: `How It Works: Privacy-First AI Career Builder | ${siteConfig.shortName}`,
-    description:
-      "Explore how browser databases, offline compilers, and stateless AI engines let you control your career credentials.",
-    images: [pageOgImage],
-  },
-};
+    "How local-first browser storage, the Master Profile sandbox, and credit-metered AI rewriting work together to protect your data.",
+  ogTitle: "Five Steps From Keystroke to Published Page",
+  ogDescription:
+    "Local browser storage, an isolated document sandbox, in-browser rendering, credit-metered AI, and cloud sync you opt into.",
+  twitterTitle: "Privacy, explained in five steps",
+  twitterDescription:
+    "See exactly how VeriWorkly keeps your resume data local-first while still letting AI help you write.",
+  image: pageOgImage,
+  imageAlt: "VeriWorkly Platform Architecture",
+  keywords: [
+    "how VeriWorkly works",
+    "local-first resume builder",
+    "AI credit system",
+    "privacy-first AI architecture",
+    "master profile sync",
+  ],
+});
 
 const steps = [
   {
@@ -72,10 +65,10 @@ const steps = [
   },
   {
     step: "03",
-    title: "Browser compilers",
+    title: "In-browser rendering",
     description:
-      "When you download a resume or cover letter PDF, the compilation happens inside your browser tab using WebAssembly. Your personal facts are never processed on external servers.",
-    tags: ["WebAssembly", "Client-side render", "Zero server round-trip"],
+      "The live preview you edit against is the same layout engine used for export, rendered directly in your browser tab so what you see matches what you download as a PDF, DOCX, HTML, Markdown, plain text, or JSON file.",
+    tags: ["Live preview", "Client-side render", "Six export formats"],
   },
   {
     step: "04",
@@ -105,9 +98,10 @@ const HowItWorksPage = () => {
   const howToSchema = {
     "@context": "https://schema.org",
     "@type": "HowTo",
-    name: "How to Build a Sovereign Career Portfolio",
+    name: "How VeriWorkly's Local-First Career Workspace Works",
     description:
-      "Step-by-step overview of local-first editing, browser compilers, and optional cloud sync.",
+      "Step-by-step overview of local-first editing, the Master Profile sandbox, in-browser rendering, and optional cloud sync.",
+    url: pageUrl,
     step: steps.map((s, idx) => ({
       "@type": "HowToStep",
       position: idx + 1,
@@ -118,17 +112,14 @@ const HowItWorksPage = () => {
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(howToSchema) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScriptProps(howToSchema)} />
 
       <section className="w-full bg-[#f3f4f6] p-2 md:p-3 lg:p-4 dark:bg-black">
         <div className="relative flex w-full flex-col items-center overflow-hidden rounded-4xl border border-black/5 bg-white px-6 pt-28 pb-20 text-center md:pt-32 md:pb-24 dark:border-white/5 dark:bg-[#080808]">
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(120,119,198,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,119,198,0.05)_1px,transparent_1px)] mask-[radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] bg-size-[24px_24px]" />
           <div className="pointer-events-none absolute top-0 left-1/2 h-105 w-full max-w-225 -translate-x-1/2 rounded-full bg-blue-500/10 blur-[120px] dark:bg-blue-500/15" />
 
-          <Reveal className="relative z-10 flex max-w-3xl flex-col items-center">
+          <Reveal priority className="relative z-10 flex max-w-3xl flex-col items-center">
             <SectionEyebrow icon={Terminal} label="Architecture" className="mb-6" />
 
             <h1 className="text-4xl font-semibold tracking-tighter text-balance text-zinc-900 sm:text-5xl md:text-6xl dark:text-white">
@@ -235,7 +226,7 @@ const HowItWorksPage = () => {
                 <span className="text-emerald-400">storage</span>: indexeddb, client-side
               </p>
               <p>
-                <span className="text-emerald-400">compiler</span>: wasm, in-browser
+                <span className="text-emerald-400">render</span>: client-side, in-browser
               </p>
               <p>
                 <span className="text-emerald-400">auth</span>: better-auth, otp, no passwords

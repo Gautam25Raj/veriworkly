@@ -3,49 +3,35 @@ import Link from "next/link";
 import { HelpCircle } from "lucide-react";
 import { GithubIcon } from "@veriworkly/ui";
 import { siteConfig } from "@/config/site";
+import { buildPageMetadata } from "@/utils/metadata";
+import { jsonLdScriptProps } from "@/utils/json-ld";
 import { faqs, categories } from "@/features/faq/data/faqItems";
 import InteractiveCTA from "@/features/marketing/cta/InteractiveCTA";
 import { Reveal } from "@/components/marketing/Reveal";
 import { SectionEyebrow } from "@/components/marketing/SectionEyebrow";
 import FaqInteractiveSection from "@/features/faq/FaqInteractiveSection";
 
-const pageUrl = `${siteConfig.url}/faq`;
-const pageOgImage = `${siteConfig.url}/og/faq-page-og.png`;
-
-export const metadata: Metadata = {
-  title: `Frequently Asked Questions: AI Credits & Features | ${siteConfig.shortName}`,
+export const metadata: Metadata = buildPageMetadata({
+  path: "/faq",
+  title: `FAQ: ATS Checker, AI Credits & Imports | ${siteConfig.shortName}`,
   description:
-    "Got questions about templates, custom subdomains, local-first document creation, AI credits, or cloud backups? Read our FAQ.",
-  alternates: {
-    canonical: pageUrl,
-    languages: {
-      "en-US": pageUrl,
-    },
-  },
-  openGraph: {
-    title: `Frequently Asked Questions: AI Credits & Features | ${siteConfig.shortName}`,
-    description:
-      "Got questions about templates, custom subdomains, local-first document creation, AI credits, or cloud backups? Read our FAQ.",
-    url: pageUrl,
-    siteName: siteConfig.shortName,
-    type: "website",
-    images: [
-      {
-        url: pageOgImage,
-        width: 1200,
-        height: 630,
-        alt: `VeriWorkly FAQ`,
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: `Frequently Asked Questions | ${siteConfig.shortName}`,
-    description:
-      "Got questions about templates, custom subdomains, local-first document creation, or cloud backups? Read our FAQ.",
-    images: [pageOgImage],
-  },
-};
+    "Answers on resumes, cover letters, the free ATS checker, GitHub/LinkedIn import, custom subdomains, AI credits, and billing.",
+  ogTitle: "Got Questions About VeriWorkly? Start Here",
+  ogDescription:
+    "Searchable answers on documents, the ATS checker, imports, portfolios, AI credits, and billing — organized by topic.",
+  twitterTitle: "Every VeriWorkly question, answered",
+  twitterDescription:
+    "From AI credits to ATS scoring to custom subdomains — search the VeriWorkly FAQ or browse by topic.",
+  image: "/og/faq-page-og.png",
+  imageAlt: "VeriWorkly FAQ",
+  keywords: [
+    "VeriWorkly FAQ",
+    "AI resume builder questions",
+    "ATS checker FAQ",
+    "AI credits explained",
+    "resume builder pricing questions",
+  ],
+});
 
 const FAQPage = () => {
   const faqSchema = {
@@ -63,31 +49,28 @@ const FAQPage = () => {
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScriptProps(faqSchema)} />
 
       <section className="relative w-full overflow-hidden bg-white pt-32 pb-16 md:pt-40 md:pb-20 dark:bg-[#000000]">
         <div className="pointer-events-none absolute top-0 left-1/2 h-95 w-full max-w-200 -translate-x-1/2 rounded-full bg-blue-500/10 blur-[120px] dark:bg-blue-500/10" />
 
         <div className="relative z-10 mx-auto max-w-2xl px-6 text-center md:px-8">
-          <Reveal>
+          <Reveal priority>
             <SectionEyebrow
               icon={HelpCircle}
               label={`${faqs.length} answers`}
               className="mx-auto"
             />
           </Reveal>
-          <Reveal delay={0.06}>
+          <Reveal priority delay={0.06}>
             <h1 className="mt-6 text-4xl font-semibold tracking-tighter text-balance text-zinc-900 sm:text-5xl md:text-6xl dark:text-white">
               Frequently asked questions
             </h1>
           </Reveal>
-          <Reveal delay={0.12}>
+          <Reveal priority delay={0.12}>
             <p className="mt-6 text-lg leading-relaxed text-zinc-500 dark:text-zinc-400">
-              Documents, portfolios, subdomains, billing, and cloud backups — search below or browse
-              by topic.
+              Resumes, cover letters, portfolios, the ATS checker, GitHub/LinkedIn import, billing,
+              and the developer API — search below or browse by topic.
             </p>
           </Reveal>
 
@@ -151,8 +134,9 @@ const FAQPage = () => {
       <section className="sr-only">
         <h2>VeriWorkly FAQ</h2>
         <p>
-          Find answers about ATS-friendly documents, custom portfolio subdomains, template visual
-          controls, privacy policies, and AI credits usage.
+          Find answers about ATS-friendly resumes and cover letters, the free ATS checker, GitHub
+          and LinkedIn import, custom portfolio subdomains, developer API keys, privacy policies,
+          and AI credit usage.
         </p>
       </section>
     </>

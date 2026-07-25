@@ -1,5 +1,9 @@
+import dynamic from "next/dynamic";
 import { Shield } from "lucide-react";
-import PrivacyEngineSimulator from "@/features/landing/privacy/PrivacyEngineSimulator";
+
+const PrivacyEngineSimulator = dynamic(
+  () => import("@/features/landing/privacy/PrivacyEngineSimulator"),
+);
 
 const PrivacyWhyUs = () => {
   return (

@@ -7,22 +7,22 @@ const productScope = [
   {
     title: "Document Studio",
     description:
-      "Create ATS-friendly resumes and matched cover letters tailored to specific targets.",
+      "Create ATS-friendly resumes and matched cover letters, tailored to specific job targets with AI assistance you control.",
   },
   {
-    title: "Personal Portfolios",
+    title: "Master Profile",
     description:
-      "Deploy responsive web portfolios hosted on subdomains with visitor view analytics.",
+      "One canonical record of your career facts that seeds every new resume, cover letter, and portfolio without ever being overwritten by document edits.",
   },
   {
-    title: "Link-in-Bio Cards",
+    title: "Portfolio Builder",
     description:
-      "Share your links and list digital services with very competitive transaction rates.",
+      "Publish a responsive web portfolio on a hosted subdomain, with visitor analytics and SEO controls on paid plans.",
   },
   {
-    title: "Utility Docs",
+    title: "ATS Checker & AI Tools",
     description:
-      "Generate invoices and project agreements locally to manage your freelance operations.",
+      "Score a resume against a job description, then use AI resume tailoring, GitHub import, and LinkedIn import to close the gaps.",
   },
 ];
 
@@ -30,13 +30,14 @@ const AboutProductScope = () => {
   return (
     <section className="mx-auto w-full max-w-350 border-t border-zinc-200/40 px-6 py-24 md:px-8 md:py-32 dark:border-zinc-800/20">
       <div className="mb-12 max-w-2xl">
-        <SectionEyebrow icon={Rocket} label="One profile, four outputs" />
+        <SectionEyebrow icon={Rocket} label="One profile, every career surface" />
         <h2 className="mt-6 font-sans text-4xl font-semibold tracking-tighter text-balance text-zinc-900 md:text-5xl dark:text-white">
-          Four documents, one source of truth
+          One Master Profile, four connected tools
         </h2>
         <p className="mt-5 text-lg leading-relaxed text-zinc-500 dark:text-zinc-400">
-          Your career documents are connected assets. Every one of them pulls a snapshot from your
-          Master Profile, then goes its own way.
+          Your career documents are connected assets, not separate products. Every one of them pulls
+          a snapshot from your Master Profile, then goes its own way — editing a resume never
+          rewrites your source data.
         </p>
       </div>
 

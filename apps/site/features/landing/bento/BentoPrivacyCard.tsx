@@ -1,7 +1,4 @@
-"use client";
-
-import React from "react";
-import { MotionValue } from "framer-motion";
+import type { MotionValue } from "framer-motion";
 import { Lock } from "lucide-react";
 import BentoCard from "./BentoCard";
 

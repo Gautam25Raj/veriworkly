@@ -2,48 +2,44 @@ import type { Metadata } from "next";
 import { Check, Scale, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import { siteConfig } from "@/config/site";
+import { buildPageMetadata } from "@/utils/metadata";
+import { jsonLdScriptProps } from "@/utils/json-ld";
 import InteractiveCTA from "@/features/marketing/cta/InteractiveCTA";
 import { Reveal } from "@/components/marketing/Reveal";
 import { SectionEyebrow } from "@/components/marketing/SectionEyebrow";
 import CapabilityMosaic from "@/features/features-page/CapabilityMosaic";
 
-const pageUrl = `${siteConfig.url}/features`;
-const pageOgImage = `${siteConfig.url}/og/features-page-og.png`;
+export const revalidate = false;
+export const dynamic = "force-static";
 
-export const metadata: Metadata = {
-  title: `Platform Features & AI Tools | ${siteConfig.shortName}`,
+const pageUrl = `${siteConfig.url}/features`;
+const pageOgImage = `${siteConfig.url}/api/og?title=${encodeURIComponent(
+  "Platform Features & AI Tools",
+)}&description=${encodeURIComponent(
+  "AI resume tailoring, AI cover letter writing, ATS scoring, and portfolios with local-first sync.",
+)}`;
+
+export const metadata: Metadata = buildPageMetadata({
+  path: "/features",
+  title: `Platform Features: AI Resume, ATS & Portfolios | ${siteConfig.shortName}`,
   description:
-    "Explore our AI-powered resume tailoring, cover letter writer, visual editor, web portfolio publisher, local sandboxing, and secure cloud sync.",
-  alternates: {
-    canonical: pageUrl,
-    languages: {
-      "en-US": pageUrl,
-    },
-  },
-  openGraph: {
-    title: `Platform Features & AI Tools | ${siteConfig.shortName}`,
-    description:
-      "A complete ecosystem for career assets: resumes, cover letters, portfolios, and link cards with offline-first storage and built-in AI tailoring.",
-    url: pageUrl,
-    siteName: siteConfig.shortName,
-    type: "website",
-    images: [
-      {
-        url: pageOgImage,
-        width: 1200,
-        height: 630,
-        alt: "VeriWorkly Platform Features",
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: `Platform Features & AI Tools | ${siteConfig.shortName}`,
-    description:
-      "Review our privacy-first features: AI document tailoring, client-side PDF compiler, sitemap router, and aggregate statistics.",
-    images: [pageOgImage],
-  },
-};
+    "AI resume tailoring, an AI cover letter writer, a free ATS checker, GitHub/LinkedIn import, and web portfolio publishing — all local-first.",
+  ogTitle: "Everything Inside the VeriWorkly Workspace",
+  ogDescription:
+    "AI resume tailoring, cover letter generation, a free ATS checker, GitHub/LinkedIn import, and portfolio publishing, all local-first.",
+  twitterTitle: "One workspace, every career tool",
+  twitterDescription:
+    "AI resume and cover letter tools, a free ATS checker, and portfolio publishing — private by default.",
+  image: pageOgImage,
+  imageAlt: "VeriWorkly Platform Features",
+  keywords: [
+    "VeriWorkly features",
+    "AI resume tailoring tool",
+    "AI cover letter writer",
+    "free ATS checker",
+    "AI resume rewrite",
+  ],
+});
 
 const comparisonRows = [
   {
@@ -73,7 +69,7 @@ const comparisonRows = [
   },
   {
     feature: "Career assets",
-    veriworkly: "Resumes, letters, portfolios, invoices",
+    veriworkly: "Resumes, cover letters, ATS scoring, and web portfolios",
     competitor: "Mainly only resumes",
   },
 ];
@@ -85,14 +81,14 @@ const FeaturesPage = () => {
     name: "VeriWorkly Platform Features",
     url: pageUrl,
     description:
-      "Comprehensive features list including document editors, portfolios, link cards, and cloud sync.",
+      "Comprehensive features list including document editors, the ATS checker, GitHub/LinkedIn import, web portfolios, and cloud sync.",
   };
 
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(featuresSchema) }}
+        dangerouslySetInnerHTML={jsonLdScriptProps(featuresSchema)}
       />
 
       <section className="w-full bg-[#f3f4f6] p-2 md:p-3 lg:p-4 dark:bg-black">
@@ -100,7 +96,7 @@ const FeaturesPage = () => {
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(120,119,198,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,119,198,0.05)_1px,transparent_1px)] mask-[radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] bg-size-[24px_24px]" />
           <div className="pointer-events-none absolute top-0 left-1/2 h-105 w-full max-w-225 -translate-x-1/2 rounded-full bg-blue-500/10 blur-[120px] dark:bg-blue-500/15" />
 
-          <Reveal className="relative z-10 flex max-w-3xl flex-col items-center">
+          <Reveal priority className="relative z-10 flex max-w-3xl flex-col items-center">
             <SectionEyebrow icon={Sparkles} label="Capabilities" className="mb-6" />
 
             <h1 className="text-4xl font-semibold tracking-tighter text-balance text-zinc-900 sm:text-5xl md:text-6xl dark:text-white">
@@ -108,8 +104,8 @@ const FeaturesPage = () => {
             </h1>
 
             <p className="mt-6 max-w-2xl text-lg leading-relaxed text-zinc-500 dark:text-zinc-400">
-              Document editors, custom portfolios, link cards, and local databases, integrated under
-              one privacy-first career workspace.
+              AI resume and cover letter writing, a free ATS checker, portfolio publishing, and
+              GitHub/LinkedIn import, integrated under one privacy-first career workspace.
             </p>
 
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row">

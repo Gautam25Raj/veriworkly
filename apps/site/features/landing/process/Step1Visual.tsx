@@ -13,11 +13,11 @@ const Step1Visual = () => {
         </span>
       </div>
       <div className="space-y-3 font-mono text-[11px]">
-        <div className="border-zinc-150 flex justify-between border-b pb-2 dark:border-zinc-900">
+        <div className="flex justify-between border-b border-zinc-200 pb-2 dark:border-zinc-900">
           <span className="text-zinc-400">Name:</span>
           <span className="font-medium text-zinc-800 dark:text-zinc-200">Alex Rivera</span>
         </div>
-        <div className="border-zinc-150 flex justify-between border-b pb-2 dark:border-zinc-900">
+        <div className="flex justify-between border-b border-zinc-200 pb-2 dark:border-zinc-900">
           <span className="text-zinc-400">Target:</span>
           <span className="font-medium text-zinc-800 dark:text-zinc-200">React Architect</span>
         </div>

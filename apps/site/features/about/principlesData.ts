@@ -12,6 +12,6 @@ export const principles = [
   {
     title: "Sovereign career identity",
     description:
-      "We build career identity tools, including resumes, letters, portfolios, and invoices, as linked assets. Seed your documents from one central profile.",
+      "We build career identity tools, including resumes, cover letters, and web portfolios, as linked assets. Seed every one of them from one central Master Profile.",
   },
 ];

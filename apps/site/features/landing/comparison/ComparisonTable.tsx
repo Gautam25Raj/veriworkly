@@ -84,11 +84,17 @@ const ComparisonTable = () => {
                 </th>
                 <td className="border-t border-zinc-100 px-6 py-5 dark:border-zinc-900">
                   <div className="flex items-start gap-2.5">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-400 dark:bg-zinc-900 dark:text-zinc-600">
-                      <X className="h-3 w-3" strokeWidth={3} />
-                    </span>
+                    {row.competitor === "-" ? (
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-100 font-mono text-xs font-bold text-zinc-400 dark:bg-zinc-900 dark:text-zinc-500">
+                        –
+                      </span>
+                    ) : (
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-400 dark:bg-zinc-900 dark:text-zinc-600">
+                        <X className="h-3 w-3" strokeWidth={3} />
+                      </span>
+                    )}
                     <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                      {row.competitor}
+                      {row.competitor === "-" ? "Varies by vendor" : row.competitor}
                     </span>
                   </div>
                 </td>

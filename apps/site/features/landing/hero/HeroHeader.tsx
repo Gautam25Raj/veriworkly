@@ -14,22 +14,20 @@ import {
   Wand2,
   Type,
 } from "lucide-react";
-import { BackgroundRippleEffect } from "@/components/ui/background-ripple-effect";
 import { siteConfig } from "@/config/site";
 
 export const HeroHeader = () => {
   return (
     <div className="w-full bg-[#f3f4f6] p-2 md:p-3 lg:p-4 dark:bg-[#000000]">
       <div className="relative flex w-full flex-col items-center justify-center overflow-hidden rounded-4xl border border-black/5 bg-white pt-32 pb-24 shadow-sm lg:rounded-[2.5rem] lg:pt-40 lg:pb-32 dark:border-white/5 dark:bg-[#080808]">
-        <div className="pointer-events-auto absolute inset-0 z-0 flex justify-center opacity-70 mix-blend-multiply dark:opacity-40 dark:mix-blend-screen">
-          <BackgroundRippleEffect rows={25} cols={50} cellSize={64} />
-        </div>
+        <div className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.05)_1px,transparent_1px)] mask-[radial-gradient(ellipse_100%_100%_at_50%_0%,#000_50%,transparent_100%)] bg-size-[64px_64px] bg-center opacity-70 mix-blend-multiply dark:bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] dark:opacity-40 dark:mix-blend-screen" />
 
         <div className="pointer-events-none absolute top-0 left-1/2 h-150 w-full max-w-250 -translate-x-1/2 rounded-full bg-blue-500/10 blur-[120px] dark:bg-blue-500/15" />
         <div className="pointer-events-none absolute bottom-0 left-0 z-10 h-[40%] w-full bg-linear-to-t from-white via-white/80 to-transparent dark:from-[#080808] dark:via-[#080808]/80" />
 
         <div className="relative z-20 container mx-auto flex max-w-6xl flex-col items-center px-4 text-center">
           <motion.div
+            aria-hidden="true"
             animate={{ y: [0, -10, 0] }}
             transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
             className="pointer-events-none absolute top-[10%] left-[5%] hidden items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/5 px-4 py-2 text-sm text-blue-600 backdrop-blur-md lg:flex dark:text-blue-400"
@@ -39,6 +37,7 @@ export const HeroHeader = () => {
           </motion.div>
 
           <motion.div
+            aria-hidden="true"
             animate={{ y: [0, 10, 0] }}
             transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
             className="pointer-events-none absolute top-[15%] right-[5%] hidden items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/5 px-4 py-2 text-sm text-blue-600 backdrop-blur-md lg:flex dark:text-blue-400"
@@ -48,6 +47,7 @@ export const HeroHeader = () => {
           </motion.div>
 
           <motion.div
+            aria-hidden="true"
             animate={{ y: [0, -8, 0] }}
             transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
             className="pointer-events-none absolute top-[45%] left-[12%] hidden items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/5 px-4 py-2 text-sm text-blue-600 backdrop-blur-md lg:flex dark:text-blue-400"
@@ -57,6 +57,7 @@ export const HeroHeader = () => {
           </motion.div>
 
           <motion.div
+            aria-hidden="true"
             animate={{ y: [0, 8, 0] }}
             transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut", delay: 1.5 }}
             className="pointer-events-none absolute top-[48%] right-[10%] hidden items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/5 px-4 py-2 text-sm text-blue-600 backdrop-blur-md lg:flex dark:text-blue-400"
@@ -81,12 +82,9 @@ export const HeroHeader = () => {
             Privacy-First Document & Portfolio Workspace
           </motion.div>
 
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1, ease: [0.23, 1, 0.32, 1] }}
-            className="pointer-events-auto flex flex-col items-center text-center text-[clamp(3.5rem,8vw,7.5rem)] leading-[0.9] font-semibold tracking-tighter"
-          >
+          {/* Not a motion element: this is the LCP candidate, so it must paint
+              on the server render rather than waiting for hydration. */}
+          <h1 className="pointer-events-auto flex flex-col items-center text-center text-[clamp(3.5rem,8vw,7.5rem)] leading-[0.9] font-semibold tracking-tighter">
             <span className="block text-gray-400 dark:text-gray-600">The future</span>
             <span className="block text-gray-400 dark:text-gray-600">of your career</span>
             <span className="mt-4 flex flex-wrap items-center justify-center gap-x-3 text-gray-900 sm:gap-x-5 dark:text-white">
@@ -109,17 +107,12 @@ export const HeroHeader = () => {
                 AI
               </span>
             </span>
-          </motion.h1>
+          </h1>
 
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
-            className="pointer-events-auto mt-8 max-w-2xl text-lg leading-relaxed font-medium text-balance text-gray-500 dark:text-gray-400"
-          >
+          <p className="pointer-events-auto mt-8 max-w-2xl text-lg leading-relaxed font-medium text-balance text-gray-500 dark:text-gray-400">
             Build ATS-proof resumes, targeted cover letters, and live web portfolios in minutes.
             Free forever, privacy-first, and zero login required.
-          </motion.p>
+          </p>
 
           <motion.div
             initial={{ opacity: 0, y: 10 }}

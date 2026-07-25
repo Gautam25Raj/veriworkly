@@ -1,6 +1,10 @@
+import dynamic from "next/dynamic";
 import { Sparkles, ArrowRight } from "lucide-react";
 import { siteConfig } from "@/config/site";
-import TemplateShowcaseTracks from "@/features/landing/template-showcase/TemplateShowcaseTracks";
+
+const TemplateShowcaseTracks = dynamic(
+  () => import("@/features/landing/template-showcase/TemplateShowcaseTracks"),
+);
 
 const TemplateShowcase = () => {
   return (

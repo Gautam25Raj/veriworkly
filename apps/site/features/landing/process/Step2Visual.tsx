@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 const Step2Visual = () => {
   return (
     <div className="flex flex-col gap-4 rounded-3xl border border-zinc-200/80 bg-white/80 p-6 shadow-lg backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/80">
-      <div className="border-zinc-150 flex items-center justify-between border-b pb-3 dark:border-zinc-900">
+      <div className="flex items-center justify-between border-b border-zinc-200 pb-3 dark:border-zinc-900">
         <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
           Role: React Architect
         </span>

@@ -4,6 +4,7 @@ import {
   Check,
   Database,
   FileText,
+  Gauge,
   Globe,
   KeyRound,
   Layers,
@@ -29,8 +30,8 @@ const CapabilityMosaic = () => {
             Document Studio
           </h3>
           <p className="mt-3 max-w-md text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
-            Write and format ATS-friendly resumes and cover letters, with strict layout compilation
-            that outputs parser-friendly text markup.
+            Write and format ATS-friendly resumes and matched cover letters, with an AI assistant
+            that drafts sections on request and never overwrites your text without your say-so.
           </p>
         </div>
 
@@ -87,25 +88,28 @@ const CapabilityMosaic = () => {
       <Reveal delay={0.1} className={`${cellBase} lg:col-span-2`}>
         <div>
           <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400">
-            <Sparkles className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
+            <Gauge className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
           </span>
           <h3 className="mt-5 text-xl font-semibold tracking-tight text-zinc-900 dark:text-white">
-            Link Cards
+            ATS Checker
           </h3>
           <p className="mt-3 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
-            One clean link aggregator for your social profiles and services.
+            Score a resume against a job description with a free rules-based scan, then go deeper
+            with AI-powered analysis.
           </p>
         </div>
         <div className="mt-6 space-y-2">
-          {["Book a call", "Read my writing", "View resume PDF"].map((label) => (
-            <div
-              key={label}
-              className="flex items-center justify-between rounded-full border border-zinc-200 bg-zinc-50 px-3.5 py-2 text-xs font-medium text-zinc-600 dark:border-zinc-800 dark:bg-white/5 dark:text-zinc-300"
-            >
-              {label}
-              <ArrowRight className="h-3 w-3 text-zinc-400" aria-hidden="true" />
-            </div>
-          ))}
+          {["Keyword match", "Action verbs & quantified impact", "Formatting risk check"].map(
+            (label) => (
+              <div
+                key={label}
+                className="flex items-center justify-between rounded-full border border-zinc-200 bg-zinc-50 px-3.5 py-2 text-xs font-medium text-zinc-600 dark:border-zinc-800 dark:bg-white/5 dark:text-zinc-300"
+              >
+                {label}
+                <Check className="h-3 w-3 text-emerald-500" aria-hidden="true" />
+              </div>
+            ),
+          )}
         </div>
       </Reveal>
 

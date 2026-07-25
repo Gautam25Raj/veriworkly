@@ -1,68 +1,62 @@
 import type { Metadata } from "next";
 
 import { siteConfig } from "@/config/site";
+import { buildPageMetadata } from "@/utils/metadata";
+import { jsonLdScriptProps } from "@/utils/json-ld";
 import { Card, Badge } from "@veriworkly/ui";
 
 import { PublicPageShell } from "@/components/layout/PublicPageShell";
+import { LegalSections } from "@/components/legal/LegalSections";
+import {
+  privacySections,
+  privacyEffectiveDate,
+  privacyLastUpdated,
+} from "@/features/legal/privacyContent";
 
 const pageUrl = `${siteConfig.url}/privacy`;
-const pageOgImage = `${siteConfig.url}/og/privacy-page-og.png`;
 
-export const metadata: Metadata = {
-  title: `Privacy Policy: Privacy-First AI Resume Builder | ${siteConfig.shortName}`,
+export const metadata: Metadata = buildPageMetadata({
+  path: "/privacy",
+  title: `Privacy Policy: Privacy-First AI Career Workspace | ${siteConfig.shortName}`,
   description:
-    "Review how VeriWorkly protects resumes, cover letters, and portfolios. Learn about our local-first storage, encrypted sync, and stateless, private AI processing.",
-  alternates: {
-    canonical: pageUrl,
-    languages: {
-      "en-US": pageUrl,
-    },
-  },
-  openGraph: {
-    title: `Privacy Policy: Privacy-First AI Resume Builder | ${siteConfig.shortName}`,
-    description:
-      "Your documents stay private. We support local-first browser storage, secure cloud sync, and stateless AI processing.",
-    url: pageUrl,
-    siteName: siteConfig.shortName,
-    type: "website",
-    images: [
-      {
-        url: pageOgImage,
-        width: 1200,
-        height: 630,
-        alt: `${siteConfig.shortName} Privacy Parameters`,
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: `Privacy Policy | ${siteConfig.shortName}`,
-    description:
-      "Explore data safety boundaries: browser IndexedDB storage, sitemap routes, and opt-in sharing rules.",
-    images: [pageOgImage],
-  },
-};
+    "How VeriWorkly protects resumes, cover letters, and portfolios: local-first storage, encrypted sync, and stateless AI processing.",
+  ogTitle: "Your Data Never Leaves Your Browser Without Asking",
+  ogDescription:
+    "See exactly what's stored locally, what syncs to the cloud, and what happens when you use AI features — no surprises, no fine print.",
+  twitterTitle: "Local-first by default. Read the full policy.",
+  twitterDescription:
+    "Browser storage, encrypted sync, and stateless AI processing — the exact data boundaries VeriWorkly commits to in writing.",
+  image: "/og/privacy-page-og.png",
+  imageAlt: `${siteConfig.shortName} Privacy Policy`,
+  keywords: [
+    "VeriWorkly privacy policy",
+    "local-first data storage",
+    "privacy-first AI resume builder",
+    "GDPR resume builder",
+    "no data selling",
+  ],
+});
 
 const privacyTopics = [
   {
     title: "Local-First Browser Storage",
     description:
-      "All credentials, layouts, and profile facts reside in your browser's private storage database (IndexedDB). No text is uploaded to remote servers without your deliberate choice.",
+      "Your documents and Master Profile facts are written to your browser's private storage (IndexedDB) first. Nothing is uploaded to our servers unless you log in, sync, or trigger a feature that requires it.",
   },
   {
-    title: "Opt-in Portfolios Sharing",
+    title: "Opt-In Portfolio Publishing",
     description:
-      "Published portfolios and link-in-bio cards are serveable publicly. Shared links can be password-protected, and you can take down pages from your dashboard at any time.",
+      "Published portfolios and share links are only public because you chose to publish them. Password protection and one-click unpublishing are available at any time from your dashboard.",
   },
   {
-    title: "Privacy-First Analytics",
+    title: "Aggregate-Only Analytics",
     description:
-      "We track visitor views and referral links on published portfolios. It is fully GDPR/CCPA compliant, runs without cookies, and does not profile visitor identities.",
+      "Portfolio view counts and referrer stats are tracked in aggregate, without cookies and without building an individual profile of your visitors.",
   },
   {
-    title: "Third-Party Integrations",
+    title: "No Selling, No Ad Trackers",
     description:
-      "If you sync GitHub repositories or import LinkedIn data, those processes run directly under client-authorized sessions. We never store or sell your credential credentials.",
+      "We never sell your data, and we don't run third-party ad trackers or heatmap scripts. GitHub and LinkedIn import run under your explicit authorization.",
   },
 ];
 
@@ -74,6 +68,9 @@ const PrivacyPage = () => {
     url: pageUrl,
     description:
       "Learn how VeriWorkly secures career data through local-first and encrypted workflows.",
+    dateModified: privacyLastUpdated,
+    inLanguage: "en-US",
+    isPartOf: { "@type": "WebSite", name: siteConfig.name, url: siteConfig.url },
     about: {
       "@type": "Thing",
       name: "Privacy Policy",
@@ -84,7 +81,7 @@ const PrivacyPage = () => {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(privacySchema) }}
+        dangerouslySetInnerHTML={jsonLdScriptProps(privacySchema)}
       />
 
       <PublicPageShell
@@ -92,65 +89,40 @@ const PrivacyPage = () => {
         title="Your credentials belong to you"
         secondaryAction={{ href: "/contact", label: "Contact Us" }}
         primaryAction={{ href: "/security", label: "Read Security Policy" }}
-        description="Learn how VeriWorkly handles resumes, cover letters, portfolios, link-in-bio, and billing transactions with local-first parameters and optional cloud backups."
+        description="Learn how VeriWorkly handles resumes, cover letters, portfolios, ATS scans, AI credits, and billing transactions with local-first storage and optional cloud backups."
       >
-        <section className="grid gap-6 md:grid-cols-2">
-          {privacyTopics.map((topic) => (
-            <Card
-              key={topic.title}
-              className="border-border/80 hover:border-accent/30 flex flex-col justify-between border p-6 transition duration-300 md:p-8"
-            >
-              <div className="space-y-4">
-                <Badge className="bg-accent/10 text-accent w-fit border-none font-semibold">
-                  Parameter
-                </Badge>
-                <h3 className="text-foreground text-xl font-bold tracking-tight">{topic.title}</h3>
-                <p className="text-muted text-sm leading-6">{topic.description}</p>
-              </div>
-            </Card>
-          ))}
+        <p className="text-muted -mt-4 text-xs font-semibold tracking-wide uppercase">
+          Effective & last updated: {privacyEffectiveDate}
+        </p>
+
+        <section aria-label="Quick summary" className="space-y-6">
+          <p className="text-muted text-sm leading-7">
+            The four cards below are a plain-language summary. They are not a substitute for the
+            full policy — read the numbered sections underneath for the complete, legally
+            controlling text.
+          </p>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            {privacyTopics.map((topic) => (
+              <Card
+                key={topic.title}
+                className="border-border/80 hover:border-accent/30 flex flex-col justify-between border p-6 transition duration-300 md:p-8"
+              >
+                <div className="space-y-4">
+                  <Badge className="bg-accent/10 text-accent w-fit border-none font-semibold">
+                    Summary
+                  </Badge>
+                  <h3 className="text-foreground text-xl font-bold tracking-tight">
+                    {topic.title}
+                  </h3>
+                  <p className="text-muted text-sm leading-6">{topic.description}</p>
+                </div>
+              </Card>
+            ))}
+          </div>
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
-          <Card className="border-border/80 space-y-6 border p-6 md:p-8">
-            <h3 className="text-accent text-xs font-bold tracking-wider uppercase">User Rights</h3>
-            <h2 className="text-foreground text-2xl font-bold tracking-tight">
-              Direct ownership of data
-            </h2>
-            <ul className="text-muted list-disc space-y-4 pl-5 text-sm leading-6">
-              <li>
-                <strong>No Login Required</strong>: You can open the Document Studio, write resumes
-                or cover letters, edit layout structures, and export PDFs completely without
-                registering.
-              </li>
-              <li>
-                <strong>Cloud Backups (Optional)</strong>: When you register, your Master Profile
-                and layout sandboxes sync to the cloud. Connections are encrypted via SSL/TLS and
-                secured by Better Auth.
-              </li>
-              <li>
-                <strong>Zero Profiling</strong>: We do not compile, sell, or rent your professional
-                details to advertiser databases or recruiter lists.
-              </li>
-            </ul>
-          </Card>
-
-          <Card className="border-border/80 space-y-6 border p-6 md:p-8">
-            <h3 className="text-accent text-xs font-bold tracking-wider uppercase">Data Usage</h3>
-            <h2 className="text-foreground text-2xl font-bold tracking-tight">
-              How we process assets
-            </h2>
-            <p className="text-muted text-sm leading-7">
-              VeriWorkly keeps document drafts isolated from your Master Profile. Edits inside
-              layouts remain local to that template, preventing unintentional modifications of your
-              master credentials.
-            </p>
-            <p className="text-muted text-sm leading-7">
-              Billing operations are processed directly by Dodo Payments in compliance with PCI-DSS
-              standards. VeriWorkly does not store or process your credit card coordinates.
-            </p>
-          </Card>
-        </section>
+        <LegalSections sections={privacySections} />
 
         <section className="text-muted border-border/60 border-t pt-6 text-sm">
           Have questions about your data privacy?{" "}

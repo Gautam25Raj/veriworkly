@@ -1,28 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { FileText, Globe, Mail } from "lucide-react";
-import ResumePreview from "./ResumePreview";
-import CoverLetterPreview from "./CoverLetterPreview";
-import PortfolioPreview from "./PortfolioPreview";
 
-type TabId = "resume" | "cover-letter" | "portfolio";
+export type DocumentPreviewTabId = "resume" | "cover-letter" | "portfolio";
 
-const tabs: { id: TabId; label: string; icon: typeof FileText; urlLabel: string }[] = [
-  { id: "resume", label: "ATS Resume PDF", icon: FileText, urlLabel: "resume-alex-rivera.pdf" },
-  { id: "cover-letter", label: "Cover Letter", icon: Mail, urlLabel: "cover-letter-acme-corp.pdf" },
-  { id: "portfolio", label: "Live Web Portfolio", icon: Globe, urlLabel: "alex.veriworkly.me" },
-];
+const tabs: { id: DocumentPreviewTabId; label: string; icon: typeof FileText; urlLabel: string }[] =
+  [
+    { id: "resume", label: "ATS Resume PDF", icon: FileText, urlLabel: "resume-alex-rivera.pdf" },
+    {
+      id: "cover-letter",
+      label: "Cover Letter",
+      icon: Mail,
+      urlLabel: "cover-letter-acme-corp.pdf",
+    },
+    { id: "portfolio", label: "Live Web Portfolio", icon: Globe, urlLabel: "alex.veriworkly.me" },
+  ];
 
-const previews: Record<TabId, React.ReactNode> = {
-  resume: <ResumePreview />,
-  "cover-letter": <CoverLetterPreview />,
-  portfolio: <PortfolioPreview />,
-};
+interface DocumentPortfolioSwitcherProps {
+  previews: Record<DocumentPreviewTabId, ReactNode>;
+}
 
-const DocumentPortfolioSwitcher = () => {
-  const [activeTab, setActiveTab] = useState<TabId>("resume");
+const DocumentPortfolioSwitcher = ({ previews }: DocumentPortfolioSwitcherProps) => {
+  const [activeTab, setActiveTab] = useState<DocumentPreviewTabId>("resume");
   const activeMeta = tabs.find((tab) => tab.id === activeTab)!;
 
   return (

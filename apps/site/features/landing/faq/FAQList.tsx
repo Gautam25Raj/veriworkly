@@ -74,16 +74,11 @@ const FAQCard = ({ question, answer, isOpen, onToggle, index }: FAQCardProps) =>
             transition={{ type: "spring", stiffness: 300, damping: 28 }}
             className="overflow-hidden"
           >
-            <button
-              type="button"
-              onClick={onToggle}
-              aria-expanded={isOpen}
-              className="w-full px-6 pb-6 text-left focus:outline-none"
-            >
+            <div className="w-full px-6 pb-6 text-left">
               <p className="pl-13 text-[14px] leading-relaxed text-zinc-600 dark:text-zinc-400">
                 {answer}
               </p>
-            </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

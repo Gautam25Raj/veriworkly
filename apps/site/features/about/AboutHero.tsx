@@ -11,20 +11,21 @@ const AboutHero = () => {
       <div className="pointer-events-none absolute top-0 left-1/2 h-105 w-full max-w-225 -translate-x-1/2 rounded-full bg-blue-500/15 blur-[120px]" />
 
       <div className="relative z-10 mx-auto max-w-4xl px-6 md:px-8">
-        <Reveal>
+        <Reveal priority>
           <SectionEyebrow icon={Shield} label="Why VeriWorkly exists" className="mx-auto" />
         </Reveal>
 
-        <Reveal delay={0.06}>
-          <p className="mt-8 text-center text-[clamp(2.25rem,5.5vw,4rem)] leading-[1.08] font-semibold tracking-tighter text-balance text-white">
+        <Reveal priority delay={0.06}>
+          <h1 className="mt-8 text-center text-[clamp(2.25rem,5.5vw,4rem)] leading-[1.08] font-semibold tracking-tighter text-balance text-white">
             Your career history shouldn&apos;t be held hostage behind a subscription.
-          </p>
+          </h1>
         </Reveal>
 
-        <Reveal delay={0.14}>
+        <Reveal priority delay={0.14}>
           <p className="mx-auto mt-8 max-w-2xl text-center text-lg leading-relaxed text-zinc-400">
-            VeriWorkly is a private workspace for your resumes, cover letters, portfolios, and
-            invoices. Build ready-to-use documents on your own terms — no paywalls, no sold
+            VeriWorkly is a private career workspace for your resumes, cover letters, and public
+            portfolios — plus the AI tailoring, ATS scoring, and GitHub/LinkedIn import tools that
+            connect them. Build ready-to-use documents on your own terms — no paywalls, no sold
             profiles, no account traps.
           </p>
         </Reveal>

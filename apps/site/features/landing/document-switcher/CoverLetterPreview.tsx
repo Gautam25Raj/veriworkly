@@ -1,10 +1,4 @@
-"use client";
-
-import React from "react";
-
-const SkeletonLine = ({ width }: { width: string }) => (
-  <div className={`h-2.5 rounded bg-zinc-200 dark:bg-zinc-800 ${width}`} />
-);
+import SkeletonLine from "./SkeletonLine";
 
 const CoverLetterPreview = () => {
   return (

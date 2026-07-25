@@ -3,49 +3,41 @@ import Link from "next/link";
 import { ArrowRight, MessageCircleQuestion } from "lucide-react";
 
 import { siteConfig } from "@/config/site";
+import { buildPageMetadata } from "@/utils/metadata";
+import { jsonLdScriptProps } from "@/utils/json-ld";
 import ContactExperience from "@/features/contact/ContactExperience";
 import InteractiveCTA from "@/features/marketing/cta/InteractiveCTA";
 import { Reveal } from "@/components/marketing/Reveal";
 import { SectionEyebrow } from "@/components/marketing/SectionEyebrow";
 
-const pageUrl = `${siteConfig.url}/contact`;
-const pageOgImage = `${siteConfig.url}/og/contact-page-og.png`;
+export const revalidate = false;
+export const dynamic = "force-static";
+
 const supportEmail = siteConfig.email;
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
+  path: "/contact",
   title: `Contact Support & AI Billing Help | ${siteConfig.shortName}`,
   description:
-    "Get support for documents, portfolios, AI credit limits, subdomain routing, billing, and privacy-first features.",
-  alternates: {
-    canonical: pageUrl,
-    languages: {
-      "en-US": pageUrl,
-    },
-  },
-  openGraph: {
-    title: `Contact Support & AI Billing Help | ${siteConfig.shortName}`,
-    description:
-      "Contact us for help with resumes, portfolios, AI credits, subdomains, and account billing queries.",
-    url: pageUrl,
-    siteName: siteConfig.shortName,
-    type: "website",
-    images: [
-      {
-        url: pageOgImage,
-        width: 1200,
-        height: 630,
-        alt: `Contact VeriWorkly Support`,
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: `Contact Support | ${siteConfig.shortName}`,
-    description:
-      "Get support for resumes, cover letters, portfolios, custom subdomains, and billing queries.",
-    images: [pageOgImage],
-  },
-};
+    "Get help with resumes, cover letters, the ATS checker, portfolios, AI credits, subdomains, the developer API, and billing.",
+  ogTitle: "Talk to a Real Person, Not a Ticket Queue",
+  ogDescription:
+    "No support bots. Every message about resumes, portfolios, AI credits, or billing reaches a real person on our small team.",
+  twitterTitle: "We reply to every message ourselves",
+  twitterDescription:
+    "Questions about resumes, AI credits, portfolios, or billing? Reach the VeriWorkly team directly — no bots, no ticket queue.",
+  image: "/og/contact-page-og.png",
+  imageAlt: "Contact VeriWorkly Support",
+  keywords: [
+    "VeriWorkly support",
+    "contact VeriWorkly",
+    "AI credits help",
+    "resume builder support",
+    "portfolio subdomain help",
+  ],
+});
+
+const pageUrl = `${siteConfig.url}/contact`;
 
 const ContactPage = () => {
   const contactSchema = {
@@ -74,7 +66,7 @@ const ContactPage = () => {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(contactSchema) }}
+        dangerouslySetInnerHTML={jsonLdScriptProps(contactSchema)}
       />
 
       <section className="relative w-full overflow-hidden bg-white pt-32 pb-20 md:pt-40 md:pb-24 dark:bg-[#000000]">
@@ -82,15 +74,15 @@ const ContactPage = () => {
 
         <div className="relative z-10 mx-auto grid max-w-350 gap-12 px-6 md:px-8 lg:grid-cols-12 lg:items-center lg:gap-8">
           <div className="lg:col-span-7">
-            <Reveal>
+            <Reveal priority>
               <SectionEyebrow icon={MessageCircleQuestion} label="Support" />
             </Reveal>
-            <Reveal delay={0.06}>
+            <Reveal priority delay={0.06}>
               <h1 className="mt-6 text-4xl font-semibold tracking-tighter text-balance text-zinc-900 sm:text-5xl md:text-6xl dark:text-white">
                 Get in touch with us
               </h1>
             </Reveal>
-            <Reveal delay={0.12}>
+            <Reveal priority delay={0.12}>
               <p className="mt-6 max-w-xl text-lg leading-relaxed text-zinc-500 dark:text-zinc-400">
                 Write to us if you need help with documents, billing, custom portfolios, or feature
                 requests.

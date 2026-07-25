@@ -1,7 +1,29 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Compass, LayoutTemplate } from "lucide-react";
 
 import { siteConfig } from "@/config/site";
+import { buildPageMetadata } from "@/utils/metadata";
+
+export const metadata: Metadata = buildPageMetadata({
+  path: "/404",
+
+  title: `Page Not Found | ${siteConfig.shortName}`,
+
+  description: "This page moved or never existed. Head back home or browse the template directory.",
+
+  ogTitle: "This Page Didn't Make the Cut",
+  ogDescription:
+    "It may have moved or never existed. Head back home, or browse the templates instead.",
+
+  twitterTitle: "404 — Page Not Found",
+
+  twitterDescription: "This page moved or never existed. Head back to VeriWorkly.",
+
+  image: "/og/landing-page-og.png",
+
+  noIndex: true,
+});
 
 export default function MarketingNotFound() {
   return (

@@ -10,21 +10,21 @@ const TYPOGRAPHY_SAMPLES = [
     title: "Heading 1 (Hero)",
     className: "text-4xl font-semibold tracking-tight sm:text-5xl md:text-6xl",
     description: "text-4xl sm:text-5xl md:text-6xl / font-semibold / tracking-tight",
-    isHeading: true,
+    tag: "p",
   },
   {
     label: "Section Header",
     title: "Heading 2 (Section)",
     className: "text-3xl font-semibold tracking-tight",
     description: "text-3xl / font-semibold / tracking-tight",
-    isHeading: true,
+    tag: "h2",
   },
   {
     label: "Component Header",
     title: "Heading 3 (Card Title)",
     className: "text-xl font-semibold tracking-tight",
     description: "text-xl / font-semibold / tracking-tight",
-    isHeading: true,
+    tag: "h3",
   },
 ];
 
@@ -40,8 +40,10 @@ export const TypographySection = () => {
               {sample.label}
             </p>
 
-            {sample.isHeading ? (
-              <h1 className={sample.className}>{sample.title}</h1>
+            {sample.tag === "h2" ? (
+              <h2 className={sample.className}>{sample.title}</h2>
+            ) : sample.tag === "h3" ? (
+              <h3 className={sample.className}>{sample.title}</h3>
             ) : (
               <p className={sample.className}>{sample.title}</p>
             )}

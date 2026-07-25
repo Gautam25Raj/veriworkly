@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   Mail,
   Check,
@@ -15,12 +15,13 @@ import {
 import { fetchApiData } from "@/utils/fetchApiData";
 import { siteConfig } from "@/config/site";
 import { Reveal } from "@/components/marketing/Reveal";
+import { useFocusTrap } from "@/hooks/use-focus-trap";
 
 const supportEmail = siteConfig.email;
 const supportEmailHref = `mailto:${supportEmail}`;
 
 const githubDiscussionsUrl = `${siteConfig.links.github}/discussions`;
-const githubSecurityPolicyUrl = "https://github.com/VeriWorkly/veriworkly/blob/master/SECURITY.md";
+const githubSecurityPolicyUrl = `${siteConfig.links.github}/blob/main/SECURITY.md`;
 
 const contactChannels = [
   {
@@ -45,6 +46,15 @@ const contactChannels = [
 
 const MESSAGE_MIN_LENGTH = 10;
 
+const FIELD_LIMITS = {
+  name: 100,
+  email: 254,
+  subject: 150,
+  message: 5000,
+} as const;
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
 const FloatingField = ({
   id,
   label,
@@ -56,6 +66,10 @@ const FloatingField = ({
   as = "input",
   rows,
   helper,
+  maxLength,
+  autoComplete,
+  required,
+  invalid,
 }: {
   id: string;
   label: string;
@@ -67,32 +81,36 @@ const FloatingField = ({
   as?: "input" | "textarea";
   rows?: number;
   helper?: string;
+  maxLength?: number;
+  autoComplete?: string;
+  required?: boolean;
+  invalid?: boolean;
 }) => {
   const sharedClassName =
     "peer w-full rounded-xl border border-zinc-200 bg-white px-4 pt-6 pb-2.5 text-sm text-zinc-900 transition outline-none placeholder:text-transparent focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 dark:border-zinc-800 dark:bg-[#080808] dark:text-white";
 
+  const helperId = helper ? `${id}-helper` : undefined;
+
+  const sharedProps = {
+    id,
+    value,
+    disabled,
+    maxLength,
+    autoComplete,
+    required,
+    "aria-invalid": invalid || undefined,
+    "aria-describedby": helperId,
+    placeholder: placeholder ?? label,
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      onChange(e.target.value),
+  };
+
   return (
     <div className="relative">
       {as === "textarea" ? (
-        <textarea
-          id={id}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder ?? label}
-          disabled={disabled}
-          rows={rows ?? 5}
-          className={`${sharedClassName} resize-none`}
-        />
+        <textarea {...sharedProps} rows={rows ?? 5} className={`${sharedClassName} resize-none`} />
       ) : (
-        <input
-          id={id}
-          type={type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder ?? label}
-          disabled={disabled}
-          className={sharedClassName}
-        />
+        <input {...sharedProps} type={type} className={sharedClassName} />
       )}
       <label
         htmlFor={id}
@@ -100,7 +118,11 @@ const FloatingField = ({
       >
         {label}
       </label>
-      {helper ? <p className="mt-1.5 text-right text-[11px] text-zinc-400">{helper}</p> : null}
+      {helper ? (
+        <p id={helperId} className="mt-1.5 text-right text-[11px] text-zinc-400">
+          {helper}
+        </p>
+      ) : null}
     </div>
   );
 };
@@ -121,11 +143,17 @@ const ContactExperience = () => {
     timestamp: string;
   } | null>(null);
 
+  const successDialogRef = useRef<HTMLDivElement>(null);
+
+  useFocusTrap(successData !== null, successDialogRef, {
+    onEscape: () => setSuccessData(null),
+  });
+
   const messageRemaining = Math.max(0, MESSAGE_MIN_LENGTH - message.trim().length);
   const isValid = useMemo(
     () =>
       name.trim().length > 0 &&
-      email.includes("@") &&
+      EMAIL_PATTERN.test(email.trim()) &&
       subject.trim().length > 0 &&
       message.trim().length >= MESSAGE_MIN_LENGTH,
     [name, email, subject, message],
@@ -141,7 +169,7 @@ const ContactExperience = () => {
       setLoading(false);
       return;
     }
-    if (!email.trim() || !email.includes("@")) {
+    if (!EMAIL_PATTERN.test(email.trim())) {
       setError("Valid email is required");
       setLoading(false);
       return;
@@ -168,10 +196,10 @@ const ContactExperience = () => {
         body: JSON.stringify({ name, email, subject, message }),
       });
 
-      const mockTicketId = `VW-${Math.floor(100000 + Math.random() * 900000)}`;
+      const referenceId = `VW-${Date.now().toString(36).toUpperCase()}`;
 
       setSuccessData({
-        ticketId: mockTicketId,
+        ticketId: referenceId,
         name: response.name,
         email: response.email,
         subject: response.subject,
@@ -233,13 +261,15 @@ const ContactExperience = () => {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-            {error && (
-              <div className="flex items-center gap-3 rounded-xl border border-red-500/25 bg-red-500/10 p-4 text-xs font-semibold text-red-600 dark:text-red-400">
-                <AlertCircle className="h-5 w-5 shrink-0" aria-hidden="true" />
-                <span>{error}</span>
-              </div>
-            )}
+          <form onSubmit={handleSubmit} className="mt-8 space-y-5" noValidate>
+            <div role="alert" aria-live="assertive">
+              {error && (
+                <div className="flex items-center gap-3 rounded-xl border border-red-500/25 bg-red-500/10 p-4 text-xs font-semibold text-red-600 dark:text-red-400">
+                  <AlertCircle className="h-5 w-5 shrink-0" aria-hidden="true" />
+                  <span>{error}</span>
+                </div>
+              )}
+            </div>
 
             <div className="grid gap-5 sm:grid-cols-2">
               <FloatingField
@@ -248,6 +278,9 @@ const ContactExperience = () => {
                 value={name}
                 onChange={setName}
                 disabled={loading}
+                required
+                autoComplete="name"
+                maxLength={FIELD_LIMITS.name}
               />
               <FloatingField
                 id="email"
@@ -256,6 +289,10 @@ const ContactExperience = () => {
                 value={email}
                 onChange={setEmail}
                 disabled={loading}
+                required
+                autoComplete="email"
+                maxLength={FIELD_LIMITS.email}
+                invalid={email.trim().length > 0 && !EMAIL_PATTERN.test(email.trim())}
               />
             </div>
 
@@ -265,6 +302,9 @@ const ContactExperience = () => {
               value={subject}
               onChange={setSubject}
               disabled={loading}
+              required
+              autoComplete="off"
+              maxLength={FIELD_LIMITS.subject}
             />
 
             <FloatingField
@@ -274,6 +314,9 @@ const ContactExperience = () => {
               value={message}
               onChange={setMessage}
               disabled={loading}
+              required
+              maxLength={FIELD_LIMITS.message}
+              invalid={message.length > 0 && messageRemaining > 0}
               helper={
                 messageRemaining > 0
                   ? `${messageRemaining} more characters needed`
@@ -301,6 +344,10 @@ const ContactExperience = () => {
                 </>
               )}
             </button>
+
+            <p className="sr-only" role="status" aria-live="polite">
+              {loading ? "Sending your message" : ""}
+            </p>
           </form>
         </Reveal>
 
@@ -367,13 +414,28 @@ const ContactExperience = () => {
       </section>
 
       {successData && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="animate-scale-in relative w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-[#0c0c0c]">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSuccessData(null);
+          }}
+        >
+          <div
+            ref={successDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="contact-success-title"
+            tabIndex={-1}
+            className="animate-scale-in relative w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-[#0c0c0c]"
+          >
             <div className="flex flex-col items-center gap-3 border-b border-dashed border-zinc-200 px-7 pt-8 pb-6 text-center dark:border-zinc-800">
               <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400">
                 <Check className="h-8 w-8" aria-hidden="true" />
               </span>
-              <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-white">
+              <h2
+                id="contact-success-title"
+                className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-white"
+              >
                 Message sent
               </h2>
               <p className="text-sm leading-6 text-zinc-500 dark:text-zinc-400">

@@ -19,7 +19,16 @@ export const siteConfig = {
   creator: "Gautam Raj",
   email: "info@veriworkly.com",
 
-  url: process.env.SITE_URL || "https://veriworkly.com",
+  /**
+   * `siteConfig` is imported by client components (Navbar, PricingExperience,
+   * ContactExperience), and only `NEXT_PUBLIC_*` vars are inlined into the client
+   * bundle — a bare `SITE_URL` reads as `undefined` in the browser, so server and
+   * client would silently disagree on the canonical origin.
+   *
+   * `NEXT_PUBLIC_SITE_URL` is the value that reaches both. `SITE_URL` is kept as a
+   * server-side fallback so existing deployments keep working unchanged.
+   */
+  url: process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || links.main,
 
   description:
     "Free-to-use, open-core, and privacy-first AI career workspace. Build and tailor professional resumes, cover letters, and web portfolios with local-first ownership, optional secure cloud sync, and advanced AI models (Claude & GPT-4o).",
@@ -43,17 +52,24 @@ export const siteConfig = {
     "resume builder no login",
     "ATS resume builder",
     "ATS-friendly resume builder",
-    "invoice generator free",
+    "free ATS resume checker",
+    "resume score checker",
     "professional document builder",
     "github resume builder",
+    "github portfolio import",
     "linkedin profile resume converter",
     "import linkedin pdf to resume",
     "master profile career sync",
     "open source resume builder",
+    "open source career platform",
     "privacy-first resume builder",
+    "privacy-first career workspace",
     "developer portfolio template",
+    "portfolio website with custom subdomain",
     "student ambassador program career",
+    "career affiliate program",
     "best free portfolio builder",
+    "AI career workspace",
   ],
 
   openGraph: {

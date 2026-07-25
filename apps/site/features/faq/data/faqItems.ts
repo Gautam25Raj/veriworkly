@@ -1,4 +1,4 @@
-import { Globe, FileText, Code, DollarSign, HelpCircle, Shield } from "lucide-react";
+import { Globe, FileText, Code, DollarSign, HelpCircle, KeyRound, Shield } from "lucide-react";
 
 export const categories = [
   { id: "all", name: "All Questions", icon: HelpCircle },
@@ -6,6 +6,7 @@ export const categories = [
   { id: "documents", name: "Resumes & Documents", icon: FileText },
   { id: "portfolios", name: "Web Portfolios", icon: Globe },
   { id: "billing", name: "Billing & AI Credits", icon: DollarSign },
+  { id: "developer", name: "ATS, Imports & API", icon: KeyRound },
   { id: "contribute", name: "Open Source & Contributions", icon: Code },
 ] as const;
 
@@ -92,7 +93,7 @@ export const faqs = [
     category: "portfolios",
     question: "How do subdomains and SSL certificates work?",
     answer:
-      "Subdomain mapping is included in our Portfolio Pro tier. You can secure a unique URL (such as yourname.veriworkly.com). We automatically generate and renew SSL certificates to ensure your site is served securely via HTTPS.",
+      "Subdomain mapping is included in our Creator Pro tier. You can secure a unique URL (such as yourname.veriworkly.com). We automatically generate and renew SSL certificates to ensure your site is served securely via HTTPS.",
   },
   {
     id: "media-hosting-limits",
@@ -183,7 +184,7 @@ export const faqs = [
     category: "portfolios",
     question: "Can I map a custom domain instead of a subdomain?",
     answer:
-      "Currently, Portfolio Pro supports publishing to your unique VeriWorkly subdomain (e.g. yourname.veriworkly.com). Support for fully custom domains (e.g. yourname.com) is currently on our active engineering roadmap.",
+      "Today, Creator Pro publishes to a unique VeriWorkly subdomain (e.g. yourname.veriworkly.com) with automatic SSL. Fully custom domains (e.g. yourname.com) are not available yet — check the public roadmap for the latest status on that request.",
   },
   {
     id: "local-data-migration",
@@ -197,14 +198,14 @@ export const faqs = [
     category: "billing",
     question: "What happens if I run out of AI credits?",
     answer:
-      "If you run out of credits, you can wait for your monthly cycle reset, buy standalone AI credit packs, or purchase short-term passes (like the 1-Day Pass) to immediately reload your credit balance.",
+      "If you run out of credits, you can wait for your next monthly cycle reset, buy a one-time AI credit top-up ($2.99 for 250 credits, or $4.99 for 500 credits, valid 90 days), or purchase a 3-Day or 7-Day pass to reload your credit balance.",
   },
   {
     id: "refund-policy",
     category: "billing",
     question: "Do you offer refunds on passes or subscriptions?",
     answer:
-      "Because we offer very low-cost passes (like the $0.69 1-Day Pass) to fully test our hosting and AI systems, we generally do not issue refunds. However, if you experience double-billing or technical failures, please contact support to request a manual review.",
+      "Because we offer very low-cost, time-boxed passes (from $2.99) to fully test our hosting and AI systems before you commit to a subscription, we generally do not issue refunds. However, if you experience double-billing or a technical failure, contact support to request a manual review.",
   },
   {
     id: "password-protection",
@@ -212,5 +213,54 @@ export const faqs = [
     question: "Can I password-protect shared documents or portfolio links?",
     answer:
       "Yes. When creating shared links for resumes, cover letters, or portfolio drafts, you can enable password protection. Only visitors or recruiters who enter the password will be able to view your public page.",
+  },
+  {
+    id: "cover-letter-ai",
+    category: "documents",
+    question: "Can AI write my cover letter, or just my resume?",
+    answer:
+      "Both. The same AI writing assistant covers resumes and cover letters: generate a full cover letter from a job description, rewrite a section in Standard or Expert mode, or tailor an existing letter to a specific role. You always see the AI's draft and choose to replace your text or discard it — nothing is overwritten silently.",
+  },
+  {
+    id: "ats-checker-free",
+    category: "developer",
+    question: "Is there a free ATS resume checker?",
+    answer:
+      "Yes. The ATS Checker runs a free, rules-based core scan (word count, contact details, required sections, action verbs, quantified achievements, and formatting risks like tables or headers that confuse parsers) and gives a readiness score plus a keyword-match score against a pasted job description. Anonymous visitors get 1 scan every 48 hours, and free logged-in accounts get 2 scans every 24 hours. A deeper AI-powered analysis layer — with missing-evidence detection and prioritized recommendations — is available on paid plans.",
+  },
+  {
+    id: "github-import",
+    category: "developer",
+    question: "Can I import my GitHub profile into a resume?",
+    answer:
+      "Yes. GitHub import is a real OAuth connection: it pulls your profile and up to 30 repositories, then deterministically (no AI guesswork) maps your languages to skills and repositories to project entries. Free accounts can import their own connected GitHub account once per day; paid accounts can import any public GitHub username with no daily limit.",
+  },
+  {
+    id: "linkedin-import",
+    category: "developer",
+    question: "How does LinkedIn import actually work?",
+    answer:
+      "LinkedIn does not offer a public API for profile data, so import works by pasting or uploading your exported LinkedIn profile text (for example, LinkedIn's own \"Save to PDF\" export). An AI call parses that text into structured resume data. This is different from GitHub import, which is a true OAuth API connection — we're upfront about that distinction. Free accounts get 1 LinkedIn import per month; paid accounts get unlimited imports.",
+  },
+  {
+    id: "export-formats",
+    category: "documents",
+    question: "What file formats can I export my resume in?",
+    answer:
+      "Every resume and cover letter exports as PDF, DOCX, HTML, Markdown, plain text, or JSON from the same export menu — all free, with no format locked behind a paywall.",
+  },
+  {
+    id: "developer-api",
+    category: "developer",
+    question: "Does VeriWorkly have a developer API?",
+    answer:
+      "Yes. From the API Keys page you can generate scoped keys to read or write your account and resume data, or read the public roadmap and your GitHub import data programmatically. Keys are stored as irreversible hashes, are rate-limited, and expire automatically after 365 days by default.",
+  },
+  {
+    id: "affiliate-program-summary",
+    category: "billing",
+    question: "Does VeriWorkly have an affiliate or referral program?",
+    answer:
+      "Yes. The affiliate program pays a recurring commission on referred subscriptions across three tiers — 2% with no minimum, 3% after 10 conversions, and 5% after 50 conversions — tracked through a partner dashboard with click and conversion analytics and a $25 minimum payout. There's also a separate Student Ambassador program for campus representatives. See the Affiliate and Ambassador pages for details.",
   },
 ];

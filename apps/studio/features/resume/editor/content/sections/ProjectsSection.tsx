@@ -33,6 +33,12 @@ const ProjectsSection = ({
 
   const activeProject = projects[safeProjectIndex];
 
+  const handleAdd = () => {
+    const newIndex = projects.length;
+    addProject();
+    setProjectIndex(newIndex);
+  };
+
   const projectErrors = useMemo(
     () => (activeProject ? validateProject(activeProject) : {}),
     [activeProject],
@@ -64,7 +70,7 @@ const ProjectsSection = ({
           </select>
         ) : null}
 
-        <Button onClick={addProject} size="sm" variant="secondary">
+        <Button onClick={handleAdd} size="sm" variant="secondary">
           Add
         </Button>
 

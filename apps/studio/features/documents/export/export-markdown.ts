@@ -6,9 +6,16 @@ import {
   isSectionVisible,
   getVisibleSectionMap,
   getResumeFileBaseName,
+  joinTruthy,
 } from "@/features/resume/services/resume-formatters";
+import { normalizeLinkHref } from "@/features/documents/rendering/resume-rendering";
 
 import { downloadBlob } from "./download";
+
+/** Escapes Markdown metacharacters in free-form user text so it can't alter formatting. */
+function escapeMarkdown(value: string): string {
+  return value.replace(/([\\`*_{}[\]()#+.!|>~-])/g, "\\$1");
+}
 
 function toMarkdownSection(title: string, body: string[]): string {
   if (body.length === 0) {
@@ -27,14 +34,14 @@ function buildMarkdown(resume: ResumeData): string {
   const headline = safeText(resume.basics.headline);
   const name = safeText(resume.basics.fullName) || "Your Name";
 
-  parts.push(`# ${name}`);
+  parts.push(`# ${escapeMarkdown(name)}`);
 
   if (role) {
-    parts.push(`_${role}_`);
+    parts.push(`_${escapeMarkdown(role)}_`);
   }
 
   if (headline) {
-    parts.push(headline);
+    parts.push(escapeMarkdown(headline));
   }
 
   const contact = [
@@ -44,34 +51,37 @@ function buildMarkdown(resume: ResumeData): string {
   ].filter(Boolean);
 
   if (contact.length > 0) {
-    parts.push(contact.join(" | "));
+    parts.push(contact.map(escapeMarkdown).join(" | "));
   }
 
   parts.push("");
 
   if (isSectionVisible(visibleSections, "summary") && safeText(resume.summary)) {
-    parts.push(toMarkdownSection("Summary", [safeText(resume.summary)]));
+    parts.push(toMarkdownSection("Summary", [escapeMarkdown(safeText(resume.summary))]));
   }
 
   if (isSectionVisible(visibleSections, "experience") && resume.experience.length > 0) {
     const lines = resume.experience.flatMap((item) => {
-      const heading = `### ${safeText(item.role) || "Role"} - ${safeText(item.company) || "Company"}`;
+      const headingText = joinTruthy([item.role, item.company], " - ");
+      const heading = headingText ? `### ${escapeMarkdown(headingText)}` : "";
 
-      const meta = [
-        formatDateRange(item.startDate, item.endDate, item.current),
-        safeText(item.location),
-      ]
-        .filter(Boolean)
-        .join(" | ");
+      const dateRange = formatDateRange(item.startDate, item.endDate, item.current);
+      const meta = joinTruthy([dateRange, item.location], " | ");
 
       const bullets = item.highlights
         .map((highlight) => safeText(highlight))
         .filter(Boolean)
-        .map((highlight) => `- ${highlight}`);
+        .map((highlight) => `- ${escapeMarkdown(highlight)}`);
 
       const summary = safeText(item.summary);
 
-      return [heading, meta, ...(summary ? [summary] : []), ...bullets, ""].filter(Boolean);
+      return [
+        heading,
+        meta ? escapeMarkdown(meta) : "",
+        ...(summary ? [escapeMarkdown(summary)] : []),
+        ...bullets,
+        "",
+      ].filter(Boolean);
     });
 
     parts.push(toMarkdownSection("Experience", lines));
@@ -79,12 +89,17 @@ function buildMarkdown(resume: ResumeData): string {
 
   if (isSectionVisible(visibleSections, "education") && resume.education.length > 0) {
     const lines = resume.education.flatMap((item) => {
-      const title = `${safeText(item.degree) || "Degree"}${safeText(item.field) ? `, ${safeText(item.field)}` : ""}`;
-      const school = safeText(item.school) || "School";
+      const title = joinTruthy([item.degree, item.field], ", ");
       const meta = formatDateRange(item.startDate, item.endDate, item.current);
+      const line = joinTruthy([title && `**${escapeMarkdown(title)}**`, item.school], " - ");
       const summary = safeText(item.summary);
 
-      return [`- **${title}** - ${school} (${meta})`, ...(summary ? [`  - ${summary}`] : [])];
+      if (!line && !meta) return [];
+
+      return [
+        `- ${line}${meta ? ` (${escapeMarkdown(meta)})` : ""}`,
+        ...(summary ? [`  - ${escapeMarkdown(summary)}`] : []),
+      ];
     });
 
     parts.push(toMarkdownSection("Education", lines));
@@ -92,22 +107,26 @@ function buildMarkdown(resume: ResumeData): string {
 
   if (isSectionVisible(visibleSections, "projects") && resume.projects.length > 0) {
     const lines = resume.projects.flatMap((item) => {
-      const title = safeText(item.name) || "Project";
+      const name = safeText(item.name);
       const roleLabel = safeText(item.role);
       const link = safeText(item.link);
       const summary = safeText(item.summary);
       const highlights = item.highlights
         .map((highlight) => safeText(highlight))
         .filter(Boolean)
-        .map((highlight) => `- ${highlight}`);
+        .map((highlight) => `- ${escapeMarkdown(highlight)}`);
+
+      const heading = name || roleLabel;
 
       return [
-        `### ${title}${roleLabel ? ` (${roleLabel})` : ""}`,
-        ...(link ? [`${link}`] : []),
-        ...(summary ? [summary] : []),
+        heading
+          ? `### ${escapeMarkdown(name)}${roleLabel ? ` (${escapeMarkdown(roleLabel)})` : ""}`
+          : "",
+        ...(link ? [normalizeLinkHref(link)] : []),
+        ...(summary ? [escapeMarkdown(summary)] : []),
         ...highlights,
         "",
-      ];
+      ].filter(Boolean);
     });
 
     parts.push(toMarkdownSection("Projects", lines));
@@ -116,13 +135,17 @@ function buildMarkdown(resume: ResumeData): string {
   if (isSectionVisible(visibleSections, "skills") && resume.skills.length > 0) {
     const lines = resume.skills
       .map((group) => {
-        const nameLabel = safeText(group.name) || "Skills";
+        const nameLabel = safeText(group.name);
         const keywords = group.keywords
           .map((keyword) => safeText(keyword))
           .filter(Boolean)
           .join(", ");
 
-        return keywords ? `- **${nameLabel}:** ${keywords}` : "";
+        if (!keywords) return "";
+
+        return nameLabel
+          ? `- **${escapeMarkdown(nameLabel)}:** ${escapeMarkdown(keywords)}`
+          : `- ${escapeMarkdown(keywords)}`;
       })
       .filter(Boolean);
 
@@ -132,14 +155,14 @@ function buildMarkdown(resume: ResumeData): string {
   if (isSectionVisible(visibleSections, "links") && resume.links.items.length > 0) {
     const lines = resume.links.items
       .map((link) => {
-        const label = safeText(link.label) || safeText(link.type) || "Link";
         const url = safeText(link.url);
 
         if (!url) {
           return "";
         }
 
-        return `- [${label}](${url})`;
+        const label = safeText(link.label) || safeText(link.type) || url;
+        return `- [${escapeMarkdown(label)}](${normalizeLinkHref(url)})`;
       })
       .filter(Boolean);
 
@@ -149,27 +172,30 @@ function buildMarkdown(resume: ResumeData): string {
   if (isSectionVisible(visibleSections, "custom") && resume.customSections.length > 0) {
     resume.customSections.forEach((section) => {
       const lines = section.items.flatMap((item) => {
-        const title = safeText(item.name) || "Item";
-        const issuer = safeText(item.issuer);
-        const date = safeText(item.date);
+        const title = safeText(item.name);
         const description = safeText(item.description);
         const details = item.details
           .map((detail) => safeText(detail))
           .filter(Boolean)
-          .map((detail) => `- ${detail}`);
+          .map((detail) => `- ${escapeMarkdown(detail)}`);
 
-        const meta = [issuer, date].filter(Boolean).join(" | ");
+        const meta = joinTruthy([item.issuer, item.link, item.date], " | ");
 
         return [
-          `### ${title}`,
-          ...(meta ? [meta] : []),
-          ...(description ? [description] : []),
+          title ? `### ${escapeMarkdown(title)}` : "",
+          ...(meta ? [escapeMarkdown(meta)] : []),
+          ...(description ? [escapeMarkdown(description)] : []),
           ...details,
           "",
-        ];
+        ].filter(Boolean);
       });
 
-      parts.push(toMarkdownSection(safeText(section.title) || "Section", lines));
+      const sectionTitle = safeText(section.title);
+      if (sectionTitle) {
+        parts.push(toMarkdownSection(escapeMarkdown(sectionTitle), lines));
+      } else if (lines.length > 0) {
+        parts.push([...lines, ""].join("\n"));
+      }
     });
   }
 

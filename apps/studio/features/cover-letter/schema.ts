@@ -66,12 +66,60 @@ function parseLinks(value: unknown): CoverLetterContent["links"] {
   return { displayMode, items };
 }
 
+/**
+ * Coerces an arbitrary/untrusted value into a well-typed `CoverLetterContent` — every
+ * field is validated/defaulted, so this can never produce e.g. a `NaN` page margin or
+ * an unvalidated link `type`. Used both by `parseCoverLetterDocument` (full-document
+ * shape) and directly by JSON import (content-only shape, matching what this app's own
+ * JSON export produces).
+ */
+export function parseCoverLetterContent(input: unknown): CoverLetterContent {
+  const contentRaw = isRecord(input) ? input : {};
+  const appearanceRaw = isRecord(contentRaw.appearance) ? contentRaw.appearance : {};
+
+  return {
+    senderName: asText(contentRaw.senderName),
+    senderTitle: asText(contentRaw.senderTitle),
+    senderEmail: asText(contentRaw.senderEmail),
+    senderPhone: asText(contentRaw.senderPhone),
+    senderLocation: asText(contentRaw.senderLocation),
+    senderWebsite: asText(contentRaw.senderWebsite),
+    links: parseLinks(contentRaw.links),
+    date: asText(contentRaw.date),
+
+    recipientName: asText(contentRaw.recipientName),
+    recipientTitle: asText(contentRaw.recipientTitle),
+
+    companyName: asText(contentRaw.companyName),
+    companyLocation: asText(contentRaw.companyLocation),
+
+    jobTitle: asText(contentRaw.jobTitle),
+    subject: asText(contentRaw.subject),
+    greeting: asText(contentRaw.greeting),
+    opening: asText(contentRaw.opening),
+    body: asText(contentRaw.body),
+    highlights: asText(contentRaw.highlights),
+    closing: asText(contentRaw.closing),
+    signature: asText(contentRaw.signature),
+    postscript: asText(contentRaw.postscript),
+
+    appearance: {
+      fontFamily: normalizeFontFamilyId(asText(appearanceRaw.fontFamily)),
+      pageMargin: asNumber(appearanceRaw.pageMargin, 44),
+      paragraphSpacing: asNumber(appearanceRaw.paragraphSpacing, 12),
+      lineHeight: asNumber(appearanceRaw.lineHeight, 1.55),
+      accentColor: asText(appearanceRaw.accentColor) || "#2563eb",
+      sidebarColor: asText(appearanceRaw.sidebarColor) || "#111827",
+      pageColor: asText(appearanceRaw.pageColor) || "#ffffff",
+      textColor: asText(appearanceRaw.textColor) || "#18181b",
+      hiddenSections: parseHiddenSections(appearanceRaw.hiddenSections),
+    },
+  };
+}
+
 export function parseCoverLetterDocument(input: unknown): BaseDocument<CoverLetterContent> | null {
   if (!isRecord(input) || input.type !== "COVER_LETTER") return null;
   if (typeof input.id !== "string" || typeof input.templateId !== "string") return null;
-
-  const contentRaw = isRecord(input.content) ? input.content : {};
-  const appearanceRaw = isRecord(contentRaw.appearance) ? contentRaw.appearance : {};
 
   return {
     id: input.id,
@@ -96,43 +144,6 @@ export function parseCoverLetterDocument(input: unknown): BaseDocument<CoverLett
           lastSyncedAt: null,
           revision: 1,
         },
-    content: {
-      senderName: asText(contentRaw.senderName),
-      senderTitle: asText(contentRaw.senderTitle),
-      senderEmail: asText(contentRaw.senderEmail),
-      senderPhone: asText(contentRaw.senderPhone),
-      senderLocation: asText(contentRaw.senderLocation),
-      senderWebsite: asText(contentRaw.senderWebsite),
-      links: parseLinks(contentRaw.links),
-      date: asText(contentRaw.date),
-
-      recipientName: asText(contentRaw.recipientName),
-      recipientTitle: asText(contentRaw.recipientTitle),
-
-      companyName: asText(contentRaw.companyName),
-      companyLocation: asText(contentRaw.companyLocation),
-
-      jobTitle: asText(contentRaw.jobTitle),
-      subject: asText(contentRaw.subject),
-      greeting: asText(contentRaw.greeting),
-      opening: asText(contentRaw.opening),
-      body: asText(contentRaw.body),
-      highlights: asText(contentRaw.highlights),
-      closing: asText(contentRaw.closing),
-      signature: asText(contentRaw.signature),
-      postscript: asText(contentRaw.postscript),
-
-      appearance: {
-        fontFamily: normalizeFontFamilyId(asText(appearanceRaw.fontFamily)),
-        pageMargin: asNumber(appearanceRaw.pageMargin, 44),
-        paragraphSpacing: asNumber(appearanceRaw.paragraphSpacing, 12),
-        lineHeight: asNumber(appearanceRaw.lineHeight, 1.55),
-        accentColor: asText(appearanceRaw.accentColor) || "#2563eb",
-        sidebarColor: asText(appearanceRaw.sidebarColor) || "#111827",
-        pageColor: asText(appearanceRaw.pageColor) || "#ffffff",
-        textColor: asText(appearanceRaw.textColor) || "#18181b",
-        hiddenSections: parseHiddenSections(appearanceRaw.hiddenSections),
-      },
-    },
+    content: parseCoverLetterContent(input.content),
   };
 }

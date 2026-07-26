@@ -90,22 +90,6 @@ function buildCoverLetterDocx(content: CoverLetterContent): Promise<Blob> {
 }
 
 export async function exportDocumentAsDocx(document: BaseDocument): Promise<void> {
-  if (document.type !== "COVER_LETTER") {
-    const text =
-      typeof document.content === "string" ? document.content : JSON.stringify(document.content);
-    const docx = new Document({
-      sections: [
-        {
-          properties: {},
-          children: text.split(/\n+/).map((line) => createDocxParagraph(line)),
-        },
-      ],
-    });
-    const blob = await Packer.toBlob(docx);
-    downloadBlob(blob, `${getDocumentFileBaseName(document)}.docx`);
-    return;
-  }
-
   const content = document.content as CoverLetterContent;
   const blob = await buildCoverLetterDocx(content);
   downloadBlob(blob, `${getDocumentFileBaseName(document)}.docx`);

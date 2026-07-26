@@ -27,7 +27,7 @@ export type BillingSummary = {
       }
     >;
     packs: Array<{
-      key: "credit_pack_100";
+      key: "credit_pack_250" | "credit_pack_500";
       name: string;
       credits: number;
       expiresInDays: number;

@@ -30,12 +30,29 @@ export class SyncEngine {
     return scope ? `${scope}:${id}` : id;
   }
 
+  /**
+   * Parses a raw localStorage value, self-healing (clearing the key and returning
+   * `fallback`) on corrupted JSON instead of throwing. An uncaught throw here would
+   * propagate out of the fire-and-forget sync worker tick and silently, permanently
+   * stop syncing until the page reloads.
+   */
+  private static safeParse<T>(key: string, fallback: T): T {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      localStorage.removeItem(key);
+      return fallback;
+    }
+  }
+
   private static readOutbox(): Record<string, OutboxItem> {
     if (!this.isBrowser()) return {};
 
-    const raw = localStorage.getItem(STORAGE_KEYS.OUTBOX);
-
-    const items = raw ? JSON.parse(raw).items : {};
+    const parsed = this.safeParse<{ items?: unknown }>(STORAGE_KEYS.OUTBOX, {});
+    const items = parsed.items;
     if (!items || typeof items !== "object") return {};
 
     return Object.fromEntries(
@@ -106,18 +123,22 @@ export class SyncEngine {
     if (!this.isBrowser()) return this.defaultTelemetry();
 
     const key = this.normalizeKey(id, scope);
-    const raw = localStorage.getItem(STORAGE_KEYS.TELEMETRY);
-    const state = raw ? JSON.parse(raw).byDocumentId : {};
+    const state = this.safeParse<{ byDocumentId?: Record<string, SyncTelemetry> }>(
+      STORAGE_KEYS.TELEMETRY,
+      {},
+    );
 
-    return state[key] || this.defaultTelemetry();
+    return state.byDocumentId?.[key] || this.defaultTelemetry();
   }
 
   static updateTelemetry(id: string, patch: Partial<SyncTelemetry>, scope?: string) {
     if (!this.isBrowser()) return;
 
     const key = this.normalizeKey(id, scope);
-    const raw = localStorage.getItem(STORAGE_KEYS.TELEMETRY);
-    const state = raw ? JSON.parse(raw) : { byDocumentId: {} };
+    const state = this.safeParse<{ byDocumentId: Record<string, SyncTelemetry> }>(
+      STORAGE_KEYS.TELEMETRY,
+      { byDocumentId: {} },
+    );
 
     state.byDocumentId[key] = {
       ...(state.byDocumentId[key] || this.defaultTelemetry()),

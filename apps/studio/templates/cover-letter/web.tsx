@@ -27,19 +27,14 @@ export function renderCoverLetterWeb(content: CoverLetterContent) {
 export function CoverLetterPreview({ content, templateId }: CoverLetterPreviewProps) {
   const fontFamily = content.appearance?.fontFamily;
 
-  if (templateId === COVER_LETTER_VERIWORKLY_ID) {
-    return (
-      <>
-        <DocumentFontLoader fontFamily={fontFamily} />
-        <VeriworklyCoverLetterPreview content={content} />
-      </>
-    );
-  }
-
   return (
     <>
       <DocumentFontLoader fontFamily={fontFamily} />
-      <ProfessionalCoverLetterPreview content={content} />
+      {templateId === COVER_LETTER_VERIWORKLY_ID ? (
+        <VeriworklyCoverLetterPreview content={content} />
+      ) : (
+        <ProfessionalCoverLetterPreview content={content} />
+      )}
     </>
   );
 }

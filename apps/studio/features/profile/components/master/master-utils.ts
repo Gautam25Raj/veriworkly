@@ -116,21 +116,21 @@ export function validateMasterProfileForSave(profile: MasterProfileData) {
     issues.push("Basics email must be a valid email address.");
   }
 
-  if (!isTenDigitPhone(profile.basics.phone.trim())) {
+  // Guarded like the reference-phone check below: an empty phone is "not provided",
+  // not "invalid" — only reject it once the user has actually typed something.
+  if (profile.basics.phone.trim() && !isTenDigitPhone(profile.basics.phone.trim())) {
     issues.push("Basics phone must have exactly 10 digits.");
   }
 
   for (const link of profile.links.items) {
     if (!isValidAbsoluteUrl(link.url.trim())) {
       issues.push(`Link \"${link.label || link.type}\" must be a valid URL.`);
-      break;
     }
   }
 
   for (const project of profile.projects) {
     if (project.link.trim() && !isValidAbsoluteUrl(project.link.trim())) {
       issues.push(`Project \"${project.name || "Untitled"}\" has an invalid link URL.`);
-      break;
     }
   }
 
@@ -140,7 +140,6 @@ export function validateMasterProfileForSave(profile: MasterProfileData) {
       (!experience.current && !isMonthDate(experience.endDate))
     ) {
       issues.push(`Experience "${experience.role || "Untitled"}" must use YYYY-MM dates.`);
-      break;
     }
   }
 
@@ -150,43 +149,36 @@ export function validateMasterProfileForSave(profile: MasterProfileData) {
       (!education.current && !isYearDate(education.endDate))
     ) {
       issues.push(`Education "${education.degree || "Untitled"}" must use year-only dates.`);
-      break;
     }
   }
 
   for (const award of profile.awards) {
     if (award.website?.trim() && !isValidAbsoluteUrl(award.website.trim())) {
       issues.push(`Award \"${award.title || "Untitled"}\" has an invalid website URL.`);
-      break;
     }
 
     if (!isMonthDate(award.date)) {
       issues.push(`Award \"${award.title || "Untitled"}\" must use a YYYY-MM date.`);
-      break;
     }
   }
 
   for (const certificate of profile.certificates) {
     if (certificate.website?.trim() && !isValidAbsoluteUrl(certificate.website.trim())) {
       issues.push(`Certificate \"${certificate.title || "Untitled"}\" has an invalid website URL.`);
-      break;
     }
 
     if (!isMonthDate(certificate.date)) {
       issues.push(`Certificate \"${certificate.title || "Untitled"}\" must use a YYYY-MM date.`);
-      break;
     }
   }
 
   for (const publication of profile.publications) {
     if (publication.website?.trim() && !isValidAbsoluteUrl(publication.website.trim())) {
       issues.push(`Publication \"${publication.title || "Untitled"}\" has an invalid website URL.`);
-      break;
     }
 
     if (!isMonthDate(publication.date)) {
       issues.push(`Publication \"${publication.title || "Untitled"}\" must use a YYYY-MM date.`);
-      break;
     }
   }
 
@@ -196,21 +188,18 @@ export function validateMasterProfileForSave(profile: MasterProfileData) {
       (!volunteer.current && !isMonthDate(volunteer.endDate))
     ) {
       issues.push(`Volunteer "${volunteer.organization || "Untitled"}" must use YYYY-MM dates.`);
-      break;
     }
   }
 
   for (const reference of profile.references) {
     if (reference.email?.trim() && !isValidEmail(reference.email.trim())) {
       issues.push(`Reference \"${reference.name || "Unnamed"}\" has an invalid email.`);
-      break;
     }
 
     if (reference.phone?.trim() && !isTenDigitPhone(reference.phone.trim())) {
       issues.push(
         `Reference \"${reference.name || "Unnamed"}\" phone must have exactly 10 digits.`,
       );
-      break;
     }
   }
 
@@ -225,7 +214,6 @@ export function validateMasterProfileForSave(profile: MasterProfileData) {
   for (const [label, value] of numericChecks) {
     if (!isFiniteNumber(value)) {
       issues.push(`${label} must be a valid number.`);
-      break;
     }
   }
 

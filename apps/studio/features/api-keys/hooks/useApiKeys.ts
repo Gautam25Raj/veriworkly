@@ -122,7 +122,9 @@ export function useApiKeys({
 
       toast.success("API key rotated.");
 
-      void fetchKeys(1);
+      // Rotating doesn't change which page the key lives on — stay put instead of
+      // silently teleporting the user back to page 1.
+      void fetchKeys(page);
     } catch (error) {
       toast.error(resolveErrorMessage(error, "Failed to rotate API key."));
     } finally {
@@ -140,7 +142,9 @@ export function useApiKeys({
 
       setDeleteTarget(null);
       toast.success("API key deleted.");
-      void fetchKeys(1);
+      // If this was the last item on the current page, step back a page instead of
+      // fetching an empty one; otherwise stay on the same page the user was viewing.
+      void fetchKeys(keys.length <= 1 && page > 1 ? page - 1 : page);
     } catch (error) {
       toast.error(resolveErrorMessage(error, "Failed to delete API key."));
     } finally {
@@ -158,7 +162,8 @@ export function useApiKeys({
 
       setRevokeTarget(null);
       toast.success("API key revoked.");
-      void fetchKeys(1);
+      // Revoking doesn't remove the row from this page — stay on the same page.
+      void fetchKeys(page);
     } catch (error) {
       toast.error(resolveErrorMessage(error, "Failed to revoke API key."));
     } finally {

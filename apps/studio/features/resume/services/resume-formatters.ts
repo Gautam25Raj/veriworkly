@@ -7,9 +7,10 @@ import {
   formatDateRange,
   sanitizeFileName,
   escapeHtml,
+  joinTruthy,
 } from "@/features/documents/utils/formatters";
 
-export { safeText, formatDateRange, sanitizeFileName, escapeHtml };
+export { safeText, formatDateRange, sanitizeFileName, escapeHtml, joinTruthy };
 
 export function getResumeTitle(resume: ResumeData): string {
   return resume.title?.trim() || resume.basics.fullName.trim() || "Untitled Resume";

@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -91,9 +91,13 @@ const ActiveLinkRow = ({
       ? `${window.location.origin}/share/${link.username}/${link.token}`
       : "";
 
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(url);
-    toast.success("Link copied to clipboard");
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied to clipboard");
+    } catch {
+      toast.error("Could not copy link. Copy it manually instead.");
+    }
   }, [url]);
 
   return (
@@ -209,11 +213,19 @@ const ShareDocumentModal = ({
     return !isSlugMatching(activeLink.token, documentTitle);
   }, [activeLink, documentTitle]);
 
+  // Tracks the most recently *requested* document id so a slow response for a
+  // previous document (e.g. the modal was reused for doc A, then doc B, before A's
+  // request resolved) can be discarded instead of overwriting doc B's state.
+  const latestRequestedIdRef = useRef<string | null>(null);
+
   const refreshShareLinks = useCallback(async (id: string) => {
+    latestRequestedIdRef.current = id;
     setLinksLoading(true);
 
     try {
       const links = await listAllShareLinks(id);
+
+      if (latestRequestedIdRef.current !== id) return null;
 
       setShareLinks(links);
 
@@ -237,17 +249,20 @@ const ShareDocumentModal = ({
 
       return links;
     } catch (err) {
+      if (latestRequestedIdRef.current !== id) return null;
       toast.error(err instanceof Error ? err.message : "Could not load share links.");
 
       return null;
     } finally {
-      setLinksLoading(false);
+      if (latestRequestedIdRef.current === id) setLinksLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (documentId && !isMissingUsername)
-      void Promise.resolve().then(() => refreshShareLinks(documentId));
+    if (!documentId || isMissingUsername) return;
+    // Deferred to a microtask so refreshShareLinks' setLinksLoading(true) doesn't run
+    // synchronously inside the effect body itself (cascading-render lint rule).
+    void Promise.resolve().then(() => refreshShareLinks(documentId));
   }, [documentId, isMissingUsername, refreshShareLinks]);
 
   const handleCreate = async () => {
@@ -275,7 +290,14 @@ const ShareDocumentModal = ({
 
       success: (shareLink) => {
         const nextShareUrl = `${window.location.origin}/share/${shareLink.username}/${shareLink.token}`;
-        void navigator.clipboard.writeText(nextShareUrl);
+
+        // Clipboard result is reported independently — the save itself already
+        // succeeded by this point, and a clipboard failure (e.g. insecure context,
+        // denied permission) shouldn't be reported to the user as a save failure.
+        navigator.clipboard
+          .writeText(nextShareUrl)
+          .then(() => toast.success("Link copied to clipboard"))
+          .catch(() => toast.error("Could not copy the link automatically — copy it manually."));
 
         trackUsageEvent({ event: hasActiveLink ? "share_link_updated" : "share_link_created" });
         void refreshShareLinks(documentId);
@@ -285,9 +307,7 @@ const ShareDocumentModal = ({
         setRemovePassword(false);
         setUpdateSlug(false);
 
-        return hasActiveLink
-          ? "Share link updated and copied to clipboard!"
-          : "Share link created and copied to clipboard!";
+        return hasActiveLink ? "Share link updated!" : "Share link created!";
       },
 
       error: (err) => {

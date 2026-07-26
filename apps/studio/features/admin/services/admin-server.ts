@@ -1,8 +1,10 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import { notFound } from "next/navigation";
 
 import { backendApiUrl } from "@/lib/constants";
+import { fetchCurrentUser } from "@/features/auth/services/current-user";
 
 import type { RoadmapFeature } from "@/features/roadmap/services/roadmap-backend";
 
@@ -63,6 +65,31 @@ interface AdminDashboardStats {
 async function getCookieHeaderValue() {
   const cookieStore = await cookies();
   return cookieStore.toString();
+}
+
+/**
+ * Frontend defense-in-depth for `/admin/*`: fails closed (404, not a leaky 403) if the
+ * signed-in user isn't the configured admin. This must never be the ONLY check — the
+ * backend's `adminAuthMiddleware` remains the authoritative gate on every admin API
+ * route — but without this, any authenticated user could reach the admin shell UI even
+ * if every fetch call inside it then failed. `ADMIN_EMAIL` here is a server-only env
+ * var (never `NEXT_PUBLIC_*`), so the admin identity never reaches the client bundle.
+ */
+export async function requireAdminUser() {
+  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+
+  if (!adminEmail) {
+    // Fail closed: an unconfigured admin email must never be treated as "anyone is admin".
+    notFound();
+  }
+
+  const user = await fetchCurrentUser();
+
+  if (!user?.email || user.email.toLowerCase() !== adminEmail) {
+    notFound();
+  }
+
+  return user;
 }
 
 function normalizeHeaders(headers?: HeadersInit) {

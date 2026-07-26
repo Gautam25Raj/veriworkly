@@ -7,7 +7,9 @@ import {
   isSectionVisible,
   getVisibleSectionMap,
   getResumeFileBaseName,
+  joinTruthy,
 } from "@/features/resume/services/resume-formatters";
+import { normalizeLinkHref } from "@/features/documents/rendering/resume-rendering";
 
 import { downloadBlob } from "./download";
 
@@ -75,14 +77,14 @@ function buildHtml(resume: ResumeData): string {
             .map((highlight) => `<li>${escapeHtml(highlight)}</li>`)
             .join("");
 
+          const heading = joinTruthy([item.role, item.company], " · ");
+          const dateRange = formatDateRange(item.startDate, item.endDate, item.current);
+          const meta = joinTruthy([dateRange, item.location], " · ");
+
           return `
           <article>
-            <h3>${escapeHtml(safeText(item.role) || "Role")} · ${escapeHtml(
-              safeText(item.company) || "Company",
-            )}</h3>
-            <p class="meta">${escapeHtml(
-              formatDateRange(item.startDate, item.endDate, item.current),
-            )}${safeText(item.location) ? ` · ${escapeHtml(safeText(item.location))}` : ""}</p>
+            ${heading ? `<h3>${escapeHtml(heading)}</h3>` : ""}
+            ${meta ? `<p class="meta">${escapeHtml(meta)}</p>` : ""}
             ${safeText(item.summary) ? `<p>${escapeHtml(safeText(item.summary))}</p>` : ""}
             ${highlights ? `<ul>${highlights}</ul>` : ""}
           </article>`;
@@ -93,14 +95,14 @@ function buildHtml(resume: ResumeData): string {
   const education = isSectionVisible(visibleSections, "education")
     ? resume.education
         .map((item) => {
-          const degree = `${safeText(item.degree) || "Degree"}${safeText(item.field) ? `, ${safeText(item.field)}` : ""}`;
+          const degree = joinTruthy([item.degree, item.field], ", ");
+          const dateRange = formatDateRange(item.startDate, item.endDate, item.current);
+          const meta = joinTruthy([item.school, dateRange], " · ");
 
           return `
           <article>
-            <h3>${escapeHtml(degree)}</h3>
-            <p class="meta">${escapeHtml(
-              safeText(item.school) || "School",
-            )} · ${escapeHtml(formatDateRange(item.startDate, item.endDate, item.current))}</p>
+            ${degree ? `<h3>${escapeHtml(degree)}</h3>` : ""}
+            ${meta ? `<p class="meta">${escapeHtml(meta)}</p>` : ""}
             ${safeText(item.summary) ? `<p>${escapeHtml(safeText(item.summary))}</p>` : ""}
           </article>`;
         })
@@ -115,11 +117,13 @@ function buildHtml(resume: ResumeData): string {
             .filter(Boolean)
             .map((highlight) => `<li>${escapeHtml(highlight)}</li>`)
             .join("");
+          const name = safeText(item.name);
+          const linkHref = safeText(item.link) ? escapeHtml(normalizeLinkHref(item.link)) : "";
 
           return `
           <article>
-            <h3>${escapeHtml(safeText(item.name) || "Project")}${safeText(item.role) ? ` <span class="sub">(${escapeHtml(safeText(item.role))})</span>` : ""}</h3>
-            ${safeText(item.link) ? `<p><a href="${escapeHtml(safeText(item.link))}">${escapeHtml(safeText(item.link))}</a></p>` : ""}
+            ${name || item.role ? `<h3>${escapeHtml(name)}${safeText(item.role) ? ` <span class="sub">(${escapeHtml(safeText(item.role))})</span>` : ""}</h3>` : ""}
+            ${linkHref ? `<p><a href="${linkHref}">${escapeHtml(safeText(item.link))}</a></p>` : ""}
             ${safeText(item.summary) ? `<p>${escapeHtml(safeText(item.summary))}</p>` : ""}
             ${highlights ? `<ul>${highlights}</ul>` : ""}
           </article>`;
@@ -139,7 +143,8 @@ function buildHtml(resume: ResumeData): string {
             return "";
           }
 
-          return `<li><strong>${escapeHtml(safeText(group.name) || "Skills")}</strong>: ${escapeHtml(keywords)}</li>`;
+          const name = safeText(group.name);
+          return `<li>${name ? `<strong>${escapeHtml(name)}</strong>: ` : ""}${escapeHtml(keywords)}</li>`;
         })
         .filter(Boolean)
         .join("")
@@ -148,14 +153,14 @@ function buildHtml(resume: ResumeData): string {
   const links = isSectionVisible(visibleSections, "links")
     ? resume.links.items
         .map((link) => {
-          const label = escapeHtml(safeText(link.label) || safeText(link.type) || "Link");
           const url = safeText(link.url);
 
           if (!url) {
             return "";
           }
 
-          const safeUrl = escapeHtml(url);
+          const label = escapeHtml(safeText(link.label) || safeText(link.type) || url);
+          const safeUrl = escapeHtml(normalizeLinkHref(url));
           return `<li><a href="${safeUrl}">${label}</a></li>`;
         })
         .filter(Boolean)
@@ -172,13 +177,13 @@ function buildHtml(resume: ResumeData): string {
                 .filter(Boolean)
                 .map((detail) => `<li>${escapeHtml(detail)}</li>`)
                 .join("");
+              const name = safeText(item.name);
+              const meta = joinTruthy([item.issuer, item.link, item.date], " · ");
 
               return `
               <article>
-                <h3>${escapeHtml(safeText(item.name) || "Item")}</h3>
-                <p class="meta">${escapeHtml(
-                  [safeText(item.issuer), safeText(item.date)].filter(Boolean).join(" · "),
-                )}</p>
+                ${name ? `<h3>${escapeHtml(name)}</h3>` : ""}
+                ${meta ? `<p class="meta">${escapeHtml(meta)}</p>` : ""}
                 ${safeText(item.description) ? `<p>${escapeHtml(safeText(item.description))}</p>` : ""}
                 ${details ? `<ul>${details}</ul>` : ""}
               </article>`;
@@ -187,7 +192,8 @@ function buildHtml(resume: ResumeData): string {
 
           if (!items) return "";
 
-          return `<section><h2>${escapeHtml(safeText(section.title) || "Section")}</h2>${items}</section>`;
+          const title = safeText(section.title);
+          return `<section>${title ? `<h2>${escapeHtml(title)}</h2>` : ""}${items}</section>`;
         })
         .filter(Boolean)
         .join("")

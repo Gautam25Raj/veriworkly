@@ -245,9 +245,12 @@ export class DocumentSyncService<T extends BaseDocumentData> {
         });
       }
 
-      const updated = this.applyCloudSyncMetadata(item, cloud);
-
-      this.config.localStorage.persist(updated);
+      // Re-patch only the sync sub-object onto whatever is currently in storage —
+      // the user may have kept editing (and autosaving new content) while the network
+      // request above was in flight, so `item` here is a stale pre-await snapshot and
+      // must never be written back wholesale (see patchSync doc comment).
+      const syncPatch = this.applyCloudSyncMetadata(item, cloud).sync;
+      this.config.localStorage.patchSync(id, syncPatch);
       SyncEngine.removeOutboxItem(id, this.config.documentType);
       SyncEngine.updateTelemetry(
         id,
@@ -428,11 +431,19 @@ export class DocumentSyncService<T extends BaseDocumentData> {
     return result;
   }
 
-  private getHydrateMeta() {
+  private getHydrateMeta(): { lastHydratedAt: number; lastServerCursor?: string } {
     if (!this.isBrowser()) return { lastHydratedAt: 0 };
     const raw = localStorage.getItem(this.cloudHydrateMetaKey);
+    if (!raw) return { lastHydratedAt: 0 };
 
-    return raw ? JSON.parse(raw) : { lastHydratedAt: 0 };
+    try {
+      return JSON.parse(raw);
+    } catch {
+      // Self-heal: a corrupted value here must not throw uncaught inside
+      // shouldHydrate()/hydrate(), which would otherwise silently break hydration.
+      localStorage.removeItem(this.cloudHydrateMetaKey);
+      return { lastHydratedAt: 0 };
+    }
   }
 
   private setLastHydrateMeta(meta: { lastHydratedAt: number; lastServerCursor: string }) {

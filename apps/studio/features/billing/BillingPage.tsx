@@ -18,6 +18,9 @@ import { useUserStore } from "@/store/useUserStore";
 import { buyCreditPack, openBillingPortal, cancelCheckout } from "@/features/billing/billing-api";
 import type { BillingActivity, BillingSummary } from "@/features/billing/types";
 import { cn } from "@/lib/utils";
+import { ApiRequestError } from "@/utils/fetchApiData";
+
+const CHECKOUT_LOCK_CONFLICT_STATUS = 409;
 
 const planNames = {
   FREE: "Free",
@@ -44,21 +47,32 @@ export function BillingPage({
   history: BillingActivity[];
 }) {
   const [loading, setLoading] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<{ message: string; isCheckoutLockConflict: boolean } | null>(
+    null,
+  );
   const [clearingLock, setClearingLock] = useState(false);
+  const [finalizingPurchase, setFinalizingPurchase] = useState(false);
   const searchParams = useSearchParams();
   const router = useRouter();
 
   const { user } = useUserStore();
-  const isProd = process.env.NODE_ENV === "production";
-  const adminEmail = (
-    process.env.NEXT_PUBLIC_ADMIN_EMAIL || "ashragautam25@gmail.com"
-  ).toLowerCase();
-  const isAdmin = user && user.email && user.email.toLowerCase() === adminEmail;
-  const paymentsBlocked = isProd && !isAdmin;
+
+  // Whether payments are actually blocked for this user is decided authoritatively by
+  // the backend (BillingController.assertPaymentsEnabled), which returns a clear 403
+  // message that surfaces via the `error` state below. We deliberately do not try to
+  // replicate that admin check on the client — doing so would require shipping an
+  // admin identity into the public bundle and would only ever be an unreliable guess.
+
+  const creditPack250 = billing?.creditEconomics.packs.find(
+    (pack) => pack.key === "credit_pack_250",
+  );
+  const creditPack500 = billing?.creditEconomics.packs.find(
+    (pack) => pack.key === "credit_pack_500",
+  );
 
   useEffect(() => {
     const checkoutStatus = searchParams?.get("checkout");
+
     if (checkoutStatus === "cancelled") {
       void cancelCheckout()
         .then(() => {
@@ -67,16 +81,47 @@ export function BillingPage({
         .catch((err) => {
           console.error("Failed to cancel checkout lock", err);
         });
+      return;
+    }
+
+    if (checkoutStatus === "success") {
+      // Plan/credit updates are driven by an async webhook, so the freshly
+      // loaded server data may still be stale for a moment. Re-fetch a few
+      // times with backoff and surface a "finalizing" state instead of
+      // silently showing outdated numbers.
+      // Deferred to a microtask so this setState call doesn't run synchronously
+      // inside the effect body itself (cascading-render lint rule).
+      queueMicrotask(() => setFinalizingPurchase(true));
+      router.replace("/billing");
+
+      const delays = [1500, 2500, 4000];
+      const timers = delays.map((delay) => window.setTimeout(() => router.refresh(), delay));
+      const finalTimer = window.setTimeout(
+        () => setFinalizingPurchase(false),
+        delays[delays.length - 1] + 500,
+      );
+
+      return () => {
+        timers.forEach((timer) => window.clearTimeout(timer));
+        window.clearTimeout(finalTimer);
+        setFinalizingPurchase(false);
+      };
     }
   }, [searchParams, router]);
+
+  const toBillingError = (cause: unknown, fallbackMessage: string) => ({
+    message: cause instanceof Error ? cause.message : fallbackMessage,
+    isCheckoutLockConflict:
+      cause instanceof ApiRequestError && cause.status === CHECKOUT_LOCK_CONFLICT_STATUS,
+  });
 
   const handleClearLock = async () => {
     setClearingLock(true);
     try {
       await cancelCheckout();
-      setError("");
+      setError(null);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not clear checkout lock.");
+      setError(toBillingError(cause, "Could not clear checkout lock."));
     } finally {
       setClearingLock(false);
     }
@@ -84,22 +129,22 @@ export function BillingPage({
 
   const openPortal = async () => {
     setLoading("portal");
-    setError("");
+    setError(null);
     try {
       window.location.assign((await openBillingPortal()).url);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not open billing portal.");
+      setError(toBillingError(cause, "Could not open billing portal."));
       setLoading("");
     }
   };
 
-  const buyPack = async () => {
-    setLoading("credit_pack_100");
-    setError("");
+  const buyPack = async (packKey: "credit_pack_250" | "credit_pack_500") => {
+    setLoading(packKey);
+    setError(null);
     try {
-      window.location.assign((await buyCreditPack("credit_pack_100")).url);
+      window.location.assign((await buyCreditPack(packKey)).url);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not start credit checkout.");
+      setError(toBillingError(cause, "Could not start credit checkout."));
       setLoading("");
     }
   };
@@ -121,7 +166,6 @@ export function BillingPage({
                 <Button
                   variant="secondary"
                   loading={loading === "portal"}
-                  disabled={paymentsBlocked}
                   onClick={() => void openPortal()}
                 >
                   Manage subscription <ExternalLink className="mr-2 h-4 w-4" />
@@ -137,19 +181,17 @@ export function BillingPage({
           </div>
         </header>
 
-        {paymentsBlocked ? (
-          <div className="flex flex-wrap items-center gap-4 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm font-semibold text-amber-600 dark:text-amber-400">
-            <p className="flex-1">
-              Payments are disabled in production during this phase. Only administrators can perform
-              purchases or manage subscriptions.
-            </p>
+        {finalizingPurchase ? (
+          <div className="border-accent/30 bg-accent-soft text-accent flex flex-wrap items-center gap-3 rounded-xl border p-4 text-sm font-semibold">
+            <span className="border-accent/40 border-t-accent h-4 w-4 animate-spin rounded-full border-2" />
+            Finalizing your purchase — this can take a few seconds while we confirm payment.
           </div>
         ) : null}
 
         {error ? (
           <div className="border-destructive/30 bg-destructive/5 text-destructive flex flex-wrap items-center justify-between gap-4 rounded-xl border p-4 text-sm">
-            <p className="flex-1">{error}</p>
-            {error.includes("checkout is already active") && (
+            <p className="flex-1">{error.message}</p>
+            {error.isCheckoutLockConflict && (
               <Button
                 size="sm"
                 variant="secondary"
@@ -214,18 +256,22 @@ export function BillingPage({
                   : "No credits currently scheduled to expire"}
               </p>
             </div>
-            <Button
-              className="mt-5 w-full"
-              loading={loading === "credit_pack_100"}
-              disabled={!billing?.creditEconomics.packs[0]?.configured || paymentsBlocked || !user}
-              onClick={() => void buyPack()}
-            >
-              {paymentsBlocked
-                ? "Payments disabled in production"
-                : billing?.creditEconomics.packs[0]?.configured
-                  ? "Buy 100 extra credits"
-                  : "Extra credits coming soon"}
-            </Button>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <Button
+                loading={loading === "credit_pack_250"}
+                disabled={!creditPack250?.configured || !user}
+                onClick={() => void buyPack("credit_pack_250")}
+              >
+                {creditPack250?.configured ? "Buy 250 credits" : "Coming soon"}
+              </Button>
+              <Button
+                loading={loading === "credit_pack_500"}
+                disabled={!creditPack500?.configured || !user}
+                onClick={() => void buyPack("credit_pack_500")}
+              >
+                {creditPack500?.configured ? "Buy 500 credits" : "Coming soon"}
+              </Button>
+            </div>
             <Link
               className="text-accent mt-3 block text-center text-xs font-bold"
               href={user ? "/credits" : "#"}

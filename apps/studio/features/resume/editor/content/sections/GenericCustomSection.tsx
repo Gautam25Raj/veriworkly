@@ -55,6 +55,14 @@ export default function GenericCustomSection({
   const safeIndex = Math.min(selectedIndex, Math.max(0, section.items.length - 1));
   const activeItem = section.items[safeIndex];
 
+  const handleAdd = () => {
+    // Select the newly-added item so the picker/edit form reflects what was just
+    // added, instead of silently leaving the previously-selected item shown.
+    const newIndex = section.items.length;
+    addCustomSectionItem(kind);
+    setSelectedIndex(newIndex);
+  };
+
   return (
     <DraggableSection
       id={kind}
@@ -81,7 +89,7 @@ export default function GenericCustomSection({
               ))}
             </select>
 
-            <Button onClick={() => addCustomSectionItem(kind)} size="sm" variant="secondary">
+            <Button onClick={handleAdd} size="sm" variant="secondary">
               {addLabel}
             </Button>
 
@@ -94,11 +102,7 @@ export default function GenericCustomSection({
             </Button>
           </div>
         ) : (
-          <Button
-            className="w-full justify-center"
-            onClick={() => addCustomSectionItem(kind)}
-            variant="secondary"
-          >
+          <Button className="w-full justify-center" onClick={handleAdd} variant="secondary">
             {addLabel}
           </Button>
         )}

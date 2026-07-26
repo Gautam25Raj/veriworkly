@@ -77,15 +77,6 @@ export function ImportProfileModal({
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState("");
 
-  // Sync state during rendering instead of useEffect to avoid synchronous setState inside effects
-  const [prevOpen, setPrevOpen] = useState(open);
-  if (open !== prevOpen) {
-    setPrevOpen(open);
-    if (open) {
-      setActiveTab(initialProvider);
-    }
-  }
-
   // GitHub state
   const [githubInput, setGithubInput] = useState("");
 
@@ -97,6 +88,21 @@ export function ImportProfileModal({
   // Quota states
   const [quota, setQuota] = useState<QuotaResponse | null>(null);
 
+  // Sync state during rendering instead of useEffect to avoid synchronous setState inside effects.
+  // Resets *all* per-session state on every reopen (not just activeTab) so a previous
+  // session's partially-filled form/quota never leaks into the next time the modal opens.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) {
+      setActiveTab(initialProvider);
+      setGithubInput("");
+      setLinkedinText("");
+      setReplaceMaster(false);
+      setQuota(null);
+    }
+  }
+
   useEffect(() => {
     if (!open || !isLoggedIn) return;
 
@@ -106,9 +112,13 @@ export function ImportProfileModal({
         const data = await fetchApiData<QuotaResponse>("/profiles/import/quota");
         if (!active) return;
         setQuota(data);
-        if (data?.github?.connectedUsername && !githubInput) {
-          setGithubInput(data.github.connectedUsername);
-        }
+        // Prefill the GitHub field with the connected username, but only if the user
+        // hasn't already typed something — checked via functional update so this
+        // effect doesn't need `githubInput` as a dependency (which would otherwise
+        // re-fire this network request on every keystroke while the modal is open).
+        setGithubInput((current) =>
+          current ? current : (data?.github?.connectedUsername ?? current),
+        );
       } catch (error) {
         console.error("Failed to fetch import quota:", error);
       }
@@ -118,7 +128,7 @@ export function ImportProfileModal({
     return () => {
       active = false;
     };
-  }, [open, isLoggedIn, githubInput]);
+  }, [open, isLoggedIn]);
 
   if (!open) return null;
 

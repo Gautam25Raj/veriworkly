@@ -1,10 +1,15 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { Save, RotateCcw } from "lucide-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 
-import type { UpdateProfile } from "./types";
+import type {
+  UpdateProfile,
+  RepeatableField,
+  UpdateRepeatableItem,
+  AddRepeatableItem,
+  RemoveRepeatableItem,
+} from "./types";
 import type { MasterProfileData } from "@/types/resume";
 
 import { Card, Button } from "@veriworkly/ui";
@@ -64,6 +69,46 @@ const ProfileMaster = ({ profile, onSave, isSaving }: ProfileMasterProps) => {
     setStatus(null);
   }, []);
 
+  // Shared by both CoreSections and AdditionalSections. Typed against the
+  // RepeatableField/RepeatableItemMap contract in ./types so a typo'd field name or a
+  // mismatched item shape at any call site is a compile error, not a runtime bug.
+  const updateRepeatableItem: UpdateRepeatableItem = useCallback(
+    (field, id, updater) => {
+      updateProfile((prev) => {
+        const items = prev[field] as Array<{ id: string }>;
+        return {
+          ...prev,
+          [field]: updateItem(
+            items,
+            id,
+            updater as unknown as (item: { id: string }) => { id: string },
+          ),
+        };
+      });
+    },
+    [updateProfile],
+  );
+
+  const addRepeatableItem: AddRepeatableItem = useCallback(
+    (field, item) => {
+      updateProfile((prev) => {
+        const items = prev[field] as Array<{ id: string }>;
+        return { ...prev, [field]: [...items, item] };
+      });
+    },
+    [updateProfile],
+  );
+
+  const removeRepeatableItem: RemoveRepeatableItem = useCallback(
+    (field: RepeatableField, id: string) => {
+      updateProfile((prev) => {
+        const items = prev[field] as Array<{ id: string }>;
+        return { ...prev, [field]: removeItem(items, id) };
+      });
+    },
+    [updateProfile],
+  );
+
   const handleSave = useCallback(async () => {
     if (!hasUnsavedChanges || isSaving) return;
     try {
@@ -73,7 +118,7 @@ const ProfileMaster = ({ profile, onSave, isSaving }: ProfileMasterProps) => {
       if (!validation.ok) {
         setStatus({
           type: "error",
-          msg: validation.issues[0] ?? "Check fields.",
+          msg: validation.issues.length > 0 ? validation.issues.join(" · ") : "Check fields.",
         });
 
         return;
@@ -126,46 +171,16 @@ const ProfileMaster = ({ profile, onSave, isSaving }: ProfileMasterProps) => {
 
         <CoreSections
           localProfile={localProfile}
-          updateRepeatableItem={(f: string, id: string, u: any) =>
-            updateProfile((p) => ({
-              ...p,
-              [f]: updateItem(p[f as keyof typeof p] as any, id, u),
-            }))
-          }
-          addRepeatableItem={(f: string, item: any) =>
-            updateProfile((p) => ({
-              ...p,
-              [f]: [...(p[f as keyof typeof p] as any[]), item],
-            }))
-          }
-          removeRepeatableItem={(f: string, id: string) =>
-            updateProfile((p) => ({
-              ...p,
-              [f]: removeItem(p[f as keyof typeof p] as any[], id),
-            }))
-          }
+          updateRepeatableItem={updateRepeatableItem}
+          addRepeatableItem={addRepeatableItem}
+          removeRepeatableItem={removeRepeatableItem}
         />
 
         <AdditionalSections
           localProfile={localProfile}
-          updateRepeatableItem={(f: string, id: string, u: any) =>
-            updateProfile((p) => ({
-              ...p,
-              [f]: updateItem(p[f as keyof typeof p] as any[], id, u),
-            }))
-          }
-          addRepeatableItem={(f: string, item: any) =>
-            updateProfile((p) => ({
-              ...p,
-              [f]: [...(p[f as keyof typeof p] as any[]), item],
-            }))
-          }
-          removeRepeatableItem={(f: string, id: string) =>
-            updateProfile((p) => ({
-              ...p,
-              [f]: removeItem(p[f as keyof typeof p] as any[], id),
-            }))
-          }
+          updateRepeatableItem={updateRepeatableItem}
+          addRepeatableItem={addRepeatableItem}
+          removeRepeatableItem={removeRepeatableItem}
         />
       </div>
 
@@ -192,7 +207,12 @@ const ProfileMaster = ({ profile, onSave, isSaving }: ProfileMasterProps) => {
               </span>
 
               {status && (
-                <span className="text-[10px] leading-none font-bold text-emerald-600">
+                <span
+                  className={cn(
+                    "text-[10px] leading-tight font-bold",
+                    status.type === "error" ? "text-destructive" : "text-emerald-600",
+                  )}
+                >
                   {status.msg}
                 </span>
               )}

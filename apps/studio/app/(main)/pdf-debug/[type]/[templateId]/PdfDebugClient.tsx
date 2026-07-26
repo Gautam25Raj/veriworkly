@@ -90,10 +90,6 @@ export function PdfDebugClient({ documentId, templateId, type }: PdfDebugClientP
     coverLetter?.title ??
     (type === "resume" ? "Resume" : "Cover Letter");
 
-  if (coverLetter) {
-    registerPdfFontById((coverLetter.content as CoverLetterContent).appearance?.fontFamily);
-  }
-
   const documentElement = resume ? (
     <ResumePdfDebugDocument resume={resume} templateId={templateId} />
   ) : coverLetter ? (

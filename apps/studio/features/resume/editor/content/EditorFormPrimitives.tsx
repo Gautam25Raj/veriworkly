@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Input } from "@veriworkly/ui";
 
@@ -118,6 +118,22 @@ export function DelimitedTextArea({
 }) {
   const [draftValue, setDraftValue] = useState(value.join(", "));
 
+  // `onChange` round-trips through the parent store and comes back as a new `value`
+  // array on every keystroke — a naive effect that resyncs `draftValue` from `value`
+  // on every change would fight the user's typing (e.g. stripping a trailing comma
+  // they just typed). This flag distinguishes "value changed because of our own
+  // onChange" (skip resync) from "value changed externally" (e.g. Reset/Import/AI
+  // apply — resync so the field doesn't keep showing stale text).
+  const isSelfUpdateRef = useRef(false);
+
+  useEffect(() => {
+    if (isSelfUpdateRef.current) {
+      isSelfUpdateRef.current = false;
+      return;
+    }
+    setDraftValue(value.join(", "));
+  }, [value]);
+
   return (
     <TextArea
       value={draftValue}
@@ -125,6 +141,7 @@ export function DelimitedTextArea({
       onChange={(event) => {
         const nextDraftValue = event.target.value;
         setDraftValue(nextDraftValue);
+        isSelfUpdateRef.current = true;
         onChange(parseDelimited(nextDraftValue));
       }}
     />

@@ -1,8 +1,11 @@
 import { siteConfig } from "@/config/site";
 
+const APP_ORIGIN = new URL(siteConfig.links.app).origin;
+
 const TRUSTED_ORIGINS = new Set<string>([
-  new URL(siteConfig.links.app).origin,
+  APP_ORIGIN,
   new URL(siteConfig.links.portfolio).origin,
+  new URL(siteConfig.links.main).origin,
 ]);
 
 export function getSafeAuthCallback(rawCallback: string | null, fallback = "/") {
@@ -16,7 +19,23 @@ export function getSafeAuthCallback(rawCallback: string | null, fallback = "/") 
   )
     return fallback;
 
-  if (rawCallback.startsWith("/") && !rawCallback.startsWith("//")) return rawCallback;
+  // Resolve against the app's own origin rather than trusting a bare string-prefix
+  // check — `rawCallback.startsWith("/") && !startsWith("//")` alone still lets a
+  // backslash-based bypass like "/\evil.com" through, since some browsers normalize
+  // a leading "/\" to a protocol-relative "//" during navigation. Letting the URL
+  // parser resolve it and then checking the *resulting* origin closes that gap.
+  if (rawCallback.startsWith("/")) {
+    try {
+      const resolved = new URL(rawCallback, APP_ORIGIN);
+      if (resolved.origin !== APP_ORIGIN) return fallback;
+      if (resolved.pathname === "/login" || resolved.pathname.startsWith("/login/")) {
+        return fallback;
+      }
+      return `${resolved.pathname}${resolved.search}${resolved.hash}`;
+    } catch {
+      return fallback;
+    }
+  }
 
   try {
     const callback = new URL(rawCallback);

@@ -25,6 +25,10 @@ export default async function PdfDebugPage({
   params: Promise<{ type: string; templateId: string }>;
   searchParams: Promise<{ id?: string }>;
 }) {
+  // The link to this route is already hidden outside development, but the route itself
+  // must also refuse to render in production — a hidden link is not access control.
+  if (process.env.NODE_ENV !== "development") notFound();
+
   const { id } = await searchParams;
   const { type, templateId } = await params;
 

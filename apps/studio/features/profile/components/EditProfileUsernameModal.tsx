@@ -85,7 +85,10 @@ const EditProfileUsernameModal = ({ open, onClose }: EditProfileUsernameModalPro
       return;
     }
 
-    if (isAvailable === false) {
+    // Must be exactly `true` (confirmed available) — not just "not explicitly false".
+    // Pressing Enter while the debounced availability check is still pending (isAvailable
+    // === null) must not fall through to submitting an unverified username.
+    if (isAvailable !== true) {
       return;
     }
 

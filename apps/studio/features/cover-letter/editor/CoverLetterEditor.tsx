@@ -10,8 +10,8 @@ import { Button, Card } from "@veriworkly/ui";
 
 import { useUserStore } from "@/store/useUserStore";
 
-import type { BaseDocument } from "@/features/documents/core/types";
 import type { CoverLetterContent } from "@/features/cover-letter/types";
+import { parseCoverLetterContent } from "@/features/cover-letter/schema";
 
 import { CoverLetterPreview } from "@/templates/cover-letter/web";
 import ShareDocumentModal from "@/components/modals/ShareDocumentModal";
@@ -90,25 +90,54 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
 
     try {
       const parsed = JSON.parse(await file.text()) as unknown;
-      const imported =
-        typeof parsed === "object" && parsed && "content" in parsed
-          ? (parsed as BaseDocument<CoverLetterContent>)
-          : ({ ...currentDoc, content: parsed } as BaseDocument<CoverLetterContent>);
+      const isRecord = (value: unknown): value is Record<string, unknown> =>
+        typeof value === "object" && value !== null;
+
+      const importedShell = isRecord(parsed) && "content" in parsed ? parsed : undefined;
+      const rawContent: unknown = importedShell ? importedShell.content : parsed;
+      const rawContentRecord = isRecord(rawContent) ? rawContent : {};
+
+      // Every field is coerced to its correct type here (numbers can never become NaN,
+      // link `type` is allow-listed, etc.) — this is what previously bypassed schema
+      // validation entirely and merged raw, untrusted JSON straight into live state.
+      const validatedContent = parseCoverLetterContent(rawContentRecord);
+
+      // Only overwrite fields the imported file actually specified, so a partial
+      // export/backup still merges onto (rather than wiping) the current draft.
+      const mergedContent: CoverLetterContent = { ...currentDoc.content };
+      for (const key of Object.keys(validatedContent) as (keyof CoverLetterContent)[]) {
+        if (key === "appearance") continue;
+        if (key in rawContentRecord) {
+          (mergedContent as unknown as Record<string, unknown>)[key] = validatedContent[key];
+        }
+      }
+
+      const rawAppearance = isRecord(rawContentRecord.appearance) ? rawContentRecord.appearance : {};
+      const mergedAppearance = { ...currentDoc.content.appearance };
+      for (const key of Object.keys(validatedContent.appearance) as Array<
+        keyof CoverLetterContent["appearance"]
+      >) {
+        if (key in rawAppearance) {
+          (mergedAppearance as Record<string, unknown>)[key] = validatedContent.appearance[key];
+        }
+      }
+      mergedContent.appearance = mergedAppearance;
+
+      const importedTitle = importedShell && typeof importedShell.title === "string"
+        ? importedShell.title
+        : undefined;
+      const importedTemplateId =
+        importedShell && typeof importedShell.templateId === "string"
+          ? importedShell.templateId
+          : undefined;
 
       updateDocument(
         {
           ...currentDoc,
-          title: imported.title || currentDoc.title,
-          templateId: imported.templateId || currentDoc.templateId,
+          title: importedTitle || currentDoc.title,
+          templateId: importedTemplateId || currentDoc.templateId,
           updatedAt: new Date().toISOString(),
-          content: {
-            ...currentDoc.content,
-            ...(imported.content as Partial<CoverLetterContent>),
-            appearance: {
-              ...currentDoc.content.appearance,
-              ...((imported.content as Partial<CoverLetterContent>).appearance ?? {}),
-            },
-          },
+          content: mergedContent,
         },
         { flush: true },
       );

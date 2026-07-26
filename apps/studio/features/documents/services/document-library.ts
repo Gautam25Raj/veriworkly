@@ -13,6 +13,10 @@ import {
   loadDocumentById,
 } from "@/features/documents/services/document-workspace-service";
 import { DOCUMENT_TYPES } from "@/features/documents/core/document-types";
+import {
+  DOCUMENT_ACTIVE_STORAGE_KEY,
+  getDocumentCollectionKey,
+} from "@/features/documents/services/storage-keys";
 
 import { getDocumentDefinition } from "@/features/documents/core/registry";
 
@@ -76,10 +80,8 @@ export function getDocumentLibrarySnapshot(
   const storage = window.localStorage;
 
   const storageKey = [
-    ...DOCUMENT_TYPES.map(
-      (type) => storage.getItem(`veriworkly:docs:v2:${type.toLowerCase()}`) ?? "",
-    ),
-    storage.getItem("veriworkly:docs:v2:active") ?? "",
+    ...DOCUMENT_TYPES.map((type) => storage.getItem(getDocumentCollectionKey(type)) ?? ""),
+    storage.getItem(DOCUMENT_ACTIVE_STORAGE_KEY) ?? "",
     refreshKey.toString(),
   ].join("::");
 

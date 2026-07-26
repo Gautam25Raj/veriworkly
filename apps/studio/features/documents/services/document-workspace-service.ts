@@ -8,16 +8,16 @@ import { LocalStorageService } from "./local-storage-service";
 
 import { DOCUMENT_TYPES } from "@/features/documents/core/document-types";
 import { getDocumentDefinition } from "@/features/documents/core/registry";
-import { DOCUMENT_STORAGE_UPDATED_EVENT } from "@/features/documents/services/document-sync";
 import { loadWorkspaceSettingsFromLocalStorage } from "@/features/documents/services/workspace-settings";
+import {
+  DOCUMENT_ACTIVE_STORAGE_KEY,
+  DOCUMENT_STORAGE_UPDATED_EVENT,
+  getDocumentCollectionKey,
+} from "@/features/documents/services/storage-keys";
 
-const VERSION = "v2";
-const ACTIVE_KEY = `veriworkly:docs:${VERSION}:active`;
+const ACTIVE_KEY = DOCUMENT_ACTIVE_STORAGE_KEY;
 const pendingSaves = new Map<string, { document: BaseDocument; timer: number | null }>();
-
-function collectionKey(type: DocumentType) {
-  return `veriworkly:docs:${VERSION}:${type.toLowerCase()}`;
-}
+const storageInstances = new Map<DocumentType, LocalStorageService<BaseDocument>>();
 
 function pendingSaveKey(type: DocumentType, id: string) {
   return `${type}:${id}`;
@@ -47,21 +47,34 @@ function parseCollection(type: DocumentType, input: unknown) {
   };
 }
 
-function createStorage(type: DocumentType) {
-  return new LocalStorageService<BaseDocument>({
-    collectionKey: collectionKey(type),
-    activeIdKey: ACTIVE_KEY,
-    activeIdScope: type,
-    updatedEventName: DOCUMENT_STORAGE_UPDATED_EVENT,
-    parseItem: getDocumentDefinition(type).parse,
-    parseCollection: (input) => parseCollection(type, input),
-  });
+/**
+ * Single shared LocalStorageService instance per document type — reused by
+ * both this module (editor autosave) and the sync engine (document-sync.ts)
+ * so there is exactly one in-process writer per type instead of two
+ * independently-instantiated clients racing against the same storage keys.
+ */
+export function getWorkspaceStorage(type: DocumentType): LocalStorageService<BaseDocument> {
+  let instance = storageInstances.get(type);
+
+  if (!instance) {
+    instance = new LocalStorageService<BaseDocument>({
+      collectionKey: getDocumentCollectionKey(type),
+      activeIdKey: ACTIVE_KEY,
+      activeIdScope: type,
+      updatedEventName: DOCUMENT_STORAGE_UPDATED_EVENT,
+      parseItem: getDocumentDefinition(type).parse,
+      parseCollection: (input) => parseCollection(type, input),
+    });
+    storageInstances.set(type, instance);
+  }
+
+  return instance;
 }
 
 function loadCollection(type: DocumentType): Record<string, BaseDocument> {
   if (typeof window === "undefined") return {};
 
-  return createStorage(type).loadCollection().items;
+  return getWorkspaceStorage(type).loadCollection().items;
 }
 
 function saveCollection(
@@ -70,7 +83,7 @@ function saveCollection(
 ): SaveDocumentResult {
   if (typeof window === "undefined") return { ok: true, queued: false };
 
-  const result = createStorage(type).saveCollection({ version: 2, items });
+  const result = getWorkspaceStorage(type).saveCollection({ version: 2, items });
 
   if (!result.ok) return { ok: false, reason: result.reason };
 
@@ -187,7 +200,7 @@ export function deleteDocument(type: DocumentType, id: string) {
 export function setActiveDocument(type: DocumentType, id: string) {
   if (typeof window === "undefined") return;
 
-  createStorage(type).setActiveId(id);
+  getWorkspaceStorage(type).setActiveId(id);
 }
 
 export function listFullDocuments(type: DocumentType): BaseDocument[] {

@@ -33,6 +33,12 @@ const LinksSection = ({
   const activeLink = links.items[safeLinkIndex];
   const linkErrors = activeLink ? validateLinkItem(activeLink) : {};
 
+  const handleAdd = () => {
+    const newIndex = links.items.length;
+    addLinkItem();
+    setLinkIndex(newIndex);
+  };
+
   return (
     <DraggableSection
       id="links"
@@ -59,7 +65,7 @@ const LinksSection = ({
           </select>
         ) : null}
 
-        <Button onClick={addLinkItem} size="sm" variant="secondary">
+        <Button onClick={handleAdd} size="sm" variant="secondary">
           Add link
         </Button>
 

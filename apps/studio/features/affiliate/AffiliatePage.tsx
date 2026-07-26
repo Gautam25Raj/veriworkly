@@ -28,6 +28,9 @@ export function AffiliatePage({ dashboard }: { dashboard: AffiliateDashboard | n
     );
 
   const currentTier = dashboard.tiers.find((tier) => tier.key === dashboard.affiliateTier);
+  const isPending = dashboard.affiliateStatus === "PENDING";
+  const isSuspended = dashboard.affiliateStatus === "SUSPENDED";
+
   return (
     <main className="space-y-5">
       <AffiliateNav />
@@ -39,8 +42,35 @@ export function AffiliatePage({ dashboard }: { dashboard: AffiliateDashboard | n
               You earn after a referred account completes a successful paid purchase.
             </p>
           </div>
-          <CopyReferralLinkButton affiliateCode={dashboard.affiliateCode} />
+          {isPending ? (
+            <div className="flex items-center gap-2 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-amber-500">
+              <div className="h-2 w-2 animate-pulse rounded-full bg-amber-500" />
+              <span className="text-xs font-bold tracking-wider uppercase">
+                Application Under Review
+              </span>
+            </div>
+          ) : isSuspended ? (
+            <div className="flex items-center gap-2 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-destructive">
+              <div className="h-2 w-2 rounded-full bg-destructive" />
+              <span className="text-xs font-bold tracking-wider uppercase">Account Suspended</span>
+            </div>
+          ) : (
+            <CopyReferralLinkButton affiliateCode={dashboard.affiliateCode} />
+          )}
         </div>
+        {isSuspended && (
+          <p className="text-destructive mt-4 text-sm leading-6">
+            Your affiliate account has been suspended. Existing earnings remain visible below, but
+            new referral clicks and payouts are disabled while your account is under review. Contact
+            support if you believe this is a mistake.
+          </p>
+        )}
+        {isPending && (
+          <p className="text-muted mt-4 text-sm leading-6">
+            Your affiliate application is being reviewed. You&apos;ll be able to share your referral
+            link and request payouts once it&apos;s approved.
+          </p>
+        )}
       </header>
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Metric icon={MousePointerClick} label="Link clicks" value={String(dashboard.clicks)} />
@@ -92,8 +122,17 @@ export function AffiliatePage({ dashboard }: { dashboard: AffiliateDashboard | n
           <p className="text-muted mt-2 text-sm">
             {money(dashboard.wallet.pendingCents)} pending review
           </p>
-          <Button asChild className="mt-5 w-full" variant="secondary">
-            <Link href="/affiliate/payouts">Manage payouts</Link>
+          <Button
+            asChild={!isPending && !isSuspended}
+            disabled={isPending || isSuspended}
+            className="mt-5 w-full"
+            variant="secondary"
+          >
+            {isPending || isSuspended ? (
+              "Manage payouts"
+            ) : (
+              <Link href="/affiliate/payouts">Manage payouts</Link>
+            )}
           </Button>
         </article>
       </section>

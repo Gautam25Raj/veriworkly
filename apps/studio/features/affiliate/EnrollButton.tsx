@@ -17,6 +17,7 @@ export function EnrollButton() {
         className="mt-6"
         loading={loading}
         onClick={async () => {
+          if (loading) return;
           setLoading(true);
           setMessage("");
           try {

@@ -1,7 +1,16 @@
 import { Paragraph, TextRun } from "docx";
 
+/**
+ * `TextRun` does not convert embedded newlines into visual line breaks — Word would
+ * otherwise render a multi-line summary/highlight as one run-on line. Each `\n` is
+ * turned into an explicit run break instead.
+ */
 export function createDocxParagraph(text: string): Paragraph {
-  return new Paragraph({
-    children: [new TextRun(text)],
-  });
+  const lines = text.split("\n");
+
+  const children = lines.flatMap((line, index) =>
+    index === 0 ? [new TextRun(line)] : [new TextRun({ text: line, break: 1 })],
+  );
+
+  return new Paragraph({ children });
 }

@@ -44,11 +44,11 @@ const SyncDetailsModal = ({
 }: SyncDetailsModalProps) => {
   const router = useRouter();
 
+  if (!document) return null;
+
   const isSyncing = syncingDocumentId === document.id;
   const isConflicted = document.sync.status === "conflicted";
   const editorHref = getDocumentEditorPath(document.type, document.id);
-
-  if (!document) return null;
 
   const statusConfig = {
     synced: {

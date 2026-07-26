@@ -7,6 +7,7 @@ import {
   isSectionVisible,
   getVisibleSectionMap,
   getResumeFileBaseName,
+  joinTruthy,
 } from "@/features/resume/services/resume-formatters";
 
 import { downloadBlob } from "../download";
@@ -62,21 +63,22 @@ async function buildResumeDocx(resume: ResumeData): Promise<Blob> {
     );
 
     resume.experience.forEach((item) => {
-      children.push(
-        new Paragraph({
-          heading: HeadingLevel.HEADING_2,
-          children: [
-            new TextRun(
-              `${safeText(item.role) || "Role"} - ${safeText(item.company) || "Company"}`,
-            ),
-          ],
-        }),
-        createDocxParagraph(
-          [formatDateRange(item.startDate, item.endDate, item.current), safeText(item.location)]
-            .filter(Boolean)
-            .join(" | "),
-        ),
-      );
+      const heading = joinTruthy([item.role, item.company], " - ");
+      const dateRange = formatDateRange(item.startDate, item.endDate, item.current);
+      const meta = joinTruthy([dateRange, item.location], " | ");
+
+      if (heading) {
+        children.push(
+          new Paragraph({
+            heading: HeadingLevel.HEADING_2,
+            children: [new TextRun(heading)],
+          }),
+        );
+      }
+
+      if (meta) {
+        children.push(createDocxParagraph(meta));
+      }
 
       if (safeText(item.summary)) {
         children.push(createDocxParagraph(safeText(item.summary)));
@@ -105,17 +107,22 @@ async function buildResumeDocx(resume: ResumeData): Promise<Blob> {
     );
 
     resume.education.forEach((item) => {
-      const degree = `${safeText(item.degree) || "Degree"}${safeText(item.field) ? `, ${safeText(item.field)}` : ""}`;
+      const degree = joinTruthy([item.degree, item.field], ", ");
+      const dateRange = formatDateRange(item.startDate, item.endDate, item.current);
+      const meta = joinTruthy([item.school, dateRange], " | ");
 
-      children.push(
-        new Paragraph({
-          heading: HeadingLevel.HEADING_2,
-          children: [new TextRun(degree)],
-        }),
-        createDocxParagraph(
-          `${safeText(item.school) || "School"} | ${formatDateRange(item.startDate, item.endDate, item.current)}`,
-        ),
-      );
+      if (degree) {
+        children.push(
+          new Paragraph({
+            heading: HeadingLevel.HEADING_2,
+            children: [new TextRun(degree)],
+          }),
+        );
+      }
+
+      if (meta) {
+        children.push(createDocxParagraph(meta));
+      }
 
       if (safeText(item.summary)) {
         children.push(createDocxParagraph(safeText(item.summary)));
@@ -132,16 +139,19 @@ async function buildResumeDocx(resume: ResumeData): Promise<Blob> {
     );
 
     resume.projects.forEach((item) => {
-      children.push(
-        new Paragraph({
-          heading: HeadingLevel.HEADING_2,
-          children: [
-            new TextRun(
-              `${safeText(item.name) || "Project"}${safeText(item.role) ? ` (${safeText(item.role)})` : ""}`,
-            ),
-          ],
-        }),
-      );
+      const name = safeText(item.name);
+      const heading = name
+        ? `${name}${safeText(item.role) ? ` (${safeText(item.role)})` : ""}`
+        : safeText(item.role);
+
+      if (heading) {
+        children.push(
+          new Paragraph({
+            heading: HeadingLevel.HEADING_2,
+            children: [new TextRun(heading)],
+          }),
+        );
+      }
 
       if (safeText(item.link)) {
         children.push(createDocxParagraph(safeText(item.link)));
@@ -183,7 +193,8 @@ async function buildResumeDocx(resume: ResumeData): Promise<Blob> {
         return;
       }
 
-      children.push(createDocxParagraph(`${safeText(group.name) || "Skills"}: ${keywords}`));
+      const name = safeText(group.name);
+      children.push(createDocxParagraph(name ? `${name}: ${keywords}` : keywords));
     });
   }
 
@@ -196,14 +207,62 @@ async function buildResumeDocx(resume: ResumeData): Promise<Blob> {
     );
 
     resume.links.items.forEach((item) => {
-      const label = safeText(item.label) || safeText(item.type) || "Link";
       const url = safeText(item.url);
 
       if (!url) {
         return;
       }
 
+      const label = safeText(item.label) || safeText(item.type) || url;
       children.push(createDocxParagraph(`${label}: ${url}`));
+    });
+  }
+
+  if (isSectionVisible(visibleSections, "custom") && resume.customSections.length > 0) {
+    resume.customSections.forEach((section) => {
+      const itemParagraphs: Paragraph[] = [];
+
+      section.items.forEach((item) => {
+        const name = safeText(item.name);
+        const meta = joinTruthy([item.issuer, item.link, item.date], " | ");
+
+        if (name) {
+          itemParagraphs.push(
+            new Paragraph({
+              heading: HeadingLevel.HEADING_2,
+              children: [new TextRun(name)],
+            }),
+          );
+        }
+
+        if (meta) itemParagraphs.push(createDocxParagraph(meta));
+        if (safeText(item.description)) {
+          itemParagraphs.push(createDocxParagraph(safeText(item.description)));
+        }
+
+        item.details
+          .map((detail) => safeText(detail))
+          .filter(Boolean)
+          .forEach((detail) => {
+            itemParagraphs.push(
+              new Paragraph({
+                bullet: { level: 0 },
+                children: [new TextRun(detail)],
+              }),
+            );
+          });
+      });
+
+      if (itemParagraphs.length === 0) return;
+
+      const sectionTitle = safeText(section.title) || "Additional Information";
+      children.push(
+        new Paragraph({
+          heading: HeadingLevel.HEADING_1,
+          children: [new TextRun(sectionTitle)],
+        }),
+        ...itemParagraphs,
+      );
     });
   }
 

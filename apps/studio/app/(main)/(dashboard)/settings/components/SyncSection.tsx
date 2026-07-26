@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { CloudSync, CheckCircle2, History, LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -64,6 +65,8 @@ export default function SyncSection() {
   const handleToggle = async (checked: boolean) => {
     if (!isLoggedIn) return;
 
+    const previous = autoSync;
+
     setAutoSync(checked);
     setAutoSyncEnabledInLocalStorage(checked);
     setAllDocumentsSyncEnabled(checked);
@@ -72,6 +75,14 @@ export default function SyncSection() {
       await updateAutoSyncPreference(checked);
     } catch (err) {
       console.error("Failed to sync preference with server", err);
+
+      // Roll back the optimistic update — the UI must not keep showing a state the
+      // server rejected, silently disagreeing with the backend indefinitely.
+      setAutoSync(previous);
+      setAutoSyncEnabledInLocalStorage(previous);
+      setAllDocumentsSyncEnabled(previous);
+      toast.error("Could not save your sync preference. Please try again.");
+      return;
     }
 
     if (checked) {

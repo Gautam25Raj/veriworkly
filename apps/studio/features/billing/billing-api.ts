@@ -15,7 +15,7 @@ export function openBillingPortal() {
   return fetchApiData<{ url: string }>("/billing/portal", { method: "POST", body: "{}" });
 }
 
-export function buyCreditPack(packKey: "credit_pack_100") {
+export function buyCreditPack(packKey: "credit_pack_250" | "credit_pack_500") {
   return fetchApiData<{ url: string }>("/billing/credits/checkout", {
     method: "POST",
     body: JSON.stringify({ packKey, redirectUrl: "/billing" }),

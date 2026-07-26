@@ -1,14 +1,12 @@
 "use client";
 
-import type { DocumentCollection } from "@/types/document";
 import type { BaseDocument } from "@/features/documents/core/types";
 
 import type { SaveDocumentResult } from "./local-storage-service";
 
 import { getDocumentDefinition } from "@/features/documents/core/registry";
 import { DOCUMENT_TYPES, type DocumentType } from "@/features/documents/core/document-types";
-
-import { LocalStorageService } from "./local-storage-service";
+import { getWorkspaceStorage } from "@/features/documents/services/document-workspace-service";
 
 import {
   type SyncResult,
@@ -16,13 +14,13 @@ import {
   DocumentSyncService,
 } from "./document-sync-service";
 import { SyncEngine, type OutboxItem, type SyncTelemetry } from "./sync-engine";
+import {
+  DOCUMENT_STORAGE_UPDATED_EVENT,
+  DOCUMENT_SYNC_OUTBOX_UPDATED_EVENT,
+} from "./storage-keys";
 
 export type { SyncResult, SyncTelemetry, SyncWorkerOptions };
-
-export const DOCUMENT_STORAGE_UPDATED_EVENT = "veriworkly:docs-storage-updated";
-export const DOCUMENT_SYNC_OUTBOX_UPDATED_EVENT = "veriworkly:sync-outbox-updated";
-
-const ACTIVE_KEY = "veriworkly:docs:v2:active";
+export { DOCUMENT_STORAGE_UPDATED_EVENT, DOCUMENT_SYNC_OUTBOX_UPDATED_EVENT };
 
 type SharedDocumentSyncService = {
   syncNow(id: string): Promise<SyncResult>;
@@ -36,45 +34,11 @@ type SharedDocumentSyncService = {
   hydrate(options?: { force?: boolean; minIntervalMs?: number }): Promise<SyncResult>;
 };
 
-function collectionKey(type: DocumentType) {
-  return `veriworkly:docs:v2:${type.toLowerCase()}`;
-}
-
-function parseDocumentCollection(
-  type: DocumentType,
-  input: unknown,
-): DocumentCollection<BaseDocument> {
-  const parseItem = getDocumentDefinition(type).parse;
-
-  const raw =
-    typeof input === "object" && input !== null && "items" in input
-      ? (input as { version?: unknown; items?: unknown })
-      : {};
-
-  const itemsRaw =
-    typeof raw.items === "object" && raw.items !== null
-      ? (raw.items as Record<string, unknown>)
-      : {};
-
-  const entries = Object.entries(itemsRaw)
-    .map(([id, value]) => [id, parseItem(value)] as const)
-    .filter((entry): entry is readonly [string, BaseDocument] => Boolean(entry[1]));
-
-  return {
-    version: typeof raw.version === "number" ? raw.version : 2,
-    items: Object.fromEntries(entries),
-  };
-}
-
 function createGenericDocumentSyncService(type: DocumentType) {
-  const storage = new LocalStorageService<BaseDocument>({
-    collectionKey: collectionKey(type),
-    activeIdKey: ACTIVE_KEY,
-    activeIdScope: type,
-    updatedEventName: DOCUMENT_STORAGE_UPDATED_EVENT,
-    parseItem: (input) => getDocumentDefinition(type).parse(input),
-    parseCollection: (input) => parseDocumentCollection(type, input),
-  });
+  // Reuse the exact same LocalStorageService instance the editor autosave path
+  // uses (document-workspace-service.ts) instead of instantiating a second,
+  // independent client against the same storage keys. See storage-keys.ts.
+  const storage = getWorkspaceStorage(type);
 
   return new DocumentSyncService<BaseDocument>({
     documentType: type,

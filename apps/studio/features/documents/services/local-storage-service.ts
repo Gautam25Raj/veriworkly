@@ -144,6 +144,32 @@ export class LocalStorageService<T extends BaseDocumentData> {
     return Object.values(collection.items).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
+  /**
+   * Patches only the `sync` sub-object onto whatever is currently in storage for `id`,
+   * re-reading fresh immediately before the write. Use this after an `await` (e.g. a
+   * network round trip) instead of `persist()` with a pre-await snapshot — otherwise
+   * any edit that landed in storage while the network call was in flight gets silently
+   * reverted back to the stale pre-await content.
+   */
+  patchSync(id: string, syncPatch: Partial<T["sync"]>): SaveDocumentResult {
+    if (!this.isBrowser()) return { ok: true, queued: false };
+
+    const collection = this.loadCollection();
+    const existing = collection.items[id];
+    if (!existing) return { ok: false, reason: "unknown" };
+
+    const toPersist: T = {
+      ...existing,
+      sync: { ...existing.sync, ...syncPatch },
+    };
+
+    collection.items[id] = toPersist;
+    const saveResult = this.saveCollection(collection);
+    if (!saveResult.ok) return { ok: false, reason: saveResult.reason };
+
+    return { ok: true, queued: false };
+  }
+
   persist(item: T): SaveDocumentResult {
     if (!this.isBrowser()) return { ok: true, queued: false };
 

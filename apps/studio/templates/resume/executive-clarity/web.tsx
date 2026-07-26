@@ -60,9 +60,12 @@ function renderCustomSection(
                   </p>
                 )}
               </div>
-              {item.issuer && (
+              {[item.issuer, item.link].filter(Boolean).length > 0 && (
                 <p className="text-sm leading-[inherit]" style={{ color: mutedTextColor }}>
-                  {stripEmoji(item.issuer)}
+                  {[item.issuer, item.link]
+                    .filter(Boolean)
+                    .map((value) => stripEmoji(value))
+                    .join(" | ")}
                 </p>
               )}
               {item.description && (

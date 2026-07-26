@@ -51,31 +51,47 @@ export const useToolbarDownloads = (
   };
 
   const onDownloadMarkdown = () => {
-    exportResumeAsMarkdown(resume);
+    try {
+      exportResumeAsMarkdown(resume);
 
-    onMessage("Markdown downloaded successfully");
-    trackUsageEvent({ event: "resume_exported" });
+      onMessage("Markdown downloaded successfully");
+      trackUsageEvent({ event: "resume_exported" });
+    } catch {
+      onMessage("Could not generate Markdown. Try again.");
+    }
   };
 
   const onDownloadHtml = () => {
-    exportResumeAsHtml(resume, resumePreviewId);
+    try {
+      exportResumeAsHtml(resume, resumePreviewId);
 
-    onMessage("HTML downloaded successfully");
-    trackUsageEvent({ event: "resume_exported" });
+      onMessage("HTML downloaded successfully");
+      trackUsageEvent({ event: "resume_exported" });
+    } catch {
+      onMessage("Could not generate HTML. Try again.");
+    }
   };
 
   const onDownloadText = () => {
-    exportResumeAsText(resume);
+    try {
+      exportResumeAsText(resume);
 
-    onMessage("Plain text downloaded successfully");
-    trackUsageEvent({ event: "resume_exported" });
+      onMessage("Plain text downloaded successfully");
+      trackUsageEvent({ event: "resume_exported" });
+    } catch {
+      onMessage("Could not generate plain text. Try again.");
+    }
   };
 
   const onDownloadJson = () => {
-    exportResumeAsJson(resume);
+    try {
+      exportResumeAsJson(resume);
 
-    onMessage("JSON downloaded successfully");
-    trackUsageEvent({ event: "resume_exported" });
+      onMessage("JSON downloaded successfully");
+      trackUsageEvent({ event: "resume_exported" });
+    } catch {
+      onMessage("Could not generate JSON. Try again.");
+    }
   };
 
   return {

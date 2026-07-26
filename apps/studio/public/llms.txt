@@ -11,7 +11,7 @@ Resume Studio (`app.veriworkly.com`) is the primary interface for creating caree
 
 ## Key Functionalities
 - **Live Preview**: Real-time rendering of resumes using professional templates.
-- **Local Storage**: Auto-saves data to the browser's IndexedDB/LocalStorage.
+- **Local Storage**: Auto-saves data to the browser's LocalStorage.
 - **Cloud Sync**: Optional synchronization to a secure PostgreSQL backend for cross-device access.
 - **Multi-Document Support**: Manage multiple resumes, cover letters, and portfolios from a single dashboard.
 

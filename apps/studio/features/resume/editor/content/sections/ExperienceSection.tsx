@@ -33,6 +33,12 @@ const ExperienceSection = ({
 
   const activeExperience = experience[safeExperienceIndex];
 
+  const handleAdd = () => {
+    const newIndex = experience.length;
+    addExperience();
+    setExperienceIndex(newIndex);
+  };
+
   const experienceErrors = useMemo(
     () => (activeExperience ? validateExperience(activeExperience) : {}),
     [activeExperience],
@@ -64,7 +70,7 @@ const ExperienceSection = ({
           </select>
         ) : null}
 
-        <Button onClick={addExperience} size="sm" variant="secondary">
+        <Button onClick={handleAdd} size="sm" variant="secondary">
           Add
         </Button>
 

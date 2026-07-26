@@ -209,6 +209,29 @@ export function setAllResumesSyncEnabled(enabled: boolean): SaveResumeResult {
   return lastResult;
 }
 
+/**
+ * Assigns a fresh id and resets sync/cloud-linkage metadata after import. Without
+ * this, re-importing a previously-exported JSON file (duplicate, restored backup,
+ * etc.) would carry over the original `id`/`cloudDocumentId`/`revision` verbatim —
+ * risking the next autosync silently overwriting (or false-conflicting with) the
+ * original cloud document instead of creating an independent new one.
+ */
+function sanitizeImportedResume(resume: ResumeData): ResumeData {
+  return {
+    ...resume,
+    id: createId(),
+    sync: {
+      enabled: false,
+      status: "local-only",
+      cloudDocumentId: null,
+      lastSyncedAt: null,
+      revision: 1,
+    },
+  };
+}
+
 export async function importResumeFromFile(file: File) {
-  return importDocumentFromFile(file, parseResumeDataInput, normalizeResumeData);
+  return importDocumentFromFile(file, parseResumeDataInput, (data) =>
+    sanitizeImportedResume(normalizeResumeData(data)),
+  );
 }

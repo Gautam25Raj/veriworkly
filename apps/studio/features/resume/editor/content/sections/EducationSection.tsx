@@ -32,6 +32,12 @@ const EducationSection = ({
 
   const activeEducation = education[safeEducationIndex];
 
+  const handleAdd = () => {
+    const newIndex = education.length;
+    addEducation();
+    setEducationIndex(newIndex);
+  };
+
   const educationErrors = useMemo(
     () => (activeEducation ? validateEducation(activeEducation) : {}),
     [activeEducation],
@@ -63,7 +69,7 @@ const EducationSection = ({
           </select>
         ) : null}
 
-        <Button onClick={addEducation} size="sm" variant="secondary">
+        <Button onClick={handleAdd} size="sm" variant="secondary">
           Add
         </Button>
 

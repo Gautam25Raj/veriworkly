@@ -25,8 +25,10 @@ const fontDefinitions: FontRegistryEntry[] = [
     label: "Geist Sans",
     primaryFamily: "Geist",
     fallbackStack: "Inter, 'Segoe UI', Arial, sans-serif",
-    stylesheetHref:
-      "https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&display=swap",
+    // Only 400/700 are requested — matches the two weights registered in pdfFonts
+    // below. Requesting extra web weights the PDF renderer can't reproduce creates a
+    // WYSIWYG mismatch between the live preview and the downloaded PDF.
+    stylesheetHref: "https://fonts.googleapis.com/css2?family=Geist:wght@400;700&display=swap",
     scope: "editor",
     pdfFonts: [
       { src: "/fonts/geist/Geist-Regular.ttf", fontWeight: 400 },
@@ -38,8 +40,7 @@ const fontDefinitions: FontRegistryEntry[] = [
     label: "Manrope Grotesk",
     primaryFamily: "Manrope",
     fallbackStack: "'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
-    stylesheetHref:
-      "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+    stylesheetHref: "https://fonts.googleapis.com/css2?family=Manrope:wght@400;700&display=swap",
     scope: "editor",
     pdfFonts: [
       { src: "/fonts/manrope/Manrope-Regular.ttf", fontWeight: 400 },
@@ -51,8 +52,7 @@ const fontDefinitions: FontRegistryEntry[] = [
     label: "Inter",
     primaryFamily: "Inter",
     fallbackStack: "'Segoe UI', Arial, sans-serif",
-    stylesheetHref:
-      "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap",
+    stylesheetHref: "https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap",
     scope: "editor",
     pdfFonts: [
       { src: "/fonts/inter/Inter_18pt-Regular.ttf", fontWeight: 400 },

@@ -33,6 +33,12 @@ const SkillsSection = ({
 
   const activeSkillGroup = skills[safeSkillIndex];
 
+  const handleAdd = () => {
+    const newIndex = skills.length;
+    addSkillGroup();
+    setSkillIndex(newIndex);
+  };
+
   const skillErrors = useMemo(
     () => (activeSkillGroup ? validateSkillGroup(activeSkillGroup) : {}),
     [activeSkillGroup],
@@ -64,7 +70,7 @@ const SkillsSection = ({
           </select>
         ) : null}
 
-        <Button onClick={addSkillGroup} size="sm" variant="secondary">
+        <Button onClick={handleAdd} size="sm" variant="secondary">
           Add
         </Button>
 

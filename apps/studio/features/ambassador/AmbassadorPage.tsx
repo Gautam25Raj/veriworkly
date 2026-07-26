@@ -1,6 +1,5 @@
 import { Trophy } from "lucide-react";
 
-import { AmbassadorApplyForm } from "@/features/ambassador/AmbassadorApplyForm";
 import type { AmbassadorStatus } from "@/features/ambassador/types";
 
 export function AmbassadorPage({ status }: { status: AmbassadorStatus | null }) {
@@ -17,8 +16,9 @@ export function AmbassadorPage({ status }: { status: AmbassadorStatus | null }) 
               Campus Ambassador Program
             </h1>
             <p className="text-muted mt-3 max-w-2xl text-sm leading-6">
-              Are you a college student or new grad? Join our Campus Ambassador program to unlock
-              exclusive student-only commission rates, promotional material, and direct support.
+              {isAmbassador
+                ? "Welcome to the crew. Here's where your ambassador perks, resources, and stats will live."
+                : "Your application is in review. We'll email you the moment a decision is made."}
             </p>
           </div>
 
@@ -38,8 +38,6 @@ export function AmbassadorPage({ status }: { status: AmbassadorStatus | null }) 
             </div>
           ) : null}
         </div>
-
-        {!isAmbassador && !isPending && <AmbassadorApplyForm />}
       </section>
     </main>
   );

@@ -133,7 +133,7 @@ export const templateSummaries: TemplateSummary[] = [
     shortDescription:
       "A structured public portfolio for project proof, technical credibility, and clear contact intent.",
     accentColor: "#2563eb",
-    previewImage: "/veriworkly-logo.png",
+    previewImage: "/templates/portfolio/signal.png",
     tags: ["Website", "Subdomain", "Project proof", "Builder"],
     family: "Portfolio Websites",
     layout: "Live site",
@@ -190,7 +190,7 @@ export const templateSummaries: TemplateSummary[] = [
     shortDescription:
       "An expressive portfolio website direction for narrative work, case studies, and personal positioning.",
     accentColor: "#2563eb",
-    previewImage: "/veriworkly-logo.png",
+    previewImage: "/templates/portfolio/atelier.png",
     tags: ["Website", "Editorial", "Template switching", "Creative"],
     family: "Portfolio Websites",
     layout: "Live site",
@@ -233,6 +233,120 @@ export const templateSummaries: TemplateSummary[] = [
       title: "Atelier AI Portfolio Template | VeriWorkly Editorial Website",
       description:
         "Use the Atelier template and built-in AI copywriting tools to create an editorial personal portfolio with hosted publishing.",
+    },
+  },
+
+  {
+    id: "portfolio-nimbus",
+    editorTemplateId: "nimbus",
+    name: "Nimbus",
+    documentType: "portfolio-website",
+    documentTypeLabel: "Portfolio Website",
+    description:
+      "A precise, proof-first developer portfolio with an atmospheric mint-emerald / electric-amber aesthetic, featuring bento mouse-glow, text scramble interactions, and GSAP motion.",
+    shortDescription:
+      "An atmospheric brutalist-editorial developer portfolio with magnetic interactions and text scramble effects.",
+    accentColor: "#ffe566",
+    previewImage: "/templates/portfolio/nimbus.png",
+    tags: ["Website", "Subdomain", "Brutalist", "GSAP Motion", "Interactive"],
+    family: "Portfolio Websites",
+    layout: "Live site",
+    audience: ["Full-stack engineers", "Frontend developers", "Creative-tech engineers", "UI/UX engineers"],
+    bestFor: [
+      "Developers who want to stand out from generic glassmorphism portfolios.",
+      "Engineers and creators who appreciate high-craft typography and kinetic text interactions.",
+      "Applications to editorial, creative-tech, or high-craft product studios.",
+    ],
+    designVision:
+      "Nimbus treats the portfolio as a printed broadsheet: oversized typography, zero cards or shadows, split-section entrance reveals, and kinetic text scramble interactions that signal craft.",
+    typography: [
+      "Fraunces variable serif for high-contrast display headlines.",
+      "DM Mono for metadata, indexes, and technical labels.",
+      "Oversized hero index numbers and full-bleed marquee ticker pacing.",
+    ],
+    structure: [
+      {
+        title: "Hero and marquee ticker",
+        description: "Atmospheric introduction with a full-bleed inverted marquee ticker band.",
+        items: ["Headline & availability", "Oversized bio split", "Full-bleed marquee ticker"],
+      },
+      {
+        title: "Accordion projects & tag cloud",
+        description: "Projects expand as accordion rows alongside a free-flowing skill tag cloud.",
+        items: ["Accordion project list", "Oversized ambient index numbers", "Tag cloud"],
+      },
+      {
+        title: "Table experience & contact band",
+        description: "Clean table-style experience timeline ending with a full-width amber call to action.",
+        items: ["Table timeline", "Hover highlights", "Full-width contact band"],
+      },
+    ],
+    proofPoints: [
+      "Built for developers who value typography and micro-interactions over generic templates.",
+      "Features text-scramble, magnetic spring CTAs, and a trailing cursor ring.",
+      "Live preview available through the portfolio app template route.",
+    ],
+    seo: {
+      title: "Nimbus AI Portfolio Template | VeriWorkly Editorial Developer Website",
+      description:
+        "Use the Nimbus template and privacy-first AI copywriter to publish a brutalist-editorial developer portfolio with kinetic typography on a VeriWorkly subdomain.",
+    },
+  },
+
+  {
+    id: "portfolio-cipher",
+    editorTemplateId: "cipher",
+    name: "Cipher",
+    documentType: "portfolio-website",
+    documentTypeLabel: "Portfolio Website",
+    description:
+      "A fully interactive, cold-boot CLI terminal emulator featuring a command tab rail, live autocomplete, draggable OS window, and a matrix-rain Easter egg.",
+    shortDescription:
+      "An interactive cold-boot CLI terminal emulator portfolio for systems engineers and developers.",
+    accentColor: "#6dffb0",
+    previewImage: "/templates/portfolio/cipher.png",
+    tags: ["Website", "Terminal CLI", "Interactive", "Developer", "Subdomain"],
+    family: "Portfolio Websites",
+    layout: "Live site",
+    audience: ["Systems engineers", "Security researchers", "DevOps & SREs", "Backend developers"],
+    bestFor: [
+      "Developers who want a memorable, hands-on interactive console for recruiters.",
+      "Systems, security, and DevOps engineers demonstrating authentic terminal credibility.",
+      "Anyone wanting their portfolio to demonstrate technical craft rather than static resume copy.",
+    ],
+    designVision:
+      "Cipher transforms your portfolio into an interactive cold-boot console window with real typed commands, tab shortcuts, phosphor green CRT contrast, and matrix Easter eggs.",
+    typography: [
+      "JetBrains Mono for complete terminal visual fidelity.",
+      "ASCII banner headings and prompt string hierarchy.",
+      "High-contrast CRT green-on-black with paper terminal light mode option.",
+    ],
+    structure: [
+      {
+        title: "Boot sequence and prompt",
+        description: "Glitch-reveal ASCII header and staggered kernel boot sequence.",
+        items: ["ASCII banner", "Boot lines", "Interactive command prompt"],
+      },
+      {
+        title: "Command-driven tabs and navigation",
+        description: "Tabs and icon rail bind 1:1 to executable shell commands.",
+        items: ["Tab shortcuts", "Autocomplete chips", "Command output pane"],
+      },
+      {
+        title: "Interactive controls and Easter eggs",
+        description: "Draggable window frame with light/dark CRT themes and secret matrix mode.",
+        items: ["Draggable window chrome", "Matrix rain toggle", "Paper terminal theme"],
+      },
+    ],
+    proofPoints: [
+      "First-class CLI emulator with full keyboard and mobile touch support.",
+      "Every tab maps directly to typed commands like 'projects', 'about', and 'skills'.",
+      "Live preview available through the portfolio app template route.",
+    ],
+    seo: {
+      title: "Cipher AI Portfolio Template | VeriWorkly Interactive Terminal Website",
+      description:
+        "Use the Cipher template to publish an interactive CLI terminal portfolio with real commands and autocomplete on a VeriWorkly subdomain.",
     },
   },
 

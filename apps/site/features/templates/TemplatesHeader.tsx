@@ -1,14 +1,11 @@
 import type { DocumentTypeSummary, TemplateSummary } from "@/config/templates";
-import TemplateFilters from "./TemplateFilters";
 
 type Props = {
   docType: DocumentTypeSummary;
   templates: TemplateSummary[];
-  selectedFamily: string;
-  selectedLayout: string;
 };
 
-const TemplatesHeader = ({ docType, templates, selectedFamily, selectedLayout }: Props) => {
+const TemplatesHeader = ({ docType, templates }: Props) => {
   const layouts = Array.from(new Set(templates.map((template) => template.layout)));
   const families = Array.from(new Set(templates.map((template) => template.family)));
 
@@ -77,13 +74,6 @@ const TemplatesHeader = ({ docType, templates, selectedFamily, selectedLayout }:
           </div>
         </div>
       </div>
-
-      <TemplateFilters
-        docType={docType.id}
-        templates={templates}
-        selectedFamily={selectedFamily}
-        selectedLayout={selectedLayout}
-      />
     </header>
   );
 };

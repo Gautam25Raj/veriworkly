@@ -11,21 +11,26 @@ import {
   Sparkles,
 } from "lucide-react";
 import { siteConfig } from "@/config/site";
+import { jsonLdScriptProps } from "@/utils/json-ld";
+import { buildPageMetadata } from "@/utils/metadata";
 import { documentTypeSummaries, templateSummaries } from "@/config/templates";
 import InteractiveCTA from "@/features/marketing/cta/InteractiveCTA";
 import { Reveal } from "@/components/marketing/Reveal";
 import { SectionEyebrow } from "@/components/marketing/SectionEyebrow";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
+  path: "/templates",
   title: `AI Resume, Cover Letter & Portfolio Templates | ${siteConfig.shortName}`,
   description:
     "Browse ATS-friendly AI resume templates, cover letters, and portfolio website designs. Compare layouts and customize them with AI copywriting.",
-  alternates: {
-    canonical: `${siteConfig.url}/templates`,
-    languages: {
-      "en-US": `${siteConfig.url}/templates`,
-    },
-  },
+  ogTitle: "Pick the Artifact. The Right Layout Follows.",
+  ogDescription:
+    "Real previews, fit signals, and the exact editor path for every resume, cover letter, and portfolio template we ship.",
+  twitterTitle: "Document Template Directory | VeriWorkly",
+  twitterDescription:
+    "Resume, cover letter, and portfolio website templates, organized by type, with AI copywriting built in.",
+  image: "/og/templates-page-og.png",
+  imageAlt: "VeriWorkly template directory",
   keywords: [
     "AI resume templates",
     "AI cover letter templates",
@@ -33,29 +38,7 @@ export const metadata: Metadata = {
     "ATS resume templates",
     "professional document templates",
   ],
-  openGraph: {
-    title: `AI Resume, Cover Letter & Portfolio Templates | ${siteConfig.shortName}`,
-    description:
-      "Browse ATS-friendly AI resume templates, cover letters, and portfolio website designs. Compare layouts and customize them with AI copywriting.",
-    url: `${siteConfig.url}/templates`,
-    siteName: siteConfig.name,
-    images: [
-      {
-        url: "/og/template-page-og.png",
-        width: 1200,
-        height: 630,
-        alt: "VeriWorkly template directory",
-      },
-    ],
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Document Template Directory | VeriWorkly",
-    description: "Resume, cover letter, and portfolio website templates, organized by type.",
-    images: ["/og/template-page-og.png"],
-  },
-};
+});
 
 const heroFan = templateSummaries
   .filter((template) => !template.previewImage.includes("veriworkly-logo"))
@@ -67,14 +50,44 @@ const TemplatesPortalPage = () => {
   );
   const plannedDocTypes = documentTypeSummaries.filter((docType) => docType.status === "planned");
 
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: siteConfig.url },
+      { "@type": "ListItem", position: 2, name: "Templates", item: `${siteConfig.url}/templates` },
+    ],
+  };
+
+  const itemListSchema = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: "VeriWorkly Template Directory",
+    itemListElement: templateSummaries.map((template, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: template.name,
+      url: `${siteConfig.url}/templates/${template.documentType}/${template.id}`,
+    })),
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={jsonLdScriptProps(breadcrumbSchema)}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={jsonLdScriptProps(itemListSchema)}
+      />
+
       <section className="w-full bg-[#f3f4f6] p-2 md:p-3 lg:p-4 dark:bg-black">
         <div className="relative grid w-full overflow-hidden rounded-4xl border border-black/5 bg-white px-6 py-20 md:px-12 md:py-24 lg:grid-cols-12 lg:items-center lg:gap-8 lg:py-28 dark:border-white/5 dark:bg-[#080808]">
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(120,119,198,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,119,198,0.05)_1px,transparent_1px)] mask-[radial-gradient(ellipse_60%_60%_at_20%_40%,#000_60%,transparent_100%)] bg-size-[24px_24px]" />
           <div className="pointer-events-none absolute top-0 left-0 h-95 w-95 rounded-full bg-blue-500/10 blur-[120px] dark:bg-blue-500/15" />
 
-          <Reveal className="relative z-10 lg:col-span-7">
+          <Reveal priority className="relative z-10 lg:col-span-7">
             <SectionEyebrow
               icon={LayoutTemplate}
               label={`${templateSummaries.length} live layouts`}

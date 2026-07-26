@@ -1,7 +1,8 @@
-import Link from "next/link";
+"use client";
+
 import { SearchX } from "lucide-react";
 
-const EmptyState = ({ resetHref = "/templates" }: { resetHref?: string }) => {
+const EmptyState = ({ onReset }: { onReset: () => void }) => {
   return (
     <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-zinc-300 bg-zinc-50/50 p-10 text-center dark:border-zinc-700 dark:bg-white/2">
       <SearchX className="h-8 w-8 text-zinc-400 dark:text-zinc-600" aria-hidden="true" />
@@ -14,12 +15,14 @@ const EmptyState = ({ resetHref = "/templates" }: { resetHref?: string }) => {
         Try switching family or layout to see more options.
       </p>
 
-      <Link
-        href={resetHref}
-        className="mt-1 text-sm font-semibold text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
+      {/* Resets in place — the filters are client state, so there is nothing to navigate to. */}
+      <button
+        type="button"
+        onClick={onReset}
+        className="mt-1 cursor-pointer text-sm font-semibold text-blue-600 hover:text-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:outline-none dark:text-blue-400 dark:hover:text-blue-300"
       >
         Reset filters
-      </Link>
+      </button>
     </div>
   );
 };

@@ -1,10 +1,25 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Button, Container } from "@veriworkly/ui";
+import { siteConfig } from "@/config/site";
+import { buildPageMetadata } from "@/utils/metadata";
+
+export const metadata: Metadata = buildPageMetadata({
+  path: "/roadmap/404",
+  title: `Roadmap Item Not Found | ${siteConfig.shortName}`,
+  description: "This roadmap section or item doesn't exist or has been archived.",
+  ogTitle: "Roadmap Item Not Found",
+  ogDescription: "This roadmap section or item doesn't exist or has been archived.",
+  twitterTitle: "404 — Roadmap Item Not Found",
+  twitterDescription: "This roadmap section or item doesn't exist or has been archived.",
+  image: "/og/roadmap-page-og.png",
+  noIndex: true,
+});
 
 export default function RoadmapNotFound() {
   return (
-    <main className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col">
       <Container className="pt-28 pb-20 lg:pt-36">
         <header className="mb-10 space-y-4">
           <p className="text-accent text-xs font-semibold tracking-[0.24em] uppercase">
@@ -51,6 +66,6 @@ export default function RoadmapNotFound() {
           </div>
         </section>
       </Container>
-    </main>
+    </div>
   );
 }

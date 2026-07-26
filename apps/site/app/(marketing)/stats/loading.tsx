@@ -2,7 +2,11 @@ import { Container } from "@veriworkly/ui";
 
 const StatsLoading = () => {
   return (
-    <main className="relative flex min-h-screen flex-col overflow-hidden">
+    <div className="relative flex min-h-screen flex-col overflow-hidden">
+      <p className="sr-only" role="status" aria-live="polite">
+        Loading development statistics
+      </p>
+
       <div className="surface-grid pointer-events-none absolute inset-0 -z-10 opacity-[0.25]" />
       <div className="bg-accent/5 pointer-events-none absolute top-0 left-1/4 -z-10 h-150 w-150 rounded-full blur-[130px]" />
 
@@ -71,7 +75,7 @@ const StatsLoading = () => {
           ))}
         </div>
       </Container>
-    </main>
+    </div>
   );
 };
 

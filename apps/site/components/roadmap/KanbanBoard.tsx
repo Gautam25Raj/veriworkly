@@ -28,7 +28,8 @@ interface KanbanBoardProps {
   showUrl?: boolean;
   showRoadmapLinks?: boolean;
   columnHrefMap?: Partial<Record<string, string>>;
-  refreshHrefMap?: Partial<Record<string, string>>;
+  /** Route to revalidate when a column's refresh control is submitted. */
+  refreshPath?: string;
 }
 
 const KanbanBoard = ({
@@ -37,7 +38,7 @@ const KanbanBoard = ({
   showUrl = false,
   showRoadmapLinks = false,
   columnHrefMap,
-  refreshHrefMap,
+  refreshPath,
 }: KanbanBoardProps) => {
   const singleStatusMode = columns.length === 1;
 
@@ -49,7 +50,7 @@ const KanbanBoard = ({
             key={column.title}
             column={column}
             columnHref={columnHrefMap?.[column.title]}
-            refreshHref={refreshHrefMap?.[column.title]}
+            refreshPath={refreshPath}
             singleStatusMode={singleStatusMode}
             showDescription={showDescription}
             showUrl={showUrl}

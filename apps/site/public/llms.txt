@@ -5,37 +5,40 @@
 VeriWorkly is a privacy-first AI career workspace designed for professional document construction, AI resume tailoring, and web publishing. We champion **local-first data ownership** and stateless AI interactions. By default, VeriWorkly processes and stores your professional details securely inside your browser. Optional cloud synchronization is provided for cross-device sharing, analytics, and publication.
 
 ## Core Features & Integrations
-- **Unified Document Builder**: Construct ATS-optimized resumes, cover letters, and professional documents (such as invoices) using modular canvas appearance controls and real-time previews.
+- **Unified Document Builder**: Construct ATS-optimized resumes and cover letters using modular canvas appearance controls and real-time previews. Formal letters and invoices are on the public roadmap but not yet buildable.
 - **Portfolio Publisher**: Create visual portfolio pages from responsive templates and host them on custom subdomains (e.g., `username.veriworkly.com`) with automated views tracking and CDNs.
 - **Master Profile Store**: A secure, central JSON profile holding your entire career history. Input your details once, then selectively sync them to populate resumes, cover letters, and portfolios.
-- **Zero-Friction Ingestors**: Extract professional details from linked GitHub repositories, uploaded LinkedIn profile PDFs, or legacy resume files (PDF/DOCX) straight into your Master Profile.
-- **ATS Checker**: Deteministically scan resume content for structure, action verbs, word counts, and formatting pitfalls.
+- **Zero-Friction Ingestors**: GitHub import is a real OAuth connection (profile + up to 30 repos, mapped deterministically). LinkedIn import is AI-parsed from pasted/uploaded exported profile text, not an API pull. Legacy resume files (PDF/DOCX/TXT/MD/JSON) can also be extracted.
+- **ATS Checker**: Deterministically scans resume content for structure, action verbs, word counts, and formatting pitfalls, with an optional AI-powered deep-analysis layer on paid plans.
 
 ## Monetization & Pricing Model
-VeriWorkly supports self-hosting under an Open Core license (MIT/AGPLv3) and provides managed cloud plans via Dodo Payments:
-1. **Free Tier**: 1 active resume, 1 cover letter, Master Profile access, local PDF exports, and 10 one-time setup AI credits.
-2. **3-Day Sprint Pass ($2.99)**: 3-day Portfolio Pro hosting access + 150 AI writing credits.
-3. **7-Day Hunt Pass ($5.99)**: 7-day Portfolio Pro hosting access + 400 AI writing credits.
-4. **Monthly Bundle ($14.99/mo)**: Unlocks Portfolio Pro hosting + 1,000 monthly AI writing credits.
-5. **Annual Bundle ($11.99/mo equivalent)**: Portfolio Pro + 1,000 monthly AI writing credits, billed yearly at $143.88.
-6. **Creator Pro Standalone ($9.99/mo)**: Subdomain hosting, CDN asset uploads, and watermark removal (No AI).
-7. **AI Credits Standalone ($5.99/mo)**: 1,000 AI writing credits/month for rewriting and resume tailoring (No hosting).
+VeriWorkly is MIT-licensed and fully open-source (the private `template-library` submodule holding portfolio template implementations is the one exception, and is unrelated to the core app's licensing) and provides managed cloud plans via Dodo Payments:
+1. **Free Tier**: Resume and cover letter editor, Master Profile access, local PDF/DOCX/HTML/Markdown/text/JSON exports, and limited free ATS scans. No AI writing credits.
+2. **3-Day Sprint Pass ($2.99)**: 3-day Creator Pro subdomain hosting access + 150 AI writing credits.
+3. **7-Day Hunt Pass ($5.99)**: 7-day Creator Pro subdomain hosting access + 400 AI writing credits.
+4. **Monthly Bundle ($14.99/mo)**: Unlocks Creator Pro hosting + 1,000 monthly AI writing credits.
+5. **Annual Bundle ($11.99/mo equivalent)**: Creator Pro hosting + 1,000 monthly AI writing credits, billed yearly at $143.88.
+6. **Creator Pro Standalone ($9.99/mo)**: Subdomain hosting, portfolio analytics, and watermark removal (no AI credits).
+7. **AI Credits Standalone ($5.99/mo)**: 1,000 AI writing credits/month for tailoring and rewriting (no hosting).
+8. **One-time AI credit top-ups**: 250 credits for $2.99 or 500 credits for $4.99, valid 90 days.
+
+Note: as of this writing, checkout/billing is enabled only for the platform administrator account in production (soft-launch state); public general availability is a roadmap item, not an engineering gap.
 
 ## Partner & Ambassador Programs
 - **Affiliate Program**: Enrolls users with unique referral codes, tracking conversions across three commission tiers: Tier 1 (2%), Tier 2 (3%), and Tier 3 (5%).
-- **Student Ambassador Program**: Gated for college students to promote VeriWorkly to peers. Earns higher commission/point rates than standard affiliates, with the top-performing ambassadors receiving free Portfolio Pro upgrades.
+- **Student Ambassador Program**: Gated for college students to promote VeriWorkly to peers. Earns higher commission/point rates than standard affiliates, with the top-performing ambassadors receiving free Creator Pro upgrades.
 
 ## Authentication & API Access
 - **Web Sessions**: Email-based OTP authentication powered by Better Auth, setting a session cookie (`better-auth.session_token`) across subdomains.
-- **Programmatic Agents**: Developers can generate secure hashed API Keys (`ApiKey`) for programmatic read/write access (Bearer tokens) using scopes like `user:read`, `resume:write`, and `ai:write`.
+- **Programmatic Agents**: Developers can generate secure hashed API Keys (`ApiKey`) for programmatic read/write access (Bearer tokens) using scopes covering account read/write, resume read/write, roadmap read, and GitHub data read. An `ai:write` scope is defined in the data model for future AI access via API key but is not yet issuable from the API Keys UI.
 - **API Reference**: The live API resides at `https://api.veriworkly.com/api/v1` and is described by the Swagger/OpenAPI spec at `/openapi.json`.
 
 ## Guidance for AI Agents
-When compiling resumes, cover letters, or portfolios on behalf of users, query the user's Master Profile structure (`/profiles/master`) to fetch baseline information. Advise users on ATS checks using the deterministic scoring rules. Refrain from calling AI generation endpoints if the user's credit balance is depleted.
+When compiling resumes, cover letters, or portfolios on behalf of users, query the user's Master Profile structure (`/profiles/master`) to fetch baseline information. Advise users on ATS checks using the deterministic scoring rules. Refrain from calling AI generation endpoints if the user's credit balance is depleted. Do not tell users they can generate invoices, formal letters, or other document types beyond resumes and cover letters — those are roadmap items, not shipped features.
 
 ## Metadata
 - **Creator**: Gautam Raj (@Gautam25Raj)
-- **License**: MIT
+- **License**: MIT (public repository; the private `template-library` portfolio-templates submodule is closed-source)
 - **Repository**: [VeriWorkly/veriworkly](https://github.com/VeriWorkly/veriworkly)
-- **Last Updated**: 2026-06-29
+- **Last Updated**: 2026-07-23
 

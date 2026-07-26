@@ -10,7 +10,11 @@ export default function StatsError({
   reset: () => void;
 }) {
   return (
-    <main className="relative flex min-h-screen flex-col overflow-hidden">
+    <div className="relative flex min-h-screen flex-col overflow-hidden">
+      <p className="sr-only" role="alert">
+        The development statistics could not be loaded.
+      </p>
+
       <div className="surface-grid pointer-events-none absolute inset-0 -z-10 opacity-[0.25]" />
 
       <div className="bg-destructive/5 pointer-events-none absolute top-0 left-1/4 -z-10 h-[600px] w-[600px] rounded-full blur-[130px]" />
@@ -76,6 +80,6 @@ export default function StatsError({
           </div>
         </section>
       </Container>
-    </main>
+    </div>
   );
 }

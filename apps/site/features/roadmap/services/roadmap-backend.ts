@@ -1,4 +1,6 @@
-import { backendApiUrl } from "@/utils/fetchApiData";
+import { fetchApiData, ApiRequestError } from "@/utils/fetchApiData";
+
+const ROADMAP_REVALIDATE_SECONDS = 604800;
 
 export type RoadmapSort = "newest" | "oldest" | "recently-completed";
 export type RoadmapStatus = "todo" | "in-progress" | "done";
@@ -7,6 +9,14 @@ export interface RoadmapDetailItem {
   name: string;
   description?: string;
   image?: string;
+}
+
+export interface RoadmapGithubRef {
+  number: number;
+  kind: "issue" | "pull-request";
+  title: string;
+  url: string;
+  state?: "open" | "closed" | "merged";
 }
 
 export interface RoadmapDetails {
@@ -22,6 +32,7 @@ export interface RoadmapDetails {
   media?: Array<{ type?: string; label?: string; url?: string }>;
   impactMetrics?: string[];
   items?: RoadmapDetailItem[];
+  githubRefs?: RoadmapGithubRef[];
 }
 
 export interface RoadmapInteraction {
@@ -54,12 +65,6 @@ export interface RoadmapFeature {
   interactions?: RoadmapInteraction[];
 }
 
-interface ApiSuccessResponse<T> {
-  success: boolean;
-  message: string;
-  data: T;
-}
-
 interface RoadmapListPayload {
   items: RoadmapFeature[];
   total: number;
@@ -76,7 +81,6 @@ interface RoadmapListPayload {
 export interface RoadmapQuery {
   status?: RoadmapStatus;
   sort?: RoadmapSort;
-  refreshSection?: RoadmapStatus;
 }
 
 export interface RoadmapSectionResponse {
@@ -97,42 +101,6 @@ const statusTitles: Record<RoadmapStatus, string> = {
   "in-progress": "In Progress",
   done: "Done",
 };
-
-function normalizeHeaders(headers?: HeadersInit) {
-  return Object.fromEntries(new Headers(headers ?? {}).entries());
-}
-
-function firstPartyServerHeaders(headers?: HeadersInit) {
-  const normalizedHeaders = normalizeHeaders(headers);
-
-  if (typeof window !== "undefined") return normalizedHeaders;
-
-  const siteOrigin = process.env.SITE_URL ? new URL(process.env.SITE_URL).origin : "";
-  if (!siteOrigin) return normalizedHeaders;
-
-  return {
-    Origin: siteOrigin,
-    ...normalizedHeaders,
-  };
-}
-
-async function fetchApiData<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(backendApiUrl(path), {
-    ...options,
-    credentials: options?.credentials ?? "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...firstPartyServerHeaders(options?.headers),
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Roadmap backend request failed (${response.status})`);
-  }
-
-  const payload = (await response.json()) as ApiSuccessResponse<T>;
-  return payload.data;
-}
 
 function parseDetails(raw: unknown): RoadmapDetails | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -189,6 +157,41 @@ function parseDetails(raw: unknown): RoadmapDetails | null {
           )
       : undefined;
 
+  const readGithubRefs = (value: unknown) =>
+    Array.isArray(value)
+      ? value
+          .map((entry): RoadmapGithubRef | null => {
+            if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+              return null;
+            }
+
+            const item = entry as Record<string, unknown>;
+
+            if (
+              typeof item.number !== "number" ||
+              typeof item.title !== "string" ||
+              typeof item.url !== "string" ||
+              (item.kind !== "issue" && item.kind !== "pull-request")
+            ) {
+              return null;
+            }
+
+            const state =
+              item.state === "open" || item.state === "closed" || item.state === "merged"
+                ? item.state
+                : undefined;
+
+            return {
+              number: item.number,
+              kind: item.kind,
+              title: item.title,
+              url: item.url,
+              state,
+            };
+          })
+          .filter((entry): entry is RoadmapGithubRef => entry !== null)
+      : undefined;
+
   const readItems = (value: unknown) =>
     Array.isArray(value)
       ? value
@@ -226,6 +229,7 @@ function parseDetails(raw: unknown): RoadmapDetails | null {
     media: readMedia(details.media),
     impactMetrics: readStringArray(details.impactMetrics),
     items: readItems(details.items),
+    githubRefs: readGithubRefs(details.githubRefs),
   };
 }
 
@@ -244,7 +248,16 @@ async function fetchRoadmapStatusItems(
   const items: RoadmapFeature[] = [];
   let offset = 0;
 
-  while (true) {
+  // Always cached. Manual refresh goes through `refreshRoadmapPath` (a Server Action
+  // calling revalidatePath) rather than a per-request `cache: "no-store"` bypass, so a
+  // refresh refills the shared cache instead of fanning out uncached backend calls.
+  const cacheOptions: RequestInit = { next: { revalidate: ROADMAP_REVALIDATE_SECONDS } };
+
+  const MAX_PAGES = 50;
+  let pageCount = 0;
+
+  while (pageCount < MAX_PAGES) {
+    pageCount++;
     const query = new URLSearchParams({
       status,
       sort,
@@ -252,11 +265,18 @@ async function fetchRoadmapStatusItems(
       offset: offset.toString(),
     });
 
-    const listData = await fetchApiData<RoadmapListPayload>(`/roadmap?${query.toString()}`);
+    const listData = await fetchApiData<RoadmapListPayload>(
+      `/roadmap?${query.toString()}`,
+      cacheOptions,
+    );
 
     items.push(...listData.items.map(normalizeFeature));
 
-    if (!listData.hasMore || listData.pagination.nextOffset === null) {
+    if (
+      !listData.hasMore ||
+      listData.pagination.nextOffset === null ||
+      listData.pagination.nextOffset <= offset
+    ) {
       break;
     }
 
@@ -272,43 +292,65 @@ function nowIso() {
 
 export async function fetchRoadmapFromBackend(query: RoadmapQuery = {}): Promise<RoadmapResponse> {
   const sort = query.sort ?? "newest";
-
   const statuses: RoadmapStatus[] = query.status ? [query.status] : ["todo", "in-progress", "done"];
 
-  const statusEntries = await Promise.all(
-    statuses.map(async (status) => {
-      const items = await fetchRoadmapStatusItems(status, sort);
-      return [status, items] as const;
-    }),
-  );
+  try {
+    const statusEntries = await Promise.all(
+      statuses.map(async (status) => {
+        const items = await fetchRoadmapStatusItems(status, sort).catch(() => []);
+        return [status, items] as const;
+      }),
+    );
 
-  const sectionsMap = Object.fromEntries(statusEntries) as Record<RoadmapStatus, RoadmapFeature[]>;
+    const sectionsMap = Object.fromEntries(statusEntries) as Record<
+      RoadmapStatus,
+      RoadmapFeature[]
+    >;
 
-  const sections = statuses.map((status) => {
+    const sections = statuses.map((status) => {
+      return {
+        status,
+        title: statusTitles[status],
+        items: sectionsMap[status] ?? [],
+        fetchedAt: nowIso(),
+      } satisfies RoadmapSectionResponse;
+    });
+
     return {
+      generatedAt: nowIso(),
+      sections,
+      query: {
+        sort,
+      },
+    };
+  } catch (err) {
+    console.error("Failed to fetch roadmap from backend:", err);
+    const sections = statuses.map((status) => ({
       status,
       title: statusTitles[status],
-      items: sectionsMap[status] ?? [],
-      fetchedAt: query.refreshSection === status ? nowIso() : nowIso(),
-    } satisfies RoadmapSectionResponse;
-  });
-
-  return {
-    generatedAt: nowIso(),
-    sections,
-    query: {
-      sort,
-    },
-  };
+      items: [],
+      fetchedAt: nowIso(),
+    }));
+    return {
+      generatedAt: nowIso(),
+      sections,
+      query: { sort },
+    };
+  }
 }
 
 export async function fetchRoadmapFeatureById(id: string): Promise<RoadmapFeature | null> {
   try {
-    const feature = await fetchApiData<RoadmapFeature>(`/roadmap/${id}`);
+    const feature = await fetchApiData<RoadmapFeature>(`/roadmap/${id}`, {
+      next: { revalidate: ROADMAP_REVALIDATE_SECONDS },
+    });
 
     return normalizeFeature(feature);
-  } catch {
-    return null;
+  } catch (err) {
+    if (err instanceof ApiRequestError && err.status === 404) {
+      return null;
+    }
+    throw err;
   }
 }
 
@@ -316,7 +358,20 @@ export async function fetchSuggestedRoadmapItems(
   feature: RoadmapFeature,
   limit = 3,
 ): Promise<RoadmapFeature[]> {
-  const related = await fetchRoadmapStatusItems(feature.status, "newest");
+  try {
+    const query = new URLSearchParams({
+      status: feature.status,
+      sort: "newest",
+      limit: limit.toString(),
+      excludeId: feature.id,
+    });
 
-  return related.filter((item) => item.id !== feature.id).slice(0, limit);
+    const listData = await fetchApiData<RoadmapListPayload>(`/roadmap?${query.toString()}`, {
+      next: { revalidate: ROADMAP_REVALIDATE_SECONDS },
+    });
+
+    return listData.items.map(normalizeFeature);
+  } catch {
+    return [];
+  }
 }

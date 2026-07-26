@@ -1,5 +1,7 @@
 import { Metadata } from "next";
 import { siteConfig } from "@/config/site";
+import { jsonLdScriptProps } from "@/utils/json-ld";
+import { buildPageMetadata } from "@/utils/metadata";
 import {
   type RoadmapSort,
   fetchRoadmapFromBackend,
@@ -7,41 +9,20 @@ import {
 
 import RoadmapPageShell from "@/features/roadmap/components/RoadmapPageShell";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPageMetadata({
+  path: "/roadmap/done",
   title: `Shipped AI & Platform Features | ${siteConfig.shortName} Roadmap`,
   description:
     "View completed AI features, shipped resume and portfolio updates, and released improvements in the VeriWorkly roadmap.",
-  alternates: {
-    canonical: `${siteConfig.url}/roadmap/done`,
-    languages: {
-      "en-US": `${siteConfig.url}/roadmap/done`,
-    },
-  },
-  openGraph: {
-    title: `${siteConfig.shortName} Roadmap: Shipped AI Features`,
-    description: "View recently completed AI features and updates in the VeriWorkly roadmap.",
-    url: `${siteConfig.url}/roadmap/done`,
-    siteName: siteConfig.shortName,
-    images: [
-      {
-        url: "/og/roadmap/roadmap-done-page-og.png",
-        width: 1200,
-        height: 630,
-        alt: "VeriWorkly Completed Features",
-      },
-    ],
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: `${siteConfig.shortName} Completed Features`,
-    description: "See what features have already shipped in VeriWorkly.",
-    images: ["/og/roadmap/roadmap-done-page-og.png"],
-    creator: "@noober_boy",
-  },
-};
-
-export const dynamic = "force-dynamic";
+  ogTitle: "Everything We've Shipped So Far",
+  ogDescription:
+    "A running log of completed AI features, ATS improvements, and portfolio updates already live in production.",
+  twitterTitle: "Already shipped at VeriWorkly",
+  twitterDescription: "See what features have already shipped in VeriWorkly.",
+  image: "/og/roadmap/roadmap-done-page-og.png",
+  imageAlt: "VeriWorkly Completed Features",
+  keywords: ["VeriWorkly changelog", "shipped features", "resume builder release notes"],
+});
 
 function parseSort(raw: string | undefined): RoadmapSort | undefined {
   if (raw === "newest" || raw === "oldest" || raw === "recently-completed") {
@@ -54,7 +35,6 @@ function parseSort(raw: string | undefined): RoadmapSort | undefined {
 interface DoneRoadmapPageProps {
   searchParams: Promise<{
     sort?: string;
-    refresh?: string;
   }>;
 }
 
@@ -64,17 +44,38 @@ const DoneRoadmapPage = async ({ searchParams }: DoneRoadmapPageProps) => {
   const data = await fetchRoadmapFromBackend({
     sort: parseSort(params.sort),
     status: "done",
-    refreshSection: params.refresh === "done" ? "done" : undefined,
-  }).catch(() => null);
+  });
+
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: siteConfig.url },
+      { "@type": "ListItem", position: 2, name: "Roadmap", item: `${siteConfig.url}/roadmap` },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: "Completed",
+        item: `${siteConfig.url}/roadmap/done`,
+      },
+    ],
+  };
 
   return (
-    <RoadmapPageShell
-      data={data}
-      activeStatus="done"
-      basePath="/roadmap/done"
-      title="Completed Features"
-      description="Explore all features, template improvements, and system updates that have shipped to production."
-    />
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={jsonLdScriptProps(breadcrumbSchema)}
+      />
+
+      <RoadmapPageShell
+        data={data}
+        activeStatus="done"
+        basePath="/roadmap/done"
+        title="Completed Features"
+        description="Explore all features, template improvements, and system updates that have shipped to production."
+      />
+    </>
   );
 };
 

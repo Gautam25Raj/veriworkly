@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
 import { siteConfig } from "@/config/site";
+import { buildPageMetadata } from "@/utils/metadata";
+import { jsonLdScriptProps } from "@/utils/json-ld";
 
 import {
   PAGE_SIZE,
@@ -25,17 +27,32 @@ import StatsFilters from "@/features/stats/components/StatsFilters";
 import StatsOverview from "@/features/stats/components/StatsOverview";
 import StatsPagination from "@/features/stats/components/StatsPagination";
 
-export const metadata: Metadata = {
+const pageUrl = `${siteConfig.url}/stats`;
+const pageOgImage = `${siteConfig.url}/api/og?title=${encodeURIComponent(
+  "Development & AI Platform Statistics",
+)}&description=${encodeURIComponent(
+  "Live platform development stats, AI feature logs, and release metrics.",
+)}`;
+
+const statsMetadata = {
+  path: "/stats",
   title: `Development & AI Platform Statistics | ${siteConfig.shortName}`,
   description:
     "Follow dynamic platform development statistics, AI feature logs, issue counts, and release metrics.",
-  alternates: {
-    canonical: `${siteConfig.url}/stats`,
-    languages: {
-      "en-US": `${siteConfig.url}/stats`,
-    },
-  },
-};
+  ogTitle: "The Development Board, Live and Public",
+  ogDescription:
+    "Real issue counts, pull request activity, and completion rates synced straight from our GitHub repository.",
+  twitterTitle: "Our dev activity, live and unfiltered",
+  twitterDescription: "Live platform development stats, AI feature logs, and release metrics.",
+  image: pageOgImage,
+  imageAlt: "VeriWorkly Development & AI Platform Statistics",
+  keywords: [
+    "VeriWorkly development stats",
+    "open source project activity",
+    "GitHub issue tracker",
+    "AI resume builder changelog",
+  ],
+} as const;
 
 interface StatsPageProps {
   searchParams: Promise<{
@@ -45,6 +62,35 @@ interface StatsPageProps {
     updatedFrom?: string;
     updatedTo?: string;
   }>;
+}
+
+/**
+ * Pagination has to be resolved at request time: a static `metadata` export would
+ * canonicalise every page to the bare `/stats`, and Google drops pages 2+ as
+ * duplicates. Filtered views are noindex,follow instead — they are subsets of the
+ * same issues and would otherwise open unbounded crawl space.
+ */
+export async function generateMetadata({ searchParams }: StatsPageProps): Promise<Metadata> {
+  const params = await searchParams;
+  const page = parsePage(params.page);
+  const isFiltered =
+    parseKind(params.kind) !== "all" ||
+    parseStatus(params.status) !== "all" ||
+    Boolean(parseDateInput(params.updatedFrom)) ||
+    Boolean(parseDateInput(params.updatedTo));
+
+  return buildPageMetadata({
+    ...statsMetadata,
+    keywords: [...statsMetadata.keywords],
+    ...(page > 1
+      ? {
+          title: `Development & AI Platform Statistics — Page ${page} | ${siteConfig.shortName}`,
+          ogTitle: `The Development Board, Live and Public — page ${page}`,
+        }
+      : {}),
+    canonicalParams: { page: page > 1 ? page : undefined },
+    noIndex: isFiltered,
+  });
 }
 
 const StatsPage = async ({ searchParams }: StatsPageProps) => {
@@ -87,8 +133,20 @@ const StatsPage = async ({ searchParams }: StatsPageProps) => {
   const totalPages = Math.max(1, Math.ceil((issuePage?.total ?? 0) / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
 
+  const statsSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: `Development & AI Platform Statistics | ${siteConfig.shortName}`,
+    url: pageUrl,
+    description:
+      "Live GitHub development statistics for VeriWorkly, including issue counts, pull requests, and completion rate.",
+    isPartOf: { "@type": "WebSite", name: siteConfig.name, url: siteConfig.url },
+  };
+
   return (
-    <main className="relative flex min-h-screen flex-col overflow-hidden">
+    <div className="relative flex min-h-screen flex-col overflow-hidden">
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScriptProps(statsSchema)} />
+
       <div className="surface-grid pointer-events-none absolute inset-0 -z-10 opacity-[0.25]" />
 
       <div className="bg-accent/5 pointer-events-none absolute top-0 left-1/4 -z-10 h-150 w-150 rounded-full blur-[130px]" />
@@ -130,7 +188,7 @@ const StatsPage = async ({ searchParams }: StatsPageProps) => {
           </p>
         </section>
       </Container>
-    </main>
+    </div>
   );
 };
 

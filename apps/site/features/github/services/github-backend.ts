@@ -1,5 +1,7 @@
 import { fetchApiData } from "@/utils/fetchApiData";
 
+const GITHUB_STATS_REVALIDATE_SECONDS = 300;
+
 export type GitHubStatus = "todo" | "in-progress" | "done";
 export type GitHubItemKind = "issue" | "pull-request";
 export type GitHubFilterKind = GitHubItemKind | "all";
@@ -49,8 +51,8 @@ export interface GitHubIssuePage {
 
 export async function fetchGitHubStatsFromBackend(options?: RequestInit) {
   return fetchApiData<GitHubProjectStats>("/github/stats", {
+    next: { revalidate: GITHUB_STATS_REVALIDATE_SECONDS },
     ...options,
-    cache: "no-store",
   });
 }
 
@@ -75,6 +77,6 @@ export async function fetchGitHubIssuesFromBackend(query: {
   const queryString = params.toString() ? `?${params.toString()}` : "";
 
   return fetchApiData<GitHubIssuePage>(`/github/issues${queryString}`, {
-    cache: "no-store",
+    next: { revalidate: GITHUB_STATS_REVALIDATE_SECONDS },
   });
 }

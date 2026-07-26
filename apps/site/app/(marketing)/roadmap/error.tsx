@@ -11,7 +11,11 @@ export default function RoadmapError({
   reset: () => void;
 }) {
   return (
-    <main className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col">
+      <p className="sr-only" role="alert">
+        The roadmap could not be loaded.
+      </p>
+
       <Container className="pt-28 pb-20 lg:pt-36">
         <header className="mb-10 space-y-4">
           <p className="text-destructive text-xs font-semibold tracking-[0.24em] uppercase">
@@ -63,6 +67,6 @@ export default function RoadmapError({
           </div>
         </section>
       </Container>
-    </main>
+    </div>
   );
 }

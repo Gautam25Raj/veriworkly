@@ -8,7 +8,7 @@ import { Button } from "@veriworkly/ui";
 const statusLabels = {
   todo: "Planned",
   "in-progress": "In Progress",
-  done: "Completed",
+  done: "Released",
 };
 
 const SuggestedItemsSidebar = ({

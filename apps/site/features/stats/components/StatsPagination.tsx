@@ -54,6 +54,7 @@ const StatsPagination = ({
         <Link
           href={prevHref}
           aria-disabled={!hasPrev}
+          tabIndex={!hasPrev ? -1 : undefined}
           className={cn(
             "border-border/40 bg-card text-foreground inline-flex items-center justify-center rounded-full border px-4 py-2 font-sans text-xs font-bold shadow-xs transition-colors",
             !hasPrev && "pointer-events-none opacity-50",
@@ -65,6 +66,7 @@ const StatsPagination = ({
         <Link
           href={nextHref}
           aria-disabled={!hasMore}
+          tabIndex={!hasMore ? -1 : undefined}
           className={cn(
             "border-border/40 bg-card text-foreground inline-flex items-center justify-center rounded-full border px-4 py-2 font-sans text-xs font-bold shadow-xs transition-colors",
             !hasMore && "pointer-events-none opacity-50",

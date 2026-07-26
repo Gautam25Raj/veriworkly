@@ -1,4 +1,6 @@
 import Link from "next/link";
+
+import { refreshRoadmapPath } from "@/features/roadmap/actions";
 import { RefreshCw } from "lucide-react";
 
 import { cn } from "@veriworkly/ui";
@@ -37,7 +39,7 @@ const columnIcons = {
 const KanbanColumnView = ({
   column,
   columnHref,
-  refreshHref,
+  refreshPath,
   singleStatusMode,
   showDescription,
   showUrl,
@@ -45,7 +47,7 @@ const KanbanColumnView = ({
 }: {
   column: KanbanColumn;
   columnHref?: string;
-  refreshHref?: string;
+  refreshPath?: string;
   singleStatusMode: boolean;
   showDescription: boolean;
   showUrl: boolean;
@@ -80,14 +82,22 @@ const KanbanColumnView = ({
           </span>
         </div>
 
-        {refreshHref && (
-          <Link
-            href={refreshHref}
-            className="group text-muted hover:text-foreground flex w-fit items-center gap-1 font-mono text-[9px] font-bold tracking-widest uppercase transition-colors"
-          >
-            <RefreshCw className="h-2.5 w-2.5 transition-transform group-hover:rotate-45" />
-            Refresh
-          </Link>
+        {refreshPath && (
+          <form action={refreshRoadmapPath} className="w-fit">
+            <input type="hidden" name="path" value={refreshPath} />
+            <button
+              type="submit"
+              className="group text-muted hover:text-foreground flex w-fit cursor-pointer items-center gap-1 font-mono text-[9px] font-bold tracking-widest uppercase transition-colors focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:outline-none"
+            >
+              <RefreshCw
+                className="h-2.5 w-2.5 transition-transform group-hover:rotate-45"
+                aria-hidden="true"
+              />
+              <span>
+                Refresh<span className="sr-only"> {column.title} column</span>
+              </span>
+            </button>
+          </form>
         )}
       </div>
 

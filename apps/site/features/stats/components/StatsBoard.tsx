@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ExternalLink, GitPullRequest, CircleDot } from "lucide-react";
 import type { GitHubIssuePage } from "@/features/github/services/github-backend";
-import { formatRelativeTime } from "./stats-utils";
+import { formatRelativeTime, PAGE_SIZE } from "./stats-utils";
 
 interface StatsBoardProps {
   issuePage: GitHubIssuePage | null;
@@ -43,8 +43,8 @@ const getLabelStyles = (label: string) => {
 const StatsBoard = ({ issuePage, totalItems, offset }: StatsBoardProps) => {
   const items = issuePage?.items ?? [];
 
-  const totalPages = Math.max(1, Math.ceil((issuePage?.total ?? 0) / 20));
-  const currentPage = Math.floor(offset / 20) + 1;
+  const totalPages = Math.max(1, Math.ceil((issuePage?.total ?? 0) / PAGE_SIZE));
+  const currentPage = Math.floor(offset / PAGE_SIZE) + 1;
 
   const showingStart = totalItems === 0 ? 0 : offset + 1;
   const showingEnd = Math.min(offset + items.length, totalItems);

@@ -1,6 +1,6 @@
 import { config } from "#config";
 
-import { escapeHtml } from "#mail/shared/layout.js";
+import { escapeHtml } from "#mail/shared/layout";
 
 import { sendMail } from "./transporter.js";
 

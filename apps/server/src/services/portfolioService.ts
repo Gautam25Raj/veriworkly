@@ -14,11 +14,17 @@ import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
 import { normalizeSlug, RESERVED_USERNAMES } from "#utils/slugs";
 import { cacheGet, cacheSet, cacheDel, getRedis } from "#lib/redis";
+import { userProfileCacheKey } from "#lib/cacheKeys";
+import { hashForAnalytics } from "#utils/analyticsHash";
+import { sendPortfolioUpdatedEmail } from "#services/mail/portfolioMail";
 
 import { portfolioContentSchema, type PortfolioContentInput } from "#validators/portfolioValidator";
 
 const VIEW_BUFFER_TTL_SECONDS = 14 * 24 * 60 * 60;
 const MAX_VIEW_BUFFER_FIELDS = 10_000;
+// A vanity metric doesn't need per-request precision, but trivially repeatable POSTs shouldn't be
+// able to inflate it either — collapse repeat views from the same viewer within this window.
+const VIEW_DEDUP_WINDOW_SECONDS = 30 * 60;
 
 function normalizeSubdomain(value: string) {
   const subdomain = normalizeSlug(value, "").replace(/_/g, "-").slice(0, 63);
@@ -314,7 +320,7 @@ export class PortfolioService {
         cacheDel(`document:${userId}:${document.id}`),
         cacheDel(`documents:list:${userId}:all`),
         cacheDel(`documents:list:${userId}:PORTFOLIO`),
-        cacheDel(`user:profile:v2:${userId}`),
+        cacheDel(userProfileCacheKey(userId)),
       ]);
 
       return document;
@@ -347,7 +353,7 @@ export class PortfolioService {
     if (isPremiumTemplate && !hasSubscription) {
       throw new ApiError(
         403,
-        `Publishing the premium template "${document.templateId}" requires an active Portfolio Pro subscription.`,
+        `Publishing the premium template "${document.templateId}" requires an active Creator Pro subscription.`,
       );
     }
 
@@ -378,7 +384,7 @@ export class PortfolioService {
 
     const existingPublication = await prisma.portfolioPublication.findUnique({
       where: { userId },
-      select: { documentId: true, subdomain: true },
+      select: { documentId: true, subdomain: true, status: true },
     });
 
     try {
@@ -438,12 +444,27 @@ export class PortfolioService {
           ? `http://${publication.subdomain}.localhost:3004`
           : `https://${publication.subdomain}.veriworkly.com`;
 
+      if (existingPublication?.status !== "LIVE") {
+        void this.notifyPortfolioLive(userId, publicUrl);
+      }
+
       return { ...publication, publicUrl };
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")
         throw new ApiError(409, "That portfolio subdomain is already in use.");
 
       throw error;
+    }
+  }
+
+  private static async notifyPortfolioLive(userId: string, publicUrl: string) {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+      if (!user?.email) return;
+
+      await sendPortfolioUpdatedEmail(user.email, publicUrl);
+    } catch (error) {
+      logger.warn("Failed to send portfolio live email", error);
     }
   }
 
@@ -480,15 +501,24 @@ export class PortfolioService {
     return result;
   }
 
-  static async recordView(subdomain: string, referrer?: string) {
+  static async recordView(subdomain: string, referrer?: string, ipAddress?: string) {
     const publication = await this.getPublicPortfolio(subdomain);
 
     if (!publication) throw new ApiError(404, "Portfolio not found");
 
+    const redis = getRedis();
+
+    if (ipAddress) {
+      const dedupKey = `portfolio:views:dedup:${publication.id}:${hashForAnalytics(ipAddress)}`;
+      const isFirstViewInWindow =
+        (await redis.set(dedupKey, "1", { NX: true, EX: VIEW_DEDUP_WINDOW_SECONDS })) === "OK";
+
+      if (!isFirstViewInWindow) return;
+    }
+
     const dateKey = utcDay().toISOString().slice(0, 10);
     const referrerHost = normalizeReferrerHost(referrer);
 
-    const redis = getRedis();
     const key = `portfolio:views:buffer:${dateKey}`;
     let field = `${publication.id}:${referrerHost}`;
 
@@ -527,103 +557,121 @@ export class PortfolioService {
     const processingKey = `${key}:processing`;
     const batchKey = `${processingKey}:batch-id`;
     const pendingAdjustedKey = `${processingKey}:pending-adjusted`;
+    const lockKey = `${key}:flush-lock`;
 
-    if (!(await redis.exists(processingKey))) {
-      try {
-        await redis.rename(key, processingKey);
-      } catch (error) {
-        if (error instanceof Error && error.message.includes("no such key"))
-          return { dateKey, flushedCount: 0 };
+    // Serialize flush attempts for this date so a manual admin retry overlapping the cron tick
+    // (or a rolling deploy briefly running two worker processes) can't race the same batch id and
+    // permanently discard that day's buffered views on a unique-constraint rollback.
+    const lockAcquired = (await redis.set(lockKey, "1", { NX: true, EX: 120 })) === "OK";
 
-        throw error;
-      }
-    }
-
-    const data = await redis.hGetAll(processingKey);
-    const entries = Object.entries(data);
-
-    if (entries.length === 0) {
-      await redis.del([processingKey, batchKey, pendingAdjustedKey]);
-      return { dateKey, flushedCount: 0 };
-    }
-
-    const date = new Date(`${dateKey}T00:00:00.000Z`);
-    await redis.set(batchKey, randomUUID(), { NX: true });
-    const batchId = await redis.get(batchKey);
-
-    if (!batchId) throw new Error(`Failed to initialize portfolio views batch for ${dateKey}`);
-
-    const publicationIds = [
-      ...new Set(entries.map(([field]) => field.slice(0, field.indexOf(":"))).filter(Boolean)),
-    ];
-    const survivingPublications = new Set(
-      (
-        await prisma.portfolioPublication.findMany({
-          where: { id: { in: publicationIds } },
-          select: { id: true },
-        })
-      ).map((publication) => publication.id),
-    );
-    let flushedCount = 0;
-    const pendingAdjustments = new Map<string, number>();
+    if (!lockAcquired) return { dateKey, flushedCount: 0, skipped: true as const };
 
     try {
-      await prisma.$transaction(async (tx) => {
-        await tx.viewFlushBatch.create({ data: { id: batchId, kind: "portfolio" } });
+      if (!(await redis.exists(processingKey))) {
+        try {
+          await redis.rename(key, processingKey);
+        } catch (error) {
+          if (error instanceof Error && error.message.includes("no such key"))
+            return { dateKey, flushedCount: 0 };
 
-        for (const [field, rawCount] of entries) {
-          const separator = field.indexOf(":");
-          const publicationId = field.slice(0, separator);
-          const referrerHost = field.slice(separator + 1);
-          if (!publicationId || !survivingPublications.has(publicationId)) continue;
-          const count = parseInt(rawCount, 10) || 0;
-          if (count <= 0) continue;
-          const pendingKey = `portfolio:views:pending:${publicationId}`;
-          pendingAdjustments.set(pendingKey, (pendingAdjustments.get(pendingKey) ?? 0) + count);
+          throw error;
+        }
+      }
 
-          await tx.portfolioViewDaily.upsert({
-            where: {
-              publicationId_date_referrerHost: {
+      const data = await redis.hGetAll(processingKey);
+      const entries = Object.entries(data);
+
+      if (entries.length === 0) {
+        await redis.del([processingKey, batchKey, pendingAdjustedKey]);
+        return { dateKey, flushedCount: 0 };
+      }
+
+      const date = new Date(`${dateKey}T00:00:00.000Z`);
+      await redis.set(batchKey, randomUUID(), { NX: true });
+      const batchId = await redis.get(batchKey);
+
+      if (!batchId) throw new Error(`Failed to initialize portfolio views batch for ${dateKey}`);
+
+      const publicationIds = [
+        ...new Set(entries.map(([field]) => field.slice(0, field.indexOf(":"))).filter(Boolean)),
+      ];
+      const survivingPublications = new Set(
+        (
+          await prisma.portfolioPublication.findMany({
+            where: { id: { in: publicationIds } },
+            select: { id: true },
+          })
+        ).map((publication) => publication.id),
+      );
+      let flushedCount = 0;
+      const pendingAdjustments = new Map<string, number>();
+
+      try {
+        await prisma.$transaction(async (tx) => {
+          await tx.viewFlushBatch.create({ data: { id: batchId, kind: "portfolio" } });
+
+          for (const [field, rawCount] of entries) {
+            const separator = field.indexOf(":");
+            const publicationId = field.slice(0, separator);
+            const referrerHost = field.slice(separator + 1);
+            if (!publicationId || !survivingPublications.has(publicationId)) continue;
+            const count = parseInt(rawCount, 10) || 0;
+            if (count <= 0) continue;
+            const pendingKey = `portfolio:views:pending:${publicationId}`;
+            pendingAdjustments.set(pendingKey, (pendingAdjustments.get(pendingKey) ?? 0) + count);
+
+            await tx.portfolioViewDaily.upsert({
+              where: {
+                publicationId_date_referrerHost: {
+                  publicationId,
+                  date,
+                  referrerHost: referrerHost || "",
+                },
+              },
+              create: {
                 publicationId,
                 date,
                 referrerHost: referrerHost || "",
+                count,
               },
-            },
-            create: {
-              publicationId,
-              date,
-              referrerHost: referrerHost || "",
-              count,
-            },
-            update: {
-              count: { increment: count },
-            },
-          });
+              update: {
+                count: { increment: count },
+              },
+            });
 
-          flushedCount += count;
+            flushedCount += count;
+          }
+        });
+      } catch (error) {
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) {
+          throw error;
         }
-      });
-    } catch (error) {
-      if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) {
-        throw error;
+
+        // We hold the flush lock, so a batch-id collision can only mean a prior attempt already
+        // committed this exact batch before crashing without cleaning up Redis. Confirm that
+        // rather than assuming it.
+        const existingBatch = await prisma.viewFlushBatch.findUnique({ where: { id: batchId } });
+        if (!existingBatch) throw error;
       }
-    }
 
-    const staleCount = publicationIds.length - survivingPublications.size;
-    if (staleCount > 0)
-      logger.warn("Discarded portfolio views for deleted publications", { staleCount });
+      const staleCount = publicationIds.length - survivingPublications.size;
+      if (staleCount > 0)
+        logger.warn("Discarded portfolio views for deleted publications", { staleCount });
 
-    if (!(await redis.exists(pendingAdjustedKey))) {
-      const adjustment = redis.multi();
-      for (const [pendingKey, count] of pendingAdjustments) {
-        adjustment.hIncrBy(pendingKey, dateKey, -count);
+      if (!(await redis.exists(pendingAdjustedKey))) {
+        const adjustment = redis.multi();
+        for (const [pendingKey, count] of pendingAdjustments) {
+          adjustment.hIncrBy(pendingKey, dateKey, -count);
+        }
+        adjustment.set(pendingAdjustedKey, "1");
+        await adjustment.exec();
       }
-      adjustment.set(pendingAdjustedKey, "1");
-      await adjustment.exec();
-    }
 
-    await redis.del([processingKey, batchKey, pendingAdjustedKey]);
-    return { dateKey, flushedCount };
+      await redis.del([processingKey, batchKey, pendingAdjustedKey]);
+      return { dateKey, flushedCount };
+    } finally {
+      await redis.del(lockKey).catch(() => {});
+    }
   }
 
   static async getAnalytics(userId: string) {

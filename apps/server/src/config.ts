@@ -18,6 +18,8 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
 const defaultAuthSessionCacheEnabled =
   (process.env.NODE_ENV || "development") === "production" ? "true" : "false";
 
+const isProductionEnv = (process.env.NODE_ENV || "development") === "production";
+
 function parseTrustProxy(value: string | undefined): boolean | string | number {
   if (value == null) return false;
 
@@ -150,6 +152,7 @@ export const config = {
     roadmapStatsTtlSeconds: parseInt(process.env.ROADMAP_STATS_CACHE_TTL_SECONDS || "2592000", 10),
     roadmapTagsTtlSeconds: parseInt(process.env.ROADMAP_TAGS_CACHE_TTL_SECONDS || "2592000", 10),
     githubStatsTtlSeconds: parseInt(process.env.GITHUB_STATS_CACHE_TTL_SECONDS || "43200", 10),
+    changelogTtlSeconds: parseInt(process.env.CHANGELOG_CACHE_TTL_SECONDS || "2592000", 10),
   },
 
   metrics: {
@@ -167,6 +170,12 @@ export const config = {
     syncTimezone: process.env.GITHUB_SYNC_TIMEZONE || "UTC",
     syncEnabled: parseBoolean(process.env.GITHUB_SYNC_ENABLED, true),
     syncApiKey: process.env.INTERNAL_SYNC_API_KEY || "",
+  },
+
+  changelogSync: {
+    enabled: parseBoolean(process.env.CHANGELOG_RELEASE_SYNC_ENABLED, true),
+    cron: process.env.CHANGELOG_RELEASE_SYNC_CRON || "0 6 * * *",
+    timezone: process.env.CHANGELOG_RELEASE_SYNC_TIMEZONE || "UTC",
   },
 
   portfolio: {
@@ -191,7 +200,8 @@ export const config = {
     portfolioProAnnualProductId: process.env.DODO_PAYMENTS_PORTFOLIO_PRO_ANNUAL_PRODUCT_ID || "",
     bundleMonthlyProductId: process.env.DODO_PAYMENTS_BUNDLE_MONTHLY_PRODUCT_ID || "",
     bundleAnnualProductId: process.env.DODO_PAYMENTS_BUNDLE_ANNUAL_PRODUCT_ID || "",
-    creditPack100ProductId: process.env.DODO_PAYMENTS_CREDIT_PACK_100_PRODUCT_ID || "",
+    creditPack250ProductId: process.env.DODO_PAYMENTS_CREDIT_PACK_250_PRODUCT_ID || "",
+    creditPack500ProductId: process.env.DODO_PAYMENTS_CREDIT_PACK_500_PRODUCT_ID || "",
     checkoutReturnUrl:
       process.env.DODO_PAYMENTS_CHECKOUT_RETURN_URL ||
       "http://localhost:3001/billing?checkout=complete",
@@ -207,6 +217,17 @@ export const config = {
     accessKeyId: process.env.R2_ACCESS_KEY_ID || "",
     secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || "",
     publicBaseUrl: (process.env.R2_PUBLIC_BASE_URL || "").replace(/\/+$/, ""),
+  },
+
+  // Growth programs (affiliate, campus ambassador) are still being finished. They stay on in
+  // non-production environments by default so they can be built/tested, and off in production
+  // until explicitly turned on via env vars once the program is ready to launch publicly.
+  growth: {
+    affiliateProgramEnabled: parseBoolean(process.env.AFFILIATE_PROGRAM_ENABLED, !isProductionEnv),
+    ambassadorProgramEnabled: parseBoolean(
+      process.env.AMBASSADOR_PROGRAM_ENABLED,
+      !isProductionEnv,
+    ),
   },
 };
 

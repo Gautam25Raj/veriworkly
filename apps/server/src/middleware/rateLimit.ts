@@ -42,6 +42,7 @@ function getRouteLimitConfig(req: Request) {
   const isAiRoute = req.path.startsWith("/api/v1/ai");
   const isAuthRoute = req.path.startsWith("/api/v1/auth");
   const isStatsEventsRoute = req.path.startsWith("/api/v1/stats/events");
+  const isContactRoute = req.path.startsWith("/api/v1/contact");
 
   const isShareVerifyRoute = /\/shares\/public\/[^/]+\/[^/]+\/verify$/.test(req.path);
 
@@ -49,6 +50,12 @@ function getRouteLimitConfig(req: Request) {
     return {
       windowMs: 60 * 5000, // 5 minutes
       maxRequests: 3, // 3 requests per 5 minutes
+    };
+
+  if (isContactRoute)
+    return {
+      windowMs: 60 * 60 * 1000, // 1 hour
+      maxRequests: 5, // 5 requests per hour — unauthenticated route that triggers outbound email
     };
 
   if (isStatsEventsRoute)
@@ -117,11 +124,26 @@ export const rateLimitMiddleware = async (req: Request, res: Response, next: Nex
 
       if (!current || current.resetAt <= now) {
         if (bucket.size > MAX_MEMORY_ENTRIES) {
+          pruneExpiredEntries();
+        }
+
+        if (bucket.size > MAX_MEMORY_ENTRIES) {
+          // Evict the oldest entries (Map preserves insertion order) rather than clearing
+          // everyone's counters — a full clear would reset rate limits for every client at
+          // exactly the high-traffic/Redis-outage moment the limiter exists to protect against.
           logger.warn(
-            "Rate limit memory bucket reached max capacity! Clearing map to prevent crash.",
+            "Rate limit memory bucket reached max capacity! Evicting oldest entries.",
           );
 
-          bucket.clear();
+          const excess = bucket.size - MAX_MEMORY_ENTRIES + 1;
+          const keysToEvict: string[] = [];
+
+          for (const existingKey of bucket.keys()) {
+            if (keysToEvict.length >= excess) break;
+            keysToEvict.push(existingKey);
+          }
+
+          for (const evictKey of keysToEvict) bucket.delete(evictKey);
         }
 
         bucket.set(redisKey, { count: 1, resetAt: now + windowMs });

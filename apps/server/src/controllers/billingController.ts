@@ -3,12 +3,13 @@ import type { NextFunction, Request, Response } from "express";
 import { z } from "zod";
 
 import { requireAuthUser } from "#middleware/auth";
-import { config } from "#config";
+import { isProduction } from "#config";
 
 import { BillingService } from "#services/billingService";
 import { CreditService } from "#services/creditService";
 
 import { ApiError, createSuccessResponse, handleValidationError } from "#lib/errors";
+import { isAdminUser } from "#lib/isAdminUser";
 
 import {
   checkoutSchema,
@@ -17,6 +18,16 @@ import {
 } from "#validators/billingValidator";
 
 export class BillingController {
+  // Blocked in production for everyone except the configured admin, who can still exercise
+  // payments end-to-end for testing. Regular users only get payments in development/staging.
+  private static assertPaymentsEnabled(user: { email: string | null }) {
+    if (isProduction && !isAdminUser(user.email))
+      throw new ApiError(
+        403,
+        "Payments are disabled in production during this phase. Only administrators can perform payments.",
+      );
+  }
+
   static async getMe(req: Request, res: Response, next: NextFunction) {
     try {
       res.json(createSuccessResponse(await BillingService.getSummary(requireAuthUser(req).id)));
@@ -53,15 +64,8 @@ export class BillingController {
     try {
       const input = checkoutSchema.parse(req.body);
 
-      const isProd = config.nodeEnv === "production";
       const user = requireAuthUser(req);
-      const isAdmin = config.admin.email && user.email?.toLowerCase() === config.admin.email;
-
-      if (isProd && !isAdmin)
-        throw new ApiError(
-          403,
-          "Payments are disabled in production during this phase. Only administrators can perform payments.",
-        );
+      BillingController.assertPaymentsEnabled(user);
 
       res.json(
         createSuccessResponse(
@@ -88,15 +92,8 @@ export class BillingController {
 
   static async portal(req: Request, res: Response, next: NextFunction) {
     try {
-      const isProd = config.nodeEnv === "production";
       const user = requireAuthUser(req);
-      const isAdmin = config.admin.email && user.email?.toLowerCase() === config.admin.email;
-
-      if (isProd && !isAdmin)
-        throw new ApiError(
-          403,
-          "Payments are disabled in production during this phase. Only administrators can perform payments.",
-        );
+      BillingController.assertPaymentsEnabled(user);
 
       res.json(createSuccessResponse(await BillingService.createPortal(user.id)));
     } catch (error) {
@@ -108,15 +105,8 @@ export class BillingController {
     try {
       const input = creditPackCheckoutSchema.parse(req.body);
 
-      const isProd = config.nodeEnv === "production";
       const user = requireAuthUser(req);
-      const isAdmin = config.admin.email && user.email?.toLowerCase() === config.admin.email;
-
-      if (isProd && !isAdmin)
-        throw new ApiError(
-          403,
-          "Payments are disabled in production during this phase. Only administrators can perform payments.",
-        );
+      BillingController.assertPaymentsEnabled(user);
 
       res.json(
         createSuccessResponse(

@@ -7,6 +7,7 @@ export const roadmapQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(50).optional(),
   limit: z.coerce.number().int().min(1).max(50).optional(),
   offset: z.coerce.number().int().min(0).optional(),
+  excludeId: z.string().min(1).optional(),
 });
 
 const roadmapDetailsSchema = z
@@ -41,6 +42,19 @@ const roadmapDetailsSchema = z
       .optional(),
 
     impactMetrics: z.array(z.string()).nullable().optional(),
+
+    githubRefs: z
+      .array(
+        z.object({
+          number: z.number().int().positive(),
+          kind: z.enum(["issue", "pull-request"]),
+          title: z.string(),
+          url: z.string(),
+          state: z.enum(["open", "closed", "merged"]).nullable().optional(),
+        }),
+      )
+      .nullable()
+      .optional(),
 
     items: z
       .array(

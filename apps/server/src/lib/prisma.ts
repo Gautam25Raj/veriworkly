@@ -16,7 +16,7 @@ export const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
   max: parsePositiveInt(process.env.DB_POOL_MAX, isProduction ? 30 : 5),
   idleTimeoutMillis: parsePositiveInt(process.env.DB_POOL_IDLE_TIMEOUT_MS, 15_000),
-  connectionTimeoutMillis: parsePositiveInt(process.env.DB_POOL_CONNECTION_TIMEOUT_MS, 5_000),
+  connectionTimeoutMillis: parsePositiveInt(process.env.DB_POOL_CONNECTION_TIMEOUT_MS, 30_000),
   statement_timeout: parsePositiveInt(process.env.DB_POOL_STATEMENT_TIMEOUT_MS, 30_000),
   allowExitOnIdle: true,
 });

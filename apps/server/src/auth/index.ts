@@ -13,13 +13,14 @@ import { prisma } from "#lib/prisma";
 import { getRedis } from "#lib/redis";
 
 import { invalidateSessionCache, invalidateCacheByToken } from "#utils/authCache";
+import { incrementUsageMetric } from "#services/analyticsService";
 
 import {
   sendAuthOtpEmail,
   sendWelcomeEmail,
   sendLoginAlertEmail,
   sendAccountDeletedEmail,
-} from "#services/mail";
+} from "#services/mail/index";
 
 export const authRequestContext = new AsyncLocalStorage<{
   ip: string;
@@ -235,6 +236,12 @@ export const auth = betterAuth({
     session: {
       create: {
         after: async (session) => {
+          try {
+            await incrementUsageMetric({ event: "auth_login_success" });
+          } catch (error) {
+            console.error("Failed to record auth_login_success metric:", session.id, error);
+          }
+
           try {
             const context = authRequestContext.getStore();
             const provider = context?.provider || "unknown";

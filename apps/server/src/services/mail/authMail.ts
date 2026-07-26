@@ -36,7 +36,8 @@ function getOtpEmailSubject(type: AuthOtpEmailPayload["type"]) {
 export async function sendAuthOtpEmail(payload: AuthOtpEmailPayload): Promise<void> {
   const subject = getOtpEmailSubject(payload.type);
   const text = `Your VeriWorkly verification code is: ${payload.otp}`;
-  const html = renderOtpEmail(payload.otp, payload.type);
+  const ttlMinutes = Math.max(1, Math.round(config.auth.otpTtlSeconds / 60));
+  const html = renderOtpEmail(payload.otp, payload.type, ttlMinutes);
 
   await sendMail({ to: payload.email, subject, text, html });
 }

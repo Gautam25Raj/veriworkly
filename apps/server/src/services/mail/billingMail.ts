@@ -1,4 +1,6 @@
-import { logger } from "#lib/logger";
+import { renderSubscriptionPurchasedEmail, renderSubscriptionCancelledEmail } from "#mail/index";
+
+import { sendMail } from "./transporter.js";
 
 /**
  * Send subscription purchase confirmation email
@@ -10,14 +12,9 @@ export async function sendSubscriptionPurchasedEmail(
 ): Promise<void> {
   const subject = `Welcome to VeriWorkly Pro: ${planName} Activated!`;
   const text = `Hi ${name},\n\nThank you for subscribing! Your account has been upgraded to ${planName}.`;
+  const html = renderSubscriptionPurchasedEmail(name, planName);
 
-  logger.info("[Billing Mail Placeholder] Send subscription purchased email to:", {
-    to: email,
-    name,
-    planName,
-    subject,
-    text,
-  });
+  await sendMail({ to: email, subject, text, html });
 }
 
 /**
@@ -26,11 +23,7 @@ export async function sendSubscriptionPurchasedEmail(
 export async function sendSubscriptionCancelledEmail(email: string, name: string): Promise<void> {
   const subject = "Your VeriWorkly subscription has been cancelled";
   const text = `Hi ${name},\n\nWe're sorry to see you go. Your subscription has been cancelled.`;
+  const html = renderSubscriptionCancelledEmail(name);
 
-  logger.info("[Billing Mail Placeholder] Send subscription cancelled email to:", {
-    to: email,
-    name,
-    subject,
-    text,
-  });
+  await sendMail({ to: email, subject, text, html });
 }

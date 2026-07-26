@@ -57,30 +57,44 @@ export function validateAuthRuntimeConfig(): void {
 
 export async function ensureAdminUserExists(): Promise<void> {
   const email = config.admin.email;
+  let retries = 3;
 
-  const existing = await prisma.user.findUnique({
-    where: { email },
-    select: { id: true, name: true },
-  });
+  while (retries > 0) {
+    try {
+      const existing = await prisma.user.findUnique({
+        where: { email },
+        select: { id: true, name: true },
+      });
 
-  if (!existing) {
-    await prisma.user.create({
-      data: {
-        email,
-        name: "Admin",
-      },
-    });
+      if (!existing) {
+        await prisma.user.create({
+          data: {
+            email,
+            name: "Admin",
+          },
+        });
 
-    logger.info("Admin user created for auth", { email });
-    return;
-  }
+        logger.info("Admin user created for auth", { email });
+        return;
+      }
 
-  if (existing.name !== "Admin") {
-    await prisma.user.update({
-      where: { id: existing.id },
-      data: { name: "Admin" },
-    });
+      if (existing.name !== "Admin") {
+        await prisma.user.update({
+          where: { id: existing.id },
+          data: { name: "Admin" },
+        });
 
-    logger.info("Admin user normalized for auth", { email });
+        logger.info("Admin user normalized for auth", { email });
+      }
+      return;
+    } catch (err) {
+      retries -= 1;
+      if (retries === 0) throw err;
+      logger.warn(
+        `Database connection initial query failed (Neon spin-up delay), retrying (${retries} attempts left)...`,
+        err instanceof Error ? err.message : err,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
   }
 }

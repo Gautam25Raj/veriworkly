@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import { requireAuthUser } from "#middleware/auth";
-import { AffiliateService } from "#services/affiliateService";
+import { AffiliateService } from "#services/affiliate/index";
 import { CreditService } from "#services/creditService";
 import { prisma } from "#lib/prisma";
 import { createSuccessResponse, handleValidationError } from "#lib/errors";

@@ -25,8 +25,7 @@ model User {
   affiliateEnrolledAt   DateTime?
   role                  Role                  @default(USER)
   ambassadorStatus      String                @default("NONE")
-  collegeName           String?
-  graduationYear        String?
+  ambassadorApplication AmbassadorApplication?
   lastLinkedinImportAt  DateTime?
   lastGithubImportAt    DateTime?
   createdAt             DateTime              @default(now())
@@ -54,8 +53,6 @@ model User {
   adminAuditEntries     AdminAuditEntry[]     @relation("AdminAuditActor")
   portfolioPublication  PortfolioPublication?
   portfolioAssets       PortfolioAsset[]
-
-  @@index([email])
 }
 
 enum Role {
@@ -445,6 +442,33 @@ model AffiliateWithdrawal {
   @@index([status, createdAt])
 }
 
+enum AmbassadorApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model AmbassadorApplication {
+  id             String                      @id @default(cuid())
+  userId         String                      @unique
+  user           User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collegeName    String
+  graduationYear String
+  whyJoin        String
+  superpower     String
+  funFact        String
+  vibeCheck      String?
+  socialHandle   String?
+  status         AmbassadorApplicationStatus @default(PENDING)
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  reviewNote     String?
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+
+  @@index([status, createdAt])
+}
+
 model AdminAuditEntry {
   id         String   @id @default(cuid())
   actorId    String?
@@ -644,6 +668,29 @@ model RoadmapInteraction {
   @@index([featureId])
 }
 
+// Public product changelog entry — one row per shipped release/version.
+model ChangelogEntry {
+  id          String    @id
+  version     String    @unique
+  title       String
+  summary     String?
+  type        String    @default("minor") // "major", "minor", "patch"
+  publishedAt DateTime
+  githubUrl   String?
+  added       String[]  @default([])
+  improved    String[]  @default([])
+  fixed       String[]  @default([])
+  breaking    String[]  @default([])
+  security    String[]  @default([])
+  tags        String[]  @default([])
+  prRefs      Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([publishedAt])
+  @@index([type])
+}
+
 // Daily aggregated usage metrics flushed from Redis counters
 model UsageMetricDaily {
   id        String   @id @default(cuid())
@@ -746,7 +793,6 @@ model ApiKey {
   @@index([userId, isActive])
   @@index([isActive])
   @@index([expiresAt])
-  @@index([keyHash])
 }
 
 // Audit log for tracking API access

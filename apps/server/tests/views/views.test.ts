@@ -83,6 +83,7 @@ const mockRedis = {
     for (const k of arr) {
       mockRedisStore.delete(k);
     }
+    return Promise.resolve(arr.length);
   }),
 
   lPush: vi.fn((key: string, value: string) => {
@@ -130,11 +131,38 @@ vi.mock("#lib/redis", () => ({
   cacheDel: vi.fn(),
 }));
 
+// Keep the module graph under test scoped to views/redis/prisma — without these mocks,
+// portfolioService's billing/mail imports pull in nodemailer and the HTML mail templates on
+// every dynamic import in this file, which is unrelated cost this suite shouldn't pay.
+vi.mock("#services/mail/portfolioMail", () => ({
+  sendPortfolioUpdatedEmail: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("#services/mail/billingMail", () => ({
+  sendSubscriptionPurchasedEmail: vi.fn().mockResolvedValue(undefined),
+  sendSubscriptionCancelledEmail: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("#services/apiKeyService", () => ({
+  ApiKeyService: {
+    invalidateAuthCacheForUser: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 vi.mock("#config", () => ({
   config: {
     auth: {
       secret: "test-auth-secret",
     },
+    apiKeys: {
+      hashSecret: "test-api-key-secret",
+      authCacheTtlSeconds: 300,
+      lastUsedTouchIntervalSeconds: 300,
+      defaultRateLimit: 20,
+      defaultScopes: ["user:read"],
+      defaultKeyLifetimeDays: 365,
+    },
+    nodeEnv: "test",
   },
 }));
 

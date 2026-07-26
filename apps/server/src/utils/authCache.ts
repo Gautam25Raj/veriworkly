@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { cacheDel } from "#/lib/redis";
+import { cacheDel } from "#lib/redis";
 
 export function extractStableAuthCookieFingerprint(
   cookieHeader: string | undefined | null,
@@ -31,7 +31,7 @@ export function getSessionCacheKey(cookieHeader: string | undefined | null): str
 
   if (!fingerprint) return null;
 
-  const cookieHash = createHash("md5").update(fingerprint).digest("hex");
+  const cookieHash = createHash("sha256").update(fingerprint).digest("hex");
   return `auth:session:${cookieHash}`;
 }
 
@@ -47,8 +47,8 @@ export async function invalidateCacheByToken(token: string): Promise<void> {
   const prefix1 = `veriworkly-auth.session_token=${token}`;
   const prefix2 = `__Secure-veriworkly-auth.session_token=${token}`;
 
-  const hash1 = createHash("md5").update(prefix1).digest("hex");
-  const hash2 = createHash("md5").update(prefix2).digest("hex");
+  const hash1 = createHash("sha256").update(prefix1).digest("hex");
+  const hash2 = createHash("sha256").update(prefix2).digest("hex");
 
   await Promise.all([cacheDel(`auth:session:${hash1}`), cacheDel(`auth:session:${hash2}`)]);
 }

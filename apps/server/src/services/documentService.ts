@@ -7,6 +7,7 @@ import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
 import { buildUniqueSlugHelper } from "#utils/slugs";
 import { cacheGet, cacheSet, cacheDel, cacheDelByPrefix } from "#lib/redis";
+import { userProfileCacheKey } from "#lib/cacheKeys";
 
 import { EntitlementService } from "#services/entitlementService";
 
@@ -33,6 +34,14 @@ export type DocumentUpdateInput = {
   visibility?: Visibility;
   revision: number;
 };
+
+const MAX_DOCUMENT_PAYLOAD_BYTES = 1_000_000;
+
+function assertDocumentPayloadSize(content: Prisma.InputJsonValue | undefined) {
+  if (content && JSON.stringify(content).length > MAX_DOCUMENT_PAYLOAD_BYTES) {
+    throw new ApiError(413, "Document content payload is too large");
+  }
+}
 
 export class DocumentService {
   private static async buildUniqueSlug(userId: string, title: string, documentId?: string) {
@@ -142,6 +151,9 @@ export class DocumentService {
       }
     }
 
+    assertDocumentPayloadSize(initialContent);
+    assertDocumentPayloadSize(input.metadata);
+
     const title = input.title || `Untitled ${input.type.toLowerCase().replace("_", " ")}`;
 
     if (input.id) {
@@ -178,7 +190,7 @@ export class DocumentService {
 
     await cacheDel(`documents:list:${userId}:all`);
     await cacheDel(`documents:list:${userId}:${document.type}`);
-    await cacheDel(`user:profile:v2:${userId}`);
+    await cacheDel(userProfileCacheKey(userId));
 
     return document;
   }
@@ -188,6 +200,9 @@ export class DocumentService {
    */
 
   static async updateDocument(userId: string, documentId: string, input: DocumentUpdateInput) {
+    assertDocumentPayloadSize(input.content);
+    assertDocumentPayloadSize(input.metadata);
+
     const { revision, updateShareSlug, ...data } = input;
     const updateData = { ...data };
 
@@ -399,7 +414,7 @@ export class DocumentService {
     await cacheDel(`documents:list:${userId}:all`);
     await cacheDel(`documents:list:${userId}:${document.type}`);
     await cacheDelByPrefix(`share:shared-document-ids:${userId}:`);
-    await cacheDel(`user:profile:v2:${userId}`);
+    await cacheDel(userProfileCacheKey(userId));
 
     if (docWithShares?.user?.username) {
       const username = docWithShares.user.username;

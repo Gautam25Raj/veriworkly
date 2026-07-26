@@ -1,15 +1,14 @@
 import { promisify } from "node:util";
-import { randomBytes, randomUUID, scrypt, timingSafeEqual, createHash } from "node:crypto";
+import { randomBytes, randomUUID, scrypt, timingSafeEqual } from "node:crypto";
 
 import { Prisma } from "@prisma/client";
-
-import { config } from "#config";
 
 import { prisma } from "#lib/prisma";
 import { getRedis } from "#lib/redis";
 import { ApiError } from "#lib/errors";
 import { logger } from "#lib/logger";
 import { normalizeSlug, normalizeUsername, buildUniqueSlugHelper } from "#utils/slugs";
+import { hashForAnalytics } from "#utils/analyticsHash";
 
 import { UserService } from "#services/userService";
 
@@ -45,11 +44,7 @@ export class ShareService {
   }
 
   static async recordShareView(shareLinkId: string, ipAddress?: string, userAgent?: string | null) {
-    const hashedIp = ipAddress
-      ? createHash("sha256")
-          .update(ipAddress + config.auth.secret)
-          .digest("hex")
-      : null;
+    const hashedIp = ipAddress ? hashForAnalytics(ipAddress) : null;
 
     const redis = getRedis();
     const timestamp = Date.now();
@@ -81,118 +76,136 @@ export class ShareService {
 
     if (!hasViews && !hasCounts) return { flushedViews: 0, flushedLinks: 0 };
 
-    const viewsProcessingKey = "share:views:buffer:processing";
-    const countsProcessingKey = "share:links:view_count:processing";
-    const lastViewedProcessingKey = "share:links:last_viewed:processing";
-    const batchKey = "share:views:processing:batch-id";
+    const lockKey = "share:views:flush-lock";
+    // Serialize flush attempts so a manual admin retry overlapping the cron tick (or a rolling
+    // deploy briefly running two worker processes) can't both compute a pre-transaction view
+    // count and then have one of them silently discard data on a unique-constraint rollback.
+    const lockAcquired = (await redis.set(lockKey, "1", { NX: true, EX: 120 })) === "OK";
 
-    if (hasViews && !(await redis.exists(viewsProcessingKey))) {
-      try {
-        await redis.rename("share:views:buffer", viewsProcessingKey);
-      } catch {
-        // Ignore
-      }
-    }
-
-    if (hasCounts && !(await redis.exists(countsProcessingKey))) {
-      try {
-        await redis.rename("share:links:view_count", countsProcessingKey);
-        await redis.rename("share:links:last_viewed", lastViewedProcessingKey);
-      } catch {
-        // Ignore
-      }
-    }
-
-    const rawViews = await redis.lRange(viewsProcessingKey, 0, -1);
-    const parsedViews: Array<{
-      shareLinkId: string;
-      ipAddress: string | null;
-      userAgent: string | null;
-      timestamp: number;
-    }> = [];
-
-    for (const raw of rawViews) {
-      try {
-        parsedViews.push(JSON.parse(raw));
-      } catch {
-        // Skip malformed
-      }
-    }
-
-    const counts = await redis.hGetAll(countsProcessingKey);
-    const lastViewed = await redis.hGetAll(lastViewedProcessingKey);
-    await redis.set(batchKey, randomUUID(), { NX: true });
-    const batchId = await redis.get(batchKey);
-
-    if (!batchId) throw new Error("Failed to initialize share views batch");
-
-    const shareLinkIds = [
-      ...new Set([...parsedViews.map((view) => view.shareLinkId), ...Object.keys(counts)]),
-    ];
-    const survivingShareLinks = new Set(
-      (
-        await prisma.shareLink.findMany({
-          where: { id: { in: shareLinkIds } },
-          select: { id: true },
-        })
-      ).map((shareLink) => shareLink.id),
-    );
-    const validViews = parsedViews.filter((view) => survivingShareLinks.has(view.shareLinkId));
-    const validCounts = Object.entries(counts).filter(([shareLinkId]) =>
-      survivingShareLinks.has(shareLinkId),
-    );
-    const flushedViews = validViews.length;
-    const flushedLinks = validCounts.length;
+    if (!lockAcquired) return { flushedViews: 0, flushedLinks: 0, skipped: true as const };
 
     try {
-      await prisma.$transaction(async (tx) => {
-        await tx.viewFlushBatch.create({ data: { id: batchId, kind: "share" } });
+      const viewsProcessingKey = "share:views:buffer:processing";
+      const countsProcessingKey = "share:links:view_count:processing";
+      const lastViewedProcessingKey = "share:links:last_viewed:processing";
+      const batchKey = "share:views:processing:batch-id";
 
-        if (validViews.length > 0) {
-          await tx.shareView.createMany({
-            data: validViews.map((v) => ({
-              shareLinkId: v.shareLinkId,
-              ipAddress: v.ipAddress,
-              userAgent: v.userAgent,
-              createdAt: new Date(v.timestamp),
-            })),
-          });
+      if (hasViews && !(await redis.exists(viewsProcessingKey))) {
+        try {
+          await redis.rename("share:views:buffer", viewsProcessingKey);
+        } catch {
+          // Ignore
         }
+      }
 
-        for (const [shareLinkId, rawCount] of validCounts) {
-          const count = parseInt(rawCount, 10) || 0;
-          const tsString = lastViewed[shareLinkId];
-          const lastViewedAt = tsString ? new Date(parseInt(tsString, 10)) : new Date();
+      if (hasCounts && !(await redis.exists(countsProcessingKey))) {
+        try {
+          await redis.rename("share:links:view_count", countsProcessingKey);
+          await redis.rename("share:links:last_viewed", lastViewedProcessingKey);
+        } catch {
+          // Ignore
+        }
+      }
 
-          await tx.shareLink.update({
-            where: { id: shareLinkId },
-            data: {
-              viewCount: { increment: count },
-              lastViewedAt,
+      const rawViews = await redis.lRange(viewsProcessingKey, 0, -1);
+      const parsedViews: Array<{
+        shareLinkId: string;
+        ipAddress: string | null;
+        userAgent: string | null;
+        timestamp: number;
+      }> = [];
+
+      for (const raw of rawViews) {
+        try {
+          parsedViews.push(JSON.parse(raw));
+        } catch {
+          // Skip malformed
+        }
+      }
+
+      const counts = await redis.hGetAll(countsProcessingKey);
+      const lastViewed = await redis.hGetAll(lastViewedProcessingKey);
+      await redis.set(batchKey, randomUUID(), { NX: true });
+      const batchId = await redis.get(batchKey);
+
+      if (!batchId) throw new Error("Failed to initialize share views batch");
+
+      const shareLinkIds = [
+        ...new Set([...parsedViews.map((view) => view.shareLinkId), ...Object.keys(counts)]),
+      ];
+      const survivingShareLinks = new Set(
+        (
+          await prisma.shareLink.findMany({
+            where: { id: { in: shareLinkIds } },
+            select: { id: true },
+          })
+        ).map((shareLink) => shareLink.id),
+      );
+      const validViews = parsedViews.filter((view) => survivingShareLinks.has(view.shareLinkId));
+      const validCounts = Object.entries(counts).filter(([shareLinkId]) =>
+        survivingShareLinks.has(shareLinkId),
+      );
+      const flushedViews = validViews.length;
+      const flushedLinks = validCounts.length;
+
+      try {
+        await prisma.$transaction(async (tx) => {
+          await tx.viewFlushBatch.create({ data: { id: batchId, kind: "share" } });
+
+          if (validViews.length > 0) {
+            await tx.shareView.createMany({
+              data: validViews.map((v) => ({
+                shareLinkId: v.shareLinkId,
+                ipAddress: v.ipAddress,
+                userAgent: v.userAgent,
+                createdAt: new Date(v.timestamp),
+              })),
+            });
+          }
+
+          for (const [shareLinkId, rawCount] of validCounts) {
+            const count = parseInt(rawCount, 10) || 0;
+            const tsString = lastViewed[shareLinkId];
+            const lastViewedAt = tsString ? new Date(parseInt(tsString, 10)) : new Date();
+
+            await tx.shareLink.update({
+              where: { id: shareLinkId },
+              data: {
+                viewCount: { increment: count },
+                lastViewedAt,
+              },
+            });
+          }
+
+          const retentionLimit = new Date();
+          retentionLimit.setDate(retentionLimit.getDate() - 30);
+          await tx.shareView.deleteMany({
+            where: {
+              createdAt: { lt: retentionLimit },
             },
           });
+        });
+      } catch (error) {
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) {
+          throw error;
         }
 
-        const retentionLimit = new Date();
-        retentionLimit.setDate(retentionLimit.getDate() - 30);
-        await tx.shareView.deleteMany({
-          where: {
-            createdAt: { lt: retentionLimit },
-          },
-        });
-      });
-    } catch (error) {
-      if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) {
-        throw error;
+        // We hold the flush lock, so this can only mean a prior attempt already committed this
+        // exact batch before crashing without cleaning up Redis. Confirm that rather than
+        // assuming it, so a genuine failure doesn't still get reported as success below.
+        const existingBatch = await prisma.viewFlushBatch.findUnique({ where: { id: batchId } });
+        if (!existingBatch) throw error;
       }
+
+      const staleCount = shareLinkIds.length - survivingShareLinks.size;
+      if (staleCount > 0) logger.warn("Discarded share views for deleted links", { staleCount });
+
+      await redis.del([viewsProcessingKey, countsProcessingKey, lastViewedProcessingKey, batchKey]);
+
+      return { flushedViews, flushedLinks };
+    } finally {
+      await redis.del(lockKey).catch(() => {});
     }
-
-    const staleCount = shareLinkIds.length - survivingShareLinks.size;
-    if (staleCount > 0) logger.warn("Discarded share views for deleted links", { staleCount });
-
-    await redis.del([viewsProcessingKey, countsProcessingKey, lastViewedProcessingKey, batchKey]);
-
-    return { flushedViews, flushedLinks };
   }
 
   static async createShareLink(

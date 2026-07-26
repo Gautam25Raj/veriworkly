@@ -12,6 +12,7 @@ export interface RoadmapQuery {
   sort?: RoadmapSort;
   limit?: number;
   offset?: number;
+  excludeId?: string;
 }
 
 export type RoadmapListResult = {
@@ -58,18 +59,20 @@ function getRoadmapOrderBy(sort: RoadmapSort) {
  */
 
 const getRoadmapFeatures = async (query: RoadmapQuery = {}): Promise<RoadmapListResult> => {
-  const { status, sort = "newest", limit = 20, offset = 0 } = query;
+  const { status, sort = "newest", limit = 20, offset = 0, excludeId } = query;
 
-  const cacheKey = `roadmap:list:${status || "all"}:${sort}:${limit}:${offset}`;
+  const cacheKey = `roadmap:list:${status || "all"}:${sort}:${limit}:${offset}:${excludeId || "-"}`;
   const cached = await cacheGet<RoadmapListResult>(cacheKey);
 
   if (cached) return cached;
 
   const where: {
     status?: RoadmapStatus;
+    id?: { not: string };
   } = {};
 
   if (status) where.status = status;
+  if (excludeId) where.id = { not: excludeId };
 
   const [items, total] = await Promise.all([
     prisma.roadmapFeature.findMany({

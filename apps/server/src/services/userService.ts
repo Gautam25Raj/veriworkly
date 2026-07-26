@@ -4,6 +4,7 @@ import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
 
 import { cacheGet, cacheSet } from "#lib/redis";
+import { userProfileCacheKey } from "#lib/cacheKeys";
 import { usernameInvalidReason } from "#utils/slugs";
 
 const userProfileSelect = {
@@ -44,7 +45,7 @@ export class UserService {
    */
 
   static async getUserById(userId: string) {
-    const cacheKey = `user:profile:v2:${userId}`;
+    const cacheKey = userProfileCacheKey(userId);
     const cached = await cacheGet(cacheKey);
 
     if (cached) return cached;
@@ -75,7 +76,7 @@ export class UserService {
       select: userProfileSelect,
     });
 
-    await cacheSet(`user:profile:v2:${userId}`, updated, 1800);
+    await cacheSet(userProfileCacheKey(userId), updated, 1800);
 
     return updated;
   }
@@ -118,7 +119,7 @@ export class UserService {
         select: userProfileSelect,
       });
 
-      await cacheSet(`user:profile:v2:${userId}`, updated, 1800);
+      await cacheSet(userProfileCacheKey(userId), updated, 1800);
       return updated;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -136,7 +137,7 @@ export class UserService {
       select: userProfileSelect,
     });
 
-    await cacheSet(`user:profile:v2:${userId}`, updated, 1800);
+    await cacheSet(userProfileCacheKey(userId), updated, 1800);
     return updated;
   }
 }

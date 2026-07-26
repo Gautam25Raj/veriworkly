@@ -10,6 +10,7 @@ import { ShareService } from "#services/shareService";
 
 import { normalizeSlug, normalizeUsername } from "#utils/slugs";
 import { cacheGet, cacheSet, cacheDel, cacheDelByPrefix } from "#lib/redis";
+import { userProfileCacheKey } from "#lib/cacheKeys";
 import { parseOffsetPagination, createOffsetPaginationMeta } from "#utils/pagination";
 import { createSuccessResponse, handleValidationError, ApiError } from "#lib/errors";
 
@@ -48,9 +49,21 @@ const publicReadableParamsSchema = z.object({
   slug: z.string().transform((value) => normalizeSlug(value)),
 });
 
-function buildPublicSharePayload(shareLink: PublicShareLink, includeSnapshot: boolean) {
+type PublicShareLinkView = Omit<PublicShareLink, "passwordHash"> & { hasPassword: boolean };
+
+/**
+ * Strips the scrypt password hash before this record is cached. Nothing downstream of the
+ * public-readable cache needs the actual hash — only whether one is set — and the hash has no
+ * reason to sit in Redis for up to an hour if it never needs to leave the DB layer.
+ */
+function toPublicShareLinkView(shareLink: PublicShareLink): PublicShareLinkView {
+  const { passwordHash, ...rest } = shareLink;
+  return { ...rest, hasPassword: Boolean(passwordHash) };
+}
+
+function buildPublicSharePayload(shareLink: PublicShareLinkView, includeSnapshot: boolean) {
   return {
-    passwordRequired: !includeSnapshot && Boolean(shareLink.passwordHash),
+    passwordRequired: !includeSnapshot && shareLink.hasPassword,
     resumeTitle: shareLink.document.title,
     documentTitle: shareLink.document.title,
     expiresAt: shareLink.expiresAt,
@@ -96,7 +109,7 @@ export class ShareController {
         cacheDelByPrefix(`share:list:${user.id}:${documentId}:`),
         cacheDelByPrefix(`share:shared-document-ids:${user.id}:`),
         cacheDel(`profile:${user.id}`),
-        cacheDel(`user:profile:v2:${user.id}`),
+        cacheDel(userProfileCacheKey(user.id)),
         ...(previousSlug
           ? [cacheDel(`share:public-readable:${shareLink.username}:${previousSlug}`)]
           : []),
@@ -204,7 +217,7 @@ export class ShareController {
         cacheDelByPrefix(`share:list:${user.id}:${documentId}:`),
         cacheDelByPrefix(`share:shared-document-ids:${user.id}:`),
         cacheDel(`profile:${user.id}`),
-        cacheDel(`user:profile:v2:${user.id}`),
+        cacheDel(userProfileCacheKey(user.id)),
         cacheDel(`share:public-readable:${revoked.username}:${revoked.slug}`),
       ]);
 
@@ -228,10 +241,11 @@ export class ShareController {
       const { username, slug } = publicReadableParamsSchema.parse(req.params);
       const cacheKey = `share:public-readable:${username}:${slug}`;
 
-      let shareLink = await cacheGet<PublicShareLink>(cacheKey);
+      let shareLink = await cacheGet<PublicShareLinkView>(cacheKey);
 
       if (!shareLink) {
-        shareLink = await ShareService.getPublicShareLinkByUsernameAndSlug(username, slug);
+        const fresh = await ShareService.getPublicShareLinkByUsernameAndSlug(username, slug);
+        shareLink = toPublicShareLinkView(fresh);
         let ttl = 3600;
 
         if (shareLink.expiresAt) {
@@ -251,7 +265,7 @@ export class ShareController {
 
       if (ShareService.isExpired(shareLink.expiresAt)) throw new ApiError(410, "Link expired");
 
-      if (shareLink.passwordHash)
+      if (shareLink.hasPassword)
         return res.json(
           createSuccessResponse(buildPublicSharePayload(shareLink, false), "Password required"),
         );
@@ -291,7 +305,7 @@ export class ShareController {
 
       res.json(
         createSuccessResponse(
-          buildPublicSharePayload(shareLink, true),
+          buildPublicSharePayload(toPublicShareLinkView(shareLink), true),
           "Shared document unlocked successfully",
         ),
       );

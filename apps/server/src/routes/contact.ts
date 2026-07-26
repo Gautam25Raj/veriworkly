@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Router } from "express";
 
-import { sendContactEmail } from "#services/mail";
+import { sendContactEmail } from "#services/mail/index";
 
 import { logger } from "#lib/logger";
 import { createSuccessResponse, createErrorResponse } from "#lib/errors";
@@ -13,6 +13,9 @@ const contactSchema = z.object({
   email: z.string().email("Invalid email address"),
   subject: z.string().min(1, "Subject is required"),
   message: z.string().min(1, "Message is required"),
+  // Honeypot: a hidden field real users never see or fill. The frontend renders it
+  // visually hidden; bots that blindly fill every form field trip it.
+  website: z.string().max(0).optional().or(z.literal("")),
 });
 
 router.post("/", async (req, res) => {
@@ -31,7 +34,18 @@ router.post("/", async (req, res) => {
       return;
     }
 
-    const { name, email, subject, message } = parsed.data;
+    const { name, email, subject, message, website } = parsed.data;
+
+    if (website) {
+      // Honeypot tripped — pretend success so the bot doesn't adapt, but skip sending.
+      res.json(
+        createSuccessResponse(
+          { name, email, subject, timestamp: new Date().toISOString() },
+          "Message sent successfully",
+        ),
+      );
+      return;
+    }
 
     await sendContactEmail({ name, email, subject, message });
 

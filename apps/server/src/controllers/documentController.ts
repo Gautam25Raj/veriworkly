@@ -111,14 +111,6 @@ export class DocumentController {
     } catch (error) {
       if (error instanceof z.ZodError) return next(handleValidationError(error));
 
-      if (error instanceof Error && error.message.includes("CONFLICTOR")) {
-        return res.status(409).json({
-          success: false,
-          error: "Conflict",
-          message: error.message,
-        });
-      }
-
       next(error);
     }
   }

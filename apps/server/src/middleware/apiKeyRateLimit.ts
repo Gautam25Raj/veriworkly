@@ -1,11 +1,13 @@
 import { Request, Response, NextFunction } from "express";
 
+import { config } from "#config";
+
 import { logger } from "#lib/logger";
 import { getRedis } from "#lib/redis";
 import { createErrorResponse } from "#lib/errors";
 
 const WINDOW_MS = 15 * 60 * 1000;
-const MAX_REQUESTS = 20;
+const MAX_REQUESTS = config.apiKeys.defaultRateLimit;
 
 const INCREMENT_WITH_EXPIRY_SCRIPT = `
   local count = redis.call("INCR", KEYS[1])

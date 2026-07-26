@@ -8,6 +8,7 @@ import { apiKeyRateLimit } from "#middleware/apiKeyRateLimit";
 import { isWildcardPortfolioOrigin } from "#middleware/cors";
 
 import { logger } from "#lib/logger";
+import { getRequestIpDetails } from "#utils/requestIp";
 
 interface FlexibleAuthOptions {
   skipSession?: boolean;
@@ -69,7 +70,7 @@ async function handleFlexibleAuth(
   const origin = (req.headers.origin as string) || "";
   const referer = (req.headers.referer as string) || "";
 
-  const clientIp = req.ip || "";
+  const clientIp = getRequestIpDetails(req).resolvedIp;
   const isLocal = clientIp === "::1" || clientIp === "127.0.0.1" || clientIp.includes("localhost");
 
   let parsedOrigin = "";

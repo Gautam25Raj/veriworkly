@@ -9,10 +9,12 @@ import {
 } from "#validators/portfolioValidator";
 
 import { requireAuthUser } from "#middleware/auth";
+import { isProduction } from "#config";
 
 import { PortfolioService } from "#services/portfolioService";
 
 import { ApiError, createSuccessResponse, handleValidationError } from "#lib/errors";
+import { isAdminUser } from "#lib/isAdminUser";
 
 const publicPortfolioListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
@@ -44,7 +46,7 @@ export class PortfolioController {
 
   static async recordView(req: Request, res: Response, next: NextFunction) {
     try {
-      await PortfolioService.recordView(req.params.subdomain, req.body?.referrer);
+      await PortfolioService.recordView(req.params.subdomain, req.body?.referrer, req.ip);
 
       res.status(202).json(createSuccessResponse(null));
     } catch (error) {
@@ -100,13 +102,17 @@ export class PortfolioController {
 
   static async publish(req: Request, res: Response, next: NextFunction) {
     try {
+      // Publishing is blocked in production for everyone except the configured admin, who can
+      // still exercise the full publish flow for testing. Dashboard/editor access, drafts, and
+      // previews all keep working for regular users; only making a portfolio public is disabled.
+      const user = requireAuthUser(req);
+
+      if (isProduction && !isAdminUser(user.email))
+        throw new ApiError(403, "Publishing is disabled in production during this phase.");
+
       const input = portfolioPublishSchema.parse(req.body);
 
-      res
-        .status(201)
-        .json(
-          createSuccessResponse(await PortfolioService.publish(requireAuthUser(req).id, input)),
-        );
+      res.status(201).json(createSuccessResponse(await PortfolioService.publish(user.id, input)));
     } catch (error) {
       next(error instanceof z.ZodError ? handleValidationError(error) : error);
     }

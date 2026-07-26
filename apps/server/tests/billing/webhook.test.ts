@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Prisma } from "@prisma/client";
 
-const { affiliateMock, creditMock } = vi.hoisted(() => ({
+const { affiliateMock, creditMock, apiKeyServiceMock, billingMailMock } = vi.hoisted(() => ({
   affiliateMock: { createCommission: vi.fn() },
   creditMock: { grant: vi.fn(), getWallet: vi.fn() },
+  apiKeyServiceMock: { invalidateAuthCacheForUser: vi.fn().mockResolvedValue(undefined) },
+  billingMailMock: {
+    sendSubscriptionPurchasedEmail: vi.fn().mockResolvedValue(undefined),
+    sendSubscriptionCancelledEmail: vi.fn().mockResolvedValue(undefined),
+  },
 }));
 
 const prismaMock = {
@@ -24,6 +29,7 @@ const prismaMock = {
   },
   user: {
     update: vi.fn(),
+    findUnique: vi.fn().mockResolvedValue(null),
   },
   portfolioPublication: {
     updateMany: vi.fn(),
@@ -42,20 +48,31 @@ vi.mock("#utils/portfolioPublicationCache", () => ({
   revalidatePublicPortfolios: vi.fn().mockResolvedValue(undefined),
 }));
 
+const mockRedis = {
+  set: vi.fn().mockResolvedValue("OK"),
+  del: vi.fn().mockResolvedValue(1),
+};
+
 vi.mock("#lib/redis", () => ({
   cacheDel: vi.fn().mockResolvedValue(undefined),
   cacheGet: vi.fn().mockResolvedValue(null),
   cacheSet: vi.fn().mockResolvedValue(undefined),
-  getRedis: vi.fn(),
+  getRedis: vi.fn(() => mockRedis),
 }));
 
-vi.mock("#services/affiliateService", () => ({
+vi.mock("#services/affiliate/index", () => ({
   AffiliateService: affiliateMock,
 }));
 
 vi.mock("#services/creditService", () => ({
   CreditService: creditMock,
 }));
+
+vi.mock("#services/apiKeyService", () => ({
+  ApiKeyService: apiKeyServiceMock,
+}));
+
+vi.mock("#services/mail/billingMail", () => billingMailMock);
 
 vi.mock("#config", () => ({
   config: {
@@ -68,6 +85,14 @@ vi.mock("#config", () => ({
       portfolioProMonthlyProductId: "prod_monthly",
       portfolioProAnnualProductId: "prod_annual",
     },
+    apiKeys: {
+      hashSecret: "test-api-key-secret",
+      authCacheTtlSeconds: 300,
+      lastUsedTouchIntervalSeconds: 300,
+      defaultRateLimit: 20,
+      defaultScopes: ["user:read"],
+      defaultKeyLifetimeDays: 365,
+    },
     nodeEnv: "test",
   },
 }));
@@ -75,6 +100,11 @@ vi.mock("#config", () => ({
 describe("billing webhook processing and idempotency", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    mockRedis.set.mockReset().mockResolvedValue("OK");
+    mockRedis.del.mockReset().mockResolvedValue(1);
+    apiKeyServiceMock.invalidateAuthCacheForUser.mockReset().mockResolvedValue(undefined);
+    billingMailMock.sendSubscriptionPurchasedEmail.mockReset().mockResolvedValue(undefined);
+    billingMailMock.sendSubscriptionCancelledEmail.mockReset().mockResolvedValue(undefined);
     prismaMock.billingWebhookEvent.create.mockReset();
     prismaMock.billingWebhookEvent.findUnique.mockReset();
     prismaMock.billingWebhookEvent.update.mockReset();
@@ -89,6 +119,7 @@ describe("billing webhook processing and idempotency", () => {
     prismaMock.entitlementGrant.upsert.mockResolvedValue({});
     prismaMock.entitlementGrant.findFirst.mockResolvedValue({ endsAt: null });
     prismaMock.user.update.mockReset();
+    prismaMock.user.findUnique.mockReset().mockResolvedValue(null);
     prismaMock.portfolioPublication.updateMany.mockReset();
     prismaMock.portfolioPublication.findUnique.mockReset();
     affiliateMock.createCommission.mockReset();

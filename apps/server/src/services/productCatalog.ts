@@ -17,15 +17,25 @@ export type EntitlementKey = (typeof ENTITLEMENT_KEYS)[keyof typeof ENTITLEMENT_
 export type CatalogInterval = "one_day" | "seven_day" | "monthly" | "annual";
 
 export const creditPackCatalog = {
-  credit_pack_100: {
-    name: "100 extra credits",
-    credits: 100,
-    expiresInDays: 365,
-    providerProductId: () => config.dodo.creditPack100ProductId,
+  credit_pack_250: {
+    name: "250 extra credits",
+    credits: 250,
+    expiresInDays: 90,
+    providerProductId: () => config.dodo.creditPack250ProductId,
+  },
+  credit_pack_500: {
+    name: "500 extra credits",
+    credits: 500,
+    expiresInDays: 90,
+    providerProductId: () => config.dodo.creditPack500ProductId,
   },
 } as const;
 
 export type CreditPackKey = keyof typeof creditPackCatalog;
+
+export function isCreditPackKey(value: string): value is CreditPackKey {
+  return value in creditPackCatalog;
+}
 
 const portfolioEntitlements: EntitlementKey[] = [
   ENTITLEMENT_KEYS.PORTFOLIO_PUBLISH,

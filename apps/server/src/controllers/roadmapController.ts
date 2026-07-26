@@ -33,6 +33,7 @@ export class RoadmapController {
         sort: query.sort as RoadmapSort | undefined,
         limit: pagination.limit,
         offset: pagination.offset,
+        excludeId: query.excludeId,
       });
 
       const meta = createOffsetPaginationMeta(result.total, pagination);

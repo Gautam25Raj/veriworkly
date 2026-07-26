@@ -17,12 +17,8 @@ export class AmbassadorController {
 
   static async apply(req: Request, res: Response, next: NextFunction) {
     try {
-      const { collegeName, graduationYear } = ambassadorApplicationSchema.parse(req.body);
-      res.json(
-        createSuccessResponse(
-          await AmbassadorService.apply(requireAuthUser(req).id, collegeName, graduationYear),
-        ),
-      );
+      const input = ambassadorApplicationSchema.parse(req.body);
+      res.json(createSuccessResponse(await AmbassadorService.apply(requireAuthUser(req).id, input)));
     } catch (error) {
       next(error instanceof z.ZodError ? handleValidationError(error) : error);
     }

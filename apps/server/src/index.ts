@@ -6,14 +6,16 @@ import { app } from "./app.js";
 import { config, isDevelopment } from "#config";
 
 import { logger } from "#lib/logger";
-import { prisma } from "#lib/prisma";
+import { closePrisma } from "#lib/prisma";
 import { initRedis, closeRedis } from "#lib/redis";
 
 import { validateAiRuntimeConfig } from "#services/aiPolicy";
 import { validateAtsAiRuntimeConfig } from "#services/atsAiPolicy";
 import { ensureAdminUserExists, validateAuthRuntimeConfig } from "#auth/runtime";
+import { validateBillingAndStorageRuntimeConfig } from "#config/validateRuntimeConfig";
 
 import { startGitHubSyncJob, stopGitHubSyncJob } from "#jobs/githubSyncJob";
+import { startChangelogSyncJob, stopChangelogSyncJob } from "#jobs/changelogSyncJob";
 import { startViewsFlushJob, stopViewsFlushJob } from "#jobs/viewsFlushJob";
 import { startUsageMetricsJob, stopUsageMetricsJob } from "#jobs/usageMetricsJob";
 import { startPortfolioAccessJob, stopPortfolioAccessJob } from "#jobs/portfolioAccessJob";
@@ -51,13 +53,14 @@ async function shutdownWorker(id: number, disconnect: () => void) {
     if (id === 1) {
       logger.info(`Worker ${id}: Stopping background cron jobs...`);
       stopGitHubSyncJob();
+      stopChangelogSyncJob();
       stopViewsFlushJob();
       stopUsageMetricsJob();
       stopPortfolioAccessJob();
     }
 
     await closeRedis();
-    await prisma.$disconnect();
+    await closePrisma();
 
     logger.info(`Worker ${id}: Disconnecting worker.`);
 
@@ -109,6 +112,7 @@ async function startWorker(id: number, disconnect: () => void) {
       logger.info(`Worker ${id}: Database connected and admin user checked`);
 
       startGitHubSyncJob();
+      startChangelogSyncJob();
       startViewsFlushJob();
       startUsageMetricsJob();
       startPortfolioAccessJob();
@@ -130,6 +134,13 @@ async function startWorker(id: number, disconnect: () => void) {
         logger.info(`http://localhost:${config.port}/api/v1/health`);
       }
     });
+
+    // Node's default keepAliveTimeout (5s) is shorter than most reverse proxies'/load balancers'
+    // idle timeout (e.g. 60s on many managed LBs), which can race: the proxy reuses a pooled
+    // connection Node has already closed, surfacing as intermittent 502s under real traffic.
+    // headersTimeout must stay greater than keepAliveTimeout (enforced by Node).
+    serverInstance.keepAliveTimeout = 65_000;
+    serverInstance.headersTimeout = 66_000;
 
     serverInstance.on("error", (err) => {
       logger.error(`Worker ${id}: Server error:`, err);
@@ -165,6 +176,7 @@ function main() {
     validateAuthRuntimeConfig();
     validateAiRuntimeConfig();
     validateAtsAiRuntimeConfig();
+    validateBillingAndStorageRuntimeConfig();
 
     const { clusteringEnabled, workers } = config.server;
 

@@ -65,6 +65,13 @@ async function runFlush(reason: "startup" | "cron") {
     for (const dateKey of dateKeys) {
       const result = await flushUsageMetricsForDate(new Date(`${dateKey}T00:00:00.000Z`));
 
+      if ("skipped" in result && result.skipped) {
+        logger.warn(`Usage metrics flush (${reason}) skipped: another flush is in progress`, {
+          dateKey: result.dateKey,
+        });
+        continue;
+      }
+
       logger.info(`Usage metrics flush (${reason}) completed`, {
         dateKey: result.dateKey,
         flushedEvents: result.flushedEvents,

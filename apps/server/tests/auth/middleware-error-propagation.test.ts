@@ -23,6 +23,9 @@ vi.mock("#config", () => ({
     auth: {
       sessionCacheMaxAgeSeconds: 300,
     },
+    apiKeys: {
+      defaultRateLimit: 20,
+    },
     allowedOrigins: ["https://trusted.example.com"],
   },
   isDevelopment: false,

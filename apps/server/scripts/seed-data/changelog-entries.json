@@ -1,0 +1,894 @@
+[
+  {
+    "id": "v3-21-0",
+    "version": "3.21.0",
+    "title": "AI Experience Refresh, Resume Editor Enhancements & Platform Reliability",
+    "summary": "One of our biggest releases yet: a completely refreshed AI-first website experience, major improvements to the resume editor, new authentication and security enhancements, Redis-powered performance optimizations, smarter billing workflows, and expanded template documentation.",
+    "type": "minor",
+    "publishedAt": "2026-06-29T14:11:47Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.21.0",
+    "added": [
+      "Refreshed AI-first marketing website and product messaging",
+      "Added two-column resume layouts and improved section visibility controls",
+      "Introduced Redis-backed authentication caching and cache invalidation",
+      "Added Welcome, Login Alert, and OTP email templates",
+      "Improved billing reliability with checkout cancellation recovery",
+      "Expanded template documentation with design notes and system specifications",
+      "Added automated build and test workflows",
+      "Numerous bug fixes, infrastructure improvements, and UI refinements",
+      "New Sections: Ambassador Hero, Navigation, Perks, Playbook, Earnings Calculator, Leaderboard, FAQ, Footer",
+      "Interactive floating parallax animations",
+      "Animated rotating text components",
+      "New ambassador assets",
+      "Cleaner layouts and improved responsiveness",
+      "New: Two-column resume layouts, Improved section visibility controls, Better editor-to-preview synchronization, Improved customization workflows",
+      "Added: Template Design Notes, Full System Specifications, Pricing FAQ, Shared Template Features",
+      "Added: Redis authentication cache, Token cache invalidation, User cache invalidation, Session cache invalidation",
+      "New Authentication Emails: Welcome Email, Login Alert Email, One-Time Password (OTP) Email",
+      "Added: Checkout cancellation endpoint, Automatic cleanup for abandoned checkout sessions, Manual checkout lock reset actions"
+    ],
+    "improved": [
+      "Revamped landing pages and product messaging",
+      "Highlighted AI Resume Builder, Cover Letter Generator, Portfolio Builder, ATS Scanner, and one-click document ingestion",
+      "Redesigned Hero, CTA, Features, Resources, FAQ, and Use Cases sections",
+      "Introduced updated pricing plans and AI credit messaging",
+      "Improved accessibility, responsiveness, and visual consistency across the site",
+      "Template navigation with theme toggle",
+      "Template previews",
+      "Style guides",
+      "Detail pages",
+      "Benefits and categorization",
+      "Overall browsing experience",
+      "Billing error handling",
+      "Credit allowance calculations",
+      "Updated pricing experience",
+      "Production-only administrator access for payment management"
+    ],
+    "fixed": [
+      "Fixed ATS quota reset timing",
+      "Improved ATS AI parsing for nullable AI responses",
+      "Fixed portfolio parsing issues",
+      "Fixed billing checkout edge cases",
+      "Fixed payment metadata handling",
+      "Fixed pricing page lint warnings",
+      "Fixed GitHub Actions PR checks",
+      "Fixed Linux native binding issues",
+      "Fixed template rendering consistency",
+      "Updated version references across applications",
+      "Various accessibility, styling, formatting, and responsiveness improvements"
+    ],
+    "breaking": [],
+    "security": [],
+    "prRefs": [
+      {
+        "number": 165,
+        "title": "[Feature] [Site]: Revamp AI messaging, landing pages, and ambassador experience",
+        "url": "https://github.com/VeriWorkly/veriworkly/pull/165",
+        "author": {
+          "login": "Gautam25Raj",
+          "avatarUrl": "https://avatars.githubusercontent.com/u/63155224?v=4",
+          "htmlUrl": "https://github.com/Gautam25Raj"
+        }
+      },
+      {
+        "number": 164,
+        "title": "[Feature] [Studio]: Restrict payment management to administrators in production",
+        "url": "https://github.com/VeriWorkly/veriworkly/pull/164",
+        "author": {
+          "login": "Gautam25Raj",
+          "avatarUrl": "https://avatars.githubusercontent.com/u/63155224?v=4",
+          "htmlUrl": "https://github.com/Gautam25Raj"
+        }
+      },
+      {
+        "number": 163,
+        "title": "[Feature] [Server]: Add authentication email templates and improve ATS reliability",
+        "url": "https://github.com/VeriWorkly/veriworkly/pull/163",
+        "author": {
+          "login": "Gautam25Raj",
+          "avatarUrl": "https://avatars.githubusercontent.com/u/63155224?v=4",
+          "htmlUrl": "https://github.com/Gautam25Raj"
+        }
+      },
+      {
+        "number": 162,
+        "title": "[Feature] [Server/CI]: Add Redis authentication caching and build/test workflows",
+        "url": "https://github.com/VeriWorkly/veriworkly/pull/162",
+        "author": {
+          "login": "Gautam25Raj",
+          "avatarUrl": "https://avatars.githubusercontent.com/u/63155224?v=4",
+          "htmlUrl": "https://github.com/Gautam25Raj"
+        }
+      },
+      {
+        "number": 160,
+        "title": "[Feature] [Server]: Add auth cache invalidation and update contribution policies",
+        "url": "https://github.com/VeriWorkly/veriworkly/pull/160",
+        "author": {
+          "login": "Gautam25Raj",
+          "avatarUrl": "https://avatars.githubusercontent.com/u/63155224?v=4",
+          "htmlUrl": "https://github.com/Gautam25Raj"
+        }
+      },
+      {
+        "number": 157,
+        "title": "[Feature] [Studio]: Add two-column resume layouts and improve section visibility controls",
+        "url": "https://github.com/VeriWorkly/veriworkly/pull/157",
+        "author": {
+          "login": "Gautam25Raj",
+          "avatarUrl": "https://avatars.githubusercontent.com/u/63155224?v=4",
+          "htmlUrl": "https://github.com/Gautam25Raj"
+        }
+      },
+      {
+        "number": 156,
+        "title": "[Feature] [Mono]: Enhance template details experience and add navigation improvements",
+        "url": "https://github.com/VeriWorkly/veriworkly/pull/156",
+        "author": {
+          "login": "Gautam25Raj",
+          "avatarUrl": "https://avatars.githubusercontent.com/u/63155224?v=4",
+          "htmlUrl": "https://github.com/Gautam25Raj"
+        }
+      },
+      {
+        "number": 155,
+        "title": "[Feature] [Studio/Portfolio/Server]: Add checkout cancellation support and reset active checkout locks",
+        "url": "https://github.com/VeriWorkly/veriworkly/pull/155",
+        "author": {
+          "login": "Gautam25Raj",
+          "avatarUrl": "https://avatars.githubusercontent.com/u/63155224?v=4",
+          "htmlUrl": "https://github.com/Gautam25Raj"
+        }
+      },
+      {
+        "number": 152,
+        "title": "[Feature] [Site]: Add pricing FAQ and enhance template browsing experience",
+        "url": "https://github.com/VeriWorkly/veriworkly/pull/152",
+        "author": {
+          "login": "Gautam25Raj",
+          "avatarUrl": "https://avatars.githubusercontent.com/u/63155224?v=4",
+          "htmlUrl": "https://github.com/Gautam25Raj"
+        }
+      }
+    ],
+    "tags": [
+      "ai",
+      "ats",
+      "billing",
+      "portfolio",
+      "resume-editor",
+      "cover-letter"
+    ]
+  },
+  {
+    "id": "v3-20-0",
+    "version": "3.20.0",
+    "title": "Enhanced Sharing, FAQ Experience & Studio UX",
+    "summary": "This release introduces a brand-new FAQ experience, significant improvements to document sharing and synchronization, and several Studio UX enhancements that make creating and managing resumes smoother than ever.",
+    "type": "minor",
+    "publishedAt": "2026-06-17T15:17:24Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.20.0",
+    "added": [
+      "Added a dedicated FAQ section with collapsible answers and dynamic interactions.",
+      "Introduced organized FAQ categories and question constants for easier maintenance.",
+      "Added FAQ page routing support.",
+      "Improved SEO with additional site keywords.",
+      "Resume titles can now be edited directly from the Studio toolbar.",
+      "Changes automatically propagate to the documents list and live preview.",
+      "Improved document and share-link services with ID validation and slug checks.",
+      "Added username checks before generating share links.",
+      "Enhanced synchronization by using document IDs instead of title-based matching.",
+      "Improved payload handling and document synchronization reliability.",
+      "Added login checks for sharing and syncing workflows.",
+      "Implemented auto-sync preference updates.",
+      "Disabled unnecessary sync details for local documents."
+    ],
+    "improved": [
+      "Improved navigation with active link highlighting.",
+      "Enhanced responsiveness and styling in Feature Grid and Hero Portfolio sections.",
+      "Refined Hero section layout and accessibility with better screen reader support.",
+      "Improved headings and typography in the How It Works section.",
+      "Updated marquee and navigation styling for greater visual consistency.",
+      "Replaced hardcoded colors with utility classes across the application for better maintainability and theme consistency."
+    ],
+    "fixed": [
+      "Relocated body line-height controls for a better Studio editing experience.",
+      "Fixed preview inconsistencies across all resume sections.",
+      "Performed code cleanup, formatting improvements, and various internal refinements."
+    ],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "portfolio",
+      "resume-editor",
+      "sharing",
+      "faq"
+    ]
+  },
+  {
+    "id": "v3-19-0",
+    "version": "3.19.0",
+    "title": "AI ATS Resume Conversion, Day Pass Updates & Platform Cleanup",
+    "summary": "This release introduces AI-powered ATS resume conversion capabilities, expands billing flexibility with one-day Day Pass purchases, and continues ongoing efforts to simplify and modernize the internal architecture.",
+    "type": "minor",
+    "publishedAt": "2026-06-13T12:56:22Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.19.0",
+    "added": [
+      "Added ATS quota retrieval and AI-powered resume conversion.",
+      "Added support for one-day billing intervals for Day Pass purchases.",
+      "Updated Day Pass pricing from $0.49 to $0.69.",
+      "Extended billing types to support additional interval options."
+    ],
+    "improved": [
+      "Simplified cover letter generation and removed legacy link handling.",
+      "Cleaned up resume services and normalization logic.",
+      "Removed legacy local storage and user storage management implementations.",
+      "Added AI and billing environment variables for Docker deployments."
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "ai",
+      "ats",
+      "billing",
+      "cover-letter"
+    ]
+  },
+  {
+    "id": "v3-18-0",
+    "version": "3.18.0",
+    "title": "Affiliate dashboard and monetization platform",
+    "summary": "This release introduces the first version of the affiliate and monetization platform, including affiliate dashboards, payout management, AI credit tracking, and AI-assisted content generation.",
+    "type": "minor",
+    "publishedAt": "2026-06-11T10:46:18Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.18.0",
+    "added": [
+      "Added affiliate dashboard",
+      "Introduced referrals, payouts, and tier management",
+      "Improved affiliate visibility and performance tracking",
+      "Added commission and withdrawal management workflows",
+      "Introduced administrative monetization controls",
+      "Improved operational management of affiliate programs",
+      "Added AI credit usage tracking",
+      "Introduced transaction history visibility",
+      "Improved transparency around AI feature consumption",
+      "Added AI-powered content assistance",
+      "Improved productivity and content creation workflows"
+    ],
+    "improved": [
+      "Added affiliate and credit management APIs",
+      "Introduced monetization-related data models and types",
+      "Improved scalability for future revenue features",
+      "Enhanced visibility into earnings and usage",
+      "Improved monetization and AI workflow accessibility"
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "ai",
+      "affiliate",
+      "performance"
+    ]
+  },
+  {
+    "id": "v3-17-0",
+    "version": "3.17.0",
+    "title": "Template experience and workspace navigation enhancements",
+    "summary": "This release introduces a richer template browsing experience, improved workspace navigation, and enhanced template content management across the platform.",
+    "type": "minor",
+    "publishedAt": "2026-06-10T14:28:12Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.17.0",
+    "added": [
+      "Added comprehensive template presentation components",
+      "Improved template discovery and exploration",
+      "Enhanced template information and guidance",
+      "Added ProfileControl and WorkspaceNavigation",
+      "Added theme switching functionality",
+      "Improved workspace usability and consistency",
+      "Added template detail schemas and shared metadata structures",
+      "Improved maintainability and scalability of template content"
+    ],
+    "improved": [
+      "Enhanced document type descriptions",
+      "Improved template navigation flows",
+      "Refined platform content organization",
+      "Simplified API key authentication middleware",
+      "Improved maintainability of template-related systems"
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "templates",
+      "security",
+      "api",
+      "performance"
+    ]
+  },
+  {
+    "id": "v3-16-0",
+    "version": "3.16.0",
+    "title": "Portfolio landing page and site experience enhancements",
+    "summary": "This release introduces a new portfolio landing page experience, expanded marketing content, improved site configuration, and enhanced template presentation across the platform.",
+    "type": "minor",
+    "publishedAt": "2026-06-09T19:49:45Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.16.0",
+    "added": [
+      "Added dedicated landing page sections",
+      "Improved product storytelling and onboarding experience",
+      "Enhanced portfolio platform visibility",
+      "Added ThemeProvider infrastructure",
+      "Improved theme consistency across the application",
+      "Added template preview images",
+      "Improved template browsing and presentation",
+      "Enhanced visual showcase of available templates"
+    ],
+    "improved": [
+      "Expanded site configuration and navigation links",
+      "Improved SEO metadata and descriptions",
+      "Enhanced discoverability across public pages",
+      "Added analytics support within portfolio state management",
+      "Improved user data handling and platform integration",
+      "Updated public pricing and feature information",
+      "Improved product documentation and marketing content"
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "billing",
+      "portfolio",
+      "templates"
+    ]
+  },
+  {
+    "id": "v3-15-0",
+    "version": "3.15.0",
+    "title": "Portfolio previews and template directory enhancements",
+    "summary": "This release introduces live portfolio previews, expanded portfolio template support, improved analytics tracking, and richer template documentation experiences.",
+    "type": "minor",
+    "publishedAt": "2026-06-08T17:47:40Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.15.0",
+    "added": [
+      "Added PortfolioTemplatePreviewFrame",
+      "Introduced live portfolio template preview support",
+      "Improved portfolio template evaluation workflows",
+      "Added support for portfolio website templates",
+      "Expanded template summaries and metadata",
+      "Improved template discovery and categorization",
+      "Added design principles documentation",
+      "Added implementation notes for templates",
+      "Improved developer and user guidance",
+      "Improved PublicViewTracker reliability",
+      "Added session storage support",
+      "Added sendBeacon-based analytics delivery"
+    ],
+    "improved": [
+      "Added caching to server API data fetching",
+      "Improved request efficiency and response performance",
+      "Added portfolio authentication routing tests",
+      "Improved coverage for session recognition workflows",
+      "Refreshed demo portfolio content and project examples",
+      "Improved showcase and preview quality"
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "portfolio",
+      "templates",
+      "security",
+      "api",
+      "performance"
+    ]
+  },
+  {
+    "id": "v3-14-1",
+    "version": "3.14.1",
+    "title": "First-party server headers and authentication improvements",
+    "summary": "This release introduces first-party server header support and improves authentication middleware to strengthen request validation, security, and platform reliability.",
+    "type": "patch",
+    "publishedAt": "2026-06-07T19:53:20Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.14.1",
+    "added": [
+      "Added support for first-party server headers",
+      "Improved trust verification for internal requests",
+      "Enhanced internal service communication workflows"
+    ],
+    "improved": [
+      "Refined authentication middleware behavior",
+      "Improved authorization and request validation",
+      "Enhanced reliability across protected routes",
+      "Strengthened request verification workflows",
+      "Improved middleware maintainability",
+      "Enhanced consistency across authentication systems"
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "security",
+      "performance"
+    ]
+  },
+  {
+    "id": "v3-14-0",
+    "version": "3.14.0",
+    "title": "Portfolio theming and workspace experience improvements",
+    "summary": "This release introduces theme switching support for the portfolio platform and delivers major UI improvements across portfolio workspaces and navigation systems.",
+    "type": "minor",
+    "publishedAt": "2026-06-07T19:51:56Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.14.0",
+    "added": [
+      "Added application-wide theme management",
+      "Introduced workspace theme switching controls",
+      "Improved personalization and accessibility",
+      "Refined dashboard, editor, and settings experiences",
+      "Improved action button styling and layouts",
+      "Enhanced workspace consistency and usability"
+    ],
+    "improved": [
+      "Added theme controls to workspace navigation",
+      "Improved navigation styling and interactions",
+      "Enhanced overall workspace experience",
+      "Refined TemplateFrame styling",
+      "Improved visual consistency across portfolio workflows",
+      "Added modern styling infrastructure with clsx and next-themes",
+      "Improved maintainability of theme-related workflows",
+      "Established shared theme management architecture"
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "portfolio",
+      "templates",
+      "architecture"
+    ]
+  },
+  {
+    "id": "v3-10-2",
+    "version": "3.10.2",
+    "title": "Cover letter + Resume flow and export improvements",
+    "summary": "This release improves the cover letter rendering system with structured content flows, enhanced pagination support, and more reliable export handling.",
+    "type": "patch",
+    "publishedAt": "2026-05-29T18:59:09Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.10.2",
+    "added": [
+      "Added structured flow content and rendering types",
+      "Improved content generation and layout consistency",
+      "Unified rendering behavior across PDF and web outputs",
+      "Improved hidden section handling in exports",
+      "Enhanced consistency between previews and generated documents",
+      "Improved rendering of links and dynamic content"
+    ],
+    "improved": [
+      "Added weighted pagination support",
+      "Improved content distribution across generated documents",
+      "Enhanced multi-page document rendering quality",
+      "Expanded cover letter rendering test coverage",
+      "Improved export reliability and rendering consistency",
+      "Simplified rendering workflows through shared utilities",
+      "Improved maintainability and extensibility of cover letter systems"
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "cover-letter",
+      "performance"
+    ]
+  },
+  {
+    "id": "v3-10-0",
+    "version": "3.10.0",
+    "title": "Resume import and editor customization enhancements",
+    "summary": "This release introduces Markdown resume import support, significantly improves the resume editor settings experience, and expands customization options for cover letter rendering.",
+    "type": "minor",
+    "publishedAt": "2026-05-29T13:19:14Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.10.0",
+    "added": [
+      "Added support for importing resumes from Markdown files",
+      "Integrated import workflows directly into the resume service",
+      "Improved resume migration and onboarding experience",
+      "Improved settings controls and customization workflows",
+      "Added richer visual feedback for: Select controls, Range controls, Color settings",
+      "Enhanced overall editor usability"
+    ],
+    "improved": [
+      "Added section visibility management utilities",
+      "Improved conditional rendering support for cover letter templates",
+      "Increased flexibility for document customization",
+      "Refined settings layouts and hint presentation",
+      "Improved customization discoverability and usability",
+      "Enhanced rendering consistency across document templates",
+      "Improved maintainability of settings and visibility systems"
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "resume-editor",
+      "cover-letter",
+      "templates",
+      "architecture"
+    ]
+  },
+  {
+    "id": "v3-9-0",
+    "version": "3.9.0",
+    "title": "Template filtering and document type architecture improvements",
+    "summary": "This release improves the template browsing experience with enhanced document type handling, dynamic filtering support, and richer template metadata architecture.",
+    "type": "minor",
+    "publishedAt": "2026-05-27T19:23:36Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.9.0",
+    "added": [
+      "Added dynamic family and layout filter generation",
+      "Improved filtering flexibility across template categories",
+      "Enhanced scalability for future template additions",
+      "Improved template group and header information rendering",
+      "Added document type summaries and layout statistics",
+      "Enhanced template browsing and discovery workflows",
+      "Fixed template link generation and document type routing",
+      "Improved template metadata structure and type safety",
+      "Enhanced shared template utility consistency"
+    ],
+    "improved": [
+      "Improved Templates Portal layout and information structure",
+      "Enhanced visual organization and navigation clarity",
+      "Refined shared template configuration handling",
+      "Improved maintainability and extensibility across template systems"
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "templates",
+      "architecture"
+    ]
+  },
+  {
+    "id": "v3-8-0",
+    "version": "3.8.0",
+    "title": "Generic resume section architecture improvements",
+    "summary": "This beta release introduces a unified GenericCustomSection architecture for resume editor sections, improving maintainability, consistency, and scalability across the editor system.",
+    "type": "minor",
+    "publishedAt": "2026-05-27T04:01:15Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.8.0",
+    "added": [
+      "Unified multiple resume sections under a shared architecture",
+      "Reduced duplicated component logic and rendering behavior",
+      "Improved consistency across custom section workflows",
+      "Improved template registry typing",
+      "Enhanced type safety across rendering systems",
+      "Refined shared section data structures"
+    ],
+    "improved": [
+      "Updated shared state management handling",
+      "Improved save workflows using updated resume store integration",
+      "Enhanced event handling consistency",
+      "Simplified resume section architecture",
+      "Improved scalability for future section additions",
+      "Reduced internal complexity and duplicated logic",
+      "Unified rendering behavior across sections",
+      "Improved editor workflow reliability and maintainability"
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "resume-editor",
+      "templates",
+      "architecture"
+    ]
+  },
+  {
+    "id": "v3-6-0",
+    "version": "3.6.0",
+    "title": "UI v1.0.0 release and ecosystem layout unification",
+    "summary": "This release introduces the stable @repo/ui v1.0.0 release and unifies layout, navigation, and design-system experiences across the ecosystem platforms.",
+    "type": "minor",
+    "publishedAt": "2026-05-17T20:15:54Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.6.0",
+    "added": [
+      "Released production-ready stable UI package",
+      "Added advanced Portal-based Tooltip component",
+      "Improved Menu component sizing support",
+      "Expanded documentation and component references",
+      "Standardized Navbar and Footer across: Site, Blog Platform, Docs Platform",
+      "Added shared loading, error, and not-found templates",
+      "Improved navigation consistency across applications"
+    ],
+    "improved": [
+      "Added smart truncation tooltips for templates",
+      "Improved template preview card experience",
+      "Centralized roadmap kanban color helpers",
+      "Updated ecosystem schema and configuration files",
+      "Improved visual consistency across the monorepo ecosystem",
+      "Enhanced reusable layout infrastructure",
+      "Standardized shared configuration patterns",
+      "Improved UI package documentation",
+      "Enhanced maintainability and scalability across platforms"
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "templates",
+      "design-system"
+    ]
+  },
+  {
+    "id": "v3-5-0",
+    "version": "3.5.0",
+    "title": "Service, middleware, and pagination optimizations",
+    "summary": "This release introduces major service and middleware optimizations focused on caching efficiency, pagination support, request handling improvements, and overall backend performance.",
+    "type": "minor",
+    "publishedAt": "2026-05-16T19:25:57Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.5.0",
+    "added": [
+      "Reduced unnecessary logging overhead",
+      "Improved request lifecycle efficiency",
+      "Enhanced scalability and response consistency across APIs"
+    ],
+    "improved": [
+      "Optimized auth and rate limiting middleware behavior",
+      "Added normalized client IP diagnostics handling",
+      "Improved conditional audit log persistence",
+      "Updated GitHub and roadmap routes to support session skipping workflows",
+      "Added caching support across multiple services",
+      "Improved GitHub issue handling with retries and caching",
+      "Added paginated listing support for: API keys, Share links, Roadmap features",
+      "Added reusable offset-based pagination helpers",
+      "Improved validator support for pagination parameters"
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "security",
+      "api",
+      "sharing",
+      "performance"
+    ]
+  },
+  {
+    "id": "v3-4-0",
+    "version": "3.4.0",
+    "title": "Resume Studio branding and API enhancements",
+    "summary": "This release introduces the new VeriWorkly Resume Studio experience along with expanded document APIs, template improvements, and enhanced testing coverage.",
+    "type": "minor",
+    "publishedAt": "2026-05-14T20:26:02Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.4.0",
+    "added": [
+      "Renamed Resume Builder to Resume Studio",
+      "Improved product descriptions and branding presentation",
+      "Added new template preview images",
+      "Added document management endpoints",
+      "Introduced share link and document sharing APIs",
+      "Improved sharing workflow support"
+    ],
+    "improved": [
+      "Refactored template components for cleaner structure",
+      "Improved readability and maintainability",
+      "Enhanced rendering consistency",
+      "Expanded test coverage for share links and template rendering",
+      "Updated package versions and development scripts"
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "resume-editor",
+      "templates",
+      "api",
+      "sharing"
+    ]
+  },
+  {
+    "id": "v3-3-0",
+    "version": "3.3.0",
+    "title": "Unified document services and improved template rendering",
+    "summary": "This release improves Studio architecture, document handling, and resume rendering while simplifying legacy systems and templates.",
+    "type": "minor",
+    "publishedAt": "2026-05-14T09:10:59Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.3.0",
+    "added": [
+      "Consolidated resume-related services into shared document services",
+      "Simplified synchronization, formatting, and sharing workflows",
+      "Improved document import/export handling",
+      "Removed legacy templates and deprecated utilities",
+      "Simplified document font handling and synchronization logic"
+    ],
+    "improved": [
+      "Refactored Compact ATS template for better structure and rendering",
+      "Improved PDF rendering and dynamic font support",
+      "Enhanced layout consistency and social icon rendering",
+      "Improved Checkbox behavior and animations",
+      "Increased input accessibility",
+      "Refined Modal spacing and print styles"
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "ats",
+      "resume-editor",
+      "templates",
+      "sharing",
+      "architecture"
+    ]
+  },
+  {
+    "id": "v3-2-0",
+    "version": "3.2.0",
+    "title": "Unified document system and backend architecture improvements",
+    "summary": "This release introduces a unified document architecture and simplifies backend infrastructure for improved scalability and maintainability.",
+    "type": "minor",
+    "publishedAt": "2026-05-10T07:07:01Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.2.0",
+    "added": [
+      "Added generic document architecture for: Resumes, Cover letters, Portfolios, Link in bio pages",
+      "Unified document storage and handling across the platform",
+      "Removed backend PDF rendering and export queues",
+      "Migrated export generation to frontend using React PDF",
+      "Reduced backend complexity and infrastructure overhead"
+    ],
+    "improved": [
+      "Added generic sharing support for all document types",
+      "Simplified sharing routes and public link handling",
+      "Refactored controllers into dedicated services",
+      "Improved validation, typing, and configuration handling",
+      "Enhanced maintainability and scalability"
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "portfolio",
+      "cover-letter",
+      "sharing",
+      "architecture"
+    ]
+  },
+  {
+    "id": "v3-1-0",
+    "version": "3.1.0",
+    "title": "Studio app migration and workspace restructuring",
+    "summary": "This release continues the platform restructuring by migrating workspace functionality into the dedicated studio application and removing the legacy resume-builder app.",
+    "type": "minor",
+    "publishedAt": "2026-05-09T09:48:59Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.1.0",
+    "added": [],
+    "improved": [
+      "Migrated editor and workspace functionality into dedicated studio app",
+      "Removed legacy resume-builder architecture",
+      "Improved project organization and maintainability",
+      "Added new modern resume template",
+      "Improved structured rendering and styling support",
+      "Improved TypeScript typing",
+      "Added contract tests and Vitest setup",
+      "Enhanced internal utilities and rendering structure"
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "resume-editor",
+      "templates",
+      "architecture"
+    ]
+  },
+  {
+    "id": "v3-0-0",
+    "version": "3.0.0",
+    "title": "Dedicated site app and platform architecture restructure",
+    "summary": "This release introduces a major platform restructuring with the addition of a dedicated public-facing site application.",
+    "type": "major",
+    "publishedAt": "2026-05-09T09:33:47Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.0.0",
+    "added": [
+      "Split platform into separate applications: Public site app, Upcoming studio workspace app",
+      "Improved separation between marketing and product experiences",
+      "Added standalone public website with: Landing pages, Templates, Roadmap, Privacy and informational pages",
+      "Independent SEO and metadata handling",
+      "Added OpenAPI-based API documentation",
+      "Improved developer-facing documentation and structure",
+      "Added social media icons and branding resources",
+      "Added OG image and manifest placeholders",
+      "Improved template presentation"
+    ],
+    "improved": [],
+    "fixed": [],
+    "breaking": [
+      "Major project restructuring",
+      "Updated application organization and architecture"
+    ],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "resume-editor",
+      "templates",
+      "api",
+      "architecture"
+    ]
+  },
+  {
+    "id": "v2-2-1",
+    "version": "2.2.1",
+    "title": "API documentation improvements",
+    "summary": "This release focuses on improving API documentation for better clarity and developer experience.",
+    "type": "patch",
+    "publishedAt": "2026-05-07T06:54:55Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v2.2.1",
+    "added": [],
+    "improved": [
+      "Added detailed documentation for API key management endpoints",
+      "Documented email OTP authentication flow",
+      "Improved OpenAPI structure and response schemas",
+      "Added better error handling documentation",
+      "Organized API paths for easier navigation"
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "security",
+      "api"
+    ]
+  },
+  {
+    "id": "v2-2-0",
+    "version": "2.2.0",
+    "title": "API key management UI and dashboard improvements",
+    "summary": "This release enhances the API key management experience with a complete UI layer, improved dashboard integration, and several UI/UX refinements across the application.",
+    "type": "minor",
+    "publishedAt": "2026-05-06T19:35:56Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v2.2.0",
+    "added": [
+      "Added scope picker for selecting API key permissions",
+      "Introduced structured API key types for better data handling",
+      "Implemented UI for displaying generated API keys",
+      "Integrated API key management into Settings dashboard",
+      "Added indeterminate state support for Checkbox component",
+      "Improved Modal title styling for consistent UI",
+      "Updated ESLint configuration for better linting",
+      "Bumped package versions for stability and consistency"
+    ],
+    "improved": [
+      "Improved deletion flows with enhanced confirmation modal (loading state)",
+      "Refactored sharing modal for better performance and readability",
+      "Improved documentation section presentation"
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "prRefs": [],
+    "tags": [
+      "api",
+      "sharing",
+      "performance"
+    ]
+  }
+]

@@ -32,6 +32,149 @@ function sanitizePhone(phone?: string | null): string | undefined {
   return cleaned.length === 10 ? cleaned : undefined;
 }
 
+const DEFAULT_CUSTOM_SECTIONS = [
+  {
+    id: "certifications-default",
+    kind: "certifications",
+    title: "Certifications",
+    editableTitle: false,
+    items: [] as unknown[],
+  },
+  { id: "awards-default", kind: "awards", title: "Awards", editableTitle: false, items: [] },
+  {
+    id: "publications-default",
+    kind: "publications",
+    title: "Publications",
+    editableTitle: false,
+    items: [],
+  },
+  {
+    id: "languages-default",
+    kind: "languages",
+    title: "Languages",
+    editableTitle: false,
+    items: [],
+  },
+  {
+    id: "interests-default",
+    kind: "interests",
+    title: "Interests",
+    editableTitle: false,
+    items: [],
+  },
+  {
+    id: "volunteer-default",
+    kind: "volunteer",
+    title: "Volunteer",
+    editableTitle: false,
+    items: [],
+  },
+  {
+    id: "references-default",
+    kind: "references",
+    title: "References",
+    editableTitle: false,
+    items: [],
+  },
+  {
+    id: "achievements-default",
+    kind: "achievements",
+    title: "Achievements",
+    editableTitle: false,
+    items: [],
+  },
+  {
+    id: "custom-default",
+    kind: "custom",
+    title: "Custom Section",
+    editableTitle: true,
+    items: [],
+  },
+];
+
+const DEFAULT_SECTIONS = [
+  { id: "basics", label: "Basics", visible: true, order: 0 },
+  { id: "links", label: "Links", visible: true, order: 1 },
+  { id: "summary", label: "Summary", visible: true, order: 2 },
+  { id: "experience", label: "Experience", visible: true, order: 3 },
+  { id: "education", label: "Education", visible: true, order: 4 },
+  { id: "projects", label: "Projects", visible: true, order: 5 },
+  { id: "skills", label: "Skills", visible: true, order: 6 },
+  { id: "certifications", label: "Certifications", visible: true, order: 7 },
+  { id: "awards", label: "Awards", visible: true, order: 8 },
+  { id: "publications", label: "Publications", visible: true, order: 9 },
+  { id: "languages", label: "Languages", visible: true, order: 10 },
+  { id: "interests", label: "Interests", visible: true, order: 11 },
+  { id: "volunteer", label: "Volunteer", visible: true, order: 12 },
+  { id: "references", label: "References", visible: true, order: 13 },
+  { id: "achievements", label: "Achievements", visible: true, order: 14 },
+  { id: "custom", label: "Custom", visible: true, order: 15 },
+];
+
+const DEFAULT_CUSTOMIZATION = {
+  accentColor: "#2563eb",
+  textColor: "#0f172a",
+  mutedTextColor: "#475569",
+  pageBackgroundColor: "#ffffff",
+  sectionBackgroundColor: "#ffffff",
+  borderColor: "#cbd5e1",
+  sectionHeadingColor: "#334155",
+  fontFamily: "geist",
+  sectionSpacing: 28,
+  pagePadding: 32,
+  bodyLineHeight: 1.5,
+  headingLineHeight: 1.2,
+};
+
+/**
+ * Shared resume-document shape both import sources (GitHub, LinkedIn/AI-parsed) produce. Each
+ * source only fills in the fields it actually has data for; the section list, customization
+ * defaults, and sync/customSections scaffolding are identical either way. structuredClone keeps
+ * every call's output independent of the module-level defaults above.
+ */
+function buildResumeShell(fields: {
+  basics: Record<string, unknown>;
+  links: unknown[];
+  summary: string;
+  experience?: unknown[];
+  education?: unknown[];
+  projects: unknown[];
+  skills: unknown[];
+}): any {
+  return {
+    templateId: "executive-clarity",
+    basics: fields.basics,
+    links: {
+      displayMode: "icon-username",
+      items: fields.links,
+    },
+    summary: fields.summary,
+    experience: fields.experience ?? [],
+    education: fields.education ?? [],
+    projects: fields.projects,
+    skills: fields.skills,
+    languages: [],
+    interests: [],
+    awards: [],
+    certificates: [],
+    publications: [],
+    volunteer: [],
+    references: [],
+    achievements: [],
+    customSections: structuredClone(DEFAULT_CUSTOM_SECTIONS),
+    sections: structuredClone(DEFAULT_SECTIONS),
+    customization: structuredClone(DEFAULT_CUSTOMIZATION),
+    sync: {
+      enabled: false,
+      status: "local-only",
+      cloudDocumentId: null,
+      lastSyncedAt: null,
+      revision: 1,
+    },
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 function mapGithubToResumeData(profile: any, repos: any[]): any {
   const makeId = (prefix: string, index: number) =>
     `${prefix}-${index}-${Math.random().toString(36).substring(2, 9)}`;
@@ -88,8 +231,7 @@ function mapGithubToResumeData(profile: any, repos: any[]): any {
     });
   }
 
-  return {
-    templateId: "executive-clarity",
+  return buildResumeShell({
     basics: {
       fullName: profile.name || profile.login || "GitHub User",
       role: "Software Developer",
@@ -101,123 +243,11 @@ function mapGithubToResumeData(profile: any, repos: any[]): any {
       linkPhone: true,
       linkLocation: true,
     },
-    links: {
-      displayMode: "icon-username",
-      items: linksList,
-    },
+    links: linksList,
     summary: profile.bio || "",
-    experience: [],
-    education: [],
     projects,
     skills,
-    languages: [],
-    interests: [],
-    awards: [],
-    certificates: [],
-    publications: [],
-    volunteer: [],
-    references: [],
-    achievements: [],
-    customSections: [
-      {
-        id: "certifications-default",
-        kind: "certifications",
-        title: "Certifications",
-        editableTitle: false,
-        items: [],
-      },
-      { id: "awards-default", kind: "awards", title: "Awards", editableTitle: false, items: [] },
-      {
-        id: "publications-default",
-        kind: "publications",
-        title: "Publications",
-        editableTitle: false,
-        items: [],
-      },
-      {
-        id: "languages-default",
-        kind: "languages",
-        title: "Languages",
-        editableTitle: false,
-        items: [],
-      },
-      {
-        id: "interests-default",
-        kind: "interests",
-        title: "Interests",
-        editableTitle: false,
-        items: [],
-      },
-      {
-        id: "volunteer-default",
-        kind: "volunteer",
-        title: "Volunteer",
-        editableTitle: false,
-        items: [],
-      },
-      {
-        id: "references-default",
-        kind: "references",
-        title: "References",
-        editableTitle: false,
-        items: [],
-      },
-      {
-        id: "achievements-default",
-        kind: "achievements",
-        title: "Achievements",
-        editableTitle: false,
-        items: [],
-      },
-      {
-        id: "custom-default",
-        kind: "custom",
-        title: "Custom Section",
-        editableTitle: true,
-        items: [],
-      },
-    ],
-    sections: [
-      { id: "basics", label: "Basics", visible: true, order: 0 },
-      { id: "links", label: "Links", visible: true, order: 1 },
-      { id: "summary", label: "Summary", visible: true, order: 2 },
-      { id: "experience", label: "Experience", visible: true, order: 3 },
-      { id: "education", label: "Education", visible: true, order: 4 },
-      { id: "projects", label: "Projects", visible: true, order: 5 },
-      { id: "skills", label: "Skills", visible: true, order: 6 },
-      { id: "certifications", label: "Certifications", visible: true, order: 7 },
-      { id: "awards", label: "Awards", visible: true, order: 8 },
-      { id: "publications", label: "Publications", visible: true, order: 9 },
-      { id: "languages", label: "Languages", visible: true, order: 10 },
-      { id: "interests", label: "Interests", visible: true, order: 11 },
-      { id: "volunteer", label: "Volunteer", visible: true, order: 12 },
-      { id: "references", label: "References", visible: true, order: 13 },
-      { id: "achievements", label: "Achievements", visible: true, order: 14 },
-      { id: "custom", label: "Custom", visible: true, order: 15 },
-    ],
-    customization: {
-      accentColor: "#2563eb",
-      textColor: "#0f172a",
-      mutedTextColor: "#475569",
-      pageBackgroundColor: "#ffffff",
-      sectionBackgroundColor: "#ffffff",
-      borderColor: "#cbd5e1",
-      sectionHeadingColor: "#334155",
-      fontFamily: "geist",
-      sectionSpacing: 28,
-      pagePadding: 32,
-      bodyLineHeight: 1.5,
-      headingLineHeight: 1.2,
-    },
-    sync: {
-      enabled: false,
-      status: "local-only",
-      cloudDocumentId: null,
-      lastSyncedAt: null,
-      revision: 1,
-    },
-    updatedAt: new Date().toISOString(),
-  };
+  });
 }
 
 function mapParsedToResumeData(parsed: any) {
@@ -284,8 +314,7 @@ function mapParsedToResumeData(parsed: any) {
     keywords: skill.keywords || [],
   }));
 
-  return {
-    templateId: "executive-clarity",
+  return buildResumeShell({
     basics: {
       fullName: parsed.basics?.fullName || "Imported User",
       role: parsed.basics?.role || "",
@@ -297,123 +326,13 @@ function mapParsedToResumeData(parsed: any) {
       linkPhone: true,
       linkLocation: true,
     },
-    links: {
-      displayMode: "icon-username",
-      items: links,
-    },
+    links,
     summary: parsed.summary || "",
     experience,
     education,
     projects,
     skills,
-    languages: [],
-    interests: [],
-    awards: [],
-    certificates: [],
-    publications: [],
-    volunteer: [],
-    references: [],
-    achievements: [],
-    customSections: [
-      {
-        id: "certifications-default",
-        kind: "certifications",
-        title: "Certifications",
-        editableTitle: false,
-        items: [],
-      },
-      { id: "awards-default", kind: "awards", title: "Awards", editableTitle: false, items: [] },
-      {
-        id: "publications-default",
-        kind: "publications",
-        title: "Publications",
-        editableTitle: false,
-        items: [],
-      },
-      {
-        id: "languages-default",
-        kind: "languages",
-        title: "Languages",
-        editableTitle: false,
-        items: [],
-      },
-      {
-        id: "interests-default",
-        kind: "interests",
-        title: "Interests",
-        editableTitle: false,
-        items: [],
-      },
-      {
-        id: "volunteer-default",
-        kind: "volunteer",
-        title: "Volunteer",
-        editableTitle: false,
-        items: [],
-      },
-      {
-        id: "references-default",
-        kind: "references",
-        title: "References",
-        editableTitle: false,
-        items: [],
-      },
-      {
-        id: "achievements-default",
-        kind: "achievements",
-        title: "Achievements",
-        editableTitle: false,
-        items: [],
-      },
-      {
-        id: "custom-default",
-        kind: "custom",
-        title: "Custom Section",
-        editableTitle: true,
-        items: [],
-      },
-    ],
-    sections: [
-      { id: "basics", label: "Basics", visible: true, order: 0 },
-      { id: "links", label: "Links", visible: true, order: 1 },
-      { id: "summary", label: "Summary", visible: true, order: 2 },
-      { id: "experience", label: "Experience", visible: true, order: 3 },
-      { id: "education", label: "Education", visible: true, order: 4 },
-      { id: "projects", label: "Projects", visible: true, order: 5 },
-      { id: "skills", label: "Skills", visible: true, order: 6 },
-      { id: "certifications", label: "Certifications", visible: true, order: 7 },
-      { id: "awards", label: "Awards", visible: true, order: 8 },
-      { id: "publications", label: "Publications", visible: true, order: 9 },
-      { id: "languages", label: "Languages", visible: true, order: 10 },
-      { id: "interests", label: "Interests", visible: true, order: 11 },
-      { id: "volunteer", label: "Volunteer", visible: true, order: 12 },
-      { id: "references", label: "References", visible: true, order: 13 },
-      { id: "achievements", label: "Achievements", visible: true, order: 14 },
-      { id: "custom", label: "Custom", visible: true, order: 15 },
-    ],
-    customization: {
-      accentColor: "#2563eb",
-      textColor: "#0f172a",
-      mutedTextColor: "#475569",
-      pageBackgroundColor: "#ffffff",
-      sectionBackgroundColor: "#ffffff",
-      borderColor: "#cbd5e1",
-      sectionHeadingColor: "#334155",
-      fontFamily: "geist",
-      sectionSpacing: 28,
-      pagePadding: 32,
-      bodyLineHeight: 1.5,
-      headingLineHeight: 1.2,
-    },
-    sync: {
-      enabled: false,
-      status: "local-only",
-      cloudDocumentId: null,
-      lastSyncedAt: null,
-      revision: 1,
-    },
-    updatedAt: new Date().toISOString(),
-  };
+  });
 }
 
 export class ProfileImportService {

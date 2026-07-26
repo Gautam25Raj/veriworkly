@@ -1,4 +1,5 @@
 import helmet from "helmet";
+import compression from "compression";
 import express, { raw, Request, Response, RequestHandler } from "express";
 
 import { config } from "#config";
@@ -18,14 +19,17 @@ import healthRoutes from "#routes/health";
 import sharesRoutes from "#routes/shares";
 import apiKeyRoutes from "#routes/apiKeys";
 import roadmapRoutes from "#routes/roadmap";
+import changelogRoutes from "#routes/changelog";
 import contactRoutes from "#routes/contact";
 import billingRoutes from "#routes/billing";
 import profileRoutes from "#routes/profiles";
 import documentRoutes from "#routes/documents";
 import portfolioRoutes from "#routes/portfolios";
 import affiliateRoutes from "#routes/affiliates";
+import ambassadorRoutes from "#routes/ambassador";
 import portfolioAssetRoutes from "#routes/portfolioAssets";
 import adminMonetizationRoutes from "#routes/adminMonetization";
+import adminAmbassadorRoutes from "#routes/adminAmbassador";
 import { BillingController } from "#controllers/billingController";
 
 import { getRequestIpDetails } from "#utils/requestIp";
@@ -36,6 +40,9 @@ const app = express();
 
 // Security middleware
 app.use(helmet());
+
+// Compress JSON responses (resume/portfolio payloads can be large; free bandwidth/latency win)
+app.use(compression());
 
 // CORS middleware
 app.use(corsMiddleware);
@@ -68,6 +75,7 @@ app.use("/api/v1/github", githubRoutes);
 app.use("/api/v1/health", healthRoutes);
 app.use("/api/v1/shares", sharesRoutes);
 app.use("/api/v1/roadmap", roadmapRoutes);
+app.use("/api/v1/changelog", changelogRoutes);
 app.use("/api/v1/api-keys", apiKeyRoutes);
 app.use("/api/v1/billing", billingRoutes);
 app.use("/api/v1/contact", contactRoutes);
@@ -75,8 +83,10 @@ app.use("/api/v1/profiles", profileRoutes);
 app.use("/api/v1/documents", documentRoutes);
 app.use("/api/v1/portfolios", portfolioRoutes);
 app.use("/api/v1/affiliates", affiliateRoutes);
+app.use("/api/v1/ambassador", ambassadorRoutes);
 app.use("/api/v1/portfolio-assets", portfolioAssetRoutes);
 app.use("/api/v1/admin/monetization", adminMonetizationRoutes);
+app.use("/api/v1/admin/ambassador", adminAmbassadorRoutes);
 
 app.all(["/api/v1/auth", "/api/v1/auth/*"], [
   authRequestDiagnosticsMiddleware,

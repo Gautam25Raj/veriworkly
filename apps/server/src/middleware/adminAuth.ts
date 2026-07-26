@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from "express";
 import { config } from "#config";
 
 import { createErrorResponse } from "#lib/errors";
+import { isAdminUser } from "#lib/isAdminUser";
 import { getSessionUserFromRequest } from "#middleware/auth";
 
 export async function adminAuthMiddleware(req: Request, res: Response, next: NextFunction) {
@@ -17,7 +18,7 @@ export async function adminAuthMiddleware(req: Request, res: Response, next: Nex
     if (!sessionUser?.email)
       return res.status(401).json(createErrorResponse(401, "Authentication required"));
 
-    if (sessionUser.email.toLowerCase() !== config.admin.email)
+    if (!isAdminUser(sessionUser.email))
       return res.status(403).json(createErrorResponse(403, "Forbidden"));
 
     isAuthorized = true;

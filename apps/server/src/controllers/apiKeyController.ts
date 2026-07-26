@@ -2,21 +2,11 @@ import type { NextFunction, Request, Response } from "express";
 
 import { requireAuthUser } from "#middleware/auth";
 
-import { ApiKeyService } from "#services/apiKeyService";
+import { ApiKeyService, ALLOWED_SCOPES } from "#services/apiKeyService";
 
 import { logger } from "#lib/logger";
 import { ApiError, createSuccessResponse, createErrorResponse } from "#lib/errors";
 import { parseOffsetPagination, createOffsetPaginationMeta } from "#utils/pagination";
-
-const DEFAULT_ALLOWED_SCOPES = [
-  "user:read",
-  "user:write",
-  "resume:read",
-  "resume:write",
-  "roadmap:read",
-  "github:read",
-  "ai:write",
-];
 
 /**
  * Internal helper to parse and validate API key scopes.
@@ -30,7 +20,7 @@ function parseScopes(value: unknown) {
 
   if (scopes.length === 0) return undefined;
 
-  const invalidScopes = scopes.filter((scope) => !DEFAULT_ALLOWED_SCOPES.includes(scope));
+  const invalidScopes = scopes.filter((scope) => !ALLOWED_SCOPES.has(scope));
 
   if (invalidScopes.length > 0) {
     throw new ApiError(400, `Unsupported API key scope(s): ${invalidScopes.join(", ")}`);

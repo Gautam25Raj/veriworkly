@@ -11,7 +11,7 @@ export const checkoutSchema = z.object({
 });
 
 export const creditPackCheckoutSchema = z.object({
-  packKey: z.literal("credit_pack_100"),
+  packKey: z.enum(["credit_pack_250", "credit_pack_500"]),
   redirectUrl: z
     .string()
     .trim()

@@ -128,6 +128,8 @@ export async function getPendingUsageMetricDates() {
  * * returns: Metadata about the flushed records.
  */
 
+const FLUSH_LOCK_TTL_SECONDS = 120;
+
 export async function flushUsageMetricsForDate(date: Date) {
   const redis = getRedis();
 
@@ -135,69 +137,94 @@ export async function flushUsageMetricsForDate(date: Date) {
   const key = usageRedisKey(dateKey);
   const processingKey = `${key}:processing`;
   const batchKey = `${processingKey}:batch-id`;
+  const lockKey = `${key}:flush-lock`;
 
-  if ((await redis.exists(processingKey)) === 0) {
-    try {
-      await redis.rename(key, processingKey);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("no such key"))
-        return { dateKey, flushedEvents: 0 };
+  // Serialize flush attempts for this date so a manual admin retry overlapping the cron tick (or
+  // a rolling deploy briefly running two worker processes) can't both compute a pre-transaction
+  // entry count and then have one of them silently discard data on a unique-constraint rollback.
+  const lockAcquired =
+    (await redis.set(lockKey, "1", { NX: true, EX: FLUSH_LOCK_TTL_SECONDS })) === "OK";
 
-      throw error;
-    }
+  if (!lockAcquired) {
+    return { dateKey, flushedEvents: 0, skipped: true as const };
   }
-
-  const snapshot = await redis.hGetAll(processingKey);
-  const entries = Object.entries(snapshot).sort(([left], [right]) => left.localeCompare(right));
-
-  if (entries.length === 0) {
-    await redis.del(processingKey);
-    return { dateKey, flushedEvents: 0 };
-  }
-
-  const metricDate = fromDateKeyToUtcDate(dateKey);
-  await redis.set(batchKey, randomUUID(), { NX: true });
-  const batchId = await redis.get(batchKey);
-
-  if (!batchId) throw new Error(`Failed to initialize usage metrics batch for ${dateKey}`);
 
   try {
-    await prisma.$transaction(async (tx) => {
-      await tx.usageMetricFlushBatch.create({
-        data: { id: batchId, date: metricDate },
-      });
+    if ((await redis.exists(processingKey)) === 0) {
+      try {
+        await redis.rename(key, processingKey);
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("no such key"))
+          return { dateKey, flushedEvents: 0 };
 
-      for (const [event, rawCount] of entries) {
-        const count = parseInt(rawCount, 10);
+        throw error;
+      }
+    }
 
-        await tx.usageMetricDaily.upsert({
-          where: {
-            date_event: {
+    const snapshot = await redis.hGetAll(processingKey);
+    const entries = Object.entries(snapshot).sort(([left], [right]) => left.localeCompare(right));
+
+    if (entries.length === 0) {
+      await redis.del(processingKey);
+      return { dateKey, flushedEvents: 0 };
+    }
+
+    const metricDate = fromDateKeyToUtcDate(dateKey);
+    await redis.set(batchKey, randomUUID(), { NX: true });
+    const batchId = await redis.get(batchKey);
+
+    if (!batchId) throw new Error(`Failed to initialize usage metrics batch for ${dateKey}`);
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.usageMetricFlushBatch.create({
+          data: { id: batchId, date: metricDate },
+        });
+
+        for (const [event, rawCount] of entries) {
+          const count = parseInt(rawCount, 10);
+
+          await tx.usageMetricDaily.upsert({
+            where: {
+              date_event: {
+                date: metricDate,
+                event,
+              },
+            },
+            create: {
               date: metricDate,
               event,
+              count,
             },
-          },
-          create: {
-            date: metricDate,
-            event,
-            count,
-          },
-          update: {
-            count: { increment: count },
-          },
-        });
+            update: {
+              count: { increment: count },
+            },
+          });
+        }
+      });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) {
+        throw error;
       }
-    });
-  } catch (error) {
-    if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) {
-      throw error;
+
+      // We hold the per-date flush lock, so a batch-id collision can only mean a prior attempt
+      // already committed this exact batch before crashing without cleaning up Redis. Confirm
+      // that rather than assuming it — otherwise a genuine failure here would still report
+      // success below while the buffered data is gone.
+      const existingBatch = await prisma.usageMetricFlushBatch.findUnique({
+        where: { id: batchId },
+      });
+
+      if (!existingBatch) throw error;
     }
+
+    await redis.del([processingKey, batchKey]);
+    await cacheDel("admin:dashboard:stats");
+
+    return { dateKey, flushedEvents: entries.length };
+  } finally {
+    await redis.del(lockKey).catch(() => {});
   }
-
-  await redis.del([processingKey, batchKey]);
-  await cacheDel("admin:dashboard:stats");
-
-  return { dateKey, flushedEvents: entries.length };
 }
 
 /**

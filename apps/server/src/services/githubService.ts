@@ -176,6 +176,208 @@ async function fetchGitHubIssuesPage(url: string, token: string) {
   throw new ApiError(502, "GitHub API communication failed");
 }
 
+interface GitHubPullRequestPayload {
+  title: string;
+  html_url: string;
+  user: { login: string; avatar_url: string; html_url: string } | null;
+}
+
+export interface GitHubPullRequestSummary {
+  title: string;
+  url: string;
+  author: { login: string; avatarUrl: string; htmlUrl: string } | null;
+}
+
+/**
+ * Fetch a single pull request's title, URL, and author from GitHub.
+ * Used to enrich changelog PR references with real contributor data.
+ */
+
+async function fetchPullRequestSummary(
+  owner: string,
+  repo: string,
+  number: number,
+  token: string,
+): Promise<GitHubPullRequestSummary> {
+  const response = await fetchGitHubIssuesPage(
+    `https://api.github.com/repos/${owner}/${repo}/pulls/${number}`,
+    token,
+  );
+
+  const payload = (await response.json()) as GitHubPullRequestPayload;
+
+  return {
+    title: payload.title,
+    url: payload.html_url,
+    author: payload.user
+      ? {
+          login: payload.user.login,
+          avatarUrl: payload.user.avatar_url,
+          htmlUrl: payload.user.html_url,
+        }
+      : null,
+  };
+}
+
+export interface GitHubReleasePayload {
+  id: number;
+  tag_name: string;
+  name: string | null;
+  body: string | null;
+  html_url: string;
+  published_at: string | null;
+  draft: boolean;
+  prerelease: boolean;
+}
+
+/**
+ * Fetch every non-draft release for a repo, oldest to newest.
+ */
+
+async function fetchAllGitHubReleases(
+  owner: string,
+  repo: string,
+  token: string,
+): Promise<GitHubReleasePayload[]> {
+  const collected: GitHubReleasePayload[] = [];
+  let page = 1;
+  const perPage = 100;
+  let hasNextPage = true;
+
+  while (hasNextPage) {
+    const response = await fetchGitHubIssuesPage(
+      `https://api.github.com/repos/${owner}/${repo}/releases?per_page=${perPage}&page=${page}`,
+      token,
+    );
+
+    const payload = (await response.json()) as GitHubReleasePayload[];
+    if (payload.length === 0) {
+      hasNextPage = false;
+      continue;
+    }
+
+    collected.push(...payload.filter((release) => !release.draft));
+    hasNextPage = payload.length === perPage;
+    page += 1;
+  }
+
+  return collected.reverse();
+}
+
+export interface ParsedReleaseBody {
+  summary: string | null;
+  added: string[];
+  improved: string[];
+  fixed: string[];
+  breaking: string[];
+  security: string[];
+}
+
+const CATEGORY_KEYWORDS: Array<{ pattern: RegExp; category: keyof Omit<ParsedReleaseBody, "summary"> }> = [
+  { pattern: /security/i, category: "security" },
+  { pattern: /breaking/i, category: "breaking" },
+  { pattern: /fix|bug/i, category: "fixed" },
+  { pattern: /improve|enhance|refactor|update/i, category: "improved" },
+];
+
+/**
+ * Best-effort markdown parser for hand-written GitHub release bodies.
+ * Buckets bullet points under the nearest header by keyword match, and
+ * takes the first prose paragraph as the summary. Purely heuristic — the
+ * result is meant to be a useful starting point, correctable via the
+ * existing admin changelog PUT endpoint, not a perfect transcription.
+ */
+
+function parseReleaseBody(body: string | null): ParsedReleaseBody {
+  const result: ParsedReleaseBody = {
+    summary: null,
+    added: [],
+    improved: [],
+    fixed: [],
+    breaking: [],
+    security: [],
+  };
+
+  if (!body) return result;
+
+  let currentCategory: keyof Omit<ParsedReleaseBody, "summary"> = "added";
+
+  for (const rawLine of body.split("\n")) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    if (/^#{1,6}\s+/.test(line)) {
+      const header = line.replace(/^#{1,6}\s+/, "");
+      const match = CATEGORY_KEYWORDS.find(({ pattern }) => pattern.test(header));
+      currentCategory = match?.category ?? "added";
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(line)) {
+      const item = line.replace(/^[-*]\s+/, "").trim();
+      if (item) result[currentCategory].push(item);
+      continue;
+    }
+
+    if (!result.summary && !/^#{1,6}/.test(line)) {
+      result.summary = line;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Derives PR references for a release by diffing it against the previous
+ * release tag and pulling PR numbers out of merge-commit messages. Best
+ * effort: a failed lookup just drops that ref rather than throwing, and an
+ * absent previous tag (oldest release) yields an empty list.
+ */
+
+async function derivePrRefsFromCommits(
+  owner: string,
+  repo: string,
+  token: string,
+  baseTag: string | undefined,
+  headTag: string,
+): Promise<Array<{ number: number; title: string; url: string; author: GitHubPullRequestSummary["author"] }>> {
+  if (!baseTag) return [];
+
+  let commits: Array<{ commit: { message: string } }>;
+
+  try {
+    const response = await fetchGitHubIssuesPage(
+      `https://api.github.com/repos/${owner}/${repo}/compare/${baseTag}...${headTag}`,
+      token,
+    );
+    const payload = (await response.json()) as { commits?: Array<{ commit: { message: string } }> };
+    commits = payload.commits ?? [];
+  } catch (error) {
+    logger.error(`Failed to compare ${baseTag}...${headTag} for changelog sync`, error);
+    return [];
+  }
+
+  const prNumbers = new Set<number>();
+  for (const { commit } of commits) {
+    const match = commit.message.match(/Merge pull request #(\d+)/i);
+    if (match) prNumbers.add(Number.parseInt(match[1], 10));
+    if (prNumbers.size >= 20) break;
+  }
+
+  const refs: Array<{ number: number; title: string; url: string; author: GitHubPullRequestSummary["author"] }> = [];
+
+  for (const number of prNumbers) {
+    try {
+      const summary = await fetchPullRequestSummary(owner, repo, number, token);
+      refs.push({ number, title: summary.title, url: summary.url, author: summary.author });
+    } catch (error) {
+      logger.error(`Failed to enrich PR #${number} while deriving changelog refs`, error);
+    }
+  }
+
+  return refs;
+}
+
 /**
  * Fetch cached GitHub project stats or load from DB.
  */
@@ -564,4 +766,13 @@ const syncGitHubStatsFromGitHub = async (forceFullSync = false) => {
   }
 };
 
-export { getGitHubStats, getGitHubIssues, shouldSyncGitHubStats, syncGitHubStatsFromGitHub };
+export {
+  getGitHubStats,
+  getGitHubIssues,
+  shouldSyncGitHubStats,
+  syncGitHubStatsFromGitHub,
+  fetchPullRequestSummary,
+  fetchAllGitHubReleases,
+  parseReleaseBody,
+  derivePrRefsFromCommits,
+};

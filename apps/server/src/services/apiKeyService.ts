@@ -4,9 +4,11 @@ import { config } from "#config";
 
 import { prisma } from "#lib/prisma";
 import { logger } from "#lib/logger";
+import { ApiError } from "#lib/errors";
 import { cacheDel, cacheGet, cacheSet, getRedis } from "#lib/redis";
+import { userProfileCacheKey } from "#lib/cacheKeys";
 
-const MAX_API_KEY_RATE_LIMIT = 20;
+const MAX_API_KEY_RATE_LIMIT = config.apiKeys.defaultRateLimit;
 
 const DEFAULT_SCOPES = config.apiKeys.defaultScopes;
 const DEFAULT_RATE_LIMIT = config.apiKeys.defaultRateLimit;
@@ -14,13 +16,21 @@ const AUTH_CACHE_TTL_SECONDS = config.apiKeys.authCacheTtlSeconds;
 const DEFAULT_KEY_LIFETIME_DAYS = config.apiKeys.defaultKeyLifetimeDays;
 const LAST_USED_UPDATE_INTERVAL_SECONDS = config.apiKeys.lastUsedTouchIntervalSeconds;
 
-const ALLOWED_SCOPES = new Set([
+/**
+ * Single source of truth for API key scopes. Keep this in sync with the
+ * gates in `src/routes/*.ts` (`requireApiKeyScopes(...)`) — a scope listed
+ * here that no route checks is dead; a route checking a scope not listed
+ * here is unreachable (see the `ai:write` incident this fixed).
+ */
+export const ALLOWED_SCOPES = new Set([
   "user:read",
   "user:write",
   "resume:read",
   "resume:write",
   "roadmap:read",
+  "changelog:read",
   "github:read",
+  "ai:write",
 ]);
 
 type ApiKeyAuthUser = {
@@ -98,7 +108,7 @@ function normalizeScopes(scopes: string[] | undefined) {
   const invalidScopes = normalizedScopes.filter((scope) => !ALLOWED_SCOPES.has(scope));
 
   if (invalidScopes.length > 0)
-    throw new Error(`Unsupported API key scope(s): ${invalidScopes.join(", ")}`);
+    throw new ApiError(400, `Unsupported API key scope(s): ${invalidScopes.join(", ")}`);
 
   return normalizedScopes;
 }
@@ -155,7 +165,7 @@ async function invalidateAuthCache(keyHash: string) {
 }
 
 async function invalidateProfileCache(userId: string) {
-  await cacheDel(`user:profile:v2:${userId}`);
+  await cacheDel(userProfileCacheKey(userId));
 }
 
 async function setAuthCache(record: ApiKeyAuthRecord) {
@@ -480,6 +490,22 @@ export class ApiKeyService {
     await invalidateProfileCache(userId);
 
     return { ...rotated, key: rawKey, rotatedFromId: current.id };
+  }
+
+  /**
+   * Invalidate every cached auth record for a user's API keys. Must be called
+   * whenever entitlement-affecting state outside the key itself changes —
+   * e.g. subscription status flips via the billing webhook — since
+   * validateKey() caches the subscription snapshot for up to
+   * authCacheTtlSeconds and nothing else expires it early.
+   */
+  static async invalidateAuthCacheForUser(userId: string) {
+    const keys = await prisma.apiKey.findMany({
+      where: { userId },
+      select: { keyHash: true },
+    });
+
+    await Promise.all(keys.map((key) => invalidateAuthCache(key.keyHash)));
   }
 
   static async deleteKey(userId: string, keyId: string) {

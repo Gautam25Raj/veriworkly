@@ -22,6 +22,15 @@ const usageMetricEventSchema = z.object({
   value: z.number().int().positive().max(1000).optional(),
 });
 
+/**
+ * Events the server itself records authoritatively when the underlying action actually happens
+ * (e.g. auth_login_success is incremented from the session-creation hook in auth/index.ts).
+ * Public callers can't self-report these — there's no per-session dedup on this endpoint, so an
+ * unauthenticated client could otherwise replay a login-success event indefinitely within the
+ * rate limit and inflate the admin dashboard without ever logging in.
+ */
+const SERVER_ONLY_EVENTS = new Set(["auth_login_success"]);
+
 export class StatsController {
   /**
    * Record a single usage metric (e.g., resume_created) into Redis.
@@ -47,15 +56,25 @@ export class StatsController {
 
       const normalizedEvent = payload.event.trim().toLowerCase().replace(/\s+/g, "_");
 
-      if (!isInternal && !(KNOWN_EVENTS as readonly string[]).includes(normalizedEvent)) {
-        return res
-          .status(400)
-          .json(
-            createErrorResponse(
-              400,
-              `Event '${payload.event}' is not allowlisted for public access.`,
-            ),
-          );
+      if (!isInternal) {
+        if (!(KNOWN_EVENTS as readonly string[]).includes(normalizedEvent)) {
+          return res
+            .status(400)
+            .json(
+              createErrorResponse(
+                400,
+                `Event '${payload.event}' is not allowlisted for public access.`,
+              ),
+            );
+        }
+
+        if (SERVER_ONLY_EVENTS.has(normalizedEvent)) {
+          return res
+            .status(400)
+            .json(
+              createErrorResponse(400, `Event '${payload.event}' cannot be reported directly.`),
+            );
+        }
       }
 
       await incrementUsageMetric(payload);

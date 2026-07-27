@@ -54,6 +54,10 @@ next-env.d.ts
 /app/test
 /api-index
 
+# Load testing rig - standalone package with its own dependencies,
+# intentionally kept out of the main app's repo/workspaces entirely
+/load-testing
+
 # Agents
 .agents
 .claude

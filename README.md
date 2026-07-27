@@ -31,17 +31,20 @@
 
 ## 🎯 Executive Summary
 
-VeriWorkly is a **high-performance, privacy-centric resume building ecosystem** designed to challenge the traditional surveillance-heavy SaaS resume builder model. Operating on the **Local-First principle**, VeriWorkly stores all your career data directly in your browser. It combines a state-of-the-art Next.js frontend with a lightweight Node.js/Express backend to provide a seamless, secure, and professional document generation experience.
+VeriWorkly is a **privacy-first career workspace**: a resume and cover letter builder, a public portfolio/website builder, and the AI and career tooling (ATS scoring, AI rewriting, GitHub/LinkedIn import) that connects them — all built around one shared **Master Profile** so your career facts live in one place and flow into every document and every portfolio. It challenges the surveillance-heavy, login-first SaaS resume builder model by operating on a **local-first** principle: no account is required to start.
 
 ---
 
 ## ✨ Key Capabilities
 
-- **⚡ Real-Time Rendering**: Edit details and see your ATS-optimized resume update instantly with pixel-perfect visual previews.
-- **🔒 Local-First Storage**: Your data stays on your machine. No mandatory accounts, tracking cookies, or remote server locks.
-- **📥 Universal Exports**: One-click downloads to ATS-optimized PDF and editable DOCX formats.
-- **☁️ Optional Cloud Sync**: Secure, end-to-end synchronized account support for access across multiple devices.
-- **🔧 API Extensibility**: Fully integrated and documented OpenAPI specification to plug in external tools.
+- **⚡ Real-Time Rendering**: Edit details and see your ATS-optimized resume, cover letter, or portfolio update instantly with pixel-perfect live previews.
+- **🌐 Portfolio Builder**: A separate public website/portfolio product (`apps/portfolio`) — template gallery, a three-pane editor, analytics, and publishing to a shared path or your own `*.veriworkly.com` subdomain.
+- **🧠 Master Profile**: One canonical career-facts record that auto-seeds new resumes, cover letters, and portfolios — editing a document never writes back to it.
+- **🤖 AI & ATS Tooling**: AI-assisted rewriting (Anthropic Claude and OpenAI GPT, credit-metered, cost shown before you generate) and a deterministic + AI-layered ATS checker.
+- **🔒 Local-First Storage**: Your data stays on your machine first. No mandatory account, tracking cookies, or remote server lock-in to start building.
+- **📥 Universal Exports**: PDF, DOCX, HTML, Markdown, plain text, and JSON — all client-rendered via `react-pdf`, no headless-browser dependency.
+- **☁️ Optional Cloud Sync**: Secure, cross-device sync for logged-in users, with per-document conflict detection.
+- **🔧 API Extensibility**: A self-serve developer API with scoped keys — see [docs.veriworkly.com/api-reference](https://docs.veriworkly.com/api-reference) for what's currently documented (auth, API keys, GitHub stats, health, roadmap, and core user endpoints; broader route coverage — documents, profiles, ATS, AI, portfolios, billing — is in progress).
 
 ---
 
@@ -68,7 +71,7 @@ VeriWorkly is a **high-performance, privacy-centric resume building ecosystem** 
   <tr>
     <td align="center" width="50%">
       <img src="apps/studio/public/templates/cover-letter/professional.png" alt="Professional" style="border-radius: 8px; border: 1px solid #eaeaea;" width="320" />
-      <br /><strong>Professional Classic</strong>
+      <br /><strong>Professional</strong>
     </td>
     <td align="center" width="50%">
       <img src="apps/studio/public/templates/cover-letter/veriworkly-special.png" alt="Veriworkly Special" style="border-radius: 8px; border: 1px solid #eaeaea;" width="320" />
@@ -87,7 +90,8 @@ VeriWorkly uses a type-safe **monorepo** layout to ensure clean service isolatio
 veriworkly-resume/
 ├── apps/
 │   ├── site/             # Marketing & Landing Site (Next.js)
-│   ├── studio/           # Dynamic Builder App & Workspace (Next.js)
+│   ├── studio/           # Document Builder App & Workspace (Next.js)
+│   ├── portfolio/        # Portfolio/Website Builder — gallery, editor, published sites (Next.js)
 │   ├── server/           # Express API & Sync backend (NodeJS)
 │   ├── docs-platform/    # Technical Documentation Hub (Fumadocs)
 │   └── blog-platform/    # Official Product Blog (Next.js)
@@ -185,7 +189,7 @@ VeriWorkly is built on open-source principles, and we welcome community contribu
 We take security and user data privacy very seriously:
 
 - **Local-First Architecture**: Your resumes reside locally in your browser storage.
-- **Zero Behaviors Tracking**: We collect no user analytics, mouse tracking, or heatmaps.
+- **No Third-Party Tracking**: No mouse tracking, heatmaps, ad trackers, or sale of user data. We do run first-party, aggregate-only product telemetry (e.g. counts of resumes created or exports) to understand usage — never individual behavioral tracking.
 - **Vulnerability Disclosure**: If you discover a security issue, please do **not** file a public GitHub issue. Email us privately at `info@veriworkly.com` with steps to reproduce. Read [SECURITY.md](SECURITY.md) for more info.
 
 ---

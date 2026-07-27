@@ -34,8 +34,10 @@ services:
 
   api:
     build:
-      context: ./server
-      dockerfile: Dockerfile
+      # apps/server/Dockerfile expects the repository root as its build context so it can
+      # install the npm workspace from the root package-lock.
+      context: .
+      dockerfile: apps/server/Dockerfile
     environment:
       NODE_ENV: ${NODE_ENV:-development}
       PORT: 8080
@@ -94,7 +96,8 @@ services:
       DODO_PAYMENTS_AI_CREDITS_ANNUAL_PRODUCT_ID: ${DODO_PAYMENTS_AI_CREDITS_ANNUAL_PRODUCT_ID}
       DODO_PAYMENTS_BUNDLE_MONTHLY_PRODUCT_ID: ${DODO_PAYMENTS_BUNDLE_MONTHLY_PRODUCT_ID}
       DODO_PAYMENTS_BUNDLE_ANNUAL_PRODUCT_ID: ${DODO_PAYMENTS_BUNDLE_ANNUAL_PRODUCT_ID}
-      DODO_PAYMENTS_CREDIT_PACK_100_PRODUCT_ID: ${DODO_PAYMENTS_CREDIT_PACK_100_PRODUCT_ID}
+      DODO_PAYMENTS_CREDIT_PACK_250_PRODUCT_ID: ${DODO_PAYMENTS_CREDIT_PACK_250_PRODUCT_ID}
+      DODO_PAYMENTS_CREDIT_PACK_500_PRODUCT_ID: ${DODO_PAYMENTS_CREDIT_PACK_500_PRODUCT_ID}
 
       # GitHub Sync
       GITHUB_SYNC_ENABLED: ${GITHUB_SYNC_ENABLED:-false}

@@ -30,7 +30,7 @@ const Step3Visual = () => {
             Live Portfolio
           </span>
           <span className="cursor-pointer text-[10px] font-semibold text-blue-500 hover:underline">
-            alex.veriworkly.me
+            gautam.veriworkly.me
           </span>
         </div>
       </div>

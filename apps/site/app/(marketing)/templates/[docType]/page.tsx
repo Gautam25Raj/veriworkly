@@ -124,7 +124,6 @@ const TemplatesByDocumentTypePage = async ({ params }: PageProps) => {
           <TemplatesHeader docType={docTypeData} templates={templates} />
 
           <TemplateExplorer
-            docType={docType}
             docTypeLabel={docTypeData.label}
             templates={templates}
             familyDescriptions={FAMILY_DESCRIPTIONS}

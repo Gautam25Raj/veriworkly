@@ -2,6 +2,8 @@ import React from "react";
 import { ShieldCheck, Sparkles } from "lucide-react";
 import PriceCard from "./PriceCard";
 import IntervalToggle from "./IntervalToggle";
+import CurrencyToggle from "./CurrencyToggle";
+import { useCurrency } from "../context/CurrencyContext";
 import { type ProductKey, type BillingInterval } from "../data/pricingData";
 
 interface PricingHeroProps {
@@ -21,11 +23,18 @@ const PricingHero = ({
   error,
   onCheckout,
 }: PricingHeroProps) => {
+  const { formatPrice } = useCurrency();
+
   const bundlePrice =
     bundleInterval === "annual"
-      ? { amount: "$11.99", cadence: "/ month", note: "$143.88 billed yearly", savings: "Save 20%" }
+      ? {
+          amount: formatPrice(11.99),
+          cadence: "/ month",
+          note: `${formatPrice(143.88)} billed yearly`,
+          savings: "Save 20%",
+        }
       : {
-          amount: "$14.99",
+          amount: formatPrice(14.99),
           cadence: "/ month",
           note: "Billed monthly",
           savings: "Recommended",
@@ -82,7 +91,7 @@ const PricingHero = ({
           <PriceCard
             marker="03"
             title="3-Day Sprint"
-            price="$2.99"
+            price={formatPrice(2.99)}
             cadence="one-time purchase"
             description="A quick pass to publish your portfolio and tailor resumes for a specific application."
             features={[
@@ -99,7 +108,7 @@ const PricingHero = ({
           <PriceCard
             marker="07"
             title="7-Day Hunt"
-            price="$5.99"
+            price={formatPrice(5.99)}
             cadence="one-time purchase"
             description="Runway to update your story, apply broadly, and publish with full confidence."
             features={[

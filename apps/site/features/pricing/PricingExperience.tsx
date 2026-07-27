@@ -13,6 +13,8 @@ import PricingComparison from "./components/PricingComparison";
 // server-only ADMIN_EMAIL, so the admin's email address never reaches the client bundle — only
 // this boolean does. The backend's BillingController.assertPaymentsEnabled is still the actual
 // enforcement point; this only drives the pre-emptive disabled UI.
+import { CurrencyProvider } from "./context/CurrencyContext";
+
 const PricingExperience = ({ paymentsBlocked }: { paymentsBlocked: boolean }) => {
   const [bundleInterval, setBundleInterval] = useState<"monthly" | "annual">("annual");
   const [customPlan, setCustomPlan] = useState<"portfolio_pro" | "ai_credits">("portfolio_pro");
@@ -44,30 +46,32 @@ const PricingExperience = ({ paymentsBlocked }: { paymentsBlocked: boolean }) =>
   };
 
   return (
-    <div className="bg-background text-foreground overflow-hidden">
-      <PricingHero
-        bundleInterval={bundleInterval}
-        setBundleInterval={setBundleInterval}
-        loading={loading}
-        paymentsBlocked={paymentsBlocked}
-        error={error}
-        onCheckout={checkout}
-      />
+    <CurrencyProvider>
+      <div className="bg-background text-foreground overflow-hidden">
+        <PricingHero
+          bundleInterval={bundleInterval}
+          setBundleInterval={setBundleInterval}
+          loading={loading}
+          paymentsBlocked={paymentsBlocked}
+          error={error}
+          onCheckout={checkout}
+        />
 
-      <PricingAlaCarte
-        customPlan={customPlan}
-        setCustomPlan={setCustomPlan}
-        loading={loading}
-        paymentsBlocked={paymentsBlocked}
-        onCheckout={checkout}
-      />
+        <PricingAlaCarte
+          customPlan={customPlan}
+          setCustomPlan={setCustomPlan}
+          loading={loading}
+          paymentsBlocked={paymentsBlocked}
+          onCheckout={checkout}
+        />
 
-      <PricingComparison
-        loading={loading}
-        paymentsBlocked={paymentsBlocked}
-        onCheckout={checkout}
-      />
-    </div>
+        <PricingComparison
+          loading={loading}
+          paymentsBlocked={paymentsBlocked}
+          onCheckout={checkout}
+        />
+      </div>
+    </CurrencyProvider>
   );
 };
 

@@ -53,8 +53,8 @@ const steps = [
     step: "01",
     title: "Local browser storage",
     description:
-      "Your documents are saved inside your browser's private database (IndexedDB). No text leaves your machine by default, allowing you to use the editors, templates, and features without registering an account.",
-    tags: ["IndexedDB", "No account needed", "Offline capable"],
+      "Your documents are saved inside your browser's private storage (LocalStorage). No text leaves your machine by default, allowing you to use the editors, templates, and features without registering an account.",
+    tags: ["LocalStorage", "No account needed", "Offline capable"],
   },
   {
     step: "02",
@@ -223,7 +223,7 @@ const HowItWorksPage = () => {
                 <span className="text-emerald-400">license</span>: MIT
               </p>
               <p>
-                <span className="text-emerald-400">storage</span>: indexeddb, client-side
+                <span className="text-emerald-400">storage</span>: localstorage, client-side
               </p>
               <p>
                 <span className="text-emerald-400">render</span>: client-side, in-browser

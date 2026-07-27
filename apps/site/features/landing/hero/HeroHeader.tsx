@@ -249,9 +249,9 @@ export const HeroHeader = () => {
                   <div className="h-11 w-11 shrink-0 rounded-full bg-linear-to-br from-blue-400 to-indigo-600 shadow-inner" />
                   <div className="flex-1 overflow-hidden">
                     <div className="truncate font-semibold text-gray-900 dark:text-white">
-                      Alex Developer
+                      Gautam Raj
                     </div>
-                    <div className="truncate text-sm text-gray-500">alex.dev/portfolio</div>
+                    <div className="truncate text-sm text-gray-500">gautam.dev/portfolio</div>
                   </div>
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">
                     <Check className="h-3.5 w-3.5" strokeWidth={3} aria-hidden="true" />

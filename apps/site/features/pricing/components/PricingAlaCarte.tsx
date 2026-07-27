@@ -1,6 +1,7 @@
 import { Zap } from "lucide-react";
 import { customPlans, type ProductKey, type BillingInterval } from "../data/pricingData";
 import CheckoutButton from "./CheckoutButton";
+import { useCurrency } from "../context/CurrencyContext";
 
 interface PricingAlaCarteProps {
   customPlan: "portfolio_pro" | "ai_credits";
@@ -17,8 +18,16 @@ const PricingAlaCarte = ({
   paymentsBlocked,
   onCheckout,
 }: PricingAlaCarteProps) => {
+  const { formatPrice } = useCurrency();
   const selectedCustom = customPlans[customPlan];
   const CustomIcon = selectedCustom.icon;
+
+  const rawPriceMap = {
+    portfolio_pro: 9.99,
+    ai_credits: 5.99,
+  };
+
+  const formattedPrice = formatPrice(rawPriceMap[customPlan]);
 
   return (
     <section className="border-border border-b py-24 lg:py-32">
@@ -77,7 +86,7 @@ const PricingAlaCarte = ({
             </div>
 
             <div className="min-w-45">
-              <p className="text-4xl font-bold tracking-tight">{selectedCustom.price}</p>
+              <p className="text-4xl font-bold tracking-tight">{formattedPrice}</p>
               <p className="text-muted mt-1 text-xs font-bold">per month</p>
               <CheckoutButton
                 className="bg-foreground text-background hover:bg-foreground/95 mt-6 w-full"

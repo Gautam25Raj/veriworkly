@@ -1,15 +1,18 @@
 "use client";
 
-import React, { useRef } from "react";
+import { useRef } from "react";
 import { useScroll, useTransform, useSpring } from "framer-motion";
+
 import { useMediaQuery } from "@/hooks/use-media-query";
+
 import BentoResumeCard from "./BentoResumeCard";
-import BentoCoverLetterCard from "./BentoCoverLetterCard";
-import BentoPortfolioCard from "./BentoPortfolioCard";
 import BentoPrivacyCard from "./BentoPrivacyCard";
+import BentoPortfolioCard from "./BentoPortfolioCard";
+import BentoCoverLetterCard from "./BentoCoverLetterCard";
 
 const GaplessBentoGrid = () => {
   const containerRef = useRef<HTMLDivElement>(null);
+
   const isDesktop = useMediaQuery("(min-width: 1024px)");
   const canHover = useMediaQuery("(hover: hover) and (pointer: fine)");
 
@@ -33,7 +36,7 @@ const GaplessBentoGrid = () => {
   return (
     <div
       ref={containerRef}
-      className="grid grid-flow-dense auto-rows-[340px] grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-4"
+      className="grid grid-flow-dense auto-rows-85 grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-4"
     >
       <BentoResumeCard yOffset={col1Y} canHover={canHover} />
       <BentoCoverLetterCard yOffset={col2Y} textX={textX} canHover={canHover} />

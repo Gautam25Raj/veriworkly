@@ -15,7 +15,7 @@ const Step1Visual = () => {
       <div className="space-y-3 font-mono text-[11px]">
         <div className="flex justify-between border-b border-zinc-200 pb-2 dark:border-zinc-900">
           <span className="text-zinc-400">Name:</span>
-          <span className="font-medium text-zinc-800 dark:text-zinc-200">Alex Rivera</span>
+          <span className="font-medium text-zinc-800 dark:text-zinc-200">Gautam Raj</span>
         </div>
         <div className="flex justify-between border-b border-zinc-200 pb-2 dark:border-zinc-900">
           <span className="text-zinc-400">Target:</span>

@@ -75,7 +75,7 @@ const CapabilityMosaic = () => {
             <span className="h-2 w-2 rounded-full bg-amber-400/70" />
             <span className="h-2 w-2 rounded-full bg-emerald-400/70" />
             <span className="ml-1.5 truncate font-mono text-[10px] text-zinc-400">
-              alex.veriworkly.com
+              gautam.veriworkly.com
             </span>
           </div>
           <div className="space-y-1.5 bg-white p-3 dark:bg-[#080808]">
@@ -180,7 +180,7 @@ const CapabilityMosaic = () => {
         </div>
         <div className="mt-8 flex flex-wrap gap-2.5">
           {[
-            { icon: Database, label: "Client-side IndexedDB" },
+            { icon: Database, label: "Client-side LocalStorage" },
             { icon: KeyRound, label: "Better Auth OTP sign-in" },
             { icon: Check, label: "Open-source MIT core" },
             { icon: Sparkles, label: "Developer API keys" },

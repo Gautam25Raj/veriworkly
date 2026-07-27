@@ -54,7 +54,7 @@ const comparisonRows = [
   },
   {
     feature: "Data storage location",
-    veriworkly: "Local-first, IndexedDB",
+    veriworkly: "Local-first, LocalStorage",
     competitor: "Locked on proprietary servers",
   },
   {

@@ -25,7 +25,7 @@ export const privacySections: LegalSection[] = [
           '"Guest Session" means unauthenticated, local-only use of the Service without an Account, identified only by a browser-set session cookie.',
           '"Master Profile" means the single canonical record of your career facts (experience, education, skills, and similar sections) stored under your Account.',
           '"Document" means any resume, cover letter, portfolio, or link-in-bio record you create, whether stored locally, synced to our servers, or published publicly.',
-          '"Local-First Storage" means data stored in your browser\'s IndexedDB database rather than on our servers.',
+          '"Local-First Storage" means data stored in your browser\'s LocalStorage rather than on our servers.',
           '"Personal Data" means any information that identifies or could reasonably be used to identify you.',
           '"Processing" means anything done with data — collecting, storing, using, disclosing, or deleting it.',
         ],
@@ -79,7 +79,7 @@ export const privacySections: LegalSection[] = [
     id: "local-first-architecture",
     title: "Local-First Storage: Where Your Data Actually Lives",
     intro: [
-      "VeriWorkly is built local-first. When you open the Document Studio or Portfolio Builder without logging in, your documents and Master Profile data are written directly to your browser's IndexedDB database. Nothing is transmitted to our servers unless you take an action that requires it (for example, using an AI feature, requesting an ATS scan, importing from GitHub/LinkedIn, or logging in to enable cloud sync).",
+      "VeriWorkly is built local-first. When you open the Document Studio or Portfolio Builder without logging in, your documents and Master Profile data are written directly to your browser's LocalStorage. Nothing is transmitted to our servers unless you take an action that requires it (for example, using an AI feature, requesting an ATS scan, importing from GitHub/LinkedIn, or logging in to enable cloud sync).",
       "If you never create an Account, your data lives only in that browser's local storage (plus a 30-day Guest Session cookie so you don't lose your place). Clearing your browser's site data, using a different browser or device, or reinstalling your OS will remove locally stored, un-synced data. We strongly recommend exporting a backup (available from the dashboard) or creating a free Account if you want durability across devices.",
       'If you log in, your Master Profile and documents are synchronized to our servers (PostgreSQL, with Redis used for caching and rate-limiting) so they\'re available across devices. You can opt individual documents out of cloud sync ("keep local only") from the dashboard.',
     ],

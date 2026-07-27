@@ -1,10 +1,13 @@
 import { fetchApiData, ApiRequestError } from "@/utils/fetchApiData";
 
 /**
- * Releases land roughly weekly, so a 5-minute window spent far more effort revalidating
- * than the data ever changed. 30 minutes still surfaces a new release well inside the
- * window anyone would notice, and a deploy invalidates the cache anyway — every release
- * ships with one.
+ * One week. The changelog only changes when a release ships, and every release ships
+ * with a deploy — which rebuilds the app and drops this cache anyway. So the deploy is
+ * the real invalidation event, and the timer is just a backstop for the case where an
+ * entry is edited in the backend without a corresponding release.
+ *
+ * The previous 5-minute window spent far more effort revalidating than the data ever
+ * changed.
  */
 const CHANGELOG_REVALIDATE_SECONDS = 604800;
 
@@ -180,6 +183,31 @@ export async function fetchChangelogFromBackend(
       pagination: { page, pageSize: CHANGELOG_PAGE_SIZE, total: 0, totalPages: 1 },
       generatedAt: new Date().toISOString(),
     };
+  }
+}
+
+/**
+ * Publish date of the newest release, for the /changelog row in the sitemap.
+ *
+ * `limit=1` keeps this on a different Data Cache key from the page's `limit=15` read,
+ * so the sitemap can hold it for a week without pulling the whole sitemap route down to
+ * the changelog page's revalidate window. Returns null when unavailable so the caller
+ * can fall back to the deploy timestamp rather than emitting a wrong `lastmod`.
+ */
+export async function fetchLatestChangelogPublishedAt(): Promise<Date | null> {
+  try {
+    const listData = await fetchApiData<ChangelogListPayload>("/changelog?limit=1&offset=0", {
+      next: { revalidate: 604800 },
+    });
+
+    const newest = listData.items[0];
+    if (!newest) return null;
+
+    const published = new Date(newest.publishedAt);
+
+    return Number.isNaN(published.getTime()) ? null : published;
+  } catch {
+    return null;
   }
 }
 

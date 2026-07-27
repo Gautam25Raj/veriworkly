@@ -14,7 +14,6 @@ import { getTemplateHref } from "./utils";
 const ALL = "All";
 
 type Props = {
-  docType: string;
   docTypeLabel: string;
   templates: TemplateSummary[];
   familyDescriptions: Record<string, string>;
@@ -33,7 +32,7 @@ type Props = {
  * instead of via `useSearchParams`, which would trigger a client-render bailout and
  * strip that content from the static HTML.
  */
-const TemplateExplorer = ({ docType, docTypeLabel, templates, familyDescriptions }: Props) => {
+const TemplateExplorer = ({ docTypeLabel, templates, familyDescriptions }: Props) => {
   const [selectedFamily, setSelectedFamily] = useState(ALL);
   const [selectedLayout, setSelectedLayout] = useState(ALL);
 
@@ -55,9 +54,10 @@ const TemplateExplorer = ({ docType, docTypeLabel, templates, familyDescriptions
     const family = params.get("family");
     const layout = params.get("layout");
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (family && familyOptions.includes(family)) setSelectedFamily(family);
     if (layout && layoutOptions.includes(layout)) setSelectedLayout(layout);
-    // Options are derived from a build-time constant, so this runs exactly once.
+    // Options come from a build-time constant, so this intentionally runs once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

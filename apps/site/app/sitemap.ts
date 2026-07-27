@@ -4,23 +4,21 @@ import { siteConfig } from "@/config/site";
 import { COMPETITORS } from "@/config/compare";
 import { documentTypeSummaries, templateSummaries } from "@/config/templates";
 
-import { fetchRoadmapFromBackend } from "@/features/roadmap/services/roadmap-backend";
-import { fetchChangelogFromBackend } from "@/features/changelog/services/changelog-backend";
+import { fetchRoadmapSitemapEntries } from "@/features/roadmap/services/roadmap-backend";
+import { fetchLatestChangelogPublishedAt } from "@/features/changelog/services/changelog-backend";
 
 /**
- * Deliberately 5 minutes, not a day.
+ * Almost all of this sitemap is compiled from local config and genuinely cannot change
+ * until the next deploy — a deploy rebuilds the route, so a long window costs nothing.
+ * The one exception is `/roadmap/[id]`: those are real, crawlable URLs created in the
+ * backend without a redeploy, so a build-only sitemap would leave new roadmap pages
+ * undiscoverable. A weekly refresh covers that without pointless churn.
  *
- * Most of this sitemap is compiled from local config and genuinely cannot change until
- * the next deploy. The exception is `/roadmap/[id]`: those are real, crawlable URLs
- * created in the backend without a redeploy, so a build-time-only sitemap would leave
- * new roadmap pages undiscoverable until the next release.
- *
- * Regenerating is close to free — the roadmap/changelog reads below are served from the
- * Data Cache, so a revalidation is a small render with no upstream traffic. Next
- * collapses a route's revalidate to the minimum of the segment value and every fetch
- * inside it, and the roadmap read is cached for 300s, so declaring 86400 here never
- * actually took effect. This states the real behaviour rather than a value that
- * silently loses.
+ * For this to actually hold, the two reads below must be cached for at least this long.
+ * Next collapses a route's revalidate to the minimum of the segment value and every
+ * fetch inside it, so calling the page-facing helpers (cached for 300s) would silently
+ * pin this route to 5 minutes regardless of what is declared here. Both helpers used
+ * below are sitemap-specific and cached on this same 7-day schedule.
  */
 export const revalidate = 604800; // 7 days
 
@@ -189,39 +187,31 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.75,
   }));
 
-  const roadmapData = await fetchRoadmapFromBackend().catch((err) => {
-    console.error("Failed to fetch roadmap items for sitemap:", err);
-    return null;
-  });
+  // Both helpers swallow their own failures and return empty/null. A backend blip must
+  // degrade the sitemap to its static routes, never fail the route — an erroring
+  // sitemap.xml is worse for crawlers than a temporarily shorter one.
+  const [roadmapEntries, changelogLastModified] = await Promise.all([
+    fetchRoadmapSitemapEntries(),
+    fetchLatestChangelogPublishedAt(),
+  ]);
 
-  const roadmapItemRoutes = (roadmapData?.sections.flatMap((section) => section.items) ?? []).map(
-    (item) => ({
-      url: `${siteConfig.url}/roadmap/${item.id}`,
+  const roadmapItemRoutes = roadmapEntries.map((entry) => {
+    const updatedAt = new Date(entry.updatedAt);
+
+    return {
+      url: `${siteConfig.url}/roadmap/${entry.id}`,
       changeFrequency: "weekly" as const,
       priority: 0.65,
-      lastModified: new Date(item.updatedAt),
-    }),
-  );
-
-  const changelogData = await fetchChangelogFromBackend().catch((err) => {
-    console.error("Failed to fetch changelog entries for sitemap:", err);
-    return null;
+      // An unparseable timestamp would render as `Invalid Date` in the XML.
+      lastModified: Number.isNaN(updatedAt.getTime()) ? lastModified : updatedAt,
+    };
   });
 
   /**
-   * Changelog entries are anchors on /changelog, not routes of their own. A fragment
-   * is not a distinct URL, so `#id` entries are discarded by crawlers — we surface the
-   * newest publish date on the /changelog entry instead of emitting dead rows.
+   * Changelog entries are anchors on /changelog, not routes of their own. A fragment is
+   * not a distinct URL, so `#id` entries are discarded by crawlers — the newest publish
+   * date is surfaced on the /changelog row below instead of emitting dead rows.
    */
-  const changelogLastModified = (changelogData?.entries ?? []).reduce<Date | undefined>(
-    (latest, entry) => {
-      const published = new Date(entry.publishedAt);
-      if (Number.isNaN(published.getTime())) return latest;
-      return !latest || published > latest ? published : latest;
-    },
-    undefined,
-  );
-
   const compareRoutes = COMPETITORS.map((competitor) => ({
     url: `${siteConfig.url}/compare/${competitor.id}`,
     changeFrequency: "monthly" as const,

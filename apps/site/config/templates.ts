@@ -251,7 +251,12 @@ export const templateSummaries: TemplateSummary[] = [
     tags: ["Website", "Subdomain", "Brutalist", "GSAP Motion", "Interactive"],
     family: "Portfolio Websites",
     layout: "Live site",
-    audience: ["Full-stack engineers", "Frontend developers", "Creative-tech engineers", "UI/UX engineers"],
+    audience: [
+      "Full-stack engineers",
+      "Frontend developers",
+      "Creative-tech engineers",
+      "UI/UX engineers",
+    ],
     bestFor: [
       "Developers who want to stand out from generic glassmorphism portfolios.",
       "Engineers and creators who appreciate high-craft typography and kinetic text interactions.",
@@ -277,7 +282,8 @@ export const templateSummaries: TemplateSummary[] = [
       },
       {
         title: "Table experience & contact band",
-        description: "Clean table-style experience timeline ending with a full-width amber call to action.",
+        description:
+          "Clean table-style experience timeline ending with a full-width amber call to action.",
         items: ["Table timeline", "Hover highlights", "Full-width contact band"],
       },
     ],

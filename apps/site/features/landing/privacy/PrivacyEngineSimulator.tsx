@@ -94,7 +94,7 @@ const PrivacyEngineSimulator = () => {
                 )}
               </div>
               <span className="font-mono text-[9px] font-bold tracking-widest text-zinc-400 uppercase">
-                {activeEngine === "local" ? "IndexedDB Vault" : "Central DB"}
+                {activeEngine === "local" ? "LocalStorage Vault" : "Central DB"}
               </span>
             </div>
           </motion.div>
@@ -129,7 +129,7 @@ const PrivacyEngineSimulator = () => {
           <span
             className={activeEngine === "local" ? "font-bold text-emerald-500" : "text-zinc-500"}
           >
-            {activeEngine === "local" ? "IndexedDB local-first" : "Postgres server cluster"}
+            {activeEngine === "local" ? "LocalStorage local-first" : "Postgres server cluster"}
           </span>
         </div>
         <div className="flex justify-between">

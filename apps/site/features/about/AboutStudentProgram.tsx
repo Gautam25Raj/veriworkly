@@ -71,8 +71,7 @@ const AboutStudentProgram = () => {
               </h3>
               <p className="max-w-sm text-sm leading-6 text-zinc-500 dark:text-zinc-400">
                 Represent VeriWorkly on your campus, help peers build their career identity, and
-                earn free Creator Pro licenses, point boosters, and hackathon workshop
-                sponsorships.
+                earn free Creator Pro licenses, point boosters, and hackathon workshop sponsorships.
               </p>
             </div>
             <Link

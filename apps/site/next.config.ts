@@ -15,13 +15,13 @@ const backendOrigin = (() => {
 
 const connectSrc = ["'self'", backendOrigin, "https://*.veriworkly.com"].filter(Boolean).join(" ");
 
+const isProd = process.env.NODE_ENV === "production";
+
 const contentSecurityPolicy = [
   "default-src 'self'",
-  // 'unsafe-inline' is still required: next-themes injects a blocking inline script to
-  // set the theme class before paint, and every page ships inline JSON-LD. Moving to a
-  // nonce needs middleware, which would opt every static route into dynamic rendering —
-  // a bad trade for this site. 'unsafe-eval' is NOT needed and has been dropped.
-  "script-src 'self' 'unsafe-inline'",
+  // 'unsafe-inline' is required for next-themes and inline JSON-LD.
+  // 'unsafe-eval' is enabled ONLY in development mode so React Fast Refresh and dev tools can reconstruct callstacks.
+  `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' blob: data: https:",
   "font-src 'self' data:",
@@ -35,7 +35,10 @@ const contentSecurityPolicy = [
   "frame-src 'none'",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
-  "upgrade-insecure-requests",
+  // Production only. Locally the backend is plain http://localhost:8080, and although
+  // browsers treat localhost as a trustworthy origin, a non-localhost dev backend (a LAN
+  // IP, a tunnel) would get silently upgraded to https and fail to connect.
+  ...(process.env.NODE_ENV === "production" ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
 const securityHeaders = [

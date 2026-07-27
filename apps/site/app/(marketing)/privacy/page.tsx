@@ -41,7 +41,7 @@ const privacyTopics = [
   {
     title: "Local-First Browser Storage",
     description:
-      "Your documents and Master Profile facts are written to your browser's private storage (IndexedDB) first. Nothing is uploaded to our servers unless you log in, sync, or trigger a feature that requires it.",
+      "Your documents and Master Profile facts are written to your browser's private local storage (LocalStorage) first. Nothing is uploaded to our servers unless you log in, sync, or trigger a feature that requires it.",
   },
   {
     title: "Opt-In Portfolio Publishing",

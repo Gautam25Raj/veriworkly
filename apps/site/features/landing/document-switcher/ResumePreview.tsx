@@ -5,7 +5,7 @@ const ResumePreview = () => {
     <div className="flex h-full flex-col p-8">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-lg font-bold text-zinc-900 dark:text-white">Alex Rivera</p>
+          <p className="text-lg font-bold text-zinc-900 dark:text-white">Gautam Raj</p>
           <p className="text-xs text-zinc-400">React Architect &middot; San Francisco, CA</p>
         </div>
         <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">

@@ -339,6 +339,77 @@ export async function fetchRoadmapFromBackend(query: RoadmapQuery = {}): Promise
   }
 }
 
+/** One week — the sitemap's own cadence, independent of the 5-minute page cache. */
+const SITEMAP_REVALIDATE_SECONDS = 604800;
+
+/**
+ * The backend caps `limit` at 50. Deliberately different from the pages' `limit=20` so
+ * this keeps its own Data Cache entry — see `fetchRoadmapSitemapEntries`.
+ */
+const SITEMAP_PAGE_SIZE = 50;
+
+/** 50 x 20 = 1000 roadmap items per status, far beyond any realistic board. */
+const SITEMAP_MAX_PAGES = 20;
+
+export interface RoadmapSitemapEntry {
+  id: string;
+  updatedAt: string;
+}
+
+/**
+ * Roadmap URLs for the sitemap, cached on the sitemap's own schedule.
+ *
+ * The page-facing reads are cached for 300s. Next collapses a route's revalidate to the
+ * minimum of its segment value and every fetch inside it, so calling those helpers here
+ * silently dragged /sitemap.xml down to 5 minutes no matter what the segment declared.
+ *
+ * Requesting the backend's maximum `limit=50` produces a different URL from the pages'
+ * `limit=20`, so this gets its own Data Cache entry and its own lifetime — rather than
+ * two different revalidate values fighting over one key. It also fetches in far fewer
+ * round trips, which is all a list of ids and timestamps needs.
+ */
+export async function fetchRoadmapSitemapEntries(): Promise<RoadmapSitemapEntry[]> {
+  const statuses: RoadmapStatus[] = ["todo", "in-progress", "done"];
+
+  const perStatus = await Promise.all(
+    statuses.map(async (status) => {
+      const entries: RoadmapSitemapEntry[] = [];
+      let offset = 0;
+
+      try {
+        for (let page = 0; page < SITEMAP_MAX_PAGES; page++) {
+          const query = new URLSearchParams({
+            status,
+            sort: "newest",
+            limit: SITEMAP_PAGE_SIZE.toString(),
+            offset: offset.toString(),
+          });
+
+          const listData = await fetchApiData<RoadmapListPayload>(`/roadmap?${query.toString()}`, {
+            next: { revalidate: SITEMAP_REVALIDATE_SECONDS },
+          });
+
+          entries.push(
+            ...listData.items.map((item) => ({ id: item.id, updatedAt: item.updatedAt })),
+          );
+
+          const nextOffset = listData.pagination.nextOffset;
+          if (!listData.hasMore || nextOffset === null || nextOffset <= offset) break;
+
+          offset = nextOffset;
+        }
+      } catch {
+        // Degrade to whatever this status already yielded rather than losing every
+        // roadmap URL because one page failed.
+      }
+
+      return entries;
+    }),
+  );
+
+  return perStatus.flat();
+}
+
 export async function fetchRoadmapFeatureById(id: string): Promise<RoadmapFeature | null> {
   try {
     const feature = await fetchApiData<RoadmapFeature>(`/roadmap/${id}`, {

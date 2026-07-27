@@ -66,7 +66,7 @@ export const faqs: FAQItem[] = [
     id: "landing-flexible-passes",
     question: "What are Flexible Passes (3-Day and 7-Day Sprint Passes)?",
     answer:
-      "Flexible Passes are one-time payments ($2.99 for 3 days or $5.99 for 7 days) that unlock Creator Pro hosting, AI writing credits, and advanced exports for active job hunts without requiring a recurring monthly subscription.",
+      "Flexible Passes are one-time payments (3-Day or 7-Day Sprint Passes) that unlock Creator Pro hosting, AI writing credits, and advanced exports for active job hunts without requiring a recurring monthly subscription.",
     category: "Pricing & Plans",
   },
   {

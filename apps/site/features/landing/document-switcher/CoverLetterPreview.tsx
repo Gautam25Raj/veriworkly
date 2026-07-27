@@ -22,7 +22,7 @@ const CoverLetterPreview = () => {
 
       <div className="mt-auto border-t border-zinc-100 pt-5 dark:border-zinc-900">
         <p className="text-xs text-zinc-400">Sincerely,</p>
-        <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Alex Rivera</p>
+        <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Gautam Raj</p>
       </div>
     </div>
   );

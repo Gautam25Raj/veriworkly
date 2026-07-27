@@ -16,7 +16,7 @@ export const faqs = [
     category: "general",
     question: "Is my data really private?",
     answer:
-      "Yes. VeriWorkly uses a local-first architecture. Your document drafts and profile data are stored directly inside your browser's local database (IndexedDB). Optional features like cloud backups and web portfolio subdomains are only activated when you choose to register and log in.",
+      "Yes. VeriWorkly uses a local-first architecture. Your document drafts and profile data are stored directly inside your browser's local storage (LocalStorage). Optional features like cloud backups and web portfolio subdomains are only activated when you choose to register and log in.",
   },
   {
     id: "account-requirement",
@@ -121,7 +121,7 @@ export const faqs = [
     category: "billing",
     question: "Do you offer short-term passes instead of subscriptions?",
     answer:
-      "Yes. We offer a 3-Day Sprint Pass ($2.99) with 150 AI credits and a 7-Day Hunt Pass ($5.99) with 400 AI credits. Both passes grant full Creator Pro subdomain publishing and expire automatically without recurring charges.",
+      "Yes. We offer a 3-Day Sprint Pass with 150 AI credits and a 7-Day Hunt Pass with 400 AI credits. Both passes grant full Creator Pro subdomain publishing and expire automatically without recurring charges.",
   },
   {
     id: "ai-credits-reset",
@@ -198,14 +198,14 @@ export const faqs = [
     category: "billing",
     question: "What happens if I run out of AI credits?",
     answer:
-      "If you run out of credits, you can wait for your next monthly cycle reset, buy a one-time AI credit top-up ($2.99 for 250 credits, or $4.99 for 500 credits, valid 90 days), or purchase a 3-Day or 7-Day pass to reload your credit balance.",
+      "If you run out of credits, you can wait for your next monthly cycle reset, buy a one-time AI credit top-up, or purchase a 3-Day or 7-Day pass to reload your credit balance.",
   },
   {
     id: "refund-policy",
     category: "billing",
     question: "Do you offer refunds on passes or subscriptions?",
     answer:
-      "Because we offer very low-cost, time-boxed passes (from $2.99) to fully test our hosting and AI systems before you commit to a subscription, we generally do not issue refunds. However, if you experience double-billing or a technical failure, contact support to request a manual review.",
+      "Because we offer low-cost, time-boxed passes to fully test our hosting and AI systems before committing to a subscription, we generally do not issue refunds. However, if you experience double-billing or a technical failure, contact support to request a manual review.",
   },
   {
     id: "password-protection",

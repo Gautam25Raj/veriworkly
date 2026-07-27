@@ -1,8 +1,8 @@
 "use client";
 
-import React from "react";
-import { motion, MotionValue } from "framer-motion";
 import { FileText } from "lucide-react";
+import { motion, MotionValue } from "framer-motion";
+
 import BentoCard from "./BentoCard";
 
 interface BentoCoverLetterCardProps {
@@ -14,18 +14,20 @@ interface BentoCoverLetterCardProps {
 const BentoCoverLetterCard = ({ yOffset, textX, canHover }: BentoCoverLetterCardProps) => {
   return (
     <BentoCard
-      className="col-span-1 flex flex-col justify-end border-zinc-200/60 bg-zinc-50/50 sm:col-span-2 sm:row-span-1 dark:border-zinc-800/80 dark:bg-[#0c0c0c]/40"
-      glowColor="rgba(6,182,212,0.1)"
       yOffset={yOffset}
       canHover={canHover}
+      glowColor="rgba(6,182,212,0.1)"
+      className="col-span-1 flex flex-col justify-end border-zinc-200/60 bg-zinc-50/50 sm:col-span-2 sm:row-span-1 dark:border-zinc-800/80 dark:bg-[#0c0c0c]/40"
     >
       <div className="absolute top-8 right-8 hidden w-64 rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs sm:block dark:border-zinc-800 dark:bg-[#0c0c0c]/90">
         <div className="mb-2 flex gap-2">
           <div className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />
+
           <div className="font-mono text-[9px] font-semibold tracking-widest text-blue-600 uppercase dark:text-blue-400">
             AI Tailoring
           </div>
         </div>
+
         <div className="space-y-1.5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
           I am thrilled to apply for the{" "}
           <motion.span
@@ -50,6 +52,7 @@ const BentoCoverLetterCard = ({ yOffset, textX, canHover }: BentoCoverLetterCard
         <h3 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-white">
           Contextual Cover Letters
         </h3>
+
         <p className="mt-2 text-zinc-500 dark:text-zinc-400">
           Generate perfectly toned cover letters that map your experience directly to the role
           requirements.

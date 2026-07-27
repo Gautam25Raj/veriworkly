@@ -57,7 +57,7 @@ export const termsSections: LegalSection[] = [
     id: "guest-local-first",
     title: "Guest Sessions & Local-First Data Risk",
     intro: [
-      "If you use the Service without an Account, your documents and Master Profile are stored only in your browser's local storage (IndexedDB) and are tracked to a 30-day Guest Session cookie. This is a deliberate design choice to let you start immediately, without a signup wall — but it comes with a real risk you should understand and accept:",
+      "If you use the Service without an Account, your documents and Master Profile are stored only in your browser's local storage (LocalStorage) and are tracked to a 30-day Guest Session cookie. This is a deliberate design choice to let you start immediately, without a signup wall — but it comes with a real risk you should understand and accept:",
     ],
     subsections: [
       {

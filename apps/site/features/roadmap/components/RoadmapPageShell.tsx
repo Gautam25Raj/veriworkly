@@ -9,7 +9,6 @@ import RoadmapHeader from "./RoadmapHeader";
 import RoadmapStatsGrid from "./RoadmapStatsGrid";
 import RoadmapSortControls from "./RoadmapSortControls";
 import RoadmapStatusFilters from "./RoadmapStatusFilters";
-import { buildHref } from "./roadmap-utils";
 
 interface RoadmapPageShellProps {
   title: string;

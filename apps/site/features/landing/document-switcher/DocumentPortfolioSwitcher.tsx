@@ -8,14 +8,14 @@ export type DocumentPreviewTabId = "resume" | "cover-letter" | "portfolio";
 
 const tabs: { id: DocumentPreviewTabId; label: string; icon: typeof FileText; urlLabel: string }[] =
   [
-    { id: "resume", label: "ATS Resume PDF", icon: FileText, urlLabel: "resume-alex-rivera.pdf" },
+    { id: "resume", label: "ATS Resume PDF", icon: FileText, urlLabel: "resume-gautam-raj.pdf" },
     {
       id: "cover-letter",
       label: "Cover Letter",
       icon: Mail,
       urlLabel: "cover-letter-acme-corp.pdf",
     },
-    { id: "portfolio", label: "Live Web Portfolio", icon: Globe, urlLabel: "alex.veriworkly.me" },
+    { id: "portfolio", label: "Live Web Portfolio", icon: Globe, urlLabel: "gautam.veriworkly.me" },
   ];
 
 interface DocumentPortfolioSwitcherProps {

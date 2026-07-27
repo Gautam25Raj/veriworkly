@@ -7,7 +7,7 @@ const PortfolioPreview = () => {
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-full bg-linear-to-br from-blue-500 to-cyan-400" />
           <div>
-            <p className="text-sm font-bold text-zinc-900 dark:text-white">Alex Rivera</p>
+            <p className="text-sm font-bold text-zinc-900 dark:text-white">Gautam Raj</p>
             <p className="text-xs text-zinc-400">React Architect</p>
           </div>
         </div>
@@ -31,7 +31,7 @@ const PortfolioPreview = () => {
 
       <div className="mt-auto flex items-center justify-between border-t border-zinc-100 pt-5 dark:border-zinc-900">
         <span className="font-mono text-[11px] font-semibold text-blue-500">
-          alex.veriworkly.me
+          gautam.veriworkly.me
         </span>
         <span className="text-[10px] text-zinc-400">Custom subdomain, included free</span>
       </div>

@@ -1,54 +1,133 @@
 ---
 title: Creating Your First Resume
-description: A comprehensive guide to building, customizing, and exporting a professional resume.
+description: Building, customising, and exporting a resume in the VeriWorkly editor.
 ---
 
 # Creating Your First Resume
 
-VeriWorkly provides an intuitive, high-performance editor designed to streamline the resume building process. This guide outlines the essential steps to create a professional document from inception to export.
-
-## 1. Initializing the Document
-
-From the main dashboard, select **Create New Resume**. You are presented with two options:
-
-- **Blank Template**: Start with a clean slate to manually enter your data.
-- **Import JSON**: Upload an existing VeriWorkly JSON schema to restore a previous document. For developers, refer to our [Resume Schema](/docs/architecture/resume-schema) for detailed field definitions.
-
-## 2. Data Entry and Management
-
-Utilize the sidebar navigation to populate the various sections of your resume. The editor provides structured fields for the following domains:
-
-- **Personal Information**: Contact details, location, and professional social links (e.g., LinkedIn, GitHub).
-- **Professional Experience**: Detailed work history. Utilize the integrated rich text editor to format bullet points and highlights.
-- **Education**: Academic history, certifications, and relevant coursework.
-- **Skills**: Granular skill management with support for custom categories.
-
-## 3. Template Selection
-
-The **Templates** tab allows you to switch visual layouts instantly. VeriWorkly ensures data integrity during transitions, allowing you to compare styles without data loss.
-
-- **Precision ATS**: A high-density, single-column layout optimized for maximum machine-readability.
-- **Executive Clarity**: A balanced, contemporary layout with clear section segmentation.
-
-## 4. Visual Customization
-
-The **Appearance** panel provides granular control over the document's aesthetic:
-
-- **Color Palette**: Define the primary accent color to align with your personal brand.
-- **Typography**: Select from curated font pairings optimized for print and screen.
-- **Layout Adjustments**: Fine-tune margins, line heights, and section spacing to optimize page real estate.
-
-## 5. Document Export
-
-VeriWorkly utilizes a client-side rendering engine to ensure pixel-perfect exports while maintaining absolute privacy.
-
-- **PDF Export**: Generates a high-fidelity, ATS-optimized PDF document locally in your browser.
-- **DOCX Export**: Provides an editable Word document for scenarios requiring further manual adjustments.
+You do **not** need an account to build a resume. Open the editor and start writing — your work is
+saved to your browser immediately. Sign in later if you want cloud sync, sharing, AI, or ATS
+scoring.
 
 ---
 
-## Strategic Features
+## 1. Start a document
 
-- **Section Visibility**: Toggle the visibility of individual sections using the "eye" icon. This allows you to maintain a comprehensive dataset while tailoring specific versions of your resume for different roles.
-- **Section Reordering**: Drag and drop sections within the sidebar to modify the document's flow and hierarchy.
-- **Master Profile Integration**: Utilize the [Master Profile](/docs/user-guides/account-management) to seed data across multiple documents, reducing redundant data entry.
+From the dashboard, choose **New Document → Resume**. You have several starting points:
+
+- **Blank** — enter everything manually.
+- **Seeded from your Master Profile** — if you already have a
+  [Master Profile](/docs/product/master-profile), a new resume auto-seeds from it. Editing the resume
+  afterwards never changes the Master Profile.
+- **Import** — bring in existing content from JSON, Markdown, GitHub, or LinkedIn. See
+  [Importing Your Profile](/docs/product/importing-your-profile).
+
+<Callout type="info" title="Free tier: one active resume">
+  Without a paid entitlement, an account can hold **one active resume and one active cover letter**
+  at a time. Deleting a document frees the slot.
+</Callout>
+
+---
+
+## 2. Fill in your content
+
+The left **Editor Map** sidebar lists every section; click one to edit it in the centre panel.
+
+| Section               | Contents                                                                                                                                                                               |
+| :-------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Basics**            | Name, role, headline, email, phone, location. Each contact field has its own toggle for whether it renders as a clickable link.                                                        |
+| **Links**             | GitHub, LinkedIn, Dribbble, X/Twitter, portfolio, Behance, Medium, YouTube, or custom. A display-mode setting controls whether they render as icons, full URLs, or icon-plus-username. |
+| **Summary**           | A short professional summary.                                                                                                                                                          |
+| **Experience**        | Company, role, location, dates, a summary, and bullet highlights. Mark a role `current` to leave the end date open.                                                                    |
+| **Education**         | School, degree, field, dates, and an optional summary.                                                                                                                                 |
+| **Projects**          | Name, role, link (with an optional custom label, or rendered as plain text), summary, highlights, and associated skills.                                                               |
+| **Skills**            | Named groups, each holding a keyword list — for example "Languages: TypeScript, Go, Python".                                                                                           |
+| **Extended sections** | Certifications, awards, publications, languages, interests, volunteer work, references, achievements, and freeform custom blocks.                                                      |
+
+<Callout type="warn" title="Phone numbers are validated as US-format">
+  Phone validation currently expects a 10-digit US number. International numbers will be flagged as
+  invalid — a known limitation, not a bug in your input.
+</Callout>
+
+---
+
+## 3. Control which sections appear, and in what order
+
+Two independent mechanisms, both of which apply to the exported file as well as the preview:
+
+- **Reorder by dragging** — drag a section card in the left Editor Map sidebar to move it. The order
+  number on each card updates as you drop.
+- **Reorder and toggle in Design controls** — the settings panel's section-visibility list offers a
+  **Position** dropdown per section as well as drag handles, plus a visibility toggle.
+
+Hiding a section keeps its data intact. That is the intended way to tailor one document for a
+specific role — trim what is irrelevant without deleting anything.
+
+---
+
+## 4. Choose a template
+
+Two resume templates, both free with no plan-based lock:
+
+- **Precision ATS** — a high-density single-column layout optimised for reliable machine parsing.
+  A good default for technical and corporate applications.
+- **Executive Clarity** — a balanced layout with clearer section segmentation and more generous
+  typography.
+
+Switching templates never changes your data, so you can compare both freely. See
+[Resume Templates](/docs/user-guides/resume-templates).
+
+---
+
+## 5. Customise the appearance
+
+The **Design controls** panel adjusts the visual parameters shared by the on-screen preview and the
+export:
+
+- **Colours** — accent, body text, muted text, page background, section background, borders, and
+  section-heading colour, each set independently.
+- **Typography** — font family (which also determines what gets embedded in the PDF) and line heights
+  for body and heading text.
+- **Spacing** — section spacing and page padding.
+
+---
+
+## 6. Export
+
+The export menu offers six formats, all generated in your browser:
+
+| Format         | Best for                                                          |
+| :------------- | :---------------------------------------------------------------- |
+| **PDF**        | Sending to recruiters and uploading to job boards.                |
+| **DOCX**       | When an employer requires Word, or you want to hand-edit further. |
+| **HTML**       | Embedding or self-hosting.                                        |
+| **Markdown**   | Version control, or pasting into text-based systems.              |
+| **Plain text** | ATS forms that ask you to paste your resume as text.              |
+| **JSON**       | Backup, or re-importing into VeriWorkly later.                    |
+
+<Callout type="warn" title="Fill in or hide empty fields before exporting">
+  Blank date, role, and company fields currently export as the literal placeholder strings `"Start -
+  End"`, `"Role"`, and `"Company"` rather than being omitted — and this affects the real downloaded
+  file, not just the preview. Complete or hide any partially-filled entry first.
+</Callout>
+
+---
+
+## Toolbar actions worth knowing
+
+- **Import JSON / Import Markdown** — bring content in from the toolbar's actions menu.
+- **Reset to defaults** and **Empty all fields** — these wipe the entire document.
+
+<Callout type="warn" title="Destructive actions have no undo">
+  **Reset to defaults** and **Empty all fields** apply immediately with no confirmation step, and
+  the editor has no undo/redo. Export a JSON backup before using either.
+</Callout>
+
+---
+
+## Next steps
+
+- [Resume Templates](/docs/user-guides/resume-templates) — the template system in detail.
+- [Exporting and Sharing](/docs/user-guides/exporting-and-sharing) — share links, passwords, expiry.
+- [ATS Checker](/docs/product/ats-checker) — score the resume you just built.
+- [Master Profile](/docs/product/master-profile) — stop re-typing your history for every application.

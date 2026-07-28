@@ -1,40 +1,74 @@
 ---
 title: Documentation
-description: Official documentation for VeriWorkly, an open-source, local-first resume builder.
+description: Map of the VeriWorkly documentation — product guides, architecture deep-dives, operations runbooks, and the API reference.
 ---
-
-import { Eye, Rocket, Palette, FileDown, ShieldCheck, Database, Layout, Code2 } from "lucide-react";
 
 # VeriWorkly Documentation
 
-VeriWorkly is a professional, open-source platform designed for resume creation, career data management, and high-fidelity document exporting. This documentation provides comprehensive resources for users building their resumes and developers contributing to the ecosystem.
+VeriWorkly is a privacy-first career workspace: resume and cover letter building, a public portfolio
+builder, ATS scoring, AI writing assistance, and the shared Master Profile that connects them. This
+documentation covers both the product's actual behaviour and the engineering behind it.
 
 <Callout title="Machine-Readable Index">
-  A machine-readable summary of this documentation is available at:
-  [https://docs.veriworkly.com/llms.txt](/llms.txt).
+  A machine-readable summary of this documentation is available at
+  [docs.veriworkly.com/llms.txt](/llms.txt).
 </Callout>
 
 ---
 
-## Core Capabilities
+## Product Guides
 
-VeriWorkly is engineered to provide a seamless and secure experience for managing professional identities.
+How the shipped product actually behaves — quotas, gating, edge cases, and known mismatches.
 
 <Cards>
-  <Card title="Quick Start" href="/docs/getting-started/quick-start">
-    Initial steps for deploying or developing with the VeriWorkly platform.
+  <Card title="Master Profile" href="/docs/product/master-profile">
+    The canonical career record, how it seeds documents, and the one-way rule.
   </Card>
+  <Card title="Cover Letter Builder" href="/docs/product/cover-letter-builder">
+    Templates, schema, and where cover letters diverge from resumes.
+  </Card>
+  <Card title="Portfolio Builder" href="/docs/product/portfolio/overview">
+    Templates, the three-pane editor, publishing, subdomains, and analytics.
+  </Card>
+  <Card title="ATS Checker" href="/docs/product/ats-checker">
+    The deterministic core scan, the AI deep-analysis layer, and the shared quota.
+  </Card>
+  <Card title="AI Writing Assistant" href="/docs/product/ai-writing-assistant">
+    Standard vs Expert mode, credit costs, and the reserve/commit flow.
+  </Card>
+  <Card title="Billing & Credits" href="/docs/product/billing-and-credits">
+    Entitlements, the credit ledger, plans, passes, and top-up packs.
+  </Card>
+</Cards>
+
+---
+
+## Architecture
+
+<Cards>
   <Card title="System Overview" href="/docs/overview">
-    A high-level analysis of the VeriWorkly architecture and data flow.
+    Local-first storage, the optional cloud layer, and the full technology stack.
   </Card>
-  <Card title="Architecture" href="/docs/architecture/monorepo">
-    Deep-dives into the monorepo structure, state management, and rendering engine.
+  <Card title="Monorepo" href="/docs/architecture/monorepo">
+    The six applications, the shared UI package, and the private template submodule.
+  </Card>
+  <Card title="State Management" href="/docs/architecture/state-management">
+    Zustand stores, localStorage persistence, and the background sync engine.
+  </Card>
+  <Card title="Export Pipeline" href="/docs/architecture/pdf-generation">
+    The dual-engine template model and the six client-side export formats.
+  </Card>
+  <Card title="Authentication" href="/docs/architecture/auth-system">
+    Better-Auth, email OTP, OAuth providers, and cross-subdomain sessions.
+  </Card>
+  <Card title="Database Schema" href="/docs/architecture/database-schema">
+    The Prisma data model: documents, billing, credits, portfolios, and growth programs.
   </Card>
   <Card title="Resume Schema" href="/docs/architecture/resume-schema">
-    Technical reference for the Master Profile and resume data structures.
+    TypeScript definitions for `ResumeData` and `MasterProfileData`.
   </Card>
-  <Card title="User Guides" href="/docs/user-guides/creating-your-first-resume">
-    Step-by-step instructions for building, customizing, and exporting resumes.
+  <Card title="Design System" href="/docs/architecture/design-system">
+    The `@veriworkly/ui` package, theme tokens, and component inventory.
   </Card>
 </Cards>
 
@@ -42,20 +76,24 @@ VeriWorkly is engineered to provide a seamless and secure experience for managin
 
 ## Technical Reference
 
-For advanced users and developers looking to integrate with or contribute to the platform.
-
 <Cards>
   <Card title="API Reference" href="/api-reference">
-    Complete OpenAPI specification for the VeriWorkly backend services.
+    OpenAPI specification for the VeriWorkly backend services.
+  </Card>
+  <Card title="API Keys" href="/docs/api-keys">
+    Creating, scoping, rotating, and revoking programmatic access keys.
   </Card>
   <Card title="Environment Variables" href="/docs/operations/environment-variables">
-    Comprehensive reference for all configuration options across the ecosystem.
+    Every configuration key across the backend and the frontend applications.
+  </Card>
+  <Card title="Service Status" href="/docs/operations/service-status">
+    Health endpoints, container diagnostics, and common failure modes.
   </Card>
   <Card title="Contributing" href="/docs/contributing/index">
-    Standards and protocols for participating in the open-source community.
+    Issue claiming, branch naming, PR conventions, and coding standards.
   </Card>
   <Card title="Compliance" href="/docs/legal/privacy-policy">
-    Privacy policies, terms of service, and security standards.
+    Privacy policy, terms of service, security policy, and licensing.
   </Card>
 </Cards>
 
@@ -63,17 +101,17 @@ For advanced users and developers looking to integrate with or contribute to the
 
 ## Philosophy
 
-VeriWorkly is built on the principle that professional data should respect user privacy by default. The platform is:
-
-- **Local-First**: Data remains in the user's browser until explicit synchronization is initiated.
-- **Open-Source**: Transparent code distributed under the MIT license.
-- **ATS-Optimized**: High-fidelity document exports designed for modern recruitment systems.
+- **Local-first, not login-first.** Documents are written to the browser first. Cloud sync is opt-in.
+- **Ownership over lock-in.** Every document exports to six formats, including raw JSON.
+- **Transparent AI.** Cost and mode are shown before generation; generated text never overwrites
+  your work without an explicit action.
+- **Open source.** The application code is MIT-licensed and publicly readable.
 
 ---
 
 ## Support
 
-If you encounter issues or have technical inquiries:
-
-- **GitHub**: Open an issue or discussion on the [official repository](https://github.com/VeriWorkly/veriworkly).
-- **Email**: Contact the development team at [info@veriworkly.com](mailto:info@veriworkly.com).
+- **GitHub**: Open an issue or discussion on the
+  [official repository](https://github.com/VeriWorkly/veriworkly).
+- **Email**: [info@veriworkly.com](mailto:info@veriworkly.com).
+- **Security**: Report vulnerabilities per the [Security Policy](/docs/legal/security).

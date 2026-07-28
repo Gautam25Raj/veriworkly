@@ -1,71 +1,154 @@
 ---
 title: State Management
-description: Detailed analysis of the local-first state management strategy and synchronization logic.
+description: Zustand stores, localStorage persistence, and the background document sync engine.
 ---
 
 # State Management
 
-VeriWorkly implements a **Local-First** state management architecture. This approach designates the client's environment as the primary source of truth, utilizing the backend API as a secondary layer for persistence, synchronization, and document processing.
+VeriWorkly's Studio is **local-first**: the browser is the primary source of truth, and the backend
+is an optional persistence and processing layer.
 
-## Strategic Objectives
+## Objectives
 
-1. **Client-Centricity**: Resume data is persisted locally in the browser to ensure maximum privacy and availability.
-2. **Optimistic Updates**: UI interactions result in immediate state transitions, eliminating network-induced latency.
-3. **Decoupled Synchronization**: Data transmission to the cloud is an asynchronous, user-initiated process.
-4. **Data Integrity**: Runtime schema validation ensures that persisted and transmitted data adheres to strict structural requirements.
+1. **Client-centricity** — document data is persisted locally, so the editor works offline and before
+   login.
+2. **Optimistic updates** — UI interactions apply immediately; no network round-trip blocks typing.
+3. **Decoupled synchronisation** — pushing to the cloud is a background process, and can be turned
+   off entirely per account or per document.
+4. **Data integrity** — schema normalisation runs on every load, and a revision counter guards
+   against silent cross-device overwrites.
 
 ---
 
-## Technical Implementation
+## Stores
 
-### Core Technologies
+Studio uses **Zustand** without persistence middleware. Persistence is explicit: stores expose
+`saveToStorage` / `hydrateFromStorage` actions that call dedicated service modules, so writes are
+deliberate rather than a side effect of every state change.
 
-- **Zustand**: A performance-oriented state management library for React.
-- **Persist Middleware**: Facilitates automatic serialization and deserialization of application state to `localStorage`.
-- **Zod**: Provides a robust schema validation layer for data integrity and type safety.
+| Store            | Location                                | Holds                                                                            |
+| :--------------- | :-------------------------------------- | :------------------------------------------------------------------------------- |
+| `useResumeStore` | `features/resume/store/resume-store.ts` | The **single active** `ResumeData` document plus the currently selected section. |
+| `useUserStore`   | `store/useUserStore.ts`                 | The session user, login state, and loading flag.                                 |
 
-### Architecture of the Resume Store
-
-The application's core state resides in the `resume-store.ts`, which manages document collections, active editor sessions, and asynchronous operation states.
+`useResumeStore` holds one document at a time — not a collection. The multi-document library is not
+store state; it is read from and written to `localStorage` through
+`features/documents/services/document-library.ts`.
 
 ```typescript
-interface ResumeStore {
-  resumes: Resume[];
-  currentResume: Resume | null;
-  isLoading: boolean;
+interface ResumeStoreState {
+  resume: ResumeData;
+  selectedSection: ResumeSectionId;
 
-  // State Mutators
-  updateResume: (id: string, partial: Partial<Resume>) => void;
-  deleteResume: (id: string) => Promise<void>;
-  syncWithCloud: () => Promise<void>;
+  setResume: (resume: ResumeData) => void;
+  hydrateFromStorage: () => void;
+  saveToStorage: (options?: SaveResumeOptions) => SaveResumeResult;
+  resetResume: () => void;
+  emptyResume: () => void;
+
+  // Section-level mutators
+  setSectionVisibility: (section: ResumeSectionId, visible: boolean) => void;
+  reorderSections: (fromIndex: number, toIndex: number) => void;
+  updateSectionColumn: (sectionId: ResumeSectionId, column: "left" | "right") => void;
+
+  // Content mutators (basics, summary, links, skills, experience,
+  // education, projects, and custom sections) …
 }
 ```
 
----
-
-## Persistence and Performance Optimization
-
-### Debouncing Strategy
-
-To maintain interface responsiveness during high-frequency editing sessions, VeriWorkly implements a debounced persistence strategy. This reduces the frequency of write operations to the browser's storage engine.
-
-### Schema Validation
-
-The state store validates document collections before use and drops malformed entries instead of maintaining obsolete storage formats.
-
-### Resource Constraints
-
-The application includes error handling for storage quotas. If the browser's storage capacity is reached, the system notifies the user and provides options for cloud-based offloading or document cleanup.
+Every mutator runs the result through `normalizeResumeData` and stamps an `updatedAt` timestamp, so
+malformed or partially-migrated data is repaired on the way in rather than persisted.
 
 ---
 
-## Synchronization Workflow
+## Persistence
 
-The transition from local state to cloud-hosted storage follows a structured protocol:
+All document persistence targets the browser's **`localStorage`**.
 
-1. **Schema Validation**: The document is validated against a comprehensive Zod schema before transmission.
-2. **Temporal Resolution**: The system compares local and remote `updatedAt` timestamps to identify the latest version.
-3. **Conflict Resolution**: VeriWorkly utilizes a "Last Write Wins" strategy while maintaining stable identifiers for document sections to prevent structural data loss.
-4. **State Reconciliation**: Upon successful backend acknowledgement, the local state is updated with server-generated metadata and synchronization timestamps.
+Keys follow a single versioned scheme owned by
+`features/documents/services/storage-keys.ts`:
 
-For a detailed breakdown of the document structure, refer to the [Resume Schema](/docs/architecture/resume-schema) and [Database Schema](/docs/architecture/database-schema) documentation.
+| Key                         | Contents                                                              |
+| :-------------------------- | :-------------------------------------------------------------------- |
+| `veriworkly:docs:v2:active` | The currently open document.                                          |
+| `veriworkly:docs:v2:{type}` | The document collection for a type (`resume`, `cover_letter`, …).     |
+| `veriworkly:sync-outbox`    | Pending sync work items.                                              |
+| `veriworkly:sync-telemetry` | Last attempt / success / error timestamps and the last error message. |
+
+Two custom DOM events (`veriworkly:docs-storage-updated` and
+`veriworkly:sync-outbox-updated`) let the autosave layer and the sync layer notify each other without
+importing one another — this avoids a circular dependency between them.
+
+### Resilience
+
+- **Self-healing reads** — a corrupted JSON value is cleared and replaced with a safe fallback rather
+  than throwing. An uncaught throw inside the fire-and-forget sync tick would silently stop syncing
+  until a page reload.
+- **Schema validation** — document collections are validated on load and malformed entries are
+  dropped instead of being carried forward in an obsolete format.
+- **Quota handling** — when the browser's storage quota is reached, the user is notified and offered
+  cloud offloading or document cleanup.
+
+---
+
+## The sync engine
+
+`features/documents/services/sync-engine.ts` implements a retrying outbox.
+
+### Sync states
+
+```
+local-only → pending → syncing → synced
+                   ↘ conflicted
+```
+
+| State        | Meaning                                                            |
+| :----------- | :----------------------------------------------------------------- |
+| `local-only` | The document is deliberately excluded from sync (`keepLocalOnly`). |
+| `pending`    | Local changes are queued for upload.                               |
+| `syncing`    | An upload is in flight.                                            |
+| `synced`     | Local and cloud agree.                                             |
+| `conflicted` | The server rejected the write because the cloud revision moved on. |
+
+### Outbox items
+
+Each queued document carries an `attempts` count and a `nextAttemptAt` timestamp, so failed uploads
+back off rather than retrying in a tight loop. Conflicted items are excluded from automatic retry —
+they wait for the user to resolve them in the conflict details view under `/settings`.
+
+### Conflict detection
+
+Every `Document` row carries a `revision` integer. The client sends the revision it last saw; if the
+server's revision has advanced, the write is rejected and the local document is marked
+`conflicted` rather than overwritten. Failures are classified by reason (`conflict`, `auth`,
+`forbidden`, `not-found`, `network`, `unknown`) so the UI can respond appropriately — a network blip
+retries, an auth failure prompts a re-login, a conflict prompts resolution.
+
+### Controls
+
+- **Auto-sync toggle** — an account-level setting (`autoSyncEnabled`, default on) exposed at
+  `/settings`, plus a manual **Sync Now** action.
+- **Keep local only** — a per-document opt-out that pins a document to `local-only` and never
+  uploads it.
+
+<Callout type="warn" title="Known issue: stale-snapshot race during in-flight sync">
+  The sync service captures a snapshot of the document when an upload starts. If you keep typing
+  while that network call is in flight, the completion handler can write the pre-sync snapshot back
+  over the newer local edits, losing the interim keystrokes. This is tracked in Studio's internal
+  audit and is not yet resolved — if you are editing heavily, prefer manual **Sync Now** over
+  auto-sync during the session.
+</Callout>
+
+---
+
+## Portfolio state
+
+The portfolio builder implements the same idea independently. Its editor autosaves every **12
+seconds while dirty**, warns on `beforeunload` if there are unsaved changes, and merges a guest local
+draft against the cloud draft by comparing `updatedAt` timestamps so neither side clobbers newer
+data. It does not share Studio's sync engine.
+
+---
+
+For the underlying data shapes, see [Resume Schema](/docs/architecture/resume-schema) and
+[Database Schema](/docs/architecture/database-schema).

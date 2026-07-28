@@ -1,0 +1,15 @@
+{
+  "title": "Billing",
+  "description": "Subscriptions, AI credit wallet, and checkout/portal sessions.",
+  "pages": [
+    "overview",
+    "getBillingSummary",
+    "getBillingHistory",
+    "getCreditWallet",
+    "getCreditHistory",
+    "createBillingCheckout",
+    "cancelBillingCheckout",
+    "createBillingPortal",
+    "createCreditPackCheckout"
+  ]
+}

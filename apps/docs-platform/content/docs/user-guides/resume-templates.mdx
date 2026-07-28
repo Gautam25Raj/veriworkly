@@ -1,69 +1,128 @@
 ---
 title: Resume Templates
-description: Technical reference for the VeriWorkly template system and customization framework.
+description: The document template system — the four built-in templates, the dual-engine model, and how to add your own.
 ---
 
-import { LayoutTemplate, Settings2, Sparkles, RefreshCcw } from "lucide-react";
+import { LayoutTemplate, Mail } from "lucide-react";
 
 # Resume Templates
 
-VeriWorkly utilizes a decoupled architecture that separates professional data (the Master Profile) from visual presentation (the Template). This design enables users to cycle through various aesthetic layouts instantaneously without document modification or data loss.
+VeriWorkly separates professional data (your Master Profile and documents) from visual presentation
+(the template). Switching templates never modifies or loses data, so you can cycle through the whole
+library to compare layouts.
 
 ---
 
-## Technical Optimization
+## Resume templates
 
-All templates within the VeriWorkly library are engineered for compatibility with Applicant Tracking Systems (ATS). We prioritize semantic document structure and standard text layers to ensure maximum machine-readability.
-
-### Template Library
+Both are free. There is no template lock on resumes or cover letters.
 
 <Cards>
   <Card title="Precision ATS" icon={<LayoutTemplate />}>
-    A high-density, single-column layout optimized for maximum information throughput and strict ATS parsing. Perfect for technical and corporate roles.
+    A dense, recruiter-friendly single-column layout for longer resumes, built for parsing accuracy
+    above all else. Tagged: one column, ATS-friendly, compact, simple. Default accent `#10b981`.
   </Card>
 
-<Card title="Executive Clarity" icon={<LayoutTemplate />}>
-  A balanced, contemporary layout with clear section segmentation and refined typography. Ideal for creative, managerial, and general professional applications.
-</Card>
+  <Card title="Executive Clarity" icon={<LayoutTemplate />}>
+    A polished single-column layout with refined spacing, strong section rhythm, and ATS-safe
+    structure. Tagged: one column, ATS-friendly, modern, professional. Default accent `#0ea5e9`.
+  </Card>
 </Cards>
 
----
+Both are single-column and ATS-safe by design — the difference is density versus typographic
+breathing room, not parseability.
 
-## Dual-Engine Rendering
+## Cover letter templates
 
-To achieve perfect visual fidelity across both the editor and the final export, each template in the VeriWorkly ecosystem is built with two distinct rendering implementations:
+<Cards>
+  <Card title="Professional" icon={<Mail />}>
+    Formal letterhead, strong subject treatment, and conservative recruiter-safe spacing. Template id
+    `professional`.
+  </Card>
 
-1.  **Web Engine (`web.tsx`)**: Utilizes standard React and Tailwind CSS 4 to provide a high-performance, interactive editing experience with real-time feedback.
-2.  **PDF Engine (`pdf.tsx`)**: Utilizes `react-pdf` primitives to generate a vector-based, high-resolution document that matches the web preview exactly while ensuring absolute machine-readability.
+  <Card title="VeriWorkly Special" icon={<Mail />}>
+    A branded two-column layout with an identity rail and numbered proof points. Template id
+    `veriworkly-special`.
+  </Card>
+</Cards>
 
----
+See [Cover Letter Builder](/docs/product/cover-letter-builder).
 
-## Source Code Reference
-
-For developers interested in implementing their own templates or understanding the dual-engine architecture, the source code for our core templates is available on GitHub:
-
-| Template              | Web Engine (Tailwind)                                                                                                  | PDF Engine (react-pdf)                                                                                                 |
-| :-------------------- | :--------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------- |
-| **Precision ATS**     | [web.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/precision-ats/web.tsx)     | [pdf.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/precision-ats/pdf.tsx)     |
-| **Executive Clarity** | [web.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/executive-clarity/web.tsx) | [pdf.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/executive-clarity/pdf.tsx) |
-
-You can also explore the [Template Registry](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/index.ts) to see how these engines are integrated into the Studio.
-
----
-
-## Interface Customization
-
-The VeriWorkly editor provides granular control over the visual output of each template via our real-time state engine.
-
-### Global Design Parameters
-
-- **Dynamic Typography**: Configure primary font families and base sizes. The template engine automatically calculates proportionate heading scales and line-heights.
-- **Spatial Configuration**: Manage document margins and intra-section padding to optimize page utilization and document flow.
-- **Thematic Controls**: Define primary accent colors for headings, links, and graphic elements to ensure brand consistency.
-- **Structural Reordering**: Utilize drag-and-drop controls to modify section hierarchy (e.g., prioritizing academic history over professional experience).
+<Callout type="info" title="Portfolio templates are separate">
+  The four **portfolio** templates — Signal, Atelier, Nimbus, and Cipher — belong to the portfolio
+  builder, not the document builder, and two of them are premium. See [Portfolio:
+  Templates](/docs/product/portfolio/templates).
+</Callout>
 
 ---
 
-## Data Integrity and Persistence
+## Dual-engine rendering
 
-The separation of content and layout ensures that data persists throughout the preview process. Users may cycle through the entire template library to assess visual compatibility without risking document corruption or data loss. For further details on the underlying data structure, refer to the [State Management](/docs/architecture/state-management) documentation.
+Each template is implemented twice against the same data:
+
+1. **Web engine (`web.tsx`)** — React and Tailwind CSS 4, powering the live paged preview.
+2. **PDF engine (`pdf.tsx`)** — `@react-pdf/renderer` primitives, producing the exported PDF with
+   embedded fonts and real vector text.
+
+Both read the same `ResumeCustomization` object, which is what keeps the preview and the export
+visually aligned. See [Export Pipeline](/docs/architecture/pdf-generation).
+
+---
+
+## Source reference
+
+| Template                              | Web engine                                                                                                              | PDF engine                                                                                                              |
+| :------------------------------------ | :---------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------- |
+| **Precision ATS**                     | [web.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/precision-ats/web.tsx)      | [pdf.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/precision-ats/pdf.tsx)      |
+| **Executive Clarity**                 | [web.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/executive-clarity/web.tsx)  | [pdf.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/executive-clarity/pdf.tsx)  |
+| **Professional** (cover letter)       | [web.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/cover-letter/professional/web.tsx) | [pdf.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/cover-letter/professional/pdf.tsx) |
+| **VeriWorkly Special** (cover letter) | [web.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/cover-letter/veriworkly/web.tsx)   | [pdf.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/cover-letter/veriworkly/pdf.tsx)   |
+
+The registry that wires templates into Studio is
+[`apps/studio/templates/index.ts`](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/index.ts).
+
+---
+
+## Template metadata
+
+Each template exports a `meta.ts` describing itself to the picker:
+
+```typescript
+export const precisionAtsMeta = {
+  id: "precision-ats",
+  name: "Precision ATS",
+  documentType: "RESUME",
+  description: "A dense, recruiter-friendly layout …",
+  accentColor: "#10b981",
+  previewImage: "/templates/resume/precision-ats.png",
+  tags: ["One column", "ATS-friendly", "Compact", "Simple"],
+} satisfies TemplateMeta;
+```
+
+---
+
+## Customisation
+
+Every template honours the same customisation object:
+
+- **Colours** — accent, body text, muted text, page background, section background, borders, and
+  section headings, each independently set.
+- **Typography** — font family (which drives PDF font embedding) plus body and heading line heights.
+- **Spacing** — section spacing and page padding.
+- **Structure** — per-section visibility and ordering, and for two-column templates, a left/right
+  column assignment per section.
+
+See [Resume Schema](/docs/architecture/resume-schema#customization) for the full field list.
+
+---
+
+## Adding a template
+
+1. Create `apps/studio/templates/resume/{your-template}/` containing `meta.ts`, `web.tsx`, and
+   `pdf.tsx`.
+2. Register the metadata and web renderer in `apps/studio/templates/index.ts`.
+3. Register the PDF component in `apps/studio/templates/resume/pdf/index.ts`.
+4. Verify against `/pdf-debug/resume/{your-template}`, the internal PDF rendering debugger.
+
+New templates are welcome contributions — see the
+[Contributing Guide](/docs/contributing/index).

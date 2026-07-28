@@ -1,0 +1,10 @@
+{
+  "title": "Portfolio Assets",
+  "description": "Presigned image uploads for portfolio media.",
+  "pages": [
+    "overview",
+    "createPortfolioAssetUploadUrl",
+    "completePortfolioAssetUpload",
+    "deletePortfolioAsset"
+  ]
+}

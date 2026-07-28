@@ -1,0 +1,13 @@
+{
+  "title": "Affiliates",
+  "description": "Affiliate enrollment, referrals, commissions, and withdrawals.",
+  "pages": [
+    "overview",
+    "trackAffiliateClick",
+    "getAffiliateLeaderboard",
+    "getMyAffiliateDashboard",
+    "enrollAsAffiliate",
+    "applyAffiliateReferral",
+    "requestAffiliateWithdrawal"
+  ]
+}

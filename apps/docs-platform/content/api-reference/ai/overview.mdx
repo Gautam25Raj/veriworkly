@@ -1,0 +1,41 @@
+---
+title: AI Generation
+description: AI-powered content generation actions and their credit costs.
+---
+
+## Description
+
+The AI module powers every AI-assisted writing feature in the product — rewriting a section,
+generating a cover letter, tailoring a resume to a job description, and more. `GET /ai/actions`
+lists every action along with its Standard and Expert mode credit costs so you can build pricing UI
+before calling `POST /ai/generate`.
+
+Credits use a two-phase **reserve → commit/release** flow: the cost for the chosen action and mode
+is reserved from the caller's AI credit wallet before the AI provider is called, and only committed
+after a successful response. If the AI call errors out, the reservation is released instead of
+committed — **a failed generation never burns credits.**
+
+Expert mode routes to a stronger, more expensive model than Standard mode for the same action.
+
+<Callout type="warn" title="Read pricing at runtime">
+  Credit costs come from server-side configuration and can change without a documentation update.
+  Treat `GET /ai/actions` as the only source of truth for pricing rather than hardcoding numbers.
+</Callout>
+
+## Authentication
+
+| Method | Access Level      | Requirement                                                                                     |
+| :----- | :----------------- | :------------------------------------------------------------------------------------------------ |
+| `GET`  | **Authenticated**  | No user session and no scope needed, but still requires an API key or a first-party origin.     |
+| `POST` | **Authenticated**  | A user session, or an API key carrying the `ai:write` scope. Anonymous callers are rejected.    |
+
+<Callout type="info">
+  `GET /ai/actions` is not open to the public. It returns no user data and spends no credits, but a
+  request that carries neither an API key nor a whitelisted first-party origin is still rejected
+  with `401`.
+</Callout>
+
+## Available Endpoints
+
+- `GET /ai/actions` — [List AI Actions](./getAiActions)
+- `POST /ai/generate` — [Generate AI Content](./generateAiContent)

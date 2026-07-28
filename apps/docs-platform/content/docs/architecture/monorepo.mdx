@@ -1,115 +1,180 @@
 ---
 title: Monorepo Architecture
-description: Analysis of the workspace structure and inter-service organization within the VeriWorkly repository.
+description: The six applications, the shared UI package, and the private template submodule.
 ---
 
 # Monorepo Architecture
 
-VeriWorkly utilizes a monorepo structure to manage multiple integrated applications and shared packages within a single repository. This approach ensures consistent dependency management and facilitates the sharing of design tokens and core logic.
+VeriWorkly uses npm workspaces to manage six applications and one shared package in a single
+repository.
 
 > [!NOTE]
-> The full repository structure and configuration can be explored directly on [GitHub](https://github.com/VeriWorkly/veriworkly).
+> The full repository structure can be explored on
+> [GitHub](https://github.com/VeriWorkly/veriworkly).
 
-## Application Architecture
-
-The platform is composed of several primary applications, each with a distinct operational scope.
-
-### 1. Marketing Site (`apps/site`)
-
-- **Port**: 3000
-- **Framework**: Next.js (App Router)
-- **Scope**: Landing page, feature showcases, and public marketing content.
-- **Key Features**: SEO-optimized pages, interactive demos, and conversion funnels.
-
-### 2. Resume Studio (`apps/studio`)
-
-- **Port**: 3001
-- **Framework**: Next.js (App Router)
-- **Scope**: Primary user interface for resume construction, management, and local-first editing.
-- **Key Features**: Dual-engine rendering (Web/PDF), Zustand-based state persistence, and real-time template customization.
-
-### 3. API Server (`apps/server`)
-
-- **Port**: 8080
-- **Framework**: Node.js / Express
-- **Scope**: Core backend services including authentication, data synchronization, and administrative tasks.
-- **Key Features**: Prisma ORM integration, Better-Auth security layer, and GitHub data bridge.
-
-### 4. Documentation Platform (`apps/docs-platform`)
-
-- **Port**: 3002
-- **Framework**: Next.js / Fumadocs
-- **Scope**: Technical and user documentation.
-- **Key Features**: MDX-based content management and automated API reference generation.
-
-### 5. Blog Platform (`apps/blog-platform`)
-
-- **Port**: 3003
-- **Framework**: Next.js / Fumadocs
-- **Scope**: Product updates, career-oriented content, and official guides.
+The workspace globs declared in the root `package.json` are `apps/site`, `apps/studio`,
+`apps/portfolio`, `apps/blog-platform`, `apps/docs-platform`, `apps/server`, and `packages/*`.
 
 ---
 
-## Shared Infrastructure (`packages/ui`)
+## Applications
 
-The `@veriworkly/ui` package serves as the centralized design system for the entire monorepo. It provides:
+### 1. Marketing site — `apps/site`
 
-- Reusable React primitives and components.
-- Standardized layout utilities.
-- Centralized Tailwind CSS 4 theme configurations and design tokens.
+- **Port**: 3000 · **Workspace**: `@veriworkly/site` · **Framework**: Next.js 16 (App Router)
+- **Scope**: the public face of the product — landing, pricing, features, how-it-works, FAQ, about,
+  contact, roadmap, security/responsible-disclosure, public GitHub activity stats, a public style
+  guide, legal pages, resume/cover-letter template showcase, and the affiliate and ambassador program
+  pages.
+- **Notable**: ships a machine-readable "AI answer engine" layer (`public/llms.txt`,
+  `public/pricing.md`) and a `robots.ts` that explicitly allowlists AI crawlers.
+
+### 2. Studio — `apps/studio`
+
+- **Port**: 3001 · **Workspace**: `@veriworkly/studio` · **Framework**: Next.js 16 (App Router)
+- **Scope**: the authenticated workspace. Resume and cover letter editors, Master Profile,
+  ATS checker, AI tools, document sharing, billing and credits, developer API keys, affiliate and
+  ambassador dashboards, and the internal admin area.
+- **Notable**: local-first document storage in `localStorage` with a background sync engine;
+  dual-engine templates (web preview plus `@react-pdf/renderer` output); an installable PWA manifest.
+
+### 3. Portfolio — `apps/portfolio`
+
+- **Port**: 3004 · **Workspace**: `@veriworkly/portfolio` · **Framework**: Next.js 16 (App Router)
+- **Scope**: three surfaces in one app — the public template gallery and marketing pages, the
+  authenticated editor/dashboard/analytics/settings workspace, and the **published portfolio sites
+  themselves**, served on `*.veriworkly.com` subdomains and at `portfolio.veriworkly.com/portfolio/{username}`.
+- **Notable**: a `proxy.ts` middleware rewrites both the subdomain host and the shared path onto the
+  internal `/portfolios/[username]/[[...slug]]` route, and gates the workspace behind a session cookie.
+
+### 4. API server — `apps/server`
+
+- **Port**: 8080 · **Workspace**: `@veriworkly/server` · **Framework**: Node.js / Express 4 / TypeScript
+- **Scope**: every backend capability — authentication, documents, share links, Master Profile,
+  profile import, AI, ATS, portfolios, portfolio assets, billing, affiliates, ambassador, roadmap,
+  changelog, GitHub stats, usage metrics, contact, and admin.
+- **Notable**: PostgreSQL via Prisma 7, Redis for caching/quotas/locks, clustered across CPU cores
+  with `throng` in production, and five `node-cron` background jobs guarded by Redis distributed locks.
+
+### 5. Documentation platform — `apps/docs-platform`
+
+- **Port**: 3002 · **Workspace**: `@veriworkly/docs-platform` · **Framework**: Next.js 16 / Fumadocs
+- **Scope**: this site. MDX content under `content/docs`, with the sidebar order driven by
+  `content/docs/meta.json`, plus an OpenAPI-generated API reference under `content/api-reference`.
+
+### 6. Blog platform — `apps/blog-platform`
+
+- **Port**: 3003 · **Workspace**: `@veriworkly/blog-platform` · **Framework**: Next.js 16 / Fumadocs
+- **Scope**: product updates, career content, and engineering posts.
 
 ---
 
-## Repository Structure
+## Shared package — `packages/ui`
 
-VeriWorkly utilizes standardized monorepo conventions to organize its services and shared logic.
+`@veriworkly/ui` is the design system consumed by `site`, `docs-platform`, `blog-platform`, and parts
+of `studio`. It provides:
+
+- Twelve UI primitives (Accordion, Badge, Button, Card, Checkbox, Input, Menu, Modal, Select, Switch,
+  TextArea, Tooltip).
+- Layout shells — `AppShell`, `Container`, `MarketingFooter`, the marketing navbar suite,
+  `ThemeToggle`, and `SocialIcons`.
+- The shared light/dark theme token set in `src/styles/themes.css`.
+- Font configuration (`Geist` and `Geist Mono`) exported as `globalFontVariables`.
+
+It is consumed directly from source (`"main": "./src/index.ts"`) with no build step, so edits hot
+reload in every consuming app. Because Tailwind CSS 4 defines the theme in CSS via `@theme`, there is
+no `tailwind.config.ts` in this package.
+
+See [Shared Design System](/docs/architecture/design-system) for the full component and token
+reference.
+
+---
+
+## Private template submodule
+
+`apps/portfolio/template-library` is a **git submodule** pointing at the private
+`VeriWorkly/portfolio-templates` repository, pinned to a specific upstream commit. It holds the four
+portfolio templates (Signal, Atelier, Nimbus, Cipher) and their registry.
+
+Without access to that repository, `apps/portfolio` cannot build. Every other workspace is
+unaffected.
+
+---
+
+## Repository structure
 
 import { File, Folder, Files } from "fumadocs-ui/components/files";
 
 <Files>
   <Folder name="apps" defaultOpen>
-    <Folder name="site" defaultOpen>
-      <File name="app/" description="Next.js routes for the marketing site" />
-      <File name="features/" description="Landing page sections and marketing logic" />
-      <File name="README.md" />
+    <Folder name="site">
+      <File name="app/" description="Marketing routes" />
+      <File name="features/" description="Landing sections and marketing logic" />
+      <File name="public/llms.txt" description="Machine-readable product summary for AI crawlers" />
     </Folder>
     <Folder name="studio" defaultOpen>
-      <File name="app/" description="Main editor and dashboard routes" />
-      <File name="features/" description="Domain logic (sync, store, documents)" />
-      <File name="templates/" description="Dual-engine resume templates (Web/PDF)" />
-      <File name="store/" description="Zustand state management definitions" />
-      <File name="README.md" />
+      <File name="app/" description="Editor, dashboard, admin, and share routes" />
+      <File
+        name="features/"
+        description="Domain logic — documents, resume, ats, ai, billing, credits, affiliate, ambassador, api-keys, admin"
+      />
+      <File name="templates/" description="Dual-engine resume and cover letter templates" />
+      <File name="store/" description="Global Zustand stores" />
+      <File
+        name="types/"
+        description="ResumeData, MasterProfileData, document and template types"
+      />
     </Folder>
-    <Folder name="blog-platform">
-      <File name="content/blog" description="MDX files for official blog posts" />
-      <File name="README.md" />
-    </Folder>
-    <Folder name="docs-platform">
-      <File name="content/docs" description="Technical documentation and guides" />
-      <File name="README.md" />
+    <Folder name="portfolio">
+      <File name="app/" description="Gallery, workspace, and published-site routes" />
+      <File name="lib/portfolio.ts" description="Portfolio content model and section types" />
+      <File name="proxy.ts" description="Subdomain and shared-path routing middleware" />
+      <File
+        name="template-library/"
+        description="Private git submodule — the four portfolio templates"
+      />
     </Folder>
     <Folder name="server" defaultOpen>
-      <File name="src/routes" description="Express API endpoints and controllers" />
-      <File name="src/services" description="Auth, synchronization, and storage logic" />
-      <File name="prisma/schema.prisma" description="Primary database schema definition" />
-      <File name="README.md" />
+      <File name="src/routes/" description="Express route definitions" />
+      <File name="src/controllers/" description="Request handling and validation" />
+      <File
+        name="src/services/"
+        description="Business logic — documents, billing, credits, AI, ATS, portfolios, affiliates"
+      />
+      <File
+        name="src/middleware/"
+        description="Auth, API-key auth and scopes, CORS, rate limiting, feature flags"
+      />
+      <File name="src/jobs/" description="Five node-cron background jobs" />
+      <File name="prisma/schema.prisma" description="The database schema" />
+    </Folder>
+    <Folder name="docs-platform">
+      <File name="content/docs/" description="This documentation" />
+      <File name="content/api-reference/" description="Generated OpenAPI reference pages" />
+      <File name="specs/" description="Source OpenAPI fragments bundled by npm run generate:api" />
+    </Folder>
+    <Folder name="blog-platform">
+      <File name="content/blog/" description="MDX blog posts" />
     </Folder>
   </Folder>
   <Folder name="packages">
-    <Folder name="ui" defaultOpen>
-      <File name="src/components" description="Shared React design system primitives" />
-      <File name="tailwind.config.ts" description="Global Tailwind CSS 4 theme tokens" />
+    <Folder name="ui">
+      <File name="src/components/" description="Shared UI primitives and layout shells" />
+      <File name="src/styles/themes.css" description="Light and dark theme tokens" />
     </Folder>
   </Folder>
-  <File name="compose.yaml" description="Multi-service production deployment config" />
-  <File name="package.json" description="Monorepo workspace and dependency management" />
-  <File name="README.md" description="Project overview and executive summary" />
+  <File name="compose.yaml" description="Docker Compose — marketing site, API, Redis" />
+  <File name="Dockerfile" description="Image for apps/site" />
+  <File name="package.json" description="npm workspaces root and shared scripts" />
 </Files>
 
 ---
 
-## Operational Advantages
+## Why a monorepo
 
-- **Service Isolation**: Each application maintains independent operational boundaries and deployment lifecycles.
-- **Resource Efficiency**: Shared packages minimize redundant code and ensure visual consistency across all platforms.
-- **Scalability**: Backend services can be scaled independently of the frontend applications.
+- **Shared design system** — one component library and one token set keeps six surfaces visually
+  consistent without publishing a package.
+- **Shared types** — the resume and portfolio content models are defined once and referenced by both
+  the frontends and the backend validators.
+- **Independent deployment** — each application still builds and deploys on its own schedule; the
+  monorepo is a source-organisation choice, not a deployment coupling.

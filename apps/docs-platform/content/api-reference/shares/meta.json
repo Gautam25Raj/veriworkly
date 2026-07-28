@@ -1,0 +1,13 @@
+{
+  "title": "Shares",
+  "description": "Public, optionally password-protected share links for documents.",
+  "pages": [
+    "overview",
+    "createShareLink",
+    "listSharedDocumentIds",
+    "listShareLinksForDocument",
+    "revokeShareLink",
+    "getPublicShareLink",
+    "verifyPublicShareLinkPassword"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "title": "ATS",
+  "description": "Deterministic and AI-assisted ATS resume scanning.",
+  "pages": [
+    "overview",
+    "getAtsQuota",
+    "extractAtsResumeText",
+    "checkAtsResume",
+    "analyzeAtsResume",
+    "convertAtsResume"
+  ]
+}

@@ -1,132 +1,210 @@
 ---
 title: Local Development Setup
-description: Technical guide for configuring the VeriWorkly development environment.
+description: Step-by-step guide for configuring a VeriWorkly development environment.
 ---
 
 import { Step, Steps } from "fumadocs-ui/components/steps";
 
 # Local Development Setup
 
-This guide provides comprehensive instructions for configuring a local development environment. This path is intended for developers, contributors, and those wishing to customize the platform's core functionality.
+This guide covers setting up a local development environment for contributors and anyone customising
+the platform.
 
 ---
 
 ## Prerequisites
 
-Before initialization, ensure the following dependencies are installed:
+- **Node.js** — version 20 or higher.
+- **npm** — the repository uses npm workspaces; other package managers are not configured.
+- **PostgreSQL** — required for anything that touches the API.
+  [Neon](https://neon.tech) works well as a managed option.
+- **Redis** — required by the backend. Sessions, rate limiting, ATS and import quotas, buffered view
+  counts, and job locks all use it. The rate limiter has a bounded in-memory fallback, but auth
+  session storage does not, so the API is not reliably usable without Redis.
 
-- **Node.js**: Version 20 or higher is required.
-- **Package Manager**: NPM (recommended), PNPM, or Yarn.
-- **PostgreSQL**: A valid connection string is required. We recommend [Neon](https://neon.tech) for a managed serverless experience.
-- **Redis**: Utilized for rate limiting and API caching. Not required for core resume building.
+<Callout type="info" title="Frontend-only work needs neither">
+  If you are editing marketing pages, the design system, or resume templates, you can run
+  `apps/site` or `apps/studio` alone without PostgreSQL or Redis. Only features that call the API
+  (login, sync, AI, ATS, publishing) will be unavailable.
+</Callout>
 
 ---
 
-## Installation Process
+## Installation
 
 <Steps>
   <Step>
-    ### Fork and Clone the Repository
-    1. Fork the official [VeriWorkly Repository](https://github.com/VeriWorkly/veriworkly) to your personal GitHub account.
-    2. Clone your personal fork to your local development machine:
+    ### Fork and clone
+
+    1. Fork the [VeriWorkly repository](https://github.com/VeriWorkly/veriworkly) to your account.
+    2. Clone your fork:
+
        ```bash
        git clone https://github.com/YOUR_USERNAME/veriworkly.git
-       cd veriworkly-resume
+       cd veriworkly
        ```
+
+    <Callout type="warn" title="apps/portfolio requires a private submodule">
+      `apps/portfolio/template-library` is a git submodule pointing at the private
+      `VeriWorkly/portfolio-templates` repository. If you have access, initialise it with
+      `git submodule update --init --recursive`. If you do not, skip it — every workspace except
+      `apps/portfolio` builds and runs normally without it.
+    </Callout>
+
   </Step>
 
   <Step>
-    ### Configure Upstream Remote & Sync
-    Configure the original repository as an upstream remote to pull future updates. Make sure to base your changes on the `master` branch:
+    ### Configure the upstream remote
+
+    Track the original repository so you can pull future updates. All work is based on `master`:
+
     ```bash
-    # Add the upstream remote
     git remote add upstream https://github.com/VeriWorkly/veriworkly.git
 
-    # Checkout and sync your local master branch with the upstream master branch
     git checkout master
     git pull upstream master
     ```
 
   </Step>
 
-<Step>
-  ### Install Dependencies Install all package and workspace dependencies defined in the monorepo
-  root: ```bash npm install ```
-</Step>
+  <Step>
+    ### Install dependencies
+
+    Run once from the repository root — npm workspaces installs every application:
+
+    ```bash
+    npm install
+    ```
+
+  </Step>
 
   <Step>
-    ### Configure Environment Variables
-    Duplicate the example configuration files and customize them for your local environment:
+    ### Configure environment variables
+
+    Copy the example files you need:
+
     ```bash
     cp .env.example .env
     cp apps/server/.env.example apps/server/.env
-    cp apps/studio/.env.example apps/studio/.env
     cp apps/site/.env.example apps/site/.env
+    cp apps/studio/.env.example apps/studio/.env
+    cp apps/portfolio/.env.example apps/portfolio/.env
     cp apps/docs-platform/.env.example apps/docs-platform/.env
     cp apps/blog-platform/.env.example apps/blog-platform/.env
     ```
 
-    Required variables for basic local functionality:
-    - `DATABASE_URL`: PostgreSQL connection string.
-    - `AUTH_SECRET`: Random secure token for authentication (must match in server and studio).
-    - `NEXT_PUBLIC_BACKEND_URL`: URL of your local or remote backend (defaults to `http://localhost:8080/api/v1`).
+    Minimum values for a working full-stack local environment:
+
+    | Variable | Where | Notes |
+    | :------- | :---- | :---- |
+    | `DATABASE_URL` | `apps/server/.env` | PostgreSQL connection string. |
+    | `REDIS_URL` | `apps/server/.env` | Defaults to `redis://localhost:6379`. |
+    | `AUTH_SECRET` | server **and** each frontend | Must be identical everywhere. |
+    | `AUTH_BASE_URL` | `apps/server/.env` | Defaults to `http://localhost:8080`. |
+    | `NEXT_PUBLIC_BACKEND_URL` | each frontend | Defaults to `http://localhost:8080/api/v1`. |
+    | `ADMIN_EMAIL` | server and frontends | The account auto-provisioned as admin on boot. Also unlocks portfolio publishing and checkout locally. |
+
+    Everything else — AI, Dodo Payments, Cloudflare R2, GitHub sync, SMTP — is optional in
+    development. Without them, the corresponding features return errors, but the rest of the app runs.
+    See [Environment Variables](/docs/operations/environment-variables) for the full reference.
 
   </Step>
 
-<Step>
-  ### Database Initialization If you are planning to work on backend API authentication or syncing
-  features, initialize your PostgreSQL database with the Prisma schema: ```bash npm run db:push -w
-  @veriworkly/server ```
-</Step>
-
   <Step>
-    ### Start Development Servers
-    Depending on what you are building, you can choose to run the frontend independently or run all services concurrently:
+    ### Initialise the database
 
-    **Option A: Frontend-Only Development (No Database Required)**
-    If you are only editing frontend components, pages, or the design system (e.g., style guide, templates, landing pages):
+    Push the Prisma schema and generate the client:
+
     ```bash
-    # Starts the marketing site (apps/site) on port 3000
-    npm run dev
-
-    # Or to start the resume editor (apps/studio) on port 3001
-    npm run dev:studio
+    npm run db:push
+    npm run db:generate
     ```
 
-    **Option B: Full-Stack Development (Database Required)**
-    If you are building database-dependent features (authentication, account syncing):
+    Both scripts proxy to the `@veriworkly/server` workspace.
+
+  </Step>
+
+  <Step>
+    ### Start the development servers
+
+    **Option A — a single workspace**
+
     ```bash
-    # Starts all workspaces (site, studio, server, docs, blog)
+    npm run dev            # marketing site  → http://localhost:3000
+    npm run dev:studio     # document builder → http://localhost:3001
+    npm run dev:docs       # documentation    → http://localhost:3002
+    npm run dev:blog       # blog             → http://localhost:3003
+    npm run dev:portfolio  # portfolio builder → http://localhost:3004
+    npm run dev:server     # Express API      → http://localhost:8080
+    ```
+
+    `npm run dev` with no suffix starts the marketing site only.
+
+    **Option B — everything at once**
+
+    ```bash
     npm run dev:all
     ```
 
+    This runs the `dev` script in every workspace concurrently, including the API.
+
   </Step>
 
   <Step>
-    ### Code Validation
-    Ensure your code complies with our standards before committing:
+    ### Validate before committing
+
     ```bash
-    # Run ESLint validation
+    # ESLint across the monorepo
     npm run lint
 
-    # Run Prettier code formatting
+    # Prettier formatting
     npm run format:write
 
-    # Validate production build compiles without errors
+    # Backend test suite (Vitest)
+    npm test -w @veriworkly/server
+
+    # Studio contract tests (Vitest)
+    npm run test:contracts -w @veriworkly/studio
+
+    # Verify every workspace builds
     npm run build
     ```
+
+    <Callout type="warn" title="There is no root `npm test`">
+      The repository root does not define a `test` script. Run the workspace-scoped commands above
+      instead — `npm test` from the root will fail.
+    </Callout>
 
   </Step>
 </Steps>
 
 ---
 
-## Environment Verification
+## Verifying your environment
 
-To verify that your services are running successfully, check the following endpoints:
+| Service                   | URL                                                                                    |
+| :------------------------ | :------------------------------------------------------------------------------------- |
+| Marketing site            | [http://localhost:3000](http://localhost:3000)                                         |
+| Studio (document builder) | [http://localhost:3001](http://localhost:3001)                                         |
+| Documentation             | [http://localhost:3002](http://localhost:3002)                                         |
+| Blog                      | [http://localhost:3003](http://localhost:3003)                                         |
+| Portfolio builder         | [http://localhost:3004](http://localhost:3004)                                         |
+| API liveness              | [http://localhost:8080/api/v1/health](http://localhost:8080/api/v1/health)             |
+| API readiness             | [http://localhost:8080/api/v1/health/ready](http://localhost:8080/api/v1/health/ready) |
 
-- **Marketing Site**: [http://localhost:3000](http://localhost:3000)
-- **Resume Studio**: [http://localhost:3001](http://localhost:3001)
-- **Documentation Platform**: [http://localhost:3002](http://localhost:3002)
-- **Official Blog**: [http://localhost:3003](http://localhost:3003)
-- **Backend API Health**: [http://localhost:8080/api/v1/health](http://localhost:8080/api/v1/health) (returns database status)
+`/health` is a lightweight liveness check that does not touch external services. `/health/ready`
+actively probes PostgreSQL and Redis and is the endpoint to use when confirming your database and
+cache connections work. See [Service Status](/docs/operations/service-status).
+
+---
+
+## Useful workspace scripts
+
+| Command                                        | Effect                                                                                     |
+| :--------------------------------------------- | :----------------------------------------------------------------------------------------- |
+| `npm run db:migrate`                           | Create and apply a Prisma migration.                                                       |
+| `npm run db:studio`                            | Open Prisma Studio against your database.                                                  |
+| `npm run generate:api`                         | Bundle `apps/docs-platform/specs/openapi.yaml` and regenerate the API reference MDX pages. |
+| `npm run sync:github -w @veriworkly/server`    | Run the GitHub statistics sync once, outside the cron schedule.                            |
+| `npm run seed:roadmap -w @veriworkly/server`   | Seed public roadmap data.                                                                  |
+| `npm run seed:changelog -w @veriworkly/server` | Seed changelog entries.                                                                    |

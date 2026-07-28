@@ -1,0 +1,65 @@
+---
+title: "Portfolio: Overview"
+description: What the Portfolio product is, and its current rollout status.
+---
+
+# Portfolio: Overview
+
+Portfolio is VeriWorkly's public portfolio/website builder. It is a single Next.js application
+(`apps/portfolio`, port 3004) serving three distinct surfaces:
+
+1. **Public marketing** — the landing page, template gallery, pricing, and FAQ.
+2. **The authenticated workspace** — dashboard, editor, analytics, settings, and profile.
+3. **The published portfolio sites themselves** — served on `*.veriworkly.com` subdomains and at
+   `portfolio.veriworkly.com/portfolio/{slug}`.
+
+A `proxy.ts` middleware routes all three: it gates workspace paths behind a session cookie, and
+rewrites both the subdomain host and the shared path onto the internal
+`/portfolios/[username]/[[...slug]]` route.
+
+## Current rollout status
+
+<Callout type="info" title="Fully built, rolling out in stages">
+  Portfolio is a fully built, working product being brought to general availability in stages — it
+  is not a beta or a partial feature.
+</Callout>
+
+- **Authenticated workspace** (dashboard, editor, analytics, settings, profile) — already open to **every logged-in user in production**. Anyone can build and preview a full portfolio today.
+- **Publishing** — currently the admin account publishes first in production while the launch path gets validated end-to-end. Draft editing and unpublishing an already-live site are unaffected and open to everyone.
+- **Checkout/payments** on the Portfolio pricing page — same staged rollout, opening alongside publishing.
+- **The internal `/og-generator` tool** — an admin-only internal utility, unrelated to the public product rollout.
+
+All three currently use the same mechanism: a server-only `ADMIN_EMAIL` check (fail-closed — if `ADMIN_EMAIL` is unset, nobody is treated as an admin).
+
+## What's on the public marketing site
+
+- A landing page and a full template gallery, with per-template long-form detail pages (design philosophy, style guide, FAQs, best-fit guidance) and a live read-only preview of each template with demo content.
+- A pricing page, an FAQ page, per-template Open Graph image generation, and JSON-LD structured data.
+- A sitemap that dynamically includes every live published portfolio subdomain.
+
+<Callout type="warn" title="Preview pages are no longer copy-protected">
+  Earlier versions of the template preview page blocked right-click, view-source, text selection,
+  devtools shortcuts, and printing. Those protections have since been **deliberately removed** — not
+  merely left undocumented — because they were trivially bypassable and actively broke legitimate
+  use (text selection, Ctrl+F, screen readers). Preview pages today behave like normal web pages.
+</Callout>
+
+## Relationship to Studio
+
+Portfolio and Studio share the same account, session, and Master Profile. A login on either carries
+to the other via a root-domain session cookie.
+
+Portfolio's own `/profile` page is **read-only** — a summary of the identity fields already in the
+portfolio draft. It does not own Master Profile management and links out to Studio for editing. See
+[Master Profile](/docs/product/master-profile).
+
+A new portfolio draft auto-seeds from the Master Profile, and portfolio copy generation uses the same
+credit-metered AI assistant as Studio. See
+[AI Writing Assistant](/docs/product/ai-writing-assistant).
+
+## Related
+
+- [Templates](/docs/product/portfolio/templates)
+- [Editor](/docs/product/portfolio/editor)
+- [Publishing & Analytics](/docs/product/portfolio/publishing)
+- [Billing & Credits](/docs/product/billing-and-credits)

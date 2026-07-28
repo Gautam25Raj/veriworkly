@@ -33,7 +33,7 @@ To ensure a smooth collaboration, please follow these steps to set up your contr
 4. **Clone your personal fork** to your local machine:
    ```bash
    git clone https://github.com/YOUR_USERNAME/veriworkly.git
-   cd veriworkly-resume
+   cd veriworkly
    ```
 5. **Configure Upstream Remote**:
    Keep your fork in sync with the main project by tracking the original repository:
@@ -61,7 +61,15 @@ We love new features and bug fixes! Check our [GitHub Issues](https://github.com
 
 ### 2. Design & Templates
 
-Our template system is designed to be extensible. If you're a designer or frontend developer, you can contribute new professional, ATS-optimized layouts.
+The **document** template system (resumes and cover letters) is designed to be extensible. If you're
+a designer or frontend developer, you can contribute new professional, ATS-optimized layouts — see
+[Adding a template](/docs/user-guides/resume-templates#adding-a-template).
+
+<Callout type="info" title="Portfolio templates are not open to contributions">
+  The four portfolio templates live in a separate **private** submodule
+  (`apps/portfolio/template-library`) and are not part of the public MIT repository. Contributions
+  there are not currently accepted.
+</Callout>
 
 ### 3. Documentation
 
@@ -95,18 +103,29 @@ Your branch name should start with one of the following prefixes based on the wo
 
 ### Pre-commit Quality Verification
 
-Before committing and pushing your changes, run automated scripts to ensure style guides and formats are preserved:
+Before committing and pushing your changes, run these from the repository root:
 
 ```bash
-# Run typescript compilation and linter
+# ESLint across the monorepo
 npm run lint
 
 # Format code automatically using Prettier
 npm run format:write
 
-# Run the test suite (Vitest / Playwright)
-npm test
+# Backend test suite (Vitest)
+npm test -w @veriworkly/server
+
+# Studio contract tests (Vitest)
+npm run test:contracts -w @veriworkly/studio
+
+# Verify every workspace builds
+npm run build
 ```
+
+<Callout type="warn" title="There is no root `npm test`">
+  The repository root does not define a `test` script — run the workspace-scoped commands above
+  instead.
+</Callout>
 
 ### Pull Request Process
 
@@ -118,7 +137,7 @@ npm test
    ```
 
    - **Type**: `[Fix]`, `[Feature]`, `[Refactor]`, `[Docs]`, `[Chore]`
-   - **App/Component**: `[Studio]`, `[Server]`, `[Site]`, `[UI]`, etc.
+   - **App/Component**: `[Studio]`, `[Server]`, `[Site]`, `[Portfolio]`, `[Docs]`, `[Blog]`, `[UI]`, etc.
    - **Example**: `[Fix] [Studio]: hide auth-only actions in account menu for anonymous users`
 
 2. **Link the Issue**: You **must link the issue** your PR addresses in the PR description using the hashtag format (e.g., `Fixes #123` or `Closes #123`). This automatically links and closes the issue on merge.
@@ -132,6 +151,7 @@ Deep dive into our engineering practices and standards:
 
 <Cards>
   <Card title="Coding Standards" href="/docs/contributing/coding-standards" />
+  <Card title="Local Development Setup" href="/docs/getting-started/local-setup" />
   <Card title="Monorepo Architecture" href="/docs/architecture/monorepo" />
   <Card title="Database Schema" href="/docs/architecture/database-schema" />
 </Cards>

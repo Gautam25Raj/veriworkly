@@ -1,0 +1,12 @@
+{
+  "title": "Documents",
+  "description": "CRUD for resumes, cover letters, portfolios, and link-in-bio documents.",
+  "pages": [
+    "overview",
+    "listDocuments",
+    "createDocument",
+    "getDocument",
+    "updateDocument",
+    "deleteDocument"
+  ]
+}

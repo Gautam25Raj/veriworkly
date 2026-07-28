@@ -3,17 +3,50 @@ healthCheck:
     tags:
       - Health
     operationId: healthCheck
-    summary: Health Check
-    description: Check the health status of the server, database, and Redis.
-    status:
-      enum: [ok, degraded, down]
+    summary: Liveness Check
+    description: |
+      Lightweight liveness probe. Confirms the API process is up and responding.
+
+      It deliberately touches **no** external dependency — no database query, no Redis command — so
+      that frequent uptime polling does not keep database compute awake. It therefore cannot report
+      on PostgreSQL or Redis, and never returns `503`. For dependency health use
+      `GET /api/v1/health/ready`.
+
+      This is the only truly public endpoint on the API: it requires no session, no API key, and no
+      first-party origin.
     responses:
       "200":
         description: Server is healthy
         content:
           application/json:
             schema:
-              $ref: "../components/schemas.yaml#/HealthResponse"
+              $ref: "../components/schemas.yaml#/HealthLivenessResponse"
+            example:
+              success: true
+              message: "Server is healthy"
+              data:
+                status: "ok"
+                timestamp: "2026-04-26T10:00:00.000Z"
+
+healthReady:
+  get:
+    tags:
+      - Health
+    operationId: healthReady
+    summary: Readiness Check
+    description: |
+      Deep readiness probe for deploy gates and manual diagnostics. Runs a `SELECT 1` against
+      PostgreSQL and a `PING` against Redis, and returns `503` if either is unreachable.
+
+      Because it wakes database compute on every call, prefer `GET /api/v1/health` for routine
+      uptime monitoring. Like the liveness probe, it requires no authentication.
+    responses:
+      "200":
+        description: Database and Redis are both reachable
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/HealthReadyResponse"
             example:
               success: true
               message: "Server is healthy"
@@ -24,7 +57,9 @@ healthCheck:
                 timestamp: "2026-04-26T10:00:00.000Z"
 
       "503":
-        description: Service unavailable
+        description: |
+          The database or Redis could not be reached. The response carries no diagnostic detail —
+          the underlying error is logged server-side only.
         content:
           application/json:
             schema:

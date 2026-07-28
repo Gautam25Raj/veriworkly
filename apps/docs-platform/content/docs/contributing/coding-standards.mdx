@@ -1,70 +1,124 @@
 ---
 title: Coding Standards
-description: The technical rules and conventions for the VeriWorkly codebase.
+description: TypeScript, React, styling, backend, and testing conventions for the VeriWorkly codebase.
 ---
 
 # Coding Standards
 
-To maintain a high-quality, professional codebase, we follow strict standards for TypeScript, React, and CSS. Consistency is key to a maintainable monorepo.
+Consistency is what keeps a six-application monorepo maintainable. These are the conventions the
+codebase actually follows.
 
 ---
 
-## TypeScript Conventions
+## TypeScript
 
-- **Strict Type Safety**: `strict: true` is mandatory. Avoid the `any` type at all costs. Use `unknown` or precise interfaces.
-- **Validation**: Every external data source (API responses, environment variables, form inputs) must be validated using **Zod** schemas.
-- **File Naming**: Use `kebab-case` for file names (e.g., `resume-store.ts`) and `PascalCase` for React components (e.g., `Button.tsx`).
-- **Interfaces vs Types**: Prefer `interface` for public APIs and `type` for unions, intersections, or internal logic.
+- **Strict mode is mandatory.** Avoid `any` — use `unknown` plus narrowing, or a precise interface.
+- **Validate every external input** with **Zod**: API request payloads, imported documents,
+  environment configuration, and anything read back out of `localStorage`.
+- **File naming** — `kebab-case` for modules (`resume-store.ts`, `document-sync-service.ts`),
+  `PascalCase` for React component files (`Button.tsx`, `SectionVisibilitySettings.tsx`).
+- **Interfaces vs types** — prefer `interface` for object shapes that form a public API, and `type`
+  for unions, intersections, and derived types.
+- **Exhaustiveness** — when switching over a union, add an `assertNever` default case. The export
+  dispatcher does this for both document type and export format, which turns "someone added a
+  format and forgot a branch" into a compile error.
 
 ---
 
-## React & Frontend
+## React and frontend
 
-- **Functional Components**: Use functional components with hooks. Avoid class-based components.
-- **Memoization**: The resume editor is a complex, high-performance interface. Use `React.memo`, `useMemo`, and `useCallback` to prevent unnecessary re-renders in the sidebar and previewer.
-- **State Management**:
-  - Use **Zustand** for global application state (Resumes, UI state).
-  - Use **React Hook Form** for form state.
-  - Use **Native React State** for local, ephemeral UI state.
-- **Hooks**: Abstract complex logic into custom hooks (e.g., `useExport`, `useTemplate`).
+- **Functional components with hooks.** No class components.
+- **Memoise the hot paths.** The resume editor re-renders a full paged preview on every keystroke —
+  use `React.memo`, `useMemo`, and `useCallback` in the sidebar, content panel, and preview.
+- **State management**:
+  - **Zustand** for shared application state (the active document, the session user).
+  - **Native React state** for local, ephemeral UI state.
+  - There is **no** form library in the repository — forms use controlled React state and Zod
+    validation. Do not introduce React Hook Form or Formik without a discussion first.
+- **Persistence is explicit.** Zustand stores do not use persistence middleware; they expose
+  `saveToStorage` / `hydrateFromStorage` actions that call a dedicated service module. Keep it that
+  way — implicit writes on every state change caused real bugs previously.
+- **Extract logic into custom hooks** rather than growing component bodies.
 
 ---
 
 ## Styling (Tailwind CSS 4)
 
-- **Utility-First**: Use Tailwind classes for all styling. Avoid custom CSS files unless absolutely necessary (e.g., specific print media queries).
-- **Design Tokens**: All colors, fonts, and spacing should be derived from our shared `@veriworkly/ui` design system. Reference them using Tailwind variables rather than hardcoded hex codes.
-- **Responsive Design**: We follow a mobile-first approach. Ensure all UI elements work perfectly on screen sizes from 320px to 4K.
+- **Utility-first.** Avoid custom CSS files unless genuinely necessary (print media queries, complex
+  keyframes).
+- **Use design tokens, never hardcoded hex values.** Colours, spacing, and fonts come from
+  `@veriworkly/ui`. A hardcoded `#2563eb` will not respond to the dark theme; `var(--accent)` will.
+- **Tailwind 4 has no JS config.** The theme is defined in
+  `packages/ui/src/styles/themes.css` via `@theme`. Do not add a `tailwind.config.ts`.
+- **Mobile-first responsive design**, working from 320px up.
+- **Verify both themes.** Every change must be checked in light and dark mode.
 
 ---
 
-## Backend & API
+## Accessibility
 
-- **Service Layer**: Keep Express controllers thin. Business logic should reside in dedicated services in `apps/server/src/services/`.
-- **Error Handling**: Use the centralized error handling middleware. Always return consistent JSON error objects.
-- **Prisma**: Write clean, optimized queries. Use `include` and `select` to minimize over-fetching data.
+The project targets **WCAG 2.1–2.2 AA**:
+
+- Full keyboard operability and visible focus states.
+- Readable contrast in both themes.
+- Status conveyed by more than colour alone.
+- `prefers-reduced-motion` honoured for animation.
+- Icon-only controls carry an accessible label (`aria-label` or `sr-only` text).
+
+Studio's internal audit still flags real gaps against this target — missing `aria-expanded` /
+`aria-controls` on some accordions, icon-only social links without a text fallback, and animation
+without reduced-motion handling. Treat it as an open punch list: fixing one while you are nearby is
+a welcome contribution.
 
 ---
 
-## Testing Requirements
+## Backend and API
 
-- **Unit Tests**: Write tests for pure utility functions and business logic services using **Vitest**.
-- **Integration Tests**: Verify that components work together with the state store.
-- **E2E Tests**: Use **Playwright** to test critical paths like user login, resume creation, and PDF export.
+- **Thin controllers.** Controllers parse and validate the request, then delegate. Business logic
+  belongs in `apps/server/src/services/`.
+- **Centralised errors.** Throw `ApiError` with a status and message; let the shared error middleware
+  format the response. Do not hand-roll error JSON per route.
+- **Consistent responses.** Use `createSuccessResponse` / `createErrorResponse` so every endpoint
+  returns the same envelope.
+- **Prisma discipline.** Use `select` and `include` to avoid over-fetching. Prefer atomic
+  `updateMany` with a constraining `where` clause over read-then-write, which is how the import
+  quota and credit balance mutations avoid races.
+- **Scope every route.** Any route reachable by an API key must declare `requireApiKeyScopes(...)`.
+- **Idempotency for external events.** Webhooks are keyed by the provider's event ID; background
+  flush jobs write batch markers.
 
 ---
 
-## Automated Checks
+## Testing
 
-Before submitting a Pull Request, ensure the following commands pass:
+- **Unit tests** for pure utilities and service-layer business logic, with **Vitest**.
+- **Integration tests** for critical paths — auth middleware, billing webhooks, quota enforcement,
+  and view counting — also with Vitest.
+- **Contract tests** in Studio and Portfolio verify that the shared content models stay in sync
+  between the frontend types and the backend validators.
+
+There is **no** Playwright or browser-driven end-to-end suite in the repository today.
 
 ```bash
-# Run linting checks
-npm run lint
-
-# Automatically fix formatting issues
-npm run format:write
-
-# Run all test suites
-npm test
+npm test -w @veriworkly/server              # backend suite
+npm run test:contracts -w @veriworkly/studio # studio contract tests
 ```
+
+---
+
+## Before opening a pull request
+
+```bash
+npm run lint
+npm run format:write
+npm test -w @veriworkly/server
+npm run test:contracts -w @veriworkly/studio
+npm run build
+```
+
+<Callout type="warn" title="There is no root `npm test`">
+  The repository root defines no `test` script. Run the workspace-scoped commands above.
+</Callout>
+
+See the [Contributing Guide](/docs/contributing/index) for issue claiming, branch naming, and pull
+request conventions.

@@ -1,0 +1,5 @@
+{
+  "title": "Profile Import",
+  "description": "Importing a master profile from GitHub or LinkedIn.",
+  "pages": ["overview", "getImportQuota", "importGithub", "importLinkedin"]
+}

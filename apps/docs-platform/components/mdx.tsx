@@ -16,8 +16,6 @@ import { Card, Cards } from "fumadocs-ui/components/card";
 import { ImageZoom } from "fumadocs-ui/components/image-zoom";
 import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
 
-import { APIPage } from "@/components/api-page";
-
 export function getMDXComponents(components?: MDXComponents) {
   return {
     ...defaultMdxComponents,
@@ -39,7 +37,8 @@ export function getMDXComponents(components?: MDXComponents) {
         <Pre>{props.children}</Pre>
       </CodeBlock>
     ),
-    APIPage,
+    // `OpenAPIPage` is injected per-request by the API-reference route, which is where the
+    // preloaded schema is resolved. It is deliberately not registered globally.
     ...components,
   } satisfies MDXComponents;
 }

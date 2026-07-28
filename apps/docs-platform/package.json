@@ -3,7 +3,10 @@
   "version": "3.21.0",
   "private": true,
   "scripts": {
+    "generate:api": "node scripts/generate-api-docs.mjs",
+    "predev": "npm run generate:api",
     "dev": "next dev",
+    "prebuild": "npm run generate:api",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -12,12 +15,12 @@
   },
   "dependencies": {
     "@veriworkly/ui": "*",
-    "fumadocs-core": "^16.8.3",
-    "fumadocs-mdx": "^14.3.1",
-    "fumadocs-openapi": "^10.8.0",
-    "fumadocs-ui": "^16.8.3",
+    "fumadocs-core": "^16.13.0",
+    "fumadocs-mdx": "^15.1.1",
+    "fumadocs-openapi": "^11.2.2",
+    "fumadocs-ui": "^16.13.0",
     "lucide-react": "^1.16.0",
-    "next": "16.2.6",
+    "next": "16.2.12",
     "next-themes": "^0.4.6",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"

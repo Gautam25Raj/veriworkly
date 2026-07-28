@@ -1,0 +1,42 @@
+---
+title: Billing
+description: Subscriptions, AI credit wallet, and Dodo Payments checkout/portal sessions.
+---
+
+## Description
+
+Billing is split across two independent systems that are easy to conflate:
+
+- **Entitlements** (e.g. `portfolio_publish`) — gate feature access based on an active subscription
+  plan (`ai_credits`, `portfolio_pro`, or `bundle`).
+- **The AI credit wallet** — a separate, spendable balance used by `/ai/generate` and the AI-gated
+  ATS endpoints. A plan can grant credits, publishing access, both (`bundle`), or neither (`FREE`).
+
+`GET /billing/me` returns both in one summary, along with the public product catalog.
+
+Checkout and portal sessions are created through **Dodo Payments**. `POST /billing/checkout`
+validates `productKey` and `interval` against a fixed whitelist (the product catalog) before
+handing off to Dodo — arbitrary combinations are rejected with `400`. A Redis lock prevents
+starting a second checkout while one is already in flight; cancel it with
+`POST /billing/checkout/cancel` if needed.
+
+<Callout type="warn" title="Payments are admin-gated in production during this phase">
+  In production, checkout, portal, and credit pack checkout are currently restricted to the
+  configured admin account. This is a rollout-phase restriction, not a permanent limitation, and
+  does not apply in development.
+</Callout>
+
+## Authentication
+
+All routes in this group require a session cookie — none accept an API key.
+
+## Available Endpoints
+
+- `GET /billing/me` — [Get Billing Summary](./getBillingSummary)
+- `GET /billing/history` — [Get Billing History](./getBillingHistory)
+- `GET /billing/credits` — [Get AI Credit Wallet](./getCreditWallet)
+- `GET /billing/credits/history` — [Get AI Credit Transaction History](./getCreditHistory)
+- `POST /billing/checkout` — [Create Subscription Checkout Session](./createBillingCheckout)
+- `POST /billing/checkout/cancel` — [Cancel In-Flight Checkout](./cancelBillingCheckout)
+- `POST /billing/portal` — [Create Billing Portal Session](./createBillingPortal)
+- `POST /billing/credits/checkout` — [Create Extra Credit Pack Checkout](./createCreditPackCheckout)

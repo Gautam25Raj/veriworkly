@@ -19,18 +19,29 @@ Once authenticated, the system establishes a secure, HTTP-only session that pers
 
 VeriWorkly follows a simple 2-step verification process:
 
-1. **OTP Request**: The user submits their email. A short-lived, numeric code is sent via our SMTP provider.
-2. **Verification**: The user submits the code. Upon success, a secure cookie is set in the browser, and the user is granted access to their private data.
+1. **OTP Request**: `POST /auth/email-otp/send-verification-otp` with `{ email, type: "sign-in" }`.
+   A short-lived numeric code is sent via our SMTP provider. The response is always
+   `{ "success": true }` — it does not reveal whether the address has an account.
+2. **Sign in**: `POST /auth/sign-in/email-otp` with `{ email, otp }`. On success a secure cookie is
+   set and the session token plus user record are returned. A new account is created automatically
+   on first sign-in.
+
+<Callout type="warn" title="These routes do not use the standard response envelope">
+  Authentication is delegated to **Better Auth**, mounted at `/api/v1/auth`. Its endpoints return
+  Better Auth's own payload shapes — they are **not** wrapped in the `{ success, message, data }`
+  envelope used everywhere else in this API.
+</Callout>
 
 ---
 
 ## Security & session management
 
-| Feature          | Implementation                                                                   |
-| :--------------- | :------------------------------------------------------------------------------- |
-| **Protocol**     | Passwordless Email OTP.                                                          |
-| **Session Type** | HTTP-only, Secure, SameSite cookies to prevent CSRF and XSS.                     |
-| **Provider**     | Powered by **Better Auth** with a Prisma adapter for persistent session storage. |
+| Feature          | Implementation                                                                                                    |
+| :--------------- | :----------------------------------------------------------------------------------------------------------------- |
+| **Protocol**     | Passwordless Email OTP. Codes expire after 5 minutes and allow 3 attempts.                                        |
+| **Session Type** | HTTP-only, Secure, SameSite cookies to prevent CSRF and XSS.                                                      |
+| **Provider**     | Powered by **Better Auth** with a Prisma adapter for persistent session storage.                                  |
+| **Rate limits**  | 3 requests/minute per IP for sending a code, 5 requests/minute per IP for signing in. Exceeding either gives `429`. |
 
 ---
 
@@ -42,7 +53,7 @@ VeriWorkly follows a simple 2-step verification process:
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 uppercase">Post</span>
-          <span className="text-[10px] font-mono text-muted-foreground truncate">/auth/send-otp</span>
+          <span className="text-[10px] font-mono text-muted-foreground truncate">/auth/email-otp/send-verification-otp</span>
         </div>
         <h4 className="font-bold text-sm mb-1 group-hover:text-primary transition-colors">Send OTP</h4>
         <div className="text-xs text-muted-foreground leading-normal">Initiate login by sending a 6-digit code to an email.</div>
@@ -62,14 +73,14 @@ VeriWorkly follows a simple 2-step verification process:
           Post
         </span>
         <span className="text-muted-foreground truncate font-mono text-[10px]">
-          /auth/verify-otp
+          /auth/sign-in/email-otp
         </span>
       </div>
       <h4 className="group-hover:text-primary mb-1 text-sm font-bold transition-colors">
-        Verify OTP
+        Sign In With Email OTP
       </h4>
       <div className="text-muted-foreground text-xs leading-normal">
-        Validate code and establish a secure session.
+        Exchange the code for a session cookie and token.
       </div>
     </div>
     <UserCheck className="text-muted-foreground/50 mt-1 h-4 w-4 shrink-0" />

@@ -23,31 +23,82 @@ ErrorResponse:
             type: string
 
 ##################################################
+# SHARED PAGINATION
+##################################################
+
+OffsetPaginationMeta:
+  type: object
+  description: |
+    Offset-pagination metadata returned alongside `items` by every paginated list endpoint.
+    Requests may use either `page`/`pageSize` or `limit`/`offset`; the response always echoes both
+    views of the same window.
+  required:
+    - total
+    - limit
+    - offset
+    - page
+    - pageSize
+    - totalPages
+    - hasMore
+    - pagination
+  properties:
+    total:
+      type: integer
+      description: Total number of matching records, ignoring the current window.
+    limit:
+      type: integer
+    offset:
+      type: integer
+    page:
+      type: integer
+      description: 1-based page index for the current window.
+    pageSize:
+      type: integer
+      description: Always equal to `limit`.
+    totalPages:
+      type: integer
+      description: At least 1, even when `total` is 0.
+    hasMore:
+      type: boolean
+    pagination:
+      type: object
+      required: [mode, nextOffset, nextCursor]
+      properties:
+        mode:
+          type: string
+          const: offset
+          enum: [offset]
+        nextOffset:
+          type: integer
+          nullable: true
+          description: Null when `hasMore` is false.
+        nextCursor:
+          type: string
+          nullable: true
+          description: Always null — these endpoints are offset-paginated, never cursor-paginated.
+
+##################################################
 # HEALTH SCHEMA
 ##################################################
 
-HealthData:
+HealthLivenessData:
   type: object
+  description: |
+    Liveness payload. `GET /api/v1/health` deliberately touches no external dependency, so uptime
+    checks do not wake database compute — it reports only that the Node.js process is responding.
   required:
     - status
-    - database
-    - redis
     - timestamp
   properties:
     status:
       type: string
+      const: ok
       example: ok
-    database:
-      type: string
-      example: connected
-    redis:
-      type: string
-      example: connected
     timestamp:
       type: string
       format: date-time
 
-HealthResponse:
+HealthLivenessResponse:
   type: object
   required:
     - success
@@ -59,7 +110,46 @@ HealthResponse:
     message:
       type: string
     data:
-      $ref: "#/HealthData"
+      $ref: "#/HealthLivenessData"
+
+HealthReadyData:
+  type: object
+  description: Readiness payload. Only `GET /api/v1/health/ready` verifies PostgreSQL and Redis connectivity.
+  required:
+    - status
+    - database
+    - redis
+    - timestamp
+  properties:
+    status:
+      type: string
+      const: ok
+      example: ok
+    database:
+      type: string
+      const: connected
+      example: connected
+    redis:
+      type: string
+      const: connected
+      example: connected
+    timestamp:
+      type: string
+      format: date-time
+
+HealthReadyResponse:
+  type: object
+  required:
+    - success
+    - message
+    - data
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/HealthReadyData"
 
 ##################################################
 # USER SCHEMA
@@ -81,6 +171,12 @@ UserObject:
     name:
       type: string
       nullable: true
+    username:
+      type: string
+      nullable: true
+      description: |
+        Null until the user claims one. Immutable once set, and required before any share link can
+        be created.
     email:
       type: string
     emailVerified:
@@ -95,14 +191,22 @@ UserObject:
       format: date-time
     _count:
       type: object
+      description: Relational counts for the user's own records.
       required:
-        - resumeShareLinks
+        - apiKeys
+        - shareLinks
         - resumes
       properties:
-        resumeShareLinks:
+        apiKeys:
+          type: integer
+        shareLinks:
           type: integer
         resumes:
           type: integer
+          description: |
+            Counts every Document the user owns — every `type`, and soft-deleted ones included.
+            It is not a count of RESUME-type documents. Use `GET /documents` for an accurate,
+            filterable list.
 
 UserResponse:
   type: object
@@ -122,189 +226,657 @@ UserResponse:
 # MASTER PROFILE SCHEMA
 ##################################################
 
-# MasterProfile:
-#   type: object
-#   properties:
-#     id:
-#       type: string
-#     userId:
-#       type: string
-#     content:
-#       type: object
-#       additionalProperties: true
-#     createdAt:
-#       type: string
-#       format: date-time
-#     updatedAt:
-#       type: string
-#       format: date-time
+MasterProfile:
+  type: object
+  required:
+    - id
+    - userId
+    - content
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+      description: Empty string when the user has never saved a master profile yet.
+    userId:
+      type: string
+    content:
+      $ref: "#/MasterProfileContent"
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
 
-# UserSummary:
-#   type: object
-#   properties:
-#     id:
-#       type: string
-#     name:
-#       type: string
-#       nullable: true
-#     email:
-#       type: string
-#     createdAt:
-#       type: string
-#       format: date-time
-#     emailVerified:
-#       type: boolean
-#     autoSyncEnabled:
-#       type: boolean
-#     shareResumeCount:
-#       type: integer
+UserSummary:
+  type: object
+  properties:
+    id:
+      type: string
+    name:
+      type: string
+      nullable: true
+    email:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+    emailVerified:
+      type: boolean
+    autoSyncEnabled:
+      type: boolean
+    shareResumeCount:
+      type: integer
+      description: Number of ShareLink records owned by the user.
 
-# MasterProfileContent:
-#   type: object
-#   required:
-#     - templateId
-#     - basics
-#     - links
-#     - summary
-#     - experience
-#     - education
-#     - projects
-#     - skills
-#     - languages
-#     - interests
-#     - awards
-#     - certificates
-#     - publications
-#     - volunteer
-#     - references
-#     - achievements
-#     - customSections
-#     - sections
-#     - customization
-#   properties:
-#     templateId:
-#       type: string
-#       maxLength: 64
-#     basics:
-#       $ref: "#/components/schemas/master/MasterProfileBasics"
-#     links:
-#       $ref: "#/components/schemas/master/MasterProfileLinks"
-#     summary:
-#       type: string
-#       maxLength: 8000
-#     experience:
-#       type: array
-#       maxItems: 200
-#       items:
-#         $ref: "#/components/schemas/master/ExperienceItem"
-#     education:
-#       type: array
-#       maxItems: 200
-#       items:
-#         $ref: "#/components/schemas/master/EducationItem"
-#     projects:
-#       type: array
-#       maxItems: 200
-#       items:
-#         $ref: "#/components/schemas/master/ProjectItem"
-#     skills:
-#       type: array
-#       maxItems: 200
-#       items:
-#         $ref: "#/components/schemas/master/SkillItem"
-#     languages:
-#       type: array
-#       maxItems: 200
-#       items:
-#         $ref: "#/components/schemas/master/LanguageItem"
-#     interests:
-#       type: array
-#       maxItems: 200
-#       items:
-#         $ref: "#/components/schemas/master/InterestItem"
-#     awards:
-#       type: array
-#       maxItems: 200
-#       items:
-#         $ref: "#/components/schemas/master/AwardItem"
-#     certificates:
-#       type: array
-#       maxItems: 200
-#       items:
-#         $ref: "#/components/schemas/master/CertificateItem"
-#     publications:
-#       type: array
-#       maxItems: 200
-#       items:
-#         $ref: "#/components/schemas/master/PublicationItem"
-#     volunteer:
-#       type: array
-#       maxItems: 200
-#       items:
-#         $ref: "#/components/schemas/master/VolunteerItem"
-#     references:
-#       type: array
-#       maxItems: 200
-#       items:
-#         $ref: "#/components/schemas/master/ReferenceItem"
-#     achievements:
-#       type: array
-#       maxItems: 200
-#       items:
-#         $ref: "#/components/schemas/master/AchievementItem"
-#     customSections:
-#       type: array
-#       maxItems: 200
-#       items:
-#         $ref: "#/components/schemas/master/CustomSection"
-#     sections:
-#       type: array
-#       maxItems: 200
-#       items:
-#         $ref: "#/components/schemas/master/SectionItem"
-#     customization:
-#       $ref: "#/components/schemas/master/Customization"
-#     updatedAt:
-#       type: string
-#       format: date-time
-#       nullable: true
+MasterProfileLink:
+  type: object
+  properties:
+    id:
+      type: string
+    type:
+      type: string
+      enum: [github, linkedin, dribbble, twitter, portfolio, behance, medium, youtube, custom]
+    label:
+      type: string
+    url:
+      type: string
 
-# MasterProfileResponse:
-#   type: object
-#   properties:
-#     success:
-#       type: boolean
-#     message:
-#       type: string
-#     data:
-#       type: object
-#       properties:
-#         profile:
-#           $ref: "#/MasterProfile"
-#         summary:
-#           $ref: "#/UserSummary"
+MasterProfileBasics:
+  type: object
+  description: All properties are required when writing — this object is validated strictly.
+  required:
+    - fullName
+    - role
+    - headline
+    - email
+    - phone
+    - location
+    - linkEmail
+    - linkPhone
+    - linkLocation
+  properties:
+    fullName:
+      type: string
+      maxLength: 120
+    role:
+      type: string
+      maxLength: 120
+    headline:
+      type: string
+      maxLength: 250
+    email:
+      type: string
+      format: email
+      description: Must be a valid email address. An empty string is rejected.
+    phone:
+      type: string
+      maxLength: 24
+      description: |
+        Must contain exactly 10 digits once non-digit characters are ignored, so `"9876543210"` and
+        `"(987) 654-3210"` both pass. The value is stored as sent — it is not reformatted — and an
+        empty string is rejected.
+    location:
+      type: string
+      maxLength: 120
+    linkEmail:
+      type: boolean
+    linkPhone:
+      type: boolean
+    linkLocation:
+      type: boolean
 
-# MasterProfileUpdateRequest:
-#   type: object
-#   required:
-#     - profile
-#   properties:
-#     expectedUpdatedAt:
-#       type: string
-#       format: date-time
-#       nullable: true
-#     profile:
-#       $ref: "#/MasterProfileContent"
+MasterProfileExperienceItem:
+  type: object
+  properties:
+    id:
+      type: string
+    company:
+      type: string
+    role:
+      type: string
+    location:
+      type: string
+    startDate:
+      type: string
+      description: YYYY-MM
+    endDate:
+      type: string
+      description: YYYY-MM
+    current:
+      type: boolean
+    summary:
+      type: string
+    highlights:
+      type: array
+      items:
+        type: string
 
-# MasterProfileUpdateResponse:
-#   type: object
-#   properties:
-#     success:
-#       type: boolean
-#     message:
-#       type: string
-#     data:
-#       $ref: "#/MasterProfile"
+MasterProfileEducationItem:
+  type: object
+  properties:
+    id:
+      type: string
+    school:
+      type: string
+    degree:
+      type: string
+    field:
+      type: string
+    startDate:
+      type: string
+      description: YYYY
+    endDate:
+      type: string
+      description: YYYY
+    current:
+      type: boolean
+    summary:
+      type: string
+
+MasterProfileProjectItem:
+  type: object
+  properties:
+    id:
+      type: string
+    name:
+      type: string
+    role:
+      type: string
+    link:
+      type: string
+    linkLabel:
+      type: string
+      default: Link
+    showLinkAsText:
+      type: boolean
+      default: true
+    summary:
+      type: string
+    highlights:
+      type: array
+      items:
+        type: string
+    skills:
+      type: array
+      items:
+        type: string
+
+MasterProfileSkillItem:
+  type: object
+  properties:
+    id:
+      type: string
+    name:
+      type: string
+    keywords:
+      type: array
+      items:
+        type: string
+
+MasterProfileLanguageItem:
+  type: object
+  properties:
+    id:
+      type: string
+    language:
+      type: string
+    fluency:
+      type: string
+      enum: [elementary, limited, professional, fluent, native]
+
+MasterProfileInterestItem:
+  type: object
+  properties:
+    id:
+      type: string
+    name:
+      type: string
+    keywords:
+      type: array
+      items:
+        type: string
+
+MasterProfileAwardItem:
+  type: object
+  properties:
+    id:
+      type: string
+    title:
+      type: string
+    awarder:
+      type: string
+    date:
+      type: string
+      description: YYYY-MM
+    website:
+      type: string
+    description:
+      type: string
+    showLink:
+      type: boolean
+
+MasterProfileCertificateItem:
+  type: object
+  properties:
+    id:
+      type: string
+    title:
+      type: string
+    issuer:
+      type: string
+    date:
+      type: string
+      description: YYYY-MM
+    website:
+      type: string
+    description:
+      type: string
+    showLink:
+      type: boolean
+
+MasterProfilePublicationItem:
+  type: object
+  properties:
+    id:
+      type: string
+    title:
+      type: string
+    publisher:
+      type: string
+    date:
+      type: string
+      description: YYYY-MM
+    website:
+      type: string
+    description:
+      type: string
+    showLink:
+      type: boolean
+
+MasterProfileVolunteerItem:
+  type: object
+  properties:
+    id:
+      type: string
+    organization:
+      type: string
+    role:
+      type: string
+    startDate:
+      type: string
+    endDate:
+      type: string
+    current:
+      type: boolean
+    location:
+      type: string
+    summary:
+      type: string
+
+MasterProfileReferenceItem:
+  type: object
+  properties:
+    id:
+      type: string
+    name:
+      type: string
+    title:
+      type: string
+    organization:
+      type: string
+    email:
+      type: string
+    phone:
+      type: string
+    relationship:
+      type: string
+
+MasterProfileAchievementItem:
+  type: object
+  properties:
+    id:
+      type: string
+    title:
+      type: string
+    description:
+      type: string
+
+MasterProfileAdditionalItem:
+  type: object
+  properties:
+    id:
+      type: string
+    name:
+      type: string
+    issuer:
+      type: string
+    date:
+      type: string
+    link:
+      type: string
+    referenceId:
+      type: string
+    description:
+      type: string
+    details:
+      type: array
+      items:
+        type: string
+
+MasterProfileCustomSection:
+  type: object
+  properties:
+    id:
+      type: string
+    kind:
+      type: string
+      enum:
+        [
+          certifications,
+          awards,
+          publications,
+          languages,
+          interests,
+          volunteer,
+          references,
+          achievements,
+          custom,
+        ]
+    title:
+      type: string
+    items:
+      type: array
+      items:
+        $ref: "#/MasterProfileAdditionalItem"
+    editableTitle:
+      type: boolean
+
+MasterProfileSectionItem:
+  type: object
+  properties:
+    id:
+      type: string
+      enum:
+        [
+          basics,
+          links,
+          summary,
+          experience,
+          education,
+          projects,
+          skills,
+          certifications,
+          awards,
+          publications,
+          languages,
+          interests,
+          volunteer,
+          references,
+          achievements,
+          custom,
+        ]
+    label:
+      type: string
+    visible:
+      type: boolean
+    order:
+      type: integer
+
+MasterProfileCustomization:
+  type: object
+  properties:
+    accentColor:
+      type: string
+    textColor:
+      type: string
+    mutedTextColor:
+      type: string
+    pageBackgroundColor:
+      type: string
+    sectionBackgroundColor:
+      type: string
+    borderColor:
+      type: string
+    sectionHeadingColor:
+      type: string
+    fontFamily:
+      type: string
+    sectionSpacing:
+      type: number
+    pagePadding:
+      type: number
+    bodyLineHeight:
+      type: number
+    headingLineHeight:
+      type: number
+
+MasterProfileContent:
+  type: object
+  description: |
+    The resume-shaped JSON stored in `MasterProfile.content`.
+
+    **On `PUT /profiles/master` this object is validated strictly and every property listed below
+    is required.** Send an empty array for sections you have no data for — omitting a key fails
+    with `400`, and so does sending any key not listed here. Every array item carries a
+    client-generated `id`. Field limits (string lengths, 200 items per array, 10-digit phone
+    numbers, `YYYY-MM` / `YYYY` date formats) are enforced server-side.
+  required:
+    - templateId
+    - basics
+    - links
+    - summary
+    - experience
+    - education
+    - projects
+    - skills
+    - languages
+    - interests
+    - awards
+    - certificates
+    - publications
+    - volunteer
+    - references
+    - achievements
+    - customSections
+    - sections
+    - customization
+  properties:
+    templateId:
+      type: string
+    basics:
+      $ref: "#/MasterProfileBasics"
+    links:
+      type: object
+      properties:
+        displayMode:
+          type: string
+          enum: [icon, url, icon-username]
+        items:
+          type: array
+          items:
+            $ref: "#/MasterProfileLink"
+    summary:
+      type: string
+    experience:
+      type: array
+      items:
+        $ref: "#/MasterProfileExperienceItem"
+    education:
+      type: array
+      items:
+        $ref: "#/MasterProfileEducationItem"
+    projects:
+      type: array
+      items:
+        $ref: "#/MasterProfileProjectItem"
+    skills:
+      type: array
+      items:
+        $ref: "#/MasterProfileSkillItem"
+    languages:
+      type: array
+      items:
+        $ref: "#/MasterProfileLanguageItem"
+    interests:
+      type: array
+      items:
+        $ref: "#/MasterProfileInterestItem"
+    awards:
+      type: array
+      items:
+        $ref: "#/MasterProfileAwardItem"
+    certificates:
+      type: array
+      items:
+        $ref: "#/MasterProfileCertificateItem"
+    publications:
+      type: array
+      items:
+        $ref: "#/MasterProfilePublicationItem"
+    volunteer:
+      type: array
+      items:
+        $ref: "#/MasterProfileVolunteerItem"
+    references:
+      type: array
+      items:
+        $ref: "#/MasterProfileReferenceItem"
+    achievements:
+      type: array
+      items:
+        $ref: "#/MasterProfileAchievementItem"
+    customSections:
+      type: array
+      items:
+        $ref: "#/MasterProfileCustomSection"
+    sections:
+      type: array
+      items:
+        $ref: "#/MasterProfileSectionItem"
+    customization:
+      $ref: "#/MasterProfileCustomization"
+    updatedAt:
+      type: string
+      format: date-time
+      nullable: true
+
+MasterProfileResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      properties:
+        profile:
+          $ref: "#/MasterProfile"
+        summary:
+          $ref: "#/UserSummary"
+
+MasterProfileUpdateRequest:
+  type: object
+  required:
+    - profile
+  properties:
+    expectedUpdatedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Pass the `updatedAt` value from your last read. Omit only when creating the profile for the first time.
+    profile:
+      $ref: "#/MasterProfileContent"
+
+MasterProfileUpdateResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/MasterProfile"
+
+##################################################
+# PROFILE IMPORT SCHEMA
+##################################################
+
+ProfileImportQuota:
+  type: object
+  properties:
+    isPaid:
+      type: boolean
+    remaining:
+      type: integer
+    limit:
+      type: integer
+    resetsInSeconds:
+      type: integer
+    connectedUsername:
+      type: string
+      nullable: true
+      description: The GitHub login connected via OAuth, when known (GitHub quota only).
+
+ProfileImportQuotaResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      properties:
+        github:
+          $ref: "#/ProfileImportQuota"
+        linkedin:
+          $ref: "#/ProfileImportQuota"
+
+ImportGithubRequest:
+  type: object
+  required: [usernameOrUrl]
+  properties:
+    usernameOrUrl:
+      type: string
+      description: |
+        A GitHub username or profile URL. Free users may only import their own OAuth-connected
+        account (this value is ignored server-side and the caller's authenticated GitHub login is
+        used instead); paid users may import any public username.
+    replaceMaster:
+      type: boolean
+      default: false
+      description: When true, also overwrites the user's master profile with the imported content.
+
+ImportLinkedinRequest:
+  type: object
+  required: [profileText]
+  properties:
+    profileText:
+      type: string
+      minLength: 10
+      description: Raw copy-pasted text from a LinkedIn profile export or PDF (parsed by AI, not fetched via any LinkedIn API).
+    replaceMaster:
+      type: boolean
+      default: false
+      description: When true, also overwrites the user's master profile with the imported content.
+
+ProfileImportResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/Document"
+      description: The newly created resume Document seeded from the imported data.
 
 ##################################################
 # ROADMAP SCHEMA
@@ -358,39 +930,15 @@ RoadmapFeature:
       nullable: true
 
 RoadmapListData:
-  type: object
-  required:
-    - items
-    - total
-    - limit
-    - offset
-    - hasMore
-    - pagination
-  properties:
-    items:
-      type: array
-      items:
-        $ref: "#/RoadmapFeature"
-    total:
-      type: integer
-    limit:
-      type: integer
-    offset:
-      type: integer
-    hasMore:
-      type: boolean
-    pagination:
-      type: object
+  allOf:
+    - type: object
+      required: [items]
       properties:
-        mode:
-          type: string
-          enum: [offset]
-        nextOffset:
-          type: integer
-          nullable: true
-        nextCursor:
-          type: string
-          nullable: true
+        items:
+          type: array
+          items:
+            $ref: "#/RoadmapFeature"
+    - $ref: "#/OffsetPaginationMeta"
 
 RoadmapListResponse:
   type: object
@@ -486,6 +1034,12 @@ GitHubStats:
   properties:
     total:
       type: integer
+      description: Issues plus pull requests.
+    issues:
+      type: integer
+      description: Issue-only count.
+    pullRequests:
+      type: integer
     todo:
       type: integer
     inProgress:
@@ -494,6 +1048,8 @@ GitHubStats:
       type: integer
     completionRate:
       type: string
+      description: Percentage of `total` that is done, formatted to 2 decimal places. `"0.00"` when there is nothing synced.
+      example: "41.67"
 
 GitHubStatsData:
   type: object
@@ -514,8 +1070,10 @@ GitHubStatsResponse:
     message:
       type: string
     data:
-      - $ref: "#/GitHubStatsData"
-      - type: "null"
+      description: Null until the first GitHub sync has run for the configured repository.
+      oneOf:
+        - $ref: "#/GitHubStatsData"
+        - type: "null"
 
 GitHubItem:
   type: object
@@ -546,18 +1104,15 @@ GitHubItem:
       format: date-time
 
 GitHubIssuesData:
-  type: object
-  properties:
-    items:
-      type: array
-      items:
-        $ref: "#/GitHubItem"
-    total:
-      type: integer
-    limit:
-      type: integer
-    offset:
-      type: integer
+  allOf:
+    - type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/GitHubItem"
+    - $ref: "#/OffsetPaginationMeta"
 
 GitHubIssuesResponse:
   type: object
@@ -580,6 +1135,19 @@ GenericSuccessResponse:
       type: object
       additionalProperties: true
 
+NullDataResponse:
+  type: object
+  description: Success envelope for endpoints that acknowledge an action without returning a body.
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+      const: true
+    message:
+      type: string
+    data:
+      type: "null"
+
 ##################################################
 # GITHUB SCHEMA
 ##################################################
@@ -587,14 +1155,70 @@ GenericSuccessResponse:
 # API KEY SCHEMA
 ##################################################
 
-ApiKeyObject:
+ApiKeyScope:
+  type: string
+  description: |
+    API key scopes are a fixed set — requesting any other value fails with `400`. Each scope maps
+    to the `requireApiKeyScopes(...)` gate on the corresponding routes. Scope checks apply only to
+    API-key callers; session callers are not scope-gated.
+  enum:
+    - user:read
+    - user:write
+    - resume:read
+    - resume:write
+    - roadmap:read
+    - changelog:read
+    - github:read
+    - ai:write
+
+ApiKeyListItem:
   type: object
+  description: |
+    The trimmed shape returned by `GET /api-keys`. The secret is **not** included in any form —
+    not even masked. Use `keyPrefix` to identify a key in a list.
+  required:
+    - id
+    - name
+    - keyPrefix
+    - isActive
+    - createdAt
+  properties:
+    id:
+      type: string
+    name:
+      type: string
+    keyPrefix:
+      type: string
+      description: First 8 characters of the key (`vw_` plus 5 hex characters).
+      example: "vw_a1b2c"
+    isActive:
+      type: boolean
+    createdAt:
+      type: string
+      format: date-time
+    lastUsed:
+      type: string
+      format: date-time
+      nullable: true
+      description: Written at most once every 5 minutes per key, so it lags real usage slightly.
+
+ApiKeySecret:
+  type: object
+  description: |
+    Returned only by `POST /api-keys` and `POST /api-keys/{id}/rotate`. `key` is the full secret
+    and is shown exactly once — it is stored only as an HMAC-SHA256 hash and cannot be retrieved
+    again.
   required:
     - id
     - key
+    - keyPrefix
+    - keySuffix
     - name
+    - userId
     - isActive
     - rateLimit
+    - scopes
+    - expiresAt
     - createdAt
     - updatedAt
   properties:
@@ -602,14 +1226,36 @@ ApiKeyObject:
       type: string
     key:
       type: string
-      description: The API key. Masked in lists, full key only on creation.
-      example: "vw_a1b2c3...x9y0z1"
+      description: The full secret — `vw_` followed by 64 hex characters. Shown once, never again.
+      example: "vw_3f2a1c9e8b7d6f5a4c3b2a1908f7e6d5c4b3a29180706f5e4d3c2b1a09f8e7d6"
+    keyPrefix:
+      type: string
+      description: First 8 characters of `key`.
+    keySuffix:
+      type: string
+      description: Last 8 characters of `key`.
     name:
+      type: string
+    userId:
       type: string
     isActive:
       type: boolean
     rateLimit:
       type: integer
+      description: Requests allowed per 15-minute window for this key.
+    scopes:
+      type: array
+      items:
+        $ref: "#/ApiKeyScope"
+    expiresAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Always set. Defaults to 365 days from creation when not supplied.
+    revokedAt:
+      type: string
+      format: date-time
+      nullable: true
     createdAt:
       type: string
       format: date-time
@@ -620,6 +1266,9 @@ ApiKeyObject:
       type: string
       format: date-time
       nullable: true
+    rotatedFromId:
+      type: string
+      description: Only present on a rotate response — the id of the key this one replaced.
 
 ApiKeyListResponse:
   type: object
@@ -630,9 +1279,14 @@ ApiKeyListResponse:
     message:
       type: string
     data:
-      type: array
-      items:
-        $ref: "#/ApiKeyObject"
+      allOf:
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/ApiKeyListItem"
+        - $ref: "#/OffsetPaginationMeta"
 
 ApiKeyCreateResponse:
   type: object
@@ -643,4 +1297,1720 @@ ApiKeyCreateResponse:
     message:
       type: string
     data:
-      $ref: "#/ApiKeyObject"
+      $ref: "#/ApiKeySecret"
+
+##################################################
+# DOCUMENT SCHEMA
+##################################################
+
+Document:
+  type: object
+  required:
+    - id
+    - userId
+    - type
+    - title
+    - slug
+    - tags
+    - content
+    - templateId
+    - schemaVersion
+    - revision
+    - visibility
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+    userId:
+      type: string
+    type:
+      type: string
+      enum: [RESUME, COVER_LETTER, PORTFOLIO, LINK_IN_BIO]
+    title:
+      type: string
+    slug:
+      type: string
+      description: Unique per user. Also used as the portfolio subdomain slug for PORTFOLIO documents.
+    tags:
+      type: array
+      items:
+        type: string
+    content:
+      type: object
+      additionalProperties: true
+      description: Document-type-specific JSON payload (resume schema, portfolio schema, etc).
+    metadata:
+      type: object
+      nullable: true
+      additionalProperties: true
+    templateId:
+      type: string
+      default: modern
+    schemaVersion:
+      type: integer
+    revision:
+      type: integer
+      description: Incremented on every update. Required (and checked) on PATCH for optimistic concurrency control.
+    visibility:
+      type: string
+      enum: [PRIVATE, UNLISTED, PUBLIC]
+    lastSyncedAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+    deletedAt:
+      type: string
+      format: date-time
+      nullable: true
+      description: Set by soft delete. Documents with a non-null deletedAt are excluded from list/get.
+
+DocumentListResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: array
+      items:
+        $ref: "#/Document"
+
+DocumentResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/Document"
+
+DocumentCreateRequest:
+  type: object
+  required: [type]
+  properties:
+    id:
+      type: string
+      description: Optional client-generated id. If a document with this id already exists for the caller, it is returned as-is (idempotent create).
+    type:
+      type: string
+      enum: [RESUME, COVER_LETTER, PORTFOLIO, LINK_IN_BIO]
+    title:
+      type: string
+    slug:
+      type: string
+    tags:
+      type: array
+      items:
+        type: string
+    content:
+      type: object
+      additionalProperties: true
+      description: If omitted for RESUME/COVER_LETTER, content is auto-seeded from the user's MasterProfile when one exists.
+    metadata:
+      type: object
+      additionalProperties: true
+    templateId:
+      type: string
+    visibility:
+      type: string
+      enum: [PRIVATE, UNLISTED, PUBLIC]
+
+DocumentUpdateRequest:
+  type: object
+  required: [revision]
+  properties:
+    title:
+      type: string
+    slug:
+      type: string
+    updateShareSlug:
+      type: boolean
+      description: When true and an active share link exists, its slug is updated to track the new document slug.
+    tags:
+      type: array
+      items:
+        type: string
+    content:
+      type: object
+      additionalProperties: true
+    metadata:
+      type: object
+      additionalProperties: true
+    templateId:
+      type: string
+    visibility:
+      type: string
+      enum: [PRIVATE, UNLISTED, PUBLIC]
+    revision:
+      type: integer
+      description: Must match the document's current revision. Mismatch returns 409.
+
+##################################################
+# ATS SCHEMA
+##################################################
+
+AtsRuleResult:
+  type: object
+  properties:
+    id:
+      type: string
+    severity:
+      type: string
+      enum: [info, warning, error]
+    passed:
+      type: boolean
+    evidence:
+      type: string
+    scoreImpact:
+      type: integer
+    fix:
+      type: string
+
+AtsReport:
+  type: object
+  description: Deterministic, rule-based ATS report. Computed entirely server-side without calling any AI provider.
+  properties:
+    version:
+      type: string
+      enum: [ats-v1]
+    readinessScore:
+      type: integer
+    jobMatchScore:
+      type: integer
+      nullable: true
+    parsingWarnings:
+      type: array
+      items:
+        type: string
+    strengths:
+      type: array
+      items:
+        type: string
+    failedChecks:
+      type: array
+      items:
+        $ref: "#/AtsRuleResult"
+    prioritizedFixes:
+      type: array
+      items:
+        type: string
+    rules:
+      type: array
+      items:
+        $ref: "#/AtsRuleResult"
+
+AtsAiInsights:
+  type: object
+  nullable: true
+  description: Null when the AI step was skipped (e.g. `/check`, which never calls AI).
+  properties:
+    explanation:
+      type: string
+    missingEvidence:
+      type: array
+      items:
+        type: string
+    keywordOpportunities:
+      type: array
+      items:
+        type: string
+    recommendedImprovements:
+      type: array
+      items:
+        type: string
+    priorityOrder:
+      type: array
+      items:
+        type: string
+
+AtsQuotaSummary:
+  type: object
+  properties:
+    tier:
+      type: string
+      enum: [anonymous, free, subscriber]
+    limit:
+      type: integer
+      description: "1 for anonymous callers per 48h window, 2 for free logged-in users per 24h window, 300 for subscribers per billing period."
+    used:
+      type: integer
+    remaining:
+      type: integer
+    resetsAt:
+      type: string
+      format: date-time
+    canConvertResume:
+      type: boolean
+      description: True only for active AI Credits / Bundle subscribers — gates access to /ats/convert-resume.
+    pricing:
+      type: object
+      properties:
+        analysisCredits:
+          type: object
+          properties:
+            min:
+              type: integer
+            max:
+              type: integer
+        jobUrlAnalysisCredits:
+          type: object
+          properties:
+            min:
+              type: integer
+            max:
+              type: integer
+        resumeConversionCredits:
+          type: integer
+
+AtsQuotaResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/AtsQuotaSummary"
+
+AtsExtractResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      properties:
+        text:
+          type: string
+          description: Plain text extracted from the uploaded PDF, DOCX, TXT, Markdown, or JSON resume file (max ~50,000 characters).
+
+AtsCheckRequest:
+  type: object
+  required: [resume]
+  properties:
+    resume:
+      description: Resume text, or a JSON Resume-shaped object. Either is accepted.
+      oneOf:
+        - type: string
+        - type: object
+          additionalProperties: true
+    jobDescription:
+      type: string
+      description: Optional plain-text job description to compute a jobMatchScore against.
+
+AtsCheckResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      properties:
+        report:
+          $ref: "#/AtsReport"
+        ai:
+          type: "null"
+        creditsSpent:
+          type: integer
+          enum: [0]
+        quota:
+          $ref: "#/AtsQuotaSummary"
+
+AtsAnalyzeRequest:
+  type: object
+  required: [resume, requestId]
+  properties:
+    resume:
+      oneOf:
+        - type: string
+        - type: object
+          additionalProperties: true
+    jobDescription:
+      type: string
+    jobUrl:
+      type: string
+      format: uri
+      description: Required when fetchJobUrl is true. Fetched server-side through an SSRF-hardened HTTPS-only fetcher (blocks localhost/private/link-local IPs, pins the resolved IP for the whole request, caps redirects to 3, response size to 2MB, and timeout to 8s).
+    fetchJobUrl:
+      type: boolean
+      default: false
+    requestId:
+      type: string
+      minLength: 8
+      description: Client-generated idempotency key for the underlying AI credit reservation.
+
+AtsAnalyzeResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      description: |
+        AI insights are drawn from the same shared ATS scan-quota bucket consumed by `/ats/check` —
+        there is only one ATS quota, not separate "scan" and "AI" allowances.
+      properties:
+        report:
+          $ref: "#/AtsReport"
+        ai:
+          $ref: "#/AtsAiInsights"
+        creditsSpent:
+          type: integer
+        quota:
+          $ref: "#/AtsQuotaSummary"
+
+AtsConvertResumeRequest:
+  type: object
+  required: [resume, requestId]
+  properties:
+    resume:
+      type: string
+      minLength: 1
+      description: Raw resume text to convert into structured JSON Resume fields.
+    requestId:
+      type: string
+      minLength: 8
+
+AtsConvertedResume:
+  type: object
+  description: AI-extracted resume fields. Every field defaults to an empty string/array when not explicitly present in the source text — nothing is invented.
+  properties:
+    basics:
+      type: object
+      properties:
+        fullName:
+          type: string
+        role:
+          type: string
+        headline:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        location:
+          type: string
+    links:
+      type: array
+      items:
+        type: object
+        properties:
+          label:
+            type: string
+          url:
+            type: string
+    summary:
+      type: string
+    experience:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+    education:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+    projects:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+    skills:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+
+AtsConvertResumeResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      properties:
+        resume:
+          $ref: "#/AtsConvertedResume"
+        creditsSpent:
+          type: integer
+          description: Requires an active AI Credits or Bundle entitlement — this endpoint spends credits independently of the shared ATS scan quota above.
+
+##################################################
+# AI SCHEMA
+##################################################
+
+AiActionKey:
+  type: string
+  enum:
+    - rewrite_short_text
+    - rewrite_section
+    - generate_section
+    - generate_portfolio_copy
+    - generate_cover_letter
+    - tailor_resume_to_job
+    - generate_document
+
+AiActionCost:
+  type: object
+  properties:
+    costs:
+      type: object
+      properties:
+        standard:
+          type: integer
+        expert:
+          type: integer
+
+AiActionsResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      description: |
+        Map of AI action key to its credit cost per mode, containing an entry for every action in
+        `AiActionKey`. The values below are illustrative only — real costs come from server-side
+        configuration, so read them from this endpoint rather than hardcoding them.
+      additionalProperties:
+        $ref: "#/AiActionCost"
+      example:
+        rewrite_short_text: { costs: { standard: 1, expert: 3 } }
+        generate_cover_letter: { costs: { standard: 4, expert: 10 } }
+
+AiGenerateRequest:
+  type: object
+  required: [action, input, requestId]
+  properties:
+    action:
+      $ref: "#/AiActionKey"
+    mode:
+      type: string
+      enum: [standard, expert]
+      default: standard
+      description: Expert mode uses a stronger model at a higher credit cost.
+    input:
+      type: object
+      description: |
+        Required, though every field inside it is optional and defaults to an empty string. At
+        least one of `text`, `context`, or `jobDescription` must be non-empty or the request fails
+        with `400`. Per-action character limits apply — see `GET /ai/actions`.
+      properties:
+        text:
+          type: string
+          maxLength: 50000
+          default: ""
+        context:
+          type: string
+          maxLength: 50000
+          default: ""
+        jobDescription:
+          type: string
+          maxLength: 20000
+          default: ""
+          description: Silently truncated to the action's own job-description limit rather than rejected.
+        instructions:
+          type: string
+          maxLength: 500
+          default: ""
+    requestId:
+      type: string
+      minLength: 8
+      maxLength: 200
+      description: Client-generated idempotency key. Credits are reserved against this id before generation and only committed on success — a failed or errored generation releases the reservation instead of spending credits.
+    documentId:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: Optional document to associate the credit transaction with.
+
+AiGenerateResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      properties:
+        content:
+          type: string
+        usage:
+          type: object
+          nullable: true
+          properties:
+            promptTokens:
+              type: integer
+            completionTokens:
+              type: integer
+            totalTokens:
+              type: integer
+        credits:
+          type: object
+          properties:
+            spent:
+              type: integer
+            balance:
+              type: integer
+              description: AI credit wallet balance after this generation.
+
+##################################################
+# PORTFOLIO SCHEMA
+##################################################
+
+PortfolioPublicSummary:
+  type: object
+  properties:
+    subdomain:
+      type: string
+    updatedAt:
+      type: string
+      format: date-time
+
+PortfolioPublicListResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: array
+      items:
+        $ref: "#/PortfolioPublicSummary"
+
+PortfolioPublication:
+  type: object
+  properties:
+    id:
+      type: string
+    subdomain:
+      type: string
+    templateId:
+      type: string
+      enum: [signal, atelier, nimbus, cipher]
+    snapshot:
+      type: object
+      additionalProperties: true
+      description: Published portfolio content snapshot (validated against the portfolio content schema at publish time).
+    status:
+      type: string
+      enum: [LIVE, GRACE, SUSPENDED]
+    updatedAt:
+      type: string
+      format: date-time
+    isPremium:
+      type: boolean
+      description: Whether the owner currently has an active portfolio_pro/bundle subscription.
+
+PortfolioPublicResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/PortfolioPublication"
+
+PortfolioPublicationRecord:
+  type: object
+  description: |
+    The stored publication row as the owner sees it. This is a different shape from the public read
+    endpoint: it exposes the owner-only bookkeeping columns and has no `isPremium`.
+  required:
+    - id
+    - userId
+    - documentId
+    - subdomain
+    - templateId
+    - snapshot
+    - status
+    - publishedRevision
+    - publishedAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+    userId:
+      type: string
+    documentId:
+      type: string
+    subdomain:
+      type: string
+    templateId:
+      type: string
+      enum: [signal, atelier, nimbus, cipher]
+    snapshot:
+      type: object
+      additionalProperties: true
+    status:
+      type: string
+      enum: [LIVE, GRACE, SUSPENDED]
+    publishedRevision:
+      type: integer
+      description: The draft `revision` that was published.
+    suspensionReason:
+      type: string
+      nullable: true
+      description: One of `grace_expired` or `user_unpublished` when the portfolio is suspended.
+    suspendedAt:
+      type: string
+      format: date-time
+      nullable: true
+    publishedAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+PortfolioPublishResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      allOf:
+        - $ref: "#/PortfolioPublicationRecord"
+        - type: object
+          required: [publicUrl]
+          properties:
+            publicUrl:
+              type: string
+              description: |
+                `https://{subdomain}.veriworkly.com` in production, or
+                `http://{subdomain}.localhost:3004` in development. Added by the publish endpoint
+                only — it is not a stored column.
+              example: "https://janedoe.veriworkly.com"
+
+PortfolioUnpublishResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      description: |
+        The updated publication record with `status: SUSPENDED`, or null when the caller had never
+        published a portfolio. No `publicUrl` is included.
+      oneOf:
+        - $ref: "#/PortfolioPublicationRecord"
+        - type: "null"
+
+PortfolioDraft:
+  type: object
+  description: |
+    A trimmed projection of the caller's PORTFOLIO-type Document — not a full `Document`. Only the
+    fields below are selected.
+  required: [id, slug, templateId, content, revision, updatedAt]
+  properties:
+    id:
+      type: string
+    slug:
+      type: string
+      description: Kept in sync with the portfolio subdomain.
+    templateId:
+      type: string
+      enum: [signal, atelier, nimbus, cipher]
+    content:
+      type: object
+      additionalProperties: true
+      description: The saved portfolio content snapshot.
+    revision:
+      type: integer
+      description: Send this back as `revision` when saving or publishing.
+    updatedAt:
+      type: string
+      format: date-time
+
+PortfolioDraftResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/PortfolioDraft"
+
+PortfolioPreview:
+  type: object
+  description: Same projection as `PortfolioDraft` minus `slug`.
+  required: [id, templateId, content, revision, updatedAt]
+  properties:
+    id:
+      type: string
+    templateId:
+      type: string
+      enum: [signal, atelier, nimbus, cipher]
+    content:
+      type: object
+      additionalProperties: true
+    revision:
+      type: integer
+    updatedAt:
+      type: string
+      format: date-time
+
+PortfolioPreviewResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/PortfolioPreview"
+
+PortfolioMe:
+  type: object
+  properties:
+    draft:
+      description: Null when the caller has never saved a portfolio draft.
+      oneOf:
+        - $ref: "#/PortfolioDraft"
+        - type: "null"
+    publication:
+      type: object
+      nullable: true
+      properties:
+        subdomain:
+          type: string
+        status:
+          type: string
+          enum: [LIVE, GRACE, SUSPENDED]
+        publishedRevision:
+          type: integer
+        publishedAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+    billing:
+      type: object
+      additionalProperties: true
+      description: Same shape as the Billing "/billing/me" response.
+
+PortfolioMeResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/PortfolioMe"
+
+PortfolioSaveDraftRequest:
+  type: object
+  required: [subdomain, snapshot]
+  properties:
+    documentId:
+      type: string
+      description: Omit to create (or continue) the user's single PORTFOLIO document.
+    subdomain:
+      type: string
+      maxLength: 63
+    revision:
+      type: integer
+      description: Required once a draft already exists, for optimistic concurrency (409 on mismatch).
+    snapshot:
+      type: object
+      additionalProperties: true
+      description: Portfolio content. The draft schema is more permissive than the publish schema (empty strings allowed) so incomplete drafts can still be saved.
+
+PortfolioPublishRequest:
+  type: object
+  required: [documentId, subdomain, revision]
+  properties:
+    documentId:
+      type: string
+    subdomain:
+      type: string
+      maxLength: 63
+    revision:
+      type: integer
+      description: Must match the draft's current revision (save the latest draft first).
+
+PortfolioAnalytics:
+  type: object
+  properties:
+    totalViews:
+      type: integer
+    daily:
+      type: array
+      items:
+        type: object
+        properties:
+          date:
+            type: string
+            format: date-time
+          count:
+            type: integer
+    referrers:
+      type: array
+      items:
+        type: object
+        properties:
+          host:
+            type: string
+          count:
+            type: integer
+
+PortfolioAnalyticsResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/PortfolioAnalytics"
+
+PortfolioSubdomainAvailabilityResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      properties:
+        subdomain:
+          type: string
+        available:
+          type: boolean
+
+##################################################
+# PORTFOLIO ASSET SCHEMA
+##################################################
+
+PortfolioAssetUploadRequest:
+  type: object
+  required: [kind, mimeType, sizeBytes]
+  properties:
+    kind:
+      type: string
+      enum: [AVATAR, PROJECT_COVER, SOCIAL_IMAGE]
+    mimeType:
+      type: string
+      enum: [image/jpeg, image/png, image/webp]
+    sizeBytes:
+      type: integer
+      maximum: 5242880
+      description: Must be greater than 0 and no more than 5 MB.
+
+PortfolioAssetUploadResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      properties:
+        assetId:
+          type: string
+        uploadUrl:
+          type: string
+          description: Presigned Cloudflare R2 PUT URL. Upload the file directly to this URL with a matching Content-Type/Content-Length.
+        expiresInSeconds:
+          type: integer
+          enum: [600]
+
+PortfolioAssetCompleteRequest:
+  type: object
+  required: [assetId]
+  properties:
+    assetId:
+      type: string
+    checksum:
+      type: string
+      description: Optional ETag to verify against the uploaded object.
+
+PortfolioAssetCompleteResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+          description: |
+            Public CDN URL. Only returned after a server-side HEAD request against R2 confirms the
+            uploaded object's size, content type, and (optionally) checksum match what was declared
+            when the upload URL was requested.
+
+##################################################
+# BILLING SCHEMA
+##################################################
+
+BillingSummary:
+  type: object
+  properties:
+    plan:
+      type: string
+      enum: [FREE, AI_CREDITS, PORTFOLIO_PRO, BUNDLE]
+    productKey:
+      type: string
+      nullable: true
+      enum: [ai_credits, portfolio_pro, bundle, null]
+    activeProductKeys:
+      type: array
+      items:
+        type: string
+    status:
+      type: string
+      description: Subscription status (e.g. ACTIVE, TRIALING, INACTIVE).
+    interval:
+      type: string
+      nullable: true
+      enum: [one_day, seven_day, monthly, annual, null]
+    currentPeriodEnd:
+      type: string
+      format: date-time
+      nullable: true
+    cancelAtPeriodEnd:
+      type: boolean
+    graceEndsAt:
+      type: string
+      format: date-time
+      nullable: true
+    canPublish:
+      type: boolean
+      description: Portfolio-publish entitlement is a separate system from the AI credit wallet below.
+    eligibleForTrial:
+      type: boolean
+    accessEndsAt:
+      type: string
+      format: date-time
+      nullable: true
+    publicationStatus:
+      type: string
+      enum: [LIVE, GRACE, SUSPENDED]
+    entitlements:
+      type: array
+      items:
+        type: string
+    credits:
+      $ref: "#/CreditWallet"
+    catalog:
+      type: object
+      additionalProperties: true
+      description: Public product/pricing catalog (prices, intervals, entitlements per plan).
+    creditEconomics:
+      type: object
+      additionalProperties: true
+    addOns:
+      type: array
+      items:
+        type: object
+        properties:
+          key:
+            type: string
+          name:
+            type: string
+
+BillingSummaryResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/BillingSummary"
+
+BillingHistoryEvent:
+  type: object
+  properties:
+    id:
+      type: string
+    providerEventId:
+      type: string
+    type:
+      type: string
+    processedAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+
+BillingHistoryResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: array
+      items:
+        $ref: "#/BillingHistoryEvent"
+
+CreditWallet:
+  type: object
+  properties:
+    balance:
+      type: integer
+    reserved:
+      type: integer
+      description: Credits currently held by in-flight AI generations that have not yet committed or been released.
+    lifetimeCredited:
+      type: integer
+    lifetimeDebited:
+      type: integer
+    nextExpiryAt:
+      type: string
+      format: date-time
+      nullable: true
+    nextExpiryCredits:
+      type: integer
+    updatedAt:
+      type: string
+      format: date-time
+
+CreditWalletResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/CreditWallet"
+
+CreditHistoryEntry:
+  type: object
+  additionalProperties: true
+  properties:
+    id:
+      type: string
+    action:
+      type: string
+    cost:
+      type: integer
+    balanceAfter:
+      type: integer
+    createdAt:
+      type: string
+      format: date-time
+
+CreditHistoryResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: array
+      items:
+        $ref: "#/CreditHistoryEntry"
+
+CheckoutRequest:
+  type: object
+  required: [interval]
+  properties:
+    productKey:
+      type: string
+      enum: [ai_credits, portfolio_pro, bundle]
+      default: portfolio_pro
+      description: Validated against a fixed product/interval whitelist before being handed off to the Dodo Payments checkout API.
+    interval:
+      type: string
+      enum: [one_day, seven_day, monthly, annual]
+    redirectUrl:
+      type: string
+      description: Relative path (must start with a single `/`) to return to after checkout.
+
+CheckoutResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      properties:
+        url:
+          type: string
+          description: Dodo Payments hosted checkout URL to redirect the user to.
+
+CancelCheckoutResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      properties:
+        success:
+          type: boolean
+
+BillingPortalResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      properties:
+        url:
+          type: string
+          description: Dodo Payments customer portal URL.
+
+CreditPackCheckoutRequest:
+  type: object
+  required: [packKey]
+  properties:
+    packKey:
+      type: string
+      enum: [credit_pack_250, credit_pack_500]
+    redirectUrl:
+      type: string
+      description: Relative path (must start with a single `/`) to return to after checkout.
+
+CreditPackCheckoutResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      properties:
+        url:
+          type: string
+          description: Dodo Payments hosted checkout URL for the one-time credit pack purchase.
+
+##################################################
+# SHARE SCHEMA
+##################################################
+
+ShareLink:
+  type: object
+  properties:
+    id:
+      type: string
+    userId:
+      type: string
+    documentId:
+      type: string
+    slug:
+      type: string
+    token:
+      type: string
+      description: Same value as `slug` — the public path segment for this link.
+    username:
+      type: string
+    documentSlug:
+      type: string
+    publicPath:
+      type: string
+      description: |
+        Convenience path built from the owner's username and the link slug. Only returned by
+        `POST /shares`, not by the list endpoint.
+      example: "/janedoe/my-resume"
+    snapshot:
+      type: object
+      additionalProperties: true
+      description: The static content snapshot captured when the link was created.
+    hasPassword:
+      type: boolean
+      description: The scrypt password hash itself is never returned in any API response.
+    expiresAt:
+      type: string
+      format: date-time
+      nullable: true
+    viewCount:
+      type: integer
+    lastViewedAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+
+ShareLinkCreateRequest:
+  type: object
+  required: [documentId, snapshot]
+  properties:
+    documentId:
+      type: string
+    snapshot:
+      type: object
+      additionalProperties: true
+      description: Static content snapshot captured at share time.
+    password:
+      type: string
+      description: When provided, the link is scrypt-hashed and requires this password to view.
+    expiresAt:
+      type: string
+      format: date-time
+      nullable: true
+    noExpiry:
+      type: boolean
+    updateSlug:
+      type: boolean
+      description: Regenerate the public slug instead of reusing the existing one (if a link already exists for this document).
+    removePassword:
+      type: boolean
+
+ShareLinkResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/ShareLink"
+
+ShareLinkListResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      allOf:
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/ShareLink"
+        - $ref: "#/OffsetPaginationMeta"
+
+SharedDocumentIdsResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      properties:
+        documentIds:
+          type: array
+          items:
+            type: string
+
+PublicSharePayload:
+  type: object
+  properties:
+    passwordRequired:
+      type: boolean
+    resumeTitle:
+      type: string
+    documentTitle:
+      type: string
+    expiresAt:
+      type: string
+      format: date-time
+      nullable: true
+    snapshot:
+      type: object
+      additionalProperties: true
+      description: Only present once no password is required, or after successful verification.
+
+PublicShareResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/PublicSharePayload"
+
+VerifySharePasswordRequest:
+  type: object
+  required: [password]
+  properties:
+    password:
+      type: string
+      minLength: 1
+
+##################################################
+# AFFILIATE SCHEMA
+##################################################
+
+AffiliateClickRequest:
+  type: object
+  required: [code]
+  properties:
+    code:
+      type: string
+      minLength: 4
+      maxLength: 32
+    referrerHost:
+      type: string
+
+AffiliateClickResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      properties:
+        tracked:
+          type: boolean
+
+AffiliateLeaderboardEntry:
+  type: object
+  properties:
+    rank:
+      type: integer
+    earningsCents:
+      type: integer
+    commissions:
+      type: integer
+    user:
+      type: object
+      nullable: true
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          nullable: true
+        username:
+          type: string
+          nullable: true
+        image:
+          type: string
+          nullable: true
+        affiliateTier:
+          type: string
+          enum: [TIER_1, TIER_2, TIER_3]
+
+AffiliateLeaderboardResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: array
+      items:
+        $ref: "#/AffiliateLeaderboardEntry"
+
+AffiliateDashboard:
+  type: object
+  properties:
+    affiliateStatus:
+      type: string
+      enum: [NOT_ENROLLED, PENDING, ACTIVE, SUSPENDED]
+    affiliateTier:
+      type: string
+      enum: [TIER_1, TIER_2, TIER_3]
+    affiliateCode:
+      type: string
+      nullable: true
+    affiliateEnrolledAt:
+      type: string
+      format: date-time
+      nullable: true
+    clicks:
+      type: integer
+    referrals:
+      type: array
+      description: Most recent 50 referrals (recency-limited preview). Use totalReferrals/conversions for exact counts.
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+          status:
+            type: string
+            enum: [PENDING, CONVERTED]
+          createdAt:
+            type: string
+            format: date-time
+          convertedAt:
+            type: string
+            format: date-time
+            nullable: true
+    totalReferrals:
+      type: integer
+    conversions:
+      type: integer
+    commissions:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+    withdrawals:
+      type: array
+      items:
+        type: object
+        additionalProperties: true
+    wallet:
+      type: object
+      properties:
+        pendingCents:
+          type: integer
+        availableCents:
+          type: integer
+        paidCents:
+          type: integer
+    minimumWithdrawalCents:
+      type: integer
+      enum: [2500]
+    tierProgress:
+      type: object
+      properties:
+        currentConversions:
+          type: integer
+        nextTierConversions:
+          type: integer
+          nullable: true
+    tiers:
+      type: array
+      items:
+        type: object
+        properties:
+          key:
+            type: string
+          name:
+            type: string
+          rateBps:
+            type: integer
+          requiredConversions:
+            type: integer
+          perks:
+            type: array
+            items:
+              type: string
+
+AffiliateDashboardResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/AffiliateDashboard"
+
+AffiliateReferralRequest:
+  type: object
+  required: [code]
+  properties:
+    code:
+      type: string
+      minLength: 4
+      maxLength: 32
+      description: Another affiliate's code. Self-referrals are rejected.
+
+AffiliateReferralResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      additionalProperties: true
+
+AffiliateWithdrawalRequest:
+  type: object
+  required: [amountCents]
+  properties:
+    amountCents:
+      type: integer
+      minimum: 2500
+      maximum: 10000000
+      description: Minimum withdrawal is 2,500 cents ($25).
+
+AffiliateWithdrawalResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      additionalProperties: true
+      description: The created AffiliateWithdrawal record (status starts as REQUESTED).
+
+##################################################
+# AMBASSADOR SCHEMA
+##################################################
+
+AmbassadorApplicationRequest:
+  type: object
+  required: [collegeName, graduationYear, whyJoin, superpower, funFact]
+  properties:
+    collegeName:
+      type: string
+      minLength: 2
+      maxLength: 160
+    graduationYear:
+      type: string
+      pattern: "^(19|20)\\d{2}$"
+      description: A real 4-digit year, validated both client- and server-side.
+    whyJoin:
+      type: string
+      minLength: 20
+      maxLength: 1000
+    superpower:
+      type: string
+      minLength: 2
+      maxLength: 300
+    funFact:
+      type: string
+      minLength: 2
+      maxLength: 300
+    vibeCheck:
+      type: string
+      maxLength: 80
+    socialHandle:
+      type: string
+      maxLength: 120
+
+AmbassadorApplicationResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      type: object
+      properties:
+        success:
+          type: boolean
+        ambassadorStatus:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED]
+        collegeName:
+          type: string
+        graduationYear:
+          type: string
+
+AmbassadorStatus:
+  type: object
+  description: |
+    Intentionally small today: this surface only covers application intake and status. There is
+    no points/rewards/redemption API yet — that system has not been built.
+  properties:
+    role:
+      type: string
+      description: The user's account role (e.g. USER, AMBASSADOR).
+    ambassadorStatus:
+      type: string
+      enum: [NONE, PENDING, APPROVED, REJECTED]
+    collegeName:
+      type: string
+      nullable: true
+    graduationYear:
+      type: string
+      nullable: true
+
+AmbassadorStatusResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/AmbassadorStatus"

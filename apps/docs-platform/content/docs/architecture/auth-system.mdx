@@ -1,47 +1,104 @@
 ---
 title: Authentication System
-description: Analysis of the passwordless authentication framework and session management architecture.
+description: Better-Auth configuration, email OTP, OAuth providers, session management, and rate limiting.
 ---
 
 # Authentication System
 
-VeriWorkly utilizes the **Better-Auth** framework, specifically the **Email OTP** plugin, to provide a secure and frictionless authentication experience. This passwordless approach prioritizes account security and eliminates the risks associated with traditional credential management.
+VeriWorkly uses **Better-Auth** as its authentication framework, with passwordless email OTP as the
+primary method and three OAuth providers alongside it.
 
-## Authentication Methods
+## Authentication methods
 
-1. **Email OTP (One-Time Password)**: A secure, 6-digit verification code is transmitted to the user's registered email address. Validation of this code establishes a secure session.
-2. **Magic Links**: (Future Implementation) Secure, one-click authentication tokens delivered via email.
+1. **Email OTP** — a one-time passcode is emailed to the user; verifying it establishes a session.
+   Configured through Better-Auth's `emailOTP` plugin.
+2. **Google OAuth**
+3. **GitHub OAuth**
+4. **LinkedIn OAuth**
+
+<Callout type="info" title="LinkedIn OAuth is for signing in only">
+  LinkedIn OAuth authenticates a user. It is **not** used to import LinkedIn profile data — that
+  flow is a paste-and-parse path. See [Importing Your
+  Profile](/docs/product/importing-your-profile).
+</Callout>
+
+Each OAuth provider is registered **only if** its client ID and secret are both configured, so an
+unconfigured provider simply does not appear rather than failing at runtime.
+
+### Account linking
+
+Account linking is enabled with `google`, `github`, and `linkedin` marked as trusted providers, so a
+user who signs up with email OTP and later signs in with Google lands on the same account rather than
+creating a duplicate.
 
 ---
 
-## Technical Architecture
+## Architecture
 
-The authentication infrastructure is distributed between the client and server applications to maintain a clear separation of concerns.
+- **Frontends** (`apps/studio`, `apps/portfolio`, `apps/site`) use the Better-Auth client SDK for
+  session lifecycle and the OTP verification UI.
+- **Backend** (`apps/server`) is the authentication authority. Better-Auth is mounted at the
+  `/api/v1/auth` base path and handles OTP generation, OAuth callbacks, session issuance, and email
+  dispatch.
 
-- **Frontend (`apps/studio`)**: Utilizes the Better-Auth client SDK for session lifecycle management and the orchestration of the OTP verification interface.
-- **Backend (`apps/server`)**: Operates as the centralized authentication authority. Responsibilities include database interaction, OTP generation, and secure email dispatch via SMTP.
+### Session storage
 
-### Session Management Strategy
+Sessions are stored in **both** PostgreSQL and Redis:
 
-- **Persistence**: Active sessions are persisted in the `Session` table within the PostgreSQL database.
-- **Cookie Security**: Sessions are managed via browser cookies configured with `HttpOnly`, `Secure`, and `SameSite=Lax` attributes.
-- **Cross-Domain Compatibility**: In production environments, cookies are scoped to the root domain (e.g., `.veriworkly.com`) to allow seamless session persistence across all platform subdomains.
+- `storeSessionInDatabase: true` writes each session to the `Session` table.
+- A `secondaryStorage` adapter backed by Redis caches session lookups, so the hot path does not hit
+  PostgreSQL on every request.
+
+| Setting                  | Environment variable                 | Default                                 |
+| :----------------------- | :----------------------------------- | :-------------------------------------- |
+| Session lifetime         | `AUTH_SESSION_TTL_SECONDS`           | `2592000` (30 days)                     |
+| Session refresh interval | `AUTH_SESSION_RESET_TTL_ON_USE`      | `86400` (24 hours)                      |
+| Cookie cache enabled     | `AUTH_SESSION_CACHE_ENABLED`         | `true` in production, `false` otherwise |
+| Cookie cache max age     | `AUTH_SESSION_CACHE_MAX_AGE_SECONDS` | `900` (15 minutes)                      |
+
+### Cookies
+
+- Cookie prefix: `veriworkly-auth`.
+- `useSecureCookies` is enabled when `NODE_ENV=production`, producing `__Secure-`-prefixed cookies.
+- **Cross-subdomain sessions** are enabled when `AUTH_COOKIE_DOMAIN` is set. Scoping the cookie to
+  `.veriworkly.com` is what lets a login on Studio carry over to the portfolio builder and the
+  published-portfolio host.
+
+### Proxy trust
+
+`trustedProxyHeaders` is enabled, and the headers consulted for the client IP are configurable via
+`AUTH_IP_ADDRESS_HEADERS` (default:
+`x-client-ip,x-forwarded-for,x-real-ip,cf-connecting-ip`). This keeps IP-derived rate limiting and
+login alerts accurate behind Nginx or Cloudflare.
 
 ---
 
-## Implementation Reference
-
-The following configuration demonstrates the integration of the Better-Auth handler within the backend service.
+## Configuration reference
 
 ```typescript
-import { betterAuth } from "better-auth";
-import { emailOTP } from "better-auth/plugins";
-
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
+
+  secondaryStorage: {/* Redis get / set / delete */},
+
+  basePath: "/api/v1/auth",
+  trustedOrigins: config.allowedOrigins,
+
+  advanced: {
+    trustedProxyHeaders: true,
+    cookiePrefix: "veriworkly-auth",
+    useSecureCookies: config.nodeEnv === "production",
+    crossSubDomainCookies: {
+      enabled: !!config.auth.cookieDomain,
+      domain: config.auth.cookieDomain,
+    },
+  },
+
   plugins: [
     emailOTP({
-      async sendVerificationOTP({ email, otp, type }) {
+      expiresIn: config.auth.otpTtlSeconds,
+      allowedAttempts: config.auth.otpAllowedAttempts,
+      sendVerificationOTP: async ({ email, otp, type }) => {
         await sendAuthOtpEmail({ email, otp, type });
       },
     }),
@@ -51,10 +108,57 @@ export const auth = betterAuth({
 
 ---
 
-## Security Controls
+## Security controls
 
-- **Rate Limiting**: The OTP request endpoint is governed by strict rate-limiting policies to prevent brute-force attacks and email system abuse.
-- **Temporal Invalidation**: OTP tokens are short-lived (defaulting to a 10-minute validity window) and are invalidated immediately upon successful use.
-- **Proxy Trust**: The authentication handler is configured to correctly resolve client IP addresses when operating behind reverse proxies such as Nginx or Cloudflare.
+### OTP lifetime and attempts
 
-For additional information on user data persistence, refer to the [Database Schema](/docs/architecture/database-schema) documentation.
+| Control                 | Environment variable        | Default           |
+| :---------------------- | :-------------------------- | :---------------- |
+| OTP validity window     | `AUTH_OTP_TTL_SECONDS`      | `300` (5 minutes) |
+| Allowed failed attempts | `AUTH_OTP_ALLOWED_ATTEMPTS` | `3`               |
+
+### Rate limiting
+
+Better-Auth's own limiter runs on Redis, with tighter custom rules on the OTP endpoints:
+
+| Endpoint                           | Limit                                                                                     |
+| :--------------------------------- | :---------------------------------------------------------------------------------------- |
+| `/email-otp/send-verification-otp` | 3 requests / 60 seconds                                                                   |
+| `/email-otp/verify-otp`            | 5 requests / 60 seconds                                                                   |
+| All other auth routes              | `AUTH_RATE_LIMIT_MAX_REQUESTS` (default 20) per `AUTH_RATE_LIMIT_WINDOW_MS` (default 60s) |
+
+The application's own IP-based rate limiter runs in front of this as an additional layer.
+
+### Session cache invalidation
+
+A `before` hook clears cached session data on `/sign-out`, `/revoke-session`, `/revoke-sessions`,
+`/change-email`, `/change-password`, and `/delete-user`, so a revoked session cannot keep working for
+the remainder of its Redis cache TTL. Updating or deleting a user invalidates every one of their
+cached sessions by token.
+
+### Automatic emails
+
+Database hooks send transactional email on account lifecycle events:
+
+- **Welcome email** — on user creation.
+- **New-device login alert** — on session creation, including the provider, IP, and user agent.
+  Suppressed within the first 15 seconds after signup to avoid duplicating the welcome email.
+- **Account deletion confirmation** — before a user record is deleted.
+
+### Admin provisioning
+
+On server boot, if no admin account exists for the configured `ADMIN_EMAIL`, one is provisioned
+automatically. `ADMIN_EMAIL` is compared case-insensitively and is a **server-only** value — it is
+never sent to the browser.
+
+<Callout type="warn" title="Self-service account deletion is not exposed">
+  The backend has the deletion machinery and the confirmation email template, but Better-Auth's
+  `deleteUser` endpoint is not enabled and no Studio UI calls it. Account deletion is currently
+  handled by contacting <a href="mailto:info@veriworkly.com">info@veriworkly.com</a>. See [Account
+  Management](/docs/user-guides/account-management).
+</Callout>
+
+---
+
+For the underlying tables, see [Database Schema](/docs/architecture/database-schema). For
+programmatic (non-session) access, see [API Keys](/docs/api-keys).

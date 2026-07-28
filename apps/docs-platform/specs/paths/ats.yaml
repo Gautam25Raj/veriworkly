@@ -1,0 +1,311 @@
+getAtsQuota:
+  get:
+    tags:
+      - ATS
+    operationId: getAtsQuota
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    summary: Get ATS Scan Quota
+    description: |
+      Returns the caller's current ATS scan quota status. This endpoint works for anonymous
+      callers too (quota is keyed by a hashed IP when unauthenticated).
+
+      There is a single shared scan-quota bucket for both the deterministic `/ats/check` scan and
+      the AI-powered `/ats/analyze` deep analysis — they are **not** two separate quotas. Limits:
+
+      - Anonymous: 1 scan / 48 hours
+      - Free logged-in: 2 scans / 24 hours
+      - Subscriber (active AI Credits or Bundle plan): 300 scans / billing period
+    responses:
+      "200":
+        description: Quota fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/AtsQuotaResponse"
+            example:
+              success: true
+              message: "Success"
+              data:
+                tier: "free"
+                limit: 2
+                used: 0
+                remaining: 2
+                resetsAt: "2026-04-28T00:00:00.000Z"
+                canConvertResume: false
+                pricing:
+                  analysisCredits: { min: 1, max: 6 }
+                  jobUrlAnalysisCredits: { min: 2, max: 12 }
+                  resumeConversionCredits: 2
+
+extractAtsResumeText:
+  post:
+    tags:
+      - ATS
+    operationId: extractAtsResumeText
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    summary: Extract Resume Text
+    description: |
+      Extracts plain text from an uploaded resume file (PDF, DOCX, TXT, Markdown, or JSON, max 5MB)
+      for use as the `resume` field on `/ats/check` or `/ats/analyze`. Does not consume ATS scan
+      quota — only the check/analyze endpoints do.
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [resume]
+            properties:
+              resume:
+                type: string
+                format: binary
+    responses:
+      "200":
+        description: Text extracted successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/AtsExtractResponse"
+      "400":
+        description: Missing file, or unsupported/unreadable file
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            examples:
+              missingFile:
+                summary: No file provided
+                value:
+                  success: false
+                  statusCode: 400
+                  message: "Provide a resume file."
+              unsupportedType:
+                summary: Unsupported file type
+                value:
+                  success: false
+                  statusCode: 400
+                  message: "Upload a PDF, DOCX, TXT, Markdown, or JSON resume."
+      "408":
+        description: Extraction took too long
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 408
+              message: "Resume extraction took too long to process."
+
+checkAtsResume:
+  post:
+    tags:
+      - ATS
+    operationId: checkAtsResume
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    summary: Run Deterministic ATS Scan
+    description: |
+      Runs the free, rule-based ATS readiness scan — no AI call is made. Works for anonymous
+      callers. Consumes one unit from the shared ATS scan quota (see `GET /ats/quota`).
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/AtsCheckRequest"
+          example:
+            resume: "Jane Doe\nSoftware Engineer\n..."
+            jobDescription: "We are looking for a Software Engineer with React experience..."
+    responses:
+      "200":
+        description: Scan completed successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/AtsCheckResponse"
+      "400":
+        $ref: "../components/responses.yaml#/ValidationError"
+      "429":
+        description: ATS scan quota exceeded
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 429
+              message: "ATS scan quota exceeded."
+
+analyzeAtsResume:
+  post:
+    tags:
+      - ATS
+    operationId: analyzeAtsResume
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    summary: Run AI-Powered ATS Analysis
+    description: |
+      Runs the deterministic scan plus an AI deep-analysis pass on top of it (explanation, missing
+      evidence, keyword opportunities, prioritized fixes). Requires authentication. Consumes one
+      unit from the same shared ATS scan quota as `/ats/check` — this is not a second, separate
+      quota. Requires the `ai:write` API key scope when called with an API key.
+
+      Optionally fetches a job description from a URL instead of requiring pasted text
+      (`fetchJobUrl: true` + `jobUrl`). The fetch is SSRF-hardened: HTTPS-only on the standard port,
+      rejects localhost/private/link-local addresses, resolves DNS once and pins that IP for the
+      whole request (including redirects), and caps redirects to 3, response size to 2MB, and the
+      request timeout to 8 seconds.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/AtsAnalyzeRequest"
+          example:
+            resume: "Jane Doe\nSoftware Engineer\n..."
+            jobDescription: "We are looking for a Software Engineer with React experience..."
+            fetchJobUrl: false
+            requestId: "ats-analyze-8f3ac1e2b9"
+    responses:
+      "200":
+        description: Analysis completed successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/AtsAnalyzeResponse"
+      "400":
+        description: Validation error, or job URL fetch was blocked
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            examples:
+              validation:
+                summary: Validation error
+                value:
+                  success: false
+                  statusCode: 400
+                  message: "Validation failed"
+              blockedUrl:
+                summary: Job URL resolves to a blocked network
+                value:
+                  success: false
+                  statusCode: 400
+                  message: "Job URL resolves to a blocked network."
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "402":
+        description: Not enough AI credits
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 402
+              message: "Not enough AI credits."
+      "403":
+        description: API key is missing the ai:write scope
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 403
+              message: "This API key does not have permission for this action."
+      "429":
+        description: ATS scan quota exceeded
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 429
+              message: "ATS scan quota exceeded."
+      "502":
+        description: AI provider error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 502
+              message: "AI ATS analysis could not be completed."
+
+convertAtsResume:
+  post:
+    tags:
+      - ATS
+    operationId: convertAtsResume
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    summary: Convert Resume Text To Structured JSON
+    description: |
+      Uses AI to convert raw resume text into structured JSON Resume-shaped fields. Requires an
+      active AI Credits or Bundle entitlement, and spends credits independently of the shared ATS
+      scan quota above. Requires the `ai:write` API key scope when called with an API key.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/AtsConvertResumeRequest"
+          example:
+            resume: "Jane Doe\nSoftware Engineer\n..."
+            requestId: "ats-convert-8f3ac1e2b9"
+    responses:
+      "200":
+        description: Resume converted successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/AtsConvertResumeResponse"
+      "400":
+        $ref: "../components/responses.yaml#/ValidationError"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "402":
+        description: Not enough AI credits
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 402
+              message: "Not enough AI credits."
+      "403":
+        description: Missing entitlement, or API key is missing the ai:write scope
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 403
+              message: "Resume conversion requires an active AI Credits or Bundle plan."
+      "502":
+        description: AI provider error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 502
+              message: "AI resume conversion could not be completed."

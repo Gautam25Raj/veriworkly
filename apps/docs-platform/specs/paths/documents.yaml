@@ -1,0 +1,266 @@
+documentCollection:
+  get:
+    tags:
+      - Documents
+    operationId: listDocuments
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    summary: List Documents
+    description: |
+      Lists the authenticated user's documents (resumes, cover letters, portfolios, link-in-bio
+      pages), optionally filtered by type. Soft-deleted documents are excluded.
+    parameters:
+      - name: type
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [RESUME, COVER_LETTER, PORTFOLIO, LINK_IN_BIO]
+        description: Filter documents by type.
+    responses:
+      "200":
+        description: Documents fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/DocumentListResponse"
+            example:
+              success: true
+              message: "Documents fetched successfully"
+              data:
+                - id: "doc_123"
+                  userId: "user_123"
+                  type: "RESUME"
+                  title: "My Resume"
+                  slug: "my-resume"
+                  tags: []
+                  content: {}
+                  metadata: {}
+                  templateId: "modern"
+                  schemaVersion: 1
+                  revision: 1
+                  visibility: "PRIVATE"
+                  lastSyncedAt: "2026-04-20T10:00:00.000Z"
+                  createdAt: "2026-04-01T10:00:00.000Z"
+                  updatedAt: "2026-04-20T10:00:00.000Z"
+                  deletedAt: null
+
+      "400":
+        $ref: "../components/responses.yaml#/ValidationError"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+
+  post:
+    tags:
+      - Documents
+    operationId: createDocument
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    summary: Create Document
+    description: |
+      Creates a new document. If no `content` is provided for a RESUME or COVER_LETTER, it is
+      auto-seeded from the user's MasterProfile (when one exists). Free-tier users are limited to
+      1 active document per type; upgrading removes that limit.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/DocumentCreateRequest"
+          example:
+            type: "RESUME"
+            title: "My Resume"
+    responses:
+      "201":
+        description: Document created successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/DocumentResponse"
+      "400":
+        $ref: "../components/responses.yaml#/ValidationError"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "403":
+        description: Free-tier document limit reached
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 403
+              message: "Free users can only have 1 active resume at a time. Upgrade to Creator Pro for unlimited documents."
+      "413":
+        description: Payload too large
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 413
+              message: "Document content payload is too large"
+
+documentItem:
+  get:
+    tags:
+      - Documents
+    operationId: getDocument
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    summary: Get Document
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Document fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/DocumentResponse"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "404":
+        description: Document not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 404
+              message: "Document not found"
+
+  patch:
+    tags:
+      - Documents
+    operationId: updateDocument
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    summary: Update Document
+    description: |
+      Updates a document using optimistic concurrency control: `revision` must match the
+      document's current revision or the request fails with `409`.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/DocumentUpdateRequest"
+          example:
+            title: "Updated Resume Title"
+            revision: 1
+    responses:
+      "200":
+        description: Document updated successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/DocumentResponse"
+      "400":
+        $ref: "../components/responses.yaml#/ValidationError"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "404":
+        description: Document not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 404
+              message: "Document not found"
+      "409":
+        description: Revision mismatch, or slug conflict
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            examples:
+              revisionMismatch:
+                summary: Optimistic concurrency conflict
+                value:
+                  success: false
+                  statusCode: 409
+                  message: "Revision mismatch. Client: 1, Server: 2"
+              slugConflict:
+                summary: Slug already in use
+                value:
+                  success: false
+                  statusCode: 409
+                  message: "Document slug is already in use"
+      "413":
+        description: Payload too large
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 413
+              message: "Document content payload is too large"
+
+  delete:
+    tags:
+      - Documents
+    operationId: deleteDocument
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    summary: Delete Document
+    description: |
+      Soft-deletes a document by setting `deletedAt`. The document is immediately excluded from
+      list/get responses. Hard delete and restore exist at the service layer but are not exposed
+      through any public route.
+
+      `data` is `null` on success — the deleted document is not echoed back.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Document deleted successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/NullDataResponse"
+            example:
+              success: true
+              message: "Document deleted successfully"
+              data: null
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "404":
+        description: Document not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 404
+              message: "Document not found"

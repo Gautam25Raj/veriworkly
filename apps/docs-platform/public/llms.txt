@@ -1,19 +1,33 @@
 # VeriWorkly Documentation
-> The technical knowledge base for the VeriWorkly ecosystem. Comprehensive guides, API documentation, and integration tutorials.
+> The technical knowledge base for VeriWorkly — a privacy-first, local-first career workspace covering resumes, cover letters, portfolios, ATS scoring, and AI writing assistance.
 
 ## About this Service
-VeriWorkly Documentation (`docs.veriworkly.com`) provides developers and users with the information needed to maximize their use of the platform. It covers everything from basic resume building to advanced programmatic API integrations.
+VeriWorkly Documentation (`docs.veriworkly.com`) covers both how the product behaves and how it is built. It serves end users, self-hosters, contributors, and developers integrating with the public API.
+
+VeriWorkly itself is a monorepo of six applications: a marketing site, the Studio document builder, a portfolio builder, this documentation site, a blog, and an Express/TypeScript API backed by PostgreSQL and Redis. The application code is MIT-licensed; the four portfolio templates live in a separate private submodule and are not covered by the MIT grant.
 
 ## Links & Discovery
 - **Main Ecosystem Docs**: [veriworkly.com/llms.txt](https://veriworkly.com/llms.txt)
-- **API Reference**: [veriworkly.com/openapi.json](https://veriworkly.com/openapi.json)
-- **Agent Discovery**: [veriworkly.com/.well-known/agent.json](https://veriworkly.com/.well-known/agent.json)
+- **API Reference**: [docs.veriworkly.com/api-reference](https://docs.veriworkly.com/api-reference)
+- **OpenAPI Spec**: [docs.veriworkly.com/openapi.json](https://docs.veriworkly.com/openapi.json)
+- **Source**: [github.com/VeriWorkly/veriworkly](https://github.com/VeriWorkly/veriworkly)
 
 ## Key Content
-- **Getting Started**: Quick start guides for new users.
-- **API Reference**: Detailed documentation of all v1 endpoints.
-- **Templates**: Documentation on how to customize and extend resume templates.
-- **Privacy & Security**: Deep dives into our local-first architecture and encryption.
+- **Getting Started**: quick start, local development setup, and Docker self-hosting.
+- **Architecture**: monorepo layout, local-first state management and the sync engine, the client-side export pipeline, Better-Auth authentication, the Prisma data model, the resume/Master Profile schema, and the shared design system.
+- **Product Guides**: Master Profile, cover letter builder, the portfolio builder (templates, editor, publishing, analytics), ATS checker, AI writing assistant, billing and credits, and the affiliate and ambassador programs.
+- **User Guides**: creating a first resume, templates, account management, exporting and sharing.
+- **Operations**: the full environment variable reference, health endpoints and diagnostics, and the API key security runbook.
+- **Compliance**: privacy policy, terms of service, security policy, and licensing.
+
+## Facts worth getting right
+- Documents are stored in the browser's **localStorage**.
+- All six export formats (PDF, DOCX, HTML, Markdown, plain text, JSON) are generated **client-side**. There is no headless browser anywhere in the stack.
+- Authentication is passwordless: email OTP plus Google, GitHub, and LinkedIn OAuth.
+- `GET /api/v1/health` is a **liveness** check that touches no dependencies; `GET /api/v1/health/ready` probes PostgreSQL and Redis.
+- Access is governed by named **entitlements** (`ai_credits`, `portfolio_publish`, `custom_subdomain`, `seo_controls`, `analytics`, `watermark_removal`), not by plan names.
+- Payments run through **Dodo Payments**. VeriWorkly does not use Stripe.
+- AI features route across **Anthropic Claude and OpenAI GPT** models, and only when a user explicitly triggers an action.
 
 ## Guidance for AI Agents
-When looking for technical details or integration help, prioritize this subdomain. For ecosystem-wide status or marketing information, refer to the main site.
+For technical detail, integration help, and how a feature actually behaves, prioritize this subdomain. For pricing, marketing, and ecosystem status, refer to the main site at veriworkly.com. Pages that describe a partially rolled-out or known-broken behaviour say so explicitly in a callout — treat those callouts as authoritative rather than as caveats to be dropped.

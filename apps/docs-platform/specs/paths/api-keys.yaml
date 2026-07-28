@@ -5,10 +5,49 @@ apiKeyCollection:
     operationId: getAllApiKeys
     summary: List API Keys
 
-    description: Retrieves all API keys associated with the current user. Keys are returned in masked format (e.g., `vw_abc1...xyz9`).
+    description: |
+      Lists the caller's API keys, newest first.
+
+      **No form of the secret is returned here — not even a masked one.** Each entry carries only
+      `keyPrefix`, the first 8 characters of the key, which is enough to tell keys apart in a list.
+      If you lose a secret, rotate the key.
+
+      Session-authenticated only — an API key cannot be used to manage API keys.
     security:
       - LocalSession: []
       - ProdSession: []
+    parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        description: 1-based page index. An alternative to `offset`.
+      - name: pageSize
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+        description: Alternative spelling of `limit`. Takes precedence over `limit` when both are sent.
     responses:
       "200":
         description: A list of API keys.
@@ -16,6 +55,28 @@ apiKeyCollection:
           application/json:
             schema:
               $ref: "../components/schemas.yaml#/ApiKeyListResponse"
+            example:
+              success: true
+              message: "API keys fetched successfully"
+              data:
+                items:
+                  - id: "cmnu7awv4000063lk18zpon2m"
+                    name: "My Documentation Key"
+                    keyPrefix: "vw_a1b2c"
+                    isActive: true
+                    createdAt: "2026-04-11T10:37:35.584Z"
+                    lastUsed: "2026-04-25T19:35:44.409Z"
+                total: 1
+                limit: 20
+                offset: 0
+                page: 1
+                pageSize: 20
+                totalPages: 1
+                hasMore: false
+                pagination:
+                  mode: "offset"
+                  nextOffset: null
+                  nextCursor: null
       "401":
         $ref: "../components/responses.yaml#/UnauthorizedError"
 
@@ -25,7 +86,11 @@ apiKeyCollection:
     operationId: createApiKey
     summary: Create API Key
 
-    description: Generates a new API key. **The full key is only returned once upon creation.** Ensure you save it securely.
+    description: |
+      Generates a new API key. **The full secret is returned exactly once, in this response.** It
+      is stored only as an HMAC-SHA256 hash and can never be retrieved again — save it immediately.
+
+      Session-authenticated only — an API key cannot be used to mint API keys.
     security:
       - LocalSession: []
       - ProdSession: []
@@ -40,23 +105,33 @@ apiKeyCollection:
             properties:
               name:
                 type: string
+                minLength: 1
                 description: A descriptive name for the API key.
                 example: "My Documentation Key"
               scopes:
                 type: array
-                description: Scopes granted to the new key.
+                description: |
+                  Scopes granted to the new key. Defaults to `["user:read"]` when omitted. Any
+                  value outside the listed set is rejected with `400`.
                 items:
-                  type: string
+                  $ref: "../components/schemas.yaml#/ApiKeyScope"
               rateLimit:
                 type: integer
                 minimum: 1
                 maximum: 20
-                description: Requests allowed per window. Values above 20 are capped.
+                description: |
+                  Requests allowed per 15-minute window. Defaults to 20; values above 20 are
+                  silently clamped down to 20 rather than rejected.
                 example: 20
               expiresAt:
                 type: string
                 format: date-time
-                description: Optional ISO timestamp for expiration.
+                description: |
+                  ISO timestamp for expiry. Defaults to 365 days from creation when omitted — keys
+                  are never issued without an expiry.
+          example:
+            name: "My Documentation Key"
+            scopes: ["user:read", "resume:read"]
     responses:
       "201":
         description: API key created successfully.
@@ -64,8 +139,43 @@ apiKeyCollection:
           application/json:
             schema:
               $ref: "../components/schemas.yaml#/ApiKeyCreateResponse"
+            example:
+              success: true
+              message: "API key generated successfully. Please save it as it won't be shown again."
+              data:
+                id: "cmnu7awv4000063lk18zpon2m"
+                key: "vw_3f2a1c9e8b7d6f5a4c3b2a1908f7e6d5c4b3a29180706f5e4d3c2b1a09f8e7d6"
+                keyPrefix: "vw_3f2a1"
+                keySuffix: "09f8e7d6"
+                name: "My Documentation Key"
+                userId: "cmnu7awv4000063lk18zpon2x"
+                isActive: true
+                rateLimit: 20
+                scopes: ["user:read", "resume:read"]
+                expiresAt: "2027-04-11T10:37:35.584Z"
+                revokedAt: null
+                createdAt: "2026-04-11T10:37:35.584Z"
+                updatedAt: "2026-04-11T10:37:35.584Z"
+                lastUsed: null
       "400":
-        $ref: "../components/responses.yaml#/BadRequestError"
+        description: Missing name, an unsupported scope, or a malformed `rateLimit`/`expiresAt`.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            examples:
+              missingName:
+                summary: Name omitted
+                value:
+                  success: false
+                  statusCode: 400
+                  message: "Key name is required"
+              badScope:
+                summary: Unsupported scope
+                value:
+                  success: false
+                  statusCode: 400
+                  message: "Unsupported API key scope(s): billing:read"
       "401":
         $ref: "../components/responses.yaml#/UnauthorizedError"
 
@@ -76,7 +186,15 @@ apiKeyRotate:
     operationId: rotateApiKey
     summary: Rotate API Key
 
-    description: Revokes the existing key and creates a replacement key with updated settings.
+    description: |
+      Revokes the target key and issues a replacement in one transaction. The old secret stops
+      working immediately.
+
+      Every field in the body is optional — send `{}` to rotate the secret while carrying over the
+      existing name, scopes, and rate limit. As with creation, the new secret is returned exactly
+      once. The response also carries `rotatedFromId`, the id of the key that was replaced.
+
+      Only an active, unrevoked key can be rotated; anything else returns `404`.
     security:
       - LocalSession: []
       - ProdSession: []
@@ -88,7 +206,7 @@ apiKeyRotate:
           type: string
         description: The ID of the API key to rotate.
     requestBody:
-      required: true
+      required: false
       content:
         application/json:
           schema:
@@ -96,21 +214,26 @@ apiKeyRotate:
             properties:
               name:
                 type: string
-                description: Optional replacement name for the API key.
+                description: Replacement name. Carried over from the old key when omitted or blank.
               scopes:
                 type: array
-                description: Scopes granted to the replacement key.
+                description: Scopes for the replacement key. Carried over from the old key when omitted.
                 items:
-                  type: string
+                  $ref: "../components/schemas.yaml#/ApiKeyScope"
               rateLimit:
                 type: integer
                 minimum: 1
                 maximum: 20
-                description: Requests allowed per window. Values above 20 are capped.
+                description: |
+                  Requests allowed per 15-minute window. Carried over when omitted; values above 20
+                  are silently clamped down to 20.
               expiresAt:
                 type: string
                 format: date-time
-                description: Optional ISO timestamp for expiration.
+                description: |
+                  New expiry. Carried over from the old key when omitted, falling back to 365 days
+                  from now if the old key had none.
+          example: {}
     responses:
       "201":
         description: API key rotated successfully.
@@ -118,12 +241,43 @@ apiKeyRotate:
           application/json:
             schema:
               $ref: "../components/schemas.yaml#/ApiKeyCreateResponse"
+            example:
+              success: true
+              message: "API key rotated successfully. Please save the new key immediately."
+              data:
+                id: "cmnu7awv4000063lk18zpon2n"
+                key: "vw_9e8d7c6b5a4938271605f4e3d2c1b0a99887766554433221100ffeeddccbbaa9"
+                keyPrefix: "vw_9e8d7"
+                keySuffix: "ccbbaa9"
+                name: "My Documentation Key"
+                userId: "cmnu7awv4000063lk18zpon2x"
+                isActive: true
+                rateLimit: 20
+                scopes: ["user:read", "resume:read"]
+                expiresAt: "2027-04-11T10:37:35.584Z"
+                revokedAt: null
+                createdAt: "2026-04-26T10:00:00.000Z"
+                updatedAt: "2026-04-26T10:00:00.000Z"
+                lastUsed: null
+                rotatedFromId: "cmnu7awv4000063lk18zpon2m"
       "400":
-        $ref: "../components/responses.yaml#/BadRequestError"
+        description: An unsupported scope, or a malformed `rateLimit`/`expiresAt`.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
       "401":
         $ref: "../components/responses.yaml#/UnauthorizedError"
       "404":
-        $ref: "../components/responses.yaml#/NotFoundError"
+        description: No active key with this ID belongs to the caller.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 404
+              message: "API key not found or inactive"
 
 apiKeyRevoke:
   post:
@@ -132,7 +286,13 @@ apiKeyRevoke:
     operationId: revokeApiKey
     summary: Revoke API Key
 
-    description: Immediately disables an API key without deleting its database record.
+    description: |
+      Immediately disables an API key without deleting its record — `isActive` becomes false and
+      `revokedAt` is stamped. The cached authentication record is purged at the same time, so the
+      secret stops working right away rather than after the cache expires.
+
+      A revoked key cannot be reactivated; rotate or create a new one instead. `data` is `null` on
+      success.
     security:
       - LocalSession: []
       - ProdSession: []
@@ -149,11 +309,23 @@ apiKeyRevoke:
         content:
           application/json:
             schema:
-              $ref: "../components/schemas.yaml#/GenericSuccessResponse"
+              $ref: "../components/schemas.yaml#/NullDataResponse"
+            example:
+              success: true
+              message: "API key revoked successfully"
+              data: null
       "401":
         $ref: "../components/responses.yaml#/UnauthorizedError"
       "404":
-        $ref: "../components/responses.yaml#/NotFoundError"
+        description: No key with this ID belongs to the caller.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 404
+              message: "API key not found"
 
 apiKeyItem:
   delete:
@@ -162,7 +334,11 @@ apiKeyItem:
     operationId: deleteApiKey
     summary: Delete API Key
 
-    description: Permanently deletes an API key by its ID.
+    description: |
+      Permanently removes an API key and its record. Use `POST /api-keys/{id}/revoke` instead if
+      you want to keep the audit trail.
+
+      `data` is `null` on success.
     security:
       - LocalSession: []
       - ProdSession: []
@@ -179,8 +355,20 @@ apiKeyItem:
         content:
           application/json:
             schema:
-              $ref: "../components/schemas.yaml#/GenericSuccessResponse"
+              $ref: "../components/schemas.yaml#/NullDataResponse"
+            example:
+              success: true
+              message: "API key deleted successfully"
+              data: null
       "401":
         $ref: "../components/responses.yaml#/UnauthorizedError"
       "404":
-        $ref: "../components/responses.yaml#/NotFoundError"
+        description: No key with this ID belongs to the caller.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 404
+              message: "API key not found"

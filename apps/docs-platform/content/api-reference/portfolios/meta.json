@@ -1,0 +1,17 @@
+{
+  "title": "Portfolios",
+  "description": "Public portfolio pages, drafts, publishing, and analytics.",
+  "pages": [
+    "overview",
+    "listPublicPortfolios",
+    "getPublicPortfolio",
+    "recordPortfolioView",
+    "getMyPortfolio",
+    "savePortfolioDraft",
+    "checkPortfolioSubdomainAvailability",
+    "previewPortfolio",
+    "publishPortfolio",
+    "unpublishPortfolio",
+    "getPortfolioAnalytics"
+  ]
+}

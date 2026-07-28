@@ -1,66 +1,77 @@
 ---
 title: Quick Start
-description: Initial steps for deploying or developing with the VeriWorkly platform.
+description: Choose a development or deployment path and get oriented in the VeriWorkly monorepo.
 ---
 
-import { Laptop, Server, Rocket } from "lucide-react";
+import { Laptop, Server } from "lucide-react";
 
 # Quick Start
 
-VeriWorkly is a full-stack platform comprising a **Next.js frontend** and an **Express.js backend**. The architecture is designed for high-fidelity document rendering and secure data synchronization.
+VeriWorkly is a monorepo containing four Next.js applications, a documentation site, a blog, and one
+Express/TypeScript API backed by PostgreSQL and Redis.
 
-## Implementation Paths
-
-Select the deployment or development path that aligns with your requirements:
+## Implementation paths
 
 <Cards>
-  <Card 
-    title="Local Development" 
-    icon={<Laptop />} 
-    href="/docs/getting-started/local-setup"
-  >
-    Recommended for developers and contributors. Run the platform services manually to modify source code, test features, or design templates.
+  <Card title="Local Development" icon={<Laptop />} href="/docs/getting-started/local-setup">
+    Recommended for contributors. Run the workspaces manually to modify source code, test features, or
+    design templates.
   </Card>
 
-  <Card 
-    title="Docker Deployment" 
-    icon={<Server />} 
-    href="/docs/getting-started/docker-deployment"
-  >
-    Recommended for production environments and self-hosters. Deploy the complete ecosystem utilizing our optimized Docker Compose configuration.
+  <Card title="Docker Deployment" icon={<Server />} href="/docs/getting-started/docker-deployment">
+    Recommended for self-hosters. Deploy the marketing site, the API, and Redis with the provided
+    Docker Compose configuration and an external PostgreSQL instance.
   </Card>
 </Cards>
 
 ---
 
-## Project Structure
-
-VeriWorkly utilizes a monorepo architecture to manage independent services and shared packages efficiently.
+## Project structure
 
 import { File, Folder, Files } from "fumadocs-ui/components/files";
 
 <Files>
   <Folder name="apps" defaultOpen>
-    <File name="site" />
-    <File name="studio" />
-    <File name="server" />
-    <File name="docs-platform" />
-    <File name="blog-platform" />
+    <File name="site" description="Marketing site — port 3000" />
+    <File name="studio" description="Document builder and workspace — port 3001" />
+    <File name="docs-platform" description="This documentation site — port 3002" />
+    <File name="blog-platform" description="Official blog — port 3003" />
+    <File name="portfolio" description="Portfolio builder and published sites — port 3004" />
+    <File name="server" description="Express API — port 8080" />
   </Folder>
   <Folder name="packages">
-    <File name="ui" />
+    <File name="ui" description="@veriworkly/ui shared design system" />
   </Folder>
-  <File name="package.json" />
+  <File name="compose.yaml" description="Docker Compose deployment configuration" />
+  <File name="package.json" description="npm workspaces root" />
 </Files>
+
+<Callout type="warn" title="The portfolio templates are a private submodule">
+  `apps/portfolio/template-library` is a git submodule pointing at a **private** repository
+  (`VeriWorkly/portfolio-templates`). If you do not have access to it, `apps/portfolio` will not
+  build — every other workspace is unaffected. See [Portfolio:
+  Templates](/docs/product/portfolio/templates).
+</Callout>
 
 ---
 
-## Architectural Components
+## Architectural components
 
-The platform consists of several integrated components:
+| Component          | Workspace                   | Role                                                                                                                                    |
+| :----------------- | :-------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- |
+| **Marketing site** | `@veriworkly/site`          | Landing, pricing, features, roadmap, FAQ, legal, affiliate and ambassador program pages.                                                |
+| **Studio**         | `@veriworkly/studio`        | The authenticated workspace: resume and cover letter editors, Master Profile, ATS checker, AI tools, sharing, billing, API keys, admin. |
+| **Portfolio**      | `@veriworkly/portfolio`     | The portfolio builder, its public template gallery, and the published portfolio sites.                                                  |
+| **Docs**           | `@veriworkly/docs-platform` | This site, built on Fumadocs.                                                                                                           |
+| **Blog**           | `@veriworkly/blog-platform` | The official blog, built on Fumadocs.                                                                                                   |
+| **API**            | `@veriworkly/server`        | Express API for auth, documents, billing, AI, ATS, sharing, portfolios, roadmap, changelog, and admin.                                  |
+| **Database**       | PostgreSQL                  | Primary store, accessed through Prisma. [Neon](https://neon.tech) works well for managed deployments.                                   |
+| **Cache**          | Redis                       | Sessions, rate limiting, quotas, buffered view counts, and distributed job locks.                                                       |
 
-1. **Marketing Site (Site)**: A Next.js application handling landing pages and public content.
-2. **Resume Studio (Studio)**: The primary Next.js application handling user interaction, local-first state management, and high-fidelity document rendering.
-3. **Backend API (Server)**: An Express-based service managing authentication and secure data synchronization.
-4. **Database (PostgreSQL)**: The primary relational store. We recommend [Neon](https://neon.tech) for managed deployments.
-5. **PDF Engine (react-pdf)**: A client-side rendering library that generates ATS-optimized documents directly in the browser.
+---
+
+## Next steps
+
+- [Local Development Setup](/docs/getting-started/local-setup) — full step-by-step installation.
+- [Environment Variables](/docs/operations/environment-variables) — every configuration key.
+- [Monorepo Architecture](/docs/architecture/monorepo) — how the workspaces relate to each other.

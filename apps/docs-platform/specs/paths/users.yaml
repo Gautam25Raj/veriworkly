@@ -8,7 +8,12 @@ getCurrentUser:
       - LocalSession: []
       - ProdSession: []
     summary: Get Current User
-    description: Retrieves detailed profile information for the currently authenticated user.
+    description: |
+      Retrieves account metadata for the currently authenticated user. Requires the `user:read`
+      scope when called with an API key.
+
+      This returns identity metadata only — resume, cover letter, and portfolio content is never
+      exposed here. Results are cached for 30 minutes and refreshed on write.
     responses:
       "200":
         description: User information fetched successfully.
@@ -22,13 +27,15 @@ getCurrentUser:
               data:
                 id: "cmnu7awv4000063lk18zpon2m"
                 name: "VeriWorkly User"
+                username: "veriworkly-user"
                 email: "info@veriworkly.com"
                 emailVerified: true
                 autoSyncEnabled: false
                 createdAt: "2026-04-11T10:37:35.584Z"
                 updatedAt: "2026-04-25T19:35:44.409Z"
                 _count:
-                  resumeShareLinks: 4
+                  apiKeys: 2
+                  shareLinks: 4
                   resumes: 4
       "401":
         $ref: "../components/responses.yaml#/UnauthorizedError"
@@ -54,7 +61,11 @@ updateUserName:
       - ProdSession: []
     summary: Update User Name
     description: |
-      Updates the name of the authenticated user. The email address remains read-only.
+      Updates the display name of the authenticated user. Requires the `user:write` scope when
+      called with an API key.
+
+      The email address is read-only through this API. Leading and trailing whitespace is trimmed
+      before validation.
     requestBody:
       required: true
       content:
@@ -83,13 +94,15 @@ updateUserName:
               data:
                 id: "cmnu7awv4000063lk18zpon2m"
                 name: "VeriWorkly User New Name"
+                username: "veriworkly-user"
                 email: "info@veriworkly.com"
                 emailVerified: true
                 autoSyncEnabled: false
                 createdAt: "2026-04-11T10:37:35.584Z"
                 updatedAt: "2026-04-26T02:00:00.000Z"
                 _count:
-                  resumeShareLinks: 4
+                  apiKeys: 2
+                  shareLinks: 4
                   resumes: 4
       "400":
         description: Validation error
@@ -119,13 +132,3 @@ updateUserName:
                       message: "Name is too long"
       "401":
         $ref: "../components/responses.yaml#/UnauthorizedError"
-      "404":
-        description: User not found
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas.yaml#/ErrorResponse"
-            example:
-              success: false
-              statusCode: 404
-              message: "User not found"

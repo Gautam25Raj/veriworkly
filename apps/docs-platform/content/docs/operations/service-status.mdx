@@ -1,25 +1,43 @@
 ---
 title: Service Status and Diagnostics
-description: Operational playbook for monitoring system health, diagnosing service failures, and maintaining platform uptime.
+description: Health endpoints, container diagnostics, background jobs, and common operational failure modes.
 ---
 
-import { Activity, Terminal, AlertTriangle, Cpu, Network, Server, Database } from "lucide-react";
+import { Terminal, Cpu, Server } from "lucide-react";
 
 # Service Status and Diagnostics
 
-Maintaining high availability for VeriWorkly requires active monitoring of its distributed components, including the primary API, background workers, and persistent data stores. This guide outlines the procedures for health assessment and technical diagnostics.
+This page covers assessing the health of a running VeriWorkly deployment and diagnosing failures.
 
 ---
 
-## 1. Automated Health Monitoring
+## 1. Health endpoints
 
-The most reliable mechanism for assessing system state is the backend health endpoint. This route performs active probes of the PostgreSQL database and Redis connection state rather than simply confirming service availability.
+There are **two** health routes, and the distinction matters.
 
-**Endpoint:** `GET /api/v1/health`
+### `GET /api/v1/health` — liveness
 
-### Nominal Operational State (`200 OK`)
+A lightweight check that touches **no external dependencies**. It confirms the process is up and
+responding, nothing more. This is the endpoint the Docker health check and any uptime monitor should
+use, precisely because it does not wake serverless database compute on every poll.
 
-When all integrated systems are functioning within defined parameters, the API returns a success response:
+```json
+{
+  "success": true,
+  "message": "Server is healthy",
+  "data": {
+    "status": "ok",
+    "timestamp": "2026-07-29T10:00:00.000Z"
+  }
+}
+```
+
+### `GET /api/v1/health/ready` — readiness
+
+A comprehensive check that actively probes PostgreSQL (`SELECT 1`) and Redis (`PING`). Use it for
+deploy-time verification and manual diagnosis.
+
+**Healthy (`200 OK`)**
 
 ```json
 {
@@ -29,89 +47,125 @@ When all integrated systems are functioning within defined parameters, the API r
     "status": "ok",
     "database": "connected",
     "redis": "connected",
-    "timestamp": "2026-04-26T10:00:00.000Z"
+    "timestamp": "2026-07-29T10:00:00.000Z"
   }
 }
 ```
 
-### Degraded Operational State (`503 Service Unavailable`)
-
-If a dependency failure is detected, the API returns a service unavailable status:
+**Degraded (`503 Service Unavailable`)**
 
 ```json
 {
   "success": false,
-  "message": "Service Unavailable",
-  "data": {
-    "status": "degraded",
-    "database": "disconnected",
-    "redis": "connected",
-    "timestamp": "2026-04-26T10:05:00.000Z"
-  }
+  "message": "Service Unavailable"
 }
 ```
 
-**Implementation Recommendation**: Integrate this endpoint with monitoring services such as Datadog, UptimeRobot, or Better Stack to facilitate automated alerting upon state transitions.
+<Callout type="warn" title="`/health/ready` fails whole, not partially">
+  If either PostgreSQL or Redis is unreachable, the endpoint returns a plain `503` error response.
+  It does **not** report which dependency failed — check the API logs to identify the culprit.
+</Callout>
+
+**Recommendation**: point uptime monitoring (UptimeRobot, Better Stack, Datadog) at `/health`, and
+run `/health/ready` as a post-deploy gate.
 
 ---
 
-## 2. Containerized Environment Diagnostics
+## 2. Container diagnostics
 
-In scenarios where health checks fail or containers exhibit unstable behavior (e.g., restart loops), utilize the following diagnostic commands.
-
-### Service State Assessment
-
-Verify the operational status of all containerized services defined in the orchestration configuration:
+### Service state
 
 ```bash
 docker compose ps
 ```
 
-### Resource Utilization Analysis
+Compose defines three services: `web` (the marketing site), `api`, and `redis`.
 
-Document rendering via Playwright is memory-intensive. Monitor resource consumption to identify potential Out-of-Memory (OOM) conditions:
+### Resource usage
 
 ```bash
 docker stats
 ```
 
-Significant memory consumption (approaching 100% of the allocated limit) necessitates either additional host resources or a reduction in concurrent rendering job limits.
+Memory growth on the `api` container is most often a Redis-backed structure growing unbounded, or
+concurrent AI/ATS requests holding large extracted-document text in memory while waiting on an
+external LLM provider.
+
+<Callout type="info" title="Document rendering does not load the API">
+  PDF and DOCX generation happens entirely in the browser. Export volume puts **no** load on the API
+  container. If you are chasing memory pressure, look at AI/ATS concurrency, uploaded-file parsing
+  (`pdf-parse` / `mammoth`), and Redis — not document rendering.
+</Callout>
 
 ---
 
-## 3. Log Analysis and Troubleshooting
+## 3. Logs
 
-Technical diagnostics require analysis of service-specific logs. Execute these commands from the root directory containing the `compose.yaml` file.
+Run from the directory containing `compose.yaml`.
 
 <Cards>
-  <Card title="Backend API Logs" icon={<Terminal />}>
+  <Card title="API logs" icon={<Terminal />}>
     ```bash
     docker compose logs --tail=100 -f api
     ```
-    **Key Indicators**: Uncaught exceptions, Prisma connectivity errors, or Zod validation failures for environment variables.
+    **Watch for**: startup configuration-validator failures, Prisma connectivity errors, Redis
+    connection errors, and cron-job lock messages.
   </Card>
 
-<Card title="Redis Service Logs" icon={<Server />}>
-  ```bash docker compose logs --tail=100 -f redis ``` **Key Indicators**: Memory allocation failures
-  or persistence (RDB/AOF) errors.
+<Card title="Redis logs" icon={<Server />}>
+  ```bash docker compose logs --tail=100 -f redis ``` **Watch for**: memory allocation failures and
+  AOF persistence errors.
 </Card>
 
-  <Card title="Frontend Application Logs" icon={<Cpu />}>
+  <Card title="Marketing site logs" icon={<Cpu />}>
     ```bash
     docker compose logs --tail=100 -f web
     ```
-    **Key Indicators**: Fetch errors or internal network resolution failures (`ECONNREFUSED`).
+    **Watch for**: SSR fetch failures and internal network resolution errors (`ECONNREFUSED`),
+    usually meaning `BACKEND_INTERNAL_URL` is wrong.
   </Card>
 </Cards>
 
 ---
 
-## 4. Common Operational Failure Modes
+## 4. Background jobs
 
-| Issue                        | Potential Cause                                            | Resolution Strategy                                                                        |
-| :--------------------------- | :--------------------------------------------------------- | :----------------------------------------------------------------------------------------- |
-| **Database Connectivity**    | Invalid `DATABASE_URL` or network firewall restrictions.   | Verify credentials and ensure the API has network access to the PostgreSQL instance.       |
-| **Redis Memory Exhaustion**  | Backed-up job queue or excessive data caching.             | Increase container memory limits or optimize job processing frequency.                     |
-| **CORS Policy Violations**   | Misconfigured `ALLOWED_ORIGINS` variable.                  | Ensure the backend environment configuration exactly matches the public frontend URI.      |
-| **Document Rendering Delay** | Hanging Playwright processes or zombie Chromium instances. | Restart the API service to clear the process tree and re-initialize the rendering workers. |
-| **Zod Validation Failure**   | Missing or malformed environment variables in production.  | Review the startup logs to identify the specific variable failing validation.              |
+Five `node-cron` jobs run inside the API. Each acquires a **Redis distributed lock** first, so only
+one worker executes a given job even when the server is clustered across CPU cores.
+
+| Job                        | Schedule                                                   | Purpose                                                                                                                                                                          |
+| :------------------------- | :--------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **GitHub sync**            | `GITHUB_SYNC_CRON`, default `0 0,12 * * *` (twice daily)   | Refreshes repository issue and PR statistics. Skipped when existing data is under 12 hours old.                                                                                  |
+| **Changelog release sync** | `CHANGELOG_RELEASE_SYNC_CRON`, default `0 6 * * *` (daily) | Imports missing GitHub Releases into the public changelog.                                                                                                                       |
+| **Views flush**            | every 10 minutes                                           | Moves buffered portfolio and share-link view counts from Redis into PostgreSQL.                                                                                                  |
+| **Usage metrics flush**    | `USAGE_METRICS_FLUSH_CRON`, default `10 0 * * *`           | Flushes buffered usage counters into `UsageMetricDaily`, only for fully-completed UTC days.                                                                                      |
+| **Portfolio access**       | hourly                                                     | Suspends portfolios whose billing grace period has expired, and garbage-collects abandoned image uploads (and their R2 objects) that have been `PENDING` for more than 24 hours. |
+
+Both flush jobs write idempotency-batch markers, so a crashed or racing flush can neither
+double-count nor silently drop a batch.
+
+Missed cron windows during downtime are partially covered: the GitHub sync, changelog sync, and
+usage-metrics jobs each run a catch-up check on startup.
+
+---
+
+## 5. Common failure modes
+
+| Symptom                                         | Likely cause                                                                                 | Resolution                                                                                                                                                                                                                |
+| :---------------------------------------------- | :------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **API exits immediately on boot**               | The production configuration validator rejected the environment.                             | Read the startup log — it names the failing variable. Common causes: a default `AUTH_SECRET`, a non-HTTPS `AUTH_BASE_URL`, `API_KEY_HASH_SECRET` equal to `AUTH_SECRET`, or `AUTH_EMAIL_PROVIDER` still set to `console`. |
+| **`/health/ready` returns 503**                 | PostgreSQL or Redis unreachable.                                                             | Verify `DATABASE_URL` and `REDIS_URL`, and that the API can reach both across the network.                                                                                                                                |
+| **Login fails but `/health` is fine**           | Redis is down. Better-Auth stores sessions in Redis secondary storage.                       | Restore Redis. The rate limiter has an in-memory fallback; session storage does not.                                                                                                                                      |
+| **CORS errors in the browser**                  | `ALLOWED_ORIGINS` does not include the public frontend origin.                               | Add the exact scheme + host + port. Credentials are only granted to explicitly listed origins, never wildcard-matched portfolio subdomains.                                                                               |
+| **AI generation times out**                     | Upstream Anthropic/OpenAI latency, or a dangling credit reservation.                         | Check the provider status page. Verify the request's credit reservation was released rather than left reserved — reserved credits are not spendable until committed or released.                                          |
+| **API keys stop working after a payment event** | Expected. Keys are invalidated when the owning subscription lapses to cancelled or inactive. | Restore the subscription, or issue keys from an account with an active entitlement.                                                                                                                                       |
+| **Portfolio goes offline unexpectedly**         | The billing grace period expired and the hourly portfolio access job suspended it.           | Restore the subscription; publication status moves back out of `SUSPENDED`.                                                                                                                                               |
+| **Webhook events appear unprocessed**           | Check `BillingWebhookEvent` for rows in `FAILED` or `PROCESSING`.                            | Each row records its error and retry count, keyed by the provider's event ID for idempotent reprocessing.                                                                                                                 |
+
+---
+
+## Related
+
+- [Environment Variables](/docs/operations/environment-variables)
+- [Docker Deployment](/docs/getting-started/docker-deployment)
+- [API Key Security Runbook](/docs/operations/api-key-security-runbook)

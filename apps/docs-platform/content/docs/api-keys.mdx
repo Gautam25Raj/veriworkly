@@ -1,84 +1,119 @@
 ---
 title: API Keys
-description: Learn how to use API keys to authenticate your requests to the VeriWorkly API.
+description: Create, scope, rotate, and revoke API keys for programmatic access to the VeriWorkly API.
 ---
 
 # API Keys
 
-API keys are used to authenticate programmatic requests to the VeriWorkly API. Unlike session-based authentication, which is designed for browser use, API keys allow you to integrate VeriWorkly features into your own applications and scripts.
+API keys authenticate programmatic requests to the VeriWorkly API. Session cookies are designed for
+browser use; API keys let you integrate VeriWorkly into your own scripts and applications.
 
 ## Getting an API Key
 
-You can manage your API keys in the **Settings** section of the VeriWorkly Resume Builder.
+Key management lives on its own page in Studio, not inside the settings panels (the Settings page
+links to it).
 
-1. Log in to [VeriWorkly Resume Builder](https://app.veriworkly.com).
-2. Navigate to **Settings** > **API Keys**.
-3. Click **Generate New Key**.
-4. Give your key a descriptive name (e.g., "GitHub Integration").
-5. **Copy and save your key immediately.** For security reasons, we will not show it again.
+1. Log in to [app.veriworkly.com](https://app.veriworkly.com).
+2. Go to **`/api-keys`** — reachable from **Settings → Developer API keys**, or directly.
+3. Click **Create key**.
+4. Give the key a descriptive name, pick its scopes, and optionally set a rate limit and expiry.
+5. **Copy the key immediately.** The full value is shown exactly once and is never recoverable.
 
-### Key Safety Model
+Keys are prefixed `vw_` followed by 64 hex characters.
 
-VeriWorkly stores only a hashed version of each API key. The full key is shown only once when it is created.
+### Key safety model
 
-Each key can also have:
+VeriWorkly never stores the key itself. Only an irreversible **HMAC-SHA256** hash is persisted, using
+a hashing secret (`API_KEY_HASH_SECRET`) that production configuration requires to be distinct from
+the general auth secret. The stored record keeps a short display prefix and suffix so you can
+recognise a key in the list without being able to reconstruct it.
 
-- **Scopes**: what the key is allowed to do.
-- **Expiry**: when the key stops working.
-- **Rate limit**: how much traffic the key can generate.
+Each key carries:
 
-If you need to replace a key, use rotation. Rotation creates a new key and revokes the old one.
+| Property       | Default                  | Notes                                                  |
+| :------------- | :----------------------- | :----------------------------------------------------- |
+| **Scopes**     | `user:read`              | Applied when a key is created without explicit scopes. |
+| **Expiry**     | 365 days                 | Configurable per key at creation.                      |
+| **Rate limit** | 20 requests / 15 minutes | Configurable per key, capped by a server-side maximum. |
 
-## Using Your API Key
+## Using your API Key
 
-To authenticate a request, include your API key in the `X-API-Key` header:
+Send the key in the `X-API-Key` header:
 
 ```bash
 curl -H "X-API-Key: YOUR_API_KEY" https://api.veriworkly.com/api/v1/users/me
 ```
 
-## Rate Limits
-
-API keys are subject to rate limiting to ensure fair usage and system stability.
-
-| Limit Type              | Rate                       |
-| :---------------------- | :------------------------- |
-| **Standard Rate Limit** | 20 requests per 15 minutes |
-
-If you exceed the rate limit, the API will return a `429 Too Many Requests` status code. The response will include headers indicating when you can retry:
-
-- `Retry-After`: Seconds to wait before the next request.
-- `X-RateLimit-Limit`: Maximum requests allowed in the window.
-- `X-RateLimit-Remaining`: Remaining requests in the current window.
-- `X-RateLimit-Reset`: Unix timestamp when the limit resets.
-
 ## Scopes
 
-Scopes are like little permission labels. A key with only `user:read` can read user data, but it should not be able to write it.
+A key may only carry scopes the backend recognises. Requesting an unknown scope fails the create or
+rotate call with `400 Unsupported API key scope(s)`.
 
-Common scopes include:
+| Scope            | Grants                                                                 |
+| :--------------- | :--------------------------------------------------------------------- |
+| `user:read`      | Read your account profile and identity details.                        |
+| `user:write`     | Update user-facing profile fields (name, username, auto-sync setting). |
+| `resume:read`    | Read resume-backed document content and metadata.                      |
+| `resume:write`   | Create, edit, delete, sync, and share resume-backed documents.         |
+| `roadmap:read`   | Read public roadmap items and release-planning data.                   |
+| `changelog:read` | Read changelog entries and changelog statistics.                       |
+| `github:read`    | Read the synced GitHub issue and repository statistics.                |
+| `ai:write`       | Call the AI generation endpoint, spending the account's AI credits.    |
 
-- `user:read`
-- `user:write`
-- `resume:read`
-- `resume:write`
-- `roadmap:read`
-- `roadmap:write`
-- `github:read`
-- `github:write`
+<Callout type="info" title="`changelog:read` is API-only today">
+  All eight scopes above are accepted by the backend. The Studio scope picker currently surfaces
+  seven of them — `changelog:read` can be requested through the API-key create/rotate endpoints, but
+  has no checkbox in the UI yet.
+</Callout>
 
-## Rotation and Revocation
+<Callout type="warn" title="There is no write scope for roadmap or GitHub">
+  Both the roadmap and GitHub data surfaces are read-only for API keys. `roadmap:write` and
+  `github:write` do not exist and will be rejected.
+</Callout>
 
-- **Rotate**: create a new key and retire the old one.
-- **Revoke**: turn a key off so it stops working immediately.
+## Rate limits
 
-Use rotation when an integration is still needed. Use revocation when a key should no longer exist.
+| Limit type          | Rate                       |
+| :------------------ | :------------------------- |
+| **Per-key default** | 20 requests per 15 minutes |
 
-## Security Best Practices
+Exceeding the limit returns `429 Too Many Requests` with headers indicating when to retry:
 
-- **Never share your API key.**
-- **Do not commit API keys to version control** (e.g., GitHub). Use environment variables instead.
-- **Revoke compromised keys immediately** via the Settings dashboard and generate a new one.
-- **Use descriptive names** for your keys to easily track their usage.
-- **Prefer the smallest possible scope set.**
-- **Use shorter expiries for risky integrations.**
+- `Retry-After` — seconds to wait before the next request.
+- `X-RateLimit-Limit` — maximum requests allowed in the window.
+- `X-RateLimit-Remaining` — remaining requests in the current window.
+- `X-RateLimit-Reset` — Unix timestamp when the limit resets.
+
+Per-key limits sit on top of the general per-route IP rate limiter, so a burst can be throttled by
+either.
+
+## Rotation and revocation
+
+- **Rotate** — issues a replacement key and retires the old one. Use this when the integration is
+  still needed.
+- **Revoke** — turns the key off permanently. Use this when the key should stop existing.
+
+Authentication results are cached in Redis for 5 minutes by default
+(`API_KEY_AUTH_CACHE_TTL_SECONDS`), and that cache entry is dropped immediately when a key is
+revoked, so a revoked key stops working right away rather than at the end of its cache window.
+
+<Callout type="warn" title="Keys are invalidated when a subscription lapses">
+  If the owning account's subscription moves to a cancelled or inactive state, its API keys stop
+  authenticating. The billing webhook busts the auth cache the moment it processes the change, so
+  the effect is immediate rather than delayed by the normal 5-minute TTL.
+</Callout>
+
+The `lastUsed` timestamp is written at a throttled interval
+(`API_KEY_LAST_USED_TOUCH_INTERVAL_SECONDS`, default 300 seconds) rather than on every request, so it
+is approximate by design.
+
+## Security best practices
+
+- **Never share a key**, and never commit one to version control — use environment variables.
+- **Prefer the smallest scope set** that makes the integration work.
+- **Use shorter expiries** for risky or short-lived integrations.
+- **Revoke compromised keys immediately** and issue a replacement.
+- **Use descriptive names** so an unfamiliar key is easy to trace back to its integration.
+
+For production operating procedure — rotation schedules, incident response, release checks — see the
+[API Key Security Runbook](/docs/operations/api-key-security-runbook).

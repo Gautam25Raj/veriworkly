@@ -1,0 +1,146 @@
+---
+title: Ambassador Program
+description: What's live in the Campus Ambassador program today — application intake, admin review, and what's still rolling out.
+---
+
+# Ambassador Program
+
+The Campus Ambassador program is rolling out in phases, following the same pattern the Affiliate
+program went through: application intake and review first, the rewards loop next.
+
+<Callout type="warn" title="This page describes a program mid-rollout">
+  Application intake and admin review are live. The points economy previewed on the public marketing
+  page is direction, not yet shipped. If you are building against this, verify against
+  `apps/server/src/routes/ambassador.ts` and `apps/server/src/routes/adminAmbassador.ts`.
+</Callout>
+
+## Feature-flag gated
+
+The whole program sits behind a boot-time flag, `config.growth.ambassadorProgramEnabled`, read once
+from `AMBASSADOR_PROGRAM_ENABLED` at server startup.
+
+- **Default**: enabled outside production, **disabled** in production unless explicitly turned on.
+- **When off**: the ambassador API routes return `503` ("The ambassador program is not available
+  yet"), and Studio's `/ambassador` route shows a "Coming Soon" screen.
+- Changing the flag requires a **server restart** — it is a config-only boolean, not a runtime
+  toggle.
+
+---
+
+## What's live today
+
+### Applying
+
+The application form lives on the **marketing site** at
+[veriworkly.com/ambassador/apply](https://veriworkly.com/ambassador/apply), not in Studio.
+
+`POST /api/v1/ambassador/apply` accepts:
+
+| Field            | Required | Validation                                                                 |
+| :--------------- | :------- | :------------------------------------------------------------------------- |
+| `collegeName`    | Yes      | 2–160 characters.                                                          |
+| `graduationYear` | Yes      | A real 4-digit year (`19xx` or `20xx`), validated client- and server-side. |
+| `whyJoin`        | Yes      | 20–1,000 characters.                                                       |
+| `superpower`     | Yes      | 2–300 characters.                                                          |
+| `funFact`        | Yes      | 2–300 characters.                                                          |
+| `vibeCheck`      | No       | Up to 80 characters.                                                       |
+| `socialHandle`   | No       | Up to 120 characters.                                                      |
+
+Re-applying after a rejection is allowed — the application is upserted, its status reset to
+`PENDING`, and the previous review metadata cleared. Applying while already `PENDING`, or while
+already an approved `AMBASSADOR`, is rejected with a `400`.
+
+Applying sets the user's `ambassadorStatus` to `PENDING` in the same transaction that writes the
+application.
+
+### Checking status
+
+`GET /api/v1/ambassador/me` returns the user's `role`, `ambassadorStatus`, `collegeName`, and
+`graduationYear`.
+
+### Admin review
+
+The review workflow is **live** as an API surface:
+
+| Endpoint                             | Purpose                                                                                                                                               |
+| :----------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/admin/ambassador`       | List applications, optionally filtered by `status` (`PENDING`, `APPROVED`, `REJECTED`), newest first, with the applicant's id, email, name, and role. |
+| `PATCH /api/v1/admin/ambassador/:id` | Review an application: `action` is `APPROVE` or `REJECT`, with an optional `reviewNote` up to 500 characters.                                         |
+
+Both require admin authentication. Approving flips the application's status **and** the user's
+`role` to `AMBASSADOR` inside a single transaction; rejecting sets the role back to `USER`. Either
+way, an `AdminAuditEntry` is written recording the actor, the action
+(`ambassador.application.approve` / `.reject`), the application id, and the review note.
+
+An application that has already been reviewed cannot be reviewed again — a second `PATCH` returns a
+`400`.
+
+<Callout type="info" title="Admin review is API-only for now">
+  There is no dedicated admin review screen in Studio yet, unlike the affiliate moderation panel in
+  `/admin/monetization`. Reviews are performed against the endpoints above.
+</Callout>
+
+### Studio's `/ambassador` page
+
+A status page reflecting two states:
+
+1. **Pending** — an "Application Under Review" badge, with copy explaining that a decision will be
+   emailed.
+2. **Active ambassador** — an "Active Campus Ambassador" badge, and a placeholder for the perks,
+   resources, and stats that ship with the rewards layer.
+
+Applying itself happens on the marketing site, not here.
+
+---
+
+## Data model
+
+```prisma
+enum AmbassadorApplicationStatus { PENDING  APPROVED  REJECTED }
+
+model AmbassadorApplication {
+  id             String                      @id @default(cuid())
+  userId         String                      @unique
+  collegeName    String
+  graduationYear String
+  whyJoin        String
+  superpower     String
+  funFact        String
+  vibeCheck      String?
+  socialHandle   String?
+  status         AmbassadorApplicationStatus @default(PENDING)
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  reviewNote     String?
+}
+```
+
+The `User` record additionally carries an `ambassadorStatus` string (default `"NONE"`) mirroring the
+application status, and the `Role` enum includes a dedicated `AMBASSADOR` value.
+
+---
+
+## What's still rolling out
+
+The public marketing page at [veriworkly.com/ambassador](https://veriworkly.com/ambassador) previews
+a fuller experience that is **not yet implemented in the backend**:
+
+- Points for invites and invite conversions.
+- `.edu`-verified badges.
+- Points for video and article contributions.
+- A redemption threshold for a 30-day Creator Pro voucher.
+- An interactive points calculator and a public leaderboard.
+
+There is no points, redemption, or leaderboard model in the database today. Treat the marketing
+page's numbers as a preview of intent, not as a live earning schedule.
+
+---
+
+## API
+
+See the [Ambassador API reference](/api-reference/ambassador) for full request and response shapes.
+
+## Related
+
+- [Affiliate Program](/docs/product/affiliate-program) — the program whose rollout pattern this one
+  is following, and which already has its full rewards loop live.

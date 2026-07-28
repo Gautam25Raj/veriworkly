@@ -1,64 +1,125 @@
 ---
 title: Account Management
-description: Detailed guide on user profiles, the Master Profile system, and cloud synchronization.
+description: Your account identity, the Master Profile, sign-in, cloud sync, and data deletion.
 ---
 
 # Account Management
 
-VeriWorkly provides a sophisticated account management system designed to balance user privacy with cross-device convenience. The platform supports a hybrid model where users can operate entirely offline or utilize cloud-based features for enhanced productivity.
-
-## User Profile vs. Master Profile
-
-A fundamental aspect of the VeriWorkly ecosystem is the distinction between your account identity and your professional data repository.
-
-### 1. User Profile
-
-The User Profile manages your authentication and application preferences:
-
-- **Authentication**: Email address associated with your passwordless OTP login.
-- **Identity**: Display name and profile image.
-- **Preferences**: Application-wide settings including theme selection, localization, and interface configurations.
-
-### 2. Master Profile
-
-The Master Profile serves as the centralized "Source of Truth" for your career data. It is a comprehensive repository of your professional history, designed to be reused across multiple resumes.
-
-- **Work History**: All past and present professional experiences.
-- **Skill Repository**: Categorized technical and soft skills.
-- **Academic Background**: Complete educational history and certifications.
-- **Projects & Awards**: A comprehensive list of achievements and personal projects.
-
-**Strategic Advantage**: By maintaining a Master Profile, you can seed new resumes with existing data and then toggle the visibility of specific sections to tailor the document for a particular job application.
+VeriWorkly separates **who you are** (your account) from **your career data** (your Master Profile).
+Understanding that split explains most of how the product behaves.
 
 ---
 
-## Authentication and Account Creation
+## Account vs. Master Profile
 
-VeriWorkly utilizes a passwordless authentication model to improve security and eliminate the risks of password fatigue or compromise.
+### Your account
 
-1. **Initiate Sign-In**: Select the **Sign In** option on the dashboard.
-2. **Email Verification**: Provide your email address to receive a 6-digit **One-Time Password (OTP)**.
-3. **Verification**: Enter the OTP within the 10-minute validity window to establish your session.
+Manages authentication and application preferences:
 
-Upon successful authentication, local resumes can be promoted to the cloud for persistent backup and cross-device access.
+- **Email** — the address used for your passwordless sign-in.
+- **Display name** and **profile image**.
+- **Username** — required before you can create a public share link, since share URLs are
+  username-scoped (`/share/{username}/{slug}`).
+- **Preferences** — theme (light, dark, or follow system) and the auto-sync toggle.
+
+### Your Master Profile
+
+The canonical record of your career history — work experience, education, projects, skills,
+certifications, awards, publications, languages, interests, volunteer work, references, and
+achievements — stored as a single record per user.
+
+Every new resume, cover letter, or portfolio auto-seeds from it. **Editing a document never writes
+back to the Master Profile**, so you can tailor one resume for one job without touching your
+canonical data or any other document.
+
+It is edited in Studio at `/profile/master`, with a raw-JSON editor at `/profile/advanced` for bulk
+changes. See [Master Profile](/docs/product/master-profile) for the full behaviour.
 
 ---
 
-## Data Synchronization and Conflict Resolution
+## Signing in
 
-### Master Profile Updates
+VeriWorkly is passwordless. There is no account password to forget or reuse.
 
-Updates to the Master Profile are performed via the **Dashboard**. These changes persist in the central repository but do not retroactively modify existing resumes. This architectural decision prevents accidental alterations to finalized documents while ensuring new documents utilize the latest information.
+1. **Email OTP** — enter your email, receive a one-time passcode, and enter it. The code is valid for
+   **5 minutes** and allows **3** failed attempts before it must be re-requested.
+2. **OAuth** — sign in with **Google**, **GitHub**, or **LinkedIn** instead. Account linking is
+   enabled, so signing in with Google after having used email OTP lands you on the same account
+   rather than creating a duplicate.
 
-### Synchronization Logic
+Sessions last 30 days by default and are shared across VeriWorkly subdomains, so a login in Studio
+carries over to the portfolio builder.
 
-VeriWorkly employs an optimistic concurrency model for synchronization. In scenarios where a resume is modified across multiple devices, the system utilizes a "Last Write Wins" strategy. We recommend verifying synchronization status (indicated in the editor sidebar) before transitioning between devices.
+<Callout type="info" title="You do not need an account to build">
+  Documents work fully logged out — they live in your browser, backed by a 30-day guest cookie. An
+  account is only required for cloud sync, sharing, AI, ATS scanning, imports, and portfolio
+  publishing.
+</Callout>
+
+You will also receive automatic emails on account events: a welcome email on signup, and a
+**new-device login alert** whenever a session is created from an unfamiliar device, showing the
+provider, IP, and user agent.
 
 ---
 
-## Account Termination
+## Cloud sync
 
-Users maintain full control over their data and may terminate their account at any time.
+Once signed in, documents sync in the background.
 
-- **Process**: Account deletion is initiated via the **Settings** page.
-- **Impact**: This action results in the permanent removal of your User Profile, Master Profile, and all cloud-synced resumes. This process is irreversible.
+- **Auto-sync toggle** — on by default, switchable at `/settings`, alongside a manual **Sync Now**
+  action.
+- **Per-document opt-out** — mark any single document "keep local only" to exclude it from sync
+  entirely.
+- **Sync status** — every document shows one of `local-only`, `pending`, `syncing`, `synced`, or
+  `conflicted`.
+
+### Conflict handling
+
+VeriWorkly uses **optimistic concurrency**, not last-write-wins. Each document carries a revision
+counter; if the cloud copy has moved on since your device last synced, the write is **rejected** and
+the document is marked `conflicted` rather than overwritten. Resolve it from the conflict details
+view at `/settings`.
+
+<Callout type="warn" title="Known issue: editing during an in-flight sync">
+  If you keep typing while a sync request is in flight, the completion handler can write its
+  pre-sync snapshot back over your newer local edits, losing the interim keystrokes. This is a known
+  unresolved issue. If you are editing heavily, prefer manual **Sync Now** over auto-sync.
+</Callout>
+
+---
+
+## Settings
+
+`/settings` in Studio contains:
+
+- **Appearance** — light, dark, or follow-system theme.
+- **Sync** — the auto-sync toggle, manual sync, and conflict resolution.
+- **Developer API keys** — a link through to `/api-keys`. See [API Keys](/docs/api-keys).
+
+---
+
+## Deleting your data
+
+**Individual documents** can be deleted at any time from the dashboard. Deletion is a soft delete
+server-side: the record is flagged rather than immediately purged, and it stops counting against the
+free-tier one-document-per-type limit.
+
+**Local data** persists in your browser until you clear site data or delete the document. Clearing
+browser storage removes anything that was never synced.
+
+<Callout type="warn" title="Self-service account deletion is not yet available">
+  Studio does not currently expose an account-deletion control, and the backend's delete-user
+  endpoint is not enabled. To have your account and all associated cloud data removed, email
+  <a href="mailto:info@veriworkly.com">info@veriworkly.com</a>. You will receive a confirmation
+  email when the deletion is processed. Deletion cascades to your documents, Master Profile, share
+  links, portfolio, API keys, and sessions.
+</Callout>
+
+---
+
+## Related
+
+- [Master Profile](/docs/product/master-profile)
+- [Exporting and Sharing](/docs/user-guides/exporting-and-sharing)
+- [Privacy Policy](/docs/legal/privacy-policy)
+- [Authentication System](/docs/architecture/auth-system) — the technical detail behind sign-in.

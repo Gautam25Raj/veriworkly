@@ -1,53 +1,114 @@
 ---
 title: Exporting and Sharing
-description: Technical reference for document generation, file formats, and managed public sharing.
+description: The six export formats, and how public share links, passwords, expiry, and view analytics work.
 ---
 
 import { FileText, FileDown, ShieldCheck, Link as LinkIcon } from "lucide-react";
 
 # Exporting and Sharing
 
-VeriWorkly provides several mechanisms for document distribution, ranging from local file generation to cloud-hosted public links. Our architecture ensures that document fidelity is maintained across all export formats.
+There are two ways to get a document out of VeriWorkly: **download a file**, or **publish a share
+link**. Downloads work logged out; share links require an account.
 
 ---
 
-## 1. High-Fidelity PDF Export
+## Exporting
 
-VeriWorkly utilizes a high-performance client-side rendering pipeline for PDF generation, powered by **react-pdf**. This ensures that document layouts are generated with pixel-perfect accuracy directly in the user's browser, providing instant feedback and superior data privacy.
+Every document exports to six formats from a single menu:
 
-- **Technical Process**: Upon clicking "Export", the application maps your resume data to high-fidelity PDF primitives. The generation process occurs entirely within your browser's secure sandbox, producing a vector-based PDF with embedded fonts and selectable text.
-- **ATS Compliance**: The resulting documents are strictly engineered for machine-readability. By utilizing standard PDF semantic structures, we ensure that recruitment software and Applicant Tracking Systems (ATS) can accurately parse your professional history without errors.
+| Format         | Engine                | Best for                                                           |
+| :------------- | :-------------------- | :----------------------------------------------------------------- |
+| **PDF**        | `@react-pdf/renderer` | Recruiters and job-board uploads. Vector text with embedded fonts. |
+| **DOCX**       | the `docx` package    | Employers that require Word, or further manual editing.            |
+| **HTML**       | serialiser            | Embedding or self-hosting.                                         |
+| **Markdown**   | serialiser            | Version control and text-based systems.                            |
+| **Plain text** | serialiser            | ATS forms that ask you to paste your resume as text.               |
+| **JSON**       | serialiser            | Backup, and re-import into VeriWorkly.                             |
 
-<Callout type="info" title="Privacy First">
-  Unlike traditional platforms, VeriWorkly does not transmit your document data to a server for PDF
-  generation. Your personal information never leaves your device during the export process.
+<Callout type="info" title="Nothing is uploaded to export">
+  All six formats are generated inside your browser. Your document content is never sent to a server
+  to be rendered — there is no headless browser in the pipeline. See [Export
+  Pipeline](/docs/architecture/pdf-generation).
+</Callout>
+
+### ATS considerations
+
+PDF exports render every glyph as real text rather than an image, so applicant tracking systems can
+index the full contents, and fonts are embedded so layout does not shift on the reader's machine.
+
+If a system explicitly asks for pasted text, use the **plain text** export rather than copying out of
+the PDF — it produces cleaner, more predictable output.
+
+<Callout type="warn" title="Complete or hide empty entries before exporting">
+  Blank date, role, and company fields currently render as the placeholder strings `"Start - End"`,
+  `"Role"`, and `"Company"` in the actual downloaded file. Fill in or hide any partially-completed
+  entry first.
 </Callout>
 
 ---
 
-## 2. DOCX Export
+## Share links
 
-For scenarios requiring manual post-processing in word processors such as Microsoft Word or Google Docs, VeriWorkly supports direct export to the `.docx` format.
+A share link publishes a read-only web page for a document at
+`/share/{username}/{slug}`.
 
-- **Client-Side Processing**: DOCX generation is performed locally within the browser, ensuring that professional data remains on the user's device.
-- **Structural Integrity**: While visual styling is adapted for word processor compatibility, the document's structural hierarchy (headings, lists, and metadata) remains preserved.
+### Requirements
 
----
+- You must be **signed in**.
+- You must have set a **username** — share URLs are username-scoped, so sharing is unavailable until
+  one exists.
 
-## 3. Managed Public Sharing
-
-Authenticated users with active Cloud Sync may generate persistent, shareable URLs for their resumes. This feature enables real-time document distribution without the need for manual file transfers.
-
-### Link Types and Security
+### Link options
 
 <Cards>
-  <Card title="Public Access Links" icon={<LinkIcon />}>
-    Generates a unique, read-only URI for the document. Updates performed in the editor are immediately reflected on the public link, ensuring that recruiters always access the most current version.
+  <Card title="Public link" icon={<LinkIcon />}>
+    A read-only page anyone with the URL can open. Viewers can download the document as PDF or DOCX
+    directly from the share page.
   </Card>
 
-  <Card title="Protected Access Links" icon={<ShieldCheck />}>
-    Provides an additional security layer by requiring a password for document access. This ensures that sensitive contact information and professional history are restricted to authorized parties.
+<Card title="Password protection" icon={<ShieldCheck />}>
+  Set a password to require it before the document is shown. It can be added or removed at any time
+  after the link exists.
+</Card>
+
+<Card title="Expiry" icon={<FileText />}>
+  Set a specific expiry date, or leave the link open-ended. An expired link returns `410 Gone`.
+</Card>
+
+  <Card title="View analytics" icon={<FileDown />}>
+    Each link tracks a total view count and a last-viewed timestamp.
   </Card>
 </Cards>
 
-For a deeper analysis of the underlying rendering infrastructure, refer to the [PDF Export Engine](/docs/architecture/pdf-generation) documentation.
+### Important behaviours
+
+<Callout type="warn" title="A share link serves a snapshot, not the live document">
+  When you create a share link, VeriWorkly stores a **static copy** of the document as it was at
+  that moment. Editing the document afterwards does **not** change what recipients see — you must
+  refresh the share link to publish your latest version. This is deliberate: a link you sent to a
+  recruiter cannot silently change under them mid-review.
+</Callout>
+
+<Callout type="info" title="One share link per document">
+  A document has at most one share link (enforced by a database uniqueness constraint on user +
+  document). Sharing again updates the existing link rather than creating a second one. Revoking a
+  link takes the public page down immediately.
+</Callout>
+
+### Security
+
+- Share passwords are hashed with **scrypt** and verified with a timing-safe comparison. They are
+  separate from your account credentials — VeriWorkly has no account password at all.
+- Password verification is rate-limited to **3 attempts per 5 minutes** per client, which makes
+  brute-forcing a share password impractical.
+- Repeat views from the same IP within a 30-minute window are deduplicated before the view count is
+  incremented, so refreshing a page does not inflate your analytics.
+
+---
+
+## Related
+
+- [Export Pipeline](/docs/architecture/pdf-generation) — the technical rendering detail.
+- [Creating Your First Resume](/docs/user-guides/creating-your-first-resume)
+- [Portfolio: Publishing & Analytics](/docs/product/portfolio/publishing) — publishing a full
+  website rather than a document link.

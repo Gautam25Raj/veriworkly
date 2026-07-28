@@ -19,21 +19,52 @@ Unlike session-based authentication which is designed for browser use, API Keys 
 
 To protect your account, VeriWorkly implements a strict visibility policy for keys:
 
-- **One-Time Secret**: The raw API key is **only returned once** (during the `POST` creation request). It is never stored in plain text in a way that can be retrieved later.
-- **Masking**: List operations return a masked version of the key (e.g., `vw_abc1...xyz9`) to allow you to identify keys without exposing them.
-- **Rate Limiting**: Each API key has an associated rate limit (default: 20 req/15min) to prevent abuse and ensure platform stability.
+- **One-Time Secret**: The raw API key is **only returned once** — in the response to the `POST`
+  that created (or rotated) it. It is stored solely as an HMAC-SHA256 hash and can never be read
+  back.
+- **No masked secret**: List operations return **no form of the secret at all**, not even a masked
+  one. Each entry carries `keyPrefix` — the first 8 characters, e.g. `vw_a1b2c` — which is enough
+  to tell keys apart. If you lose a secret, rotate the key.
+- **Format**: `vw_` followed by 64 hexadecimal characters.
+- **Expiry**: Every key expires. When you don't supply `expiresAt`, it defaults to 365 days out.
+- **Rate Limiting**: Each key has its own limit (default 20 requests / 15 minutes, capped at 20).
+  Responses carry `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`.
+
+<Callout type="info" title="Managing keys requires a session">
+  Every endpoint in this module is session-only — you cannot use an API key to list, create,
+  rotate, revoke, or delete API keys.
+</Callout>
+
+---
+
+## Scopes
+
+Keys are scope-gated. A request whose key lacks the scope a route requires is rejected with `403`.
+Session callers are never scope-gated. Scopes default to `["user:read"]` when you don't specify
+any, and requesting a value outside this set fails with `400`.
+
+| Scope             | Grants                                                        |
+| :---------------- | :-------------------------------------------------------------- |
+| `user:read`       | `GET /users/me`                                                |
+| `user:write`      | `PUT /users/me/name`, `/users/me/username`, `/users/me/sync`   |
+| `resume:read`     | Reading documents, the master profile, and share links         |
+| `resume:write`    | Creating/updating/deleting documents and share links           |
+| `roadmap:read`    | Roadmap endpoints                                              |
+| `changelog:read`  | Changelog endpoints                                            |
+| `github:read`     | GitHub stats and issues                                        |
+| `ai:write`        | `POST /ai/generate`, `/ats/analyze`, `/ats/convert-resume`     |
 
 ---
 
 ## Key Lifecycle
 
-| Action          | Description                                                                                       |
-| :-------------- | :------------------------------------------------------------------------------------------------ |
-| **Creation**    | Generate a key with a custom name, scopes, and a capped rate limit. Store the secret immediately. |
-| **Usage**       | Include the key in the `X-API-Key` header for all requests.                                       |
-| **Rotation**    | Replace a key with updated settings and revoke the old one immediately.                           |
-| **Soft revoke** | Disable a key without removing its database record.                                               |
-| **Deletion**    | Permanently remove a key when it should never be used again.                                      |
+| Action          | Description                                                                                                          |
+| :-------------- | :--------------------------------------------------------------------------------------------------------------------- |
+| **Creation**    | Generate a key with a custom name, scopes, and rate limit. Store the secret immediately — it is shown once.           |
+| **Usage**       | Send the key as `X-API-Key: vw_...` or `Authorization: Bearer vw_...`. Both headers are accepted.                     |
+| **Rotation**    | Issue a replacement and revoke the old key in one transaction. Send an empty body to carry all settings over.         |
+| **Soft revoke** | Disable a key without removing its record. Takes effect immediately; a revoked key cannot be reactivated.             |
+| **Deletion**    | Permanently remove a key and its record.                                                                             |
 
 ---
 
@@ -48,7 +79,7 @@ To protect your account, VeriWorkly implements a strict visibility policy for ke
           <span className="text-[10px] font-mono text-muted-foreground truncate">/api-keys</span>
         </div>
         <h4 className="font-bold text-sm mb-1 group-hover:text-primary transition-colors">List API Keys</h4>
-        <div className="text-xs text-muted-foreground leading-normal">View all API keys associated with your account in a masked format.</div>
+        <div className="text-xs text-muted-foreground leading-normal">List your keys by name and prefix. Secrets are never returned here.</div>
       </div>
       <Shield className="w-4 h-4 text-muted-foreground/50 mt-1 shrink-0" />
     </div>

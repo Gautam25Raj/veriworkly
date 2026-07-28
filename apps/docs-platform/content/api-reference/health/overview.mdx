@@ -3,34 +3,40 @@ title: Overview
 description: Monitor the operational status and uptime of the VeriWorkly ecosystem.
 ---
 
-import { Activity } from "lucide-react";
+import { Activity, HeartPulse } from "lucide-react";
 
 ---
 
 ## Description
 
-The Health API provides a unified endpoint for monitoring the vital signs of the VeriWorkly infrastructure. It doesn't just check if the server is "up"—it performs deep health checks across all core dependencies to ensure the platform is fully operational.
+The Health API exposes two deliberately different probes. Picking the right one matters: one is
+cheap enough to poll every 30 seconds, the other is not.
 
-Use this endpoint for **uptime monitoring services** (like UptimeRobot or BetterStack) and for automated deployment health-checks in CI/CD pipelines.
+Use them for **uptime monitoring services** (UptimeRobot, BetterStack) and for automated
+deployment health checks in CI/CD pipelines.
 
 ---
 
-## Checks Performed
+## Liveness vs. readiness
 
-The health report includes status for the following components:
+| Endpoint            | What it checks                               | Cost                                   | Failure mode         |
+| :------------------ | :------------------------------------------- | :-------------------------------------- | :------------------- |
+| `GET /health`       | Only that the Node.js process is responding. | Free — touches no external dependency.  | Never returns `503`. |
+| `GET /health/ready` | PostgreSQL (`SELECT 1`) and Redis (`PING`).  | Wakes database compute on every call.   | Returns `503`.       |
 
-- **Server Runtime**: Confirms the Node.js environment is responsive.
-- **Database (Prisma)**: Verifies active connectivity to our Neon PostgreSQL cluster.
-- **Cache (Redis)**: Ensures the rate-limiting and session cache is accessible.
-- **Environment**: Validates that critical secrets and configurations are loaded.
+<Callout type="warn" title="Poll the liveness probe, not the readiness probe">
+  `GET /health` intentionally performs **no** database or Redis check, so that frequent uptime
+  polling does not keep serverless database compute awake. It reports `{ status, timestamp }` and
+  nothing else. Reserve `GET /health/ready` for deploy gates and manual diagnostics.
+</Callout>
 
 ---
 
 ## Authentication
 
-| Method | Access Level | Requirement                                                                      |
-| :----- | :----------- | :------------------------------------------------------------------------------- |
-| `GET`  | **Public**   | None. This endpoint is public to allow external monitoring services to query it. |
+| Method | Access Level | Requirement                                                                    |
+| :----- | :----------- | :------------------------------------------------------------------------------ |
+| `GET`  | **Public**   | None. These are the only two endpoints on the API that need no key or session. |
 
 ---
 
@@ -50,13 +56,38 @@ The health report includes status for the following components:
           <span className="text-muted-foreground truncate font-mono text-[10px]">/health</span>
         </div>
         <h4 className="group-hover:text-primary mb-1 text-sm font-bold transition-colors">
-          Get Health Status
+          Liveness Check
         </h4>
         <div className="text-muted-foreground text-xs leading-normal">
-          Returns a comprehensive report of server, database, and Redis health.
+          Confirms the API process is up. Safe to poll frequently.
         </div>
       </div>
       <Activity className="text-muted-foreground/50 mt-1 h-4 w-4 shrink-0" />
+    </div>
+  </a>
+
+  <a
+    href="./health/healthReady"
+    className="group bg-card hover:bg-muted/5 block rounded-lg border p-4 no-underline shadow-sm transition-all duration-200"
+  >
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0 flex-1">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-700 uppercase dark:bg-blue-900/30 dark:text-blue-400">
+            Get
+          </span>
+          <span className="text-muted-foreground truncate font-mono text-[10px]">
+            /health/ready
+          </span>
+        </div>
+        <h4 className="group-hover:text-primary mb-1 text-sm font-bold transition-colors">
+          Readiness Check
+        </h4>
+        <div className="text-muted-foreground text-xs leading-normal">
+          Verifies PostgreSQL and Redis connectivity. Returns 503 if either is down.
+        </div>
+      </div>
+      <HeartPulse className="text-muted-foreground/50 mt-1 h-4 w-4 shrink-0" />
     </div>
   </a>
 </div>

@@ -1,0 +1,256 @@
+getBillingSummary:
+  get:
+    tags:
+      - Billing
+    operationId: getBillingSummary
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Get Billing Summary
+    description: |
+      Returns the caller's plan, subscription status, entitlements, AI credit wallet, and public
+      catalog in one call. Entitlements (e.g. portfolio publishing) and the AI credit wallet are
+      two independent systems — a plan can grant one, both, or neither depending on `productKey`.
+      Session-authenticated only.
+    responses:
+      "200":
+        description: Billing summary fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/BillingSummaryResponse"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "404":
+        description: User not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+
+getBillingHistory:
+  get:
+    tags:
+      - Billing
+    operationId: getBillingHistory
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Get Billing History
+    description: Lists the caller's processed billing webhook events (most recent 50). Session-authenticated only.
+    responses:
+      "200":
+        description: History fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/BillingHistoryResponse"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+
+getCreditWallet:
+  get:
+    tags:
+      - Billing
+    operationId: getCreditWallet
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Get AI Credit Wallet
+    description: Returns the caller's current AI credit balance, reserved amount, and next expiring grant. Session-authenticated only.
+    responses:
+      "200":
+        description: Wallet fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/CreditWalletResponse"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+
+getCreditHistory:
+  get:
+    tags:
+      - Billing
+    operationId: getCreditHistory
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Get AI Credit Transaction History
+    description: Lists recent AI credit reservations/commits/releases for the caller's wallet. Session-authenticated only.
+    responses:
+      "200":
+        description: History fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/CreditHistoryResponse"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+
+createBillingCheckout:
+  post:
+    tags:
+      - Billing
+    operationId: createBillingCheckout
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Create Subscription Checkout Session
+    description: |
+      Creates a hosted Dodo Payments checkout session for a subscription product. `productKey` and
+      `interval` are validated against a fixed whitelist (the product catalog) before being handed
+      off to Dodo — arbitrary product/interval combinations are rejected with `400`. A Redis lock
+      prevents starting a second checkout while one is already in flight. Session-authenticated
+      only; blocked for non-admins in production during the current rollout phase.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/CheckoutRequest"
+          example:
+            productKey: "portfolio_pro"
+            interval: "monthly"
+    responses:
+      "200":
+        description: Checkout session created successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/CheckoutResponse"
+      "400":
+        description: Invalid product/interval combination
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 400
+              message: "That billing interval is not available for this product."
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "403":
+        description: Payments disabled in production for non-admins
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 403
+              message: "Payments are disabled in production during this phase. Only administrators can perform payments."
+      "409":
+        description: A checkout is already active, or the caller already has an active subscription
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+      "503":
+        description: The selected billing product is not configured
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+
+cancelBillingCheckout:
+  post:
+    tags:
+      - Billing
+    operationId: cancelBillingCheckout
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Cancel In-Flight Checkout
+    description: Releases the Redis lock created by `POST /billing/checkout`, allowing a new checkout to be started. Session-authenticated only.
+    responses:
+      "200":
+        description: Checkout cancelled successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/CancelCheckoutResponse"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+
+createBillingPortal:
+  post:
+    tags:
+      - Billing
+    operationId: createBillingPortal
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Create Billing Portal Session
+    description: Creates a Dodo Payments customer portal URL for managing an existing subscription. Session-authenticated only; blocked for non-admins in production during the current rollout phase.
+    responses:
+      "200":
+        description: Portal session created successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/BillingPortalResponse"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "403":
+        description: Payments disabled in production for non-admins
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+      "409":
+        description: No billing account exists yet
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 409
+              message: "No billing account exists yet."
+
+createCreditPackCheckout:
+  post:
+    tags:
+      - Billing
+    operationId: createCreditPackCheckout
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Create Extra Credit Pack Checkout
+    description: |
+      Creates a one-time Dodo Payments checkout session for an extra AI credit pack, on top of any
+      subscription. Session-authenticated only; blocked for non-admins in production during the
+      current rollout phase.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/CreditPackCheckoutRequest"
+          example:
+            packKey: "credit_pack_250"
+    responses:
+      "200":
+        description: Checkout session created successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/CreditPackCheckoutResponse"
+      "400":
+        $ref: "../components/responses.yaml#/ValidationError"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "403":
+        description: Payments disabled in production for non-admins
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+      "503":
+        description: Extra credit checkout is not configured
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"

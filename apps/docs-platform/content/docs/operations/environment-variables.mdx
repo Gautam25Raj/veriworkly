@@ -1,94 +1,268 @@
 ---
 title: Environment Variables
-description: Comprehensive reference for all configuration options across the VeriWorkly ecosystem.
+description: Complete configuration reference for the VeriWorkly backend and frontend applications.
 ---
 
 # Environment Variables
 
-VeriWorkly utilizes environment variables for secure, flexible configuration across its multiple services. This guide provides a detailed breakdown of all available configuration keys.
+Every configuration key across the VeriWorkly ecosystem. Defaults are the values the code falls back
+to when the variable is unset — they are not necessarily safe for production.
+
+<Callout type="warn" title="Production boots are validated">
+  When `NODE_ENV=production`, the API runs a configuration validator in the master process **before
+  any worker starts**, and refuses to boot if a required value is missing or unsafe. See [Production
+  requirements](#production-requirements) below.
+</Callout>
 
 ---
 
-## Frontend and Shared Configuration
+## Frontend applications
 
-These variables should be defined in the root `.env` file for local development.
+Set per application in `apps/{app}/.env`, or shared via the root `.env`.
 
-| Variable                  | Required | Description                                                                    | Example / Default              |
-| :------------------------ | :------- | :----------------------------------------------------------------------------- | :----------------------------- |
-| `SITE_URL`                | Yes      | The primary public URL of the application.                                     | `https://veriworkly.com`       |
-| `NEXT_PUBLIC_BACKEND_URL` | Yes      | The public API endpoint utilized by the browser.                               | `http://localhost:8080/api/v1` |
-| `BACKEND_INTERNAL_URL`    | No       | Internal API address utilized by the frontend for Server-Side Rendering (SSR). | `http://api:8080/api/v1`       |
-| `ADMIN_EMAIL`             | Yes      | Primary administrator email for system notifications.                          | `admin@veriworkly.com`         |
-| `AUTH_SECRET`             | Yes      | Security secret for session encryption (must match backend).                   | `secure-random-string`         |
-| `ALLOWED_ORIGINS`         | No       | Comma-separated list of permitted origins for the API Proxy.                   | `https://api.veriworkly.com`   |
+| Variable                  | Required | Description                                                                                                                                      | Example / default                                   |
+| :------------------------ | :------- | :----------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------- |
+| `SITE_URL`                | Yes      | The public URL of this application.                                                                                                              | `https://veriworkly.com`                            |
+| `NEXT_PUBLIC_BACKEND_URL` | Yes      | The API endpoint used by the browser. Inlined at build time.                                                                                     | `http://localhost:8080/api/v1`                      |
+| `BACKEND_INTERNAL_URL`    | No       | The API address used for server-side rendering. In Docker, the service name.                                                                     | `http://api:8080/api/v1`                            |
+| `AUTH_SECRET`             | Yes      | Must match the backend value exactly.                                                                                                            | —                                                   |
+| `ADMIN_EMAIL`             | Yes      | Server-only. Identifies the admin account; also unlocks the production-gated portfolio publish and checkout flows. Never exposed to the browser. | `admin@veriworkly.com`                              |
+| `ALLOWED_ORIGINS`         | No       | Permitted origins for the docs platform's API proxy route.                                                                                       | `https://api.veriworkly.com,https://veriworkly.com` |
 
----
+### Studio-specific
 
-## Server and API Configuration
+| Variable                    | Description                                                    | Default                 |
+| :-------------------------- | :------------------------------------------------------------- | :---------------------- |
+| `NEXT_PUBLIC_PORTFOLIO_URL` | Public URL of the portfolio builder, used for cross-app links. | `http://localhost:3004` |
 
-These variables are specific to the backend service and should be placed in `apps/server/.env`.
+### Portfolio-specific
 
-### Core Runtime
-
-| Variable          | Description                                              | Default                 |
-| :---------------- | :------------------------------------------------------- | :---------------------- |
-| `NODE_ENV`        | Operational environment (`development` or `production`). | `development`           |
-| `PORT`            | Port the API server listens on.                          | `8080`                  |
-| `TRUST_PROXY`     | Set to `true` when operating behind a reverse proxy.     | `true`                  |
-| `ALLOWED_ORIGINS` | Comma-separated list of permitted CORS origins.          | `http://localhost:3000` |
-
-### Database and Persistence
-
-| Variable       | Required | Description                                          | Example                               |
-| :------------- | :------- | :--------------------------------------------------- | :------------------------------------ |
-| `DATABASE_URL` | Yes      | PostgreSQL connection string.                        | `postgresql://user:pass@host:5432/db` |
-| `REDIS_URL`    | No       | Connection string for rate limiting and API caching. | `redis://localhost:6379`              |
-| `REDIS_HOST`   | No       | Redis hostname (if URL is not utilized).             | `localhost`                           |
-| `REDIS_PORT`   | No       | Redis port (if URL is not utilized).                 | `6379`                                |
-
-### Authentication (Better-Auth)
-
-| Variable                    | Description                                           | Default / Example       |
-| :-------------------------- | :---------------------------------------------------- | :---------------------- |
-| `AUTH_SECRET`               | Security secret (must match frontend).                |                         |
-| `AUTH_BASE_URL`             | The base URL of the API for authentication callbacks. | `http://localhost:8080` |
-| `AUTH_COOKIE_DOMAIN`        | The domain scope for authentication cookies.          | `veriworkly.com`        |
-| `AUTH_SESSION_TTL_SECONDS`  | Maximum session duration (seconds).                   | `2592000` (30 days)     |
-| `AUTH_OTP_TTL_SECONDS`      | Validity duration for Email OTP tokens (seconds).     | `300` (5 minutes)       |
-| `AUTH_OTP_ALLOWED_ATTEMPTS` | Maximum permitted failed verification attempts.       | `3`                     |
-
-### API Key Security
-
-| Variable                                   | Description                                                     | Default / Example      |
-| :----------------------------------------- | :-------------------------------------------------------------- | :--------------------- |
-| `API_KEY_HASH_SECRET`                      | Secret used to hash API keys before storage.                    | `strong-random-secret` |
-| `API_KEY_AUTH_CACHE_TTL_SECONDS`           | Redis cache TTL for successful auth lookups.                    | `300`                  |
-| `API_KEY_LAST_USED_TOUCH_INTERVAL_SECONDS` | Minimum interval between `lastUsed` DB updates for a given key. | `300`                  |
-| `API_KEY_DEFAULT_RATE_LIMIT`               | Default per-key limit if none is provided at creation.          | `20`                   |
-| `API_KEY_DEFAULT_SCOPES`                   | Comma-separated default scopes for new keys.                    | `user:read`            |
-| `API_KEY_DEFAULT_LIFETIME_DAYS`            | Default key lifetime when no expiry is supplied.                | `365`                  |
-
-### Email Infrastructure
-
-| Variable                  | Description                                      | Example                      |
-| :------------------------ | :----------------------------------------------- | :--------------------------- |
-| `AUTH_EMAIL_FROM`         | Dispatcher email address and display name.       | `VeriWorkly <noreply@v.com>` |
-| `AUTH_EMAIL_PROVIDER`     | Email driver selection (`smtp`, `resend`, etc.). | `smtp`                       |
-| `AUTH_SMTP_HOST`          | SMTP server address.                             | `smtp.resend.com`            |
-| `AUTH_SMTP_PORT`          | SMTP server port.                                | `587`                        |
-| `AUTH_SMTP_USER` / `PASS` | SMTP authentication credentials.                 |                              |
+| Variable                      | Description                                                                                                    | Default                 |
+| :---------------------------- | :------------------------------------------------------------------------------------------------------------- | :---------------------- |
+| `NEXT_PUBLIC_PORTFOLIO_URL`   | Public URL of **Studio**, used for the "edit in Studio" links.                                                 | `http://localhost:3001` |
+| `PORTFOLIO_REVALIDATE_SECRET` | Shared secret authorising the API's cache-revalidation callback after a publish. Must match the backend value. | —                       |
 
 ---
 
+## Backend (`apps/server/.env`)
+
+### Core runtime
+
+| Variable                             | Description                                                                            | Default                                          |
+| :----------------------------------- | :------------------------------------------------------------------------------------- | :----------------------------------------------- |
+| `NODE_ENV`                           | `development`, `production`, or `test`.                                                | `development`                                    |
+| `PORT`                               | Port the API listens on.                                                               | `8080`                                           |
+| `TRUST_PROXY`                        | Express trust-proxy setting. Accepts `true`/`false`, a hop count, or a CIDR/IP string. | `false`                                          |
+| `ALLOWED_ORIGINS`                    | Comma-separated CORS allowlist.                                                        | `http://localhost:3000,3001,3002,3003,3004,8080` |
+| `LOG_LEVEL`                          | `debug`, `info`, `warn`, or `error`.                                                   | `info`                                           |
+| `CLUSTERING_ENABLED`                 | Run one worker per CPU core via `throng`.                                              | `true` in production, `false` otherwise          |
+| `WEB_CONCURRENCY` / `SERVER_WORKERS` | Explicit worker count, overriding the CPU-core default.                                | CPU count                                        |
+
+<Callout type="warn" title="`TRUST_PROXY=true` is rejected in production">
+  A bare `true` trusts every hop, which lets a client spoof `X-Forwarded-For` and defeat IP-based
+  rate limiting. Production requires an explicit **hop count** (e.g. `1` behind a single reverse
+  proxy) or a CIDR. The boot validator enforces this.
+</Callout>
+
+### Database and cache
+
+| Variable       | Required        | Description                                                                                       | Default                  |
+| :------------- | :-------------- | :------------------------------------------------------------------------------------------------ | :----------------------- |
+| `DATABASE_URL` | Yes             | PostgreSQL connection string.                                                                     | —                        |
+| `REDIS_URL`    | Yes in practice | Redis connection string. Sessions, rate limiting, quotas, view buffers, and job locks all use it. | `redis://localhost:6379` |
+
+### Authentication
+
+| Variable                             | Description                                                                | Default                                                  |
+| :----------------------------------- | :------------------------------------------------------------------------- | :------------------------------------------------------- |
+| `AUTH_SECRET`                        | Session signing secret. Must match every frontend.                         | `dev-auth-secret`                                        |
+| `AUTH_BASE_URL`                      | Base URL for auth callbacks. Must be HTTPS in production.                  | `http://localhost:8080`                                  |
+| `AUTH_COOKIE_DOMAIN`                 | Cookie scope. Set to `.yourdomain.com` to enable cross-subdomain sessions. | unset (cross-subdomain disabled)                         |
+| `AUTH_IP_ADDRESS_HEADERS`            | Comma-separated headers consulted for the client IP.                       | `x-client-ip,x-forwarded-for,x-real-ip,cf-connecting-ip` |
+| `AUTH_SESSION_TTL_SECONDS`           | Session lifetime.                                                          | `2592000` (30 days)                                      |
+| `AUTH_SESSION_RESET_TTL_ON_USE`      | How often an active session's TTL is refreshed.                            | `86400` (24 hours)                                       |
+| `AUTH_SESSION_CACHE_ENABLED`         | Enable the signed cookie session cache.                                    | `true` in production                                     |
+| `AUTH_SESSION_CACHE_MAX_AGE_SECONDS` | Cookie cache lifetime.                                                     | `900`                                                    |
+| `AUTH_OTP_TTL_SECONDS`               | Email OTP validity window.                                                 | `300` (5 minutes)                                        |
+| `AUTH_OTP_ALLOWED_ATTEMPTS`          | Failed OTP attempts before invalidation.                                   | `3`                                                      |
+| `ADMIN_EMAIL`                        | The admin account, auto-provisioned on boot. **Always required.**          | —                                                        |
+
+### OAuth providers
+
+Each provider is registered only if **both** of its values are set.
+
+| Variable                                        | Provider |
+| :---------------------------------------------- | :------- |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`     | Google   |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`     | GitHub   |
+| `LINKEDIN_CLIENT_ID` / `LINKEDIN_CLIENT_SECRET` | LinkedIn |
+
+### API key security
+
+| Variable                                   | Description                                                                               | Default                     |
+| :----------------------------------------- | :---------------------------------------------------------------------------------------- | :-------------------------- |
+| `API_KEY_HASH_SECRET`                      | HMAC secret used to hash API keys. Must be **distinct from** `AUTH_SECRET` in production. | falls back to `AUTH_SECRET` |
+| `API_KEY_AUTH_CACHE_TTL_SECONDS`           | Redis cache TTL for successful key lookups.                                               | `300`                       |
+| `API_KEY_LAST_USED_TOUCH_INTERVAL_SECONDS` | Minimum interval between `lastUsed` writes.                                               | `300`                       |
+| `API_KEY_DEFAULT_RATE_LIMIT`               | Per-key request limit when none is specified.                                             | `20`                        |
+| `API_KEY_DEFAULT_SCOPES`                   | Comma-separated default scopes.                                                           | `user:read`                 |
+| `API_KEY_DEFAULT_LIFETIME_DAYS`            | Default key lifetime.                                                                     | `365`                       |
+
+### Email
+
+| Variable                            | Description                                                                                | Default                                |
+| :---------------------------------- | :----------------------------------------------------------------------------------------- | :------------------------------------- |
+| `AUTH_EMAIL_PROVIDER`               | `smtp` or `console`. `console` logs instead of sending, and is **rejected in production**. | `console`                              |
+| `AUTH_EMAIL_FROM`                   | Sender address and display name.                                                           | `VeriWorkly <no-reply@veriworkly.com>` |
+| `AUTH_SMTP_HOST`                    | SMTP hostname. Required when the provider is `smtp`.                                       | —                                      |
+| `AUTH_SMTP_PORT`                    | SMTP port.                                                                                 | `587`                                  |
+| `AUTH_SMTP_SECURE`                  | Use implicit TLS.                                                                          | `false`                                |
+| `AUTH_SMTP_USER` / `AUTH_SMTP_PASS` | SMTP credentials. Both required when the provider is `smtp`.                               | —                                      |
+
+### Rate limiting
+
+| Variable                       | Description                  | Default               |
+| :----------------------------- | :--------------------------- | :-------------------- |
+| `RATE_LIMIT_WINDOW_MS`         | General window.              | `900000` (15 minutes) |
+| `RATE_LIMIT_MAX_REQUESTS`      | General limit per window.    | `100`                 |
+| `AUTH_RATE_LIMIT_WINDOW_MS`    | Window for `/api/v1/auth/*`. | `60000`               |
+| `AUTH_RATE_LIMIT_MAX_REQUESTS` | Limit for `/api/v1/auth/*`.  | `20`                  |
+
+Several routes carry hard-coded limits that ignore these values: share-password verification
+(3 / 5 min), the public contact form (5 / hour), and usage-metric ingestion (15 / min).
+
+### AI
+
+| Variable                                | Description                                                         | Default  |
+| :-------------------------------------- | :------------------------------------------------------------------ | :------- |
+| `AI_API_KEY`                            | Provider credential. **Required in production.**                    | —        |
+| `AI_BASE_URL`                           | OpenAI-compatible endpoint used to route requests.                  | —        |
+| `AI_TIMEOUT_MS`                         | Per-request timeout.                                                | `120000` |
+| `AI_RATE_LIMIT_WINDOW_MS`               | Window for `/api/v1/ai/*`.                                          | `60000`  |
+| `AI_RATE_LIMIT_MAX_REQUESTS`            | Limit for `/api/v1/ai/*`.                                           | `20`     |
+| `AI_PRIVATE_CONFIG_PATH`                | Path to the private AI policy file (prompts, models, credit costs). | —        |
+| `AI_PRIVATE_CONFIG_JSON`                | The same policy supplied inline as JSON.                            | —        |
+| `AI_STANDARD_MODEL` / `AI_EXPERT_MODEL` | Model aliases resolved by the policy for each mode.                 | —        |
+
+<Callout type="info" title="AI policy is private configuration">
+  Per-action prompts, model selection, token limits, and **credit costs** all live in the private AI
+  policy, not in application code. In production the API validates that a policy exists and defines
+  both a `standard` and an `expert` tier for every action, and refuses to boot otherwise.
+</Callout>
+
+### Billing (Dodo Payments)
+
+| Variable                                                             | Description                                                     | Default                                            |
+| :------------------------------------------------------------------- | :-------------------------------------------------------------- | :------------------------------------------------- |
+| `DODO_PAYMENTS_API_KEY`                                              | API credential. **Required in production.**                     | —                                                  |
+| `DODO_PAYMENTS_WEBHOOK_SECRET`                                       | Webhook signature secret. **Required in production.**           | —                                                  |
+| `DODO_PAYMENTS_ENVIRONMENT`                                          | `test_mode` or `live_mode`.                                     | `test_mode`                                        |
+| `DODO_PAYMENTS_PORTFOLIO_PRO_{SEVEN_DAY,MONTHLY,ANNUAL}_PRODUCT_ID`  | Creator Pro product IDs.                                        | —                                                  |
+| `DODO_PAYMENTS_AI_CREDITS_{MONTHLY,ANNUAL}_PRODUCT_ID`               | AI Standalone product IDs.                                      | —                                                  |
+| `DODO_PAYMENTS_BUNDLE_{ONE_DAY,SEVEN_DAY,MONTHLY,ANNUAL}_PRODUCT_ID` | Job Hunter Bundle product IDs, including the time-boxed passes. | —                                                  |
+| `DODO_PAYMENTS_CREDIT_PACK_{250,500}_PRODUCT_ID`                     | One-time credit pack product IDs.                               | —                                                  |
+| `DODO_PAYMENTS_CHECKOUT_RETURN_URL`                                  | Post-purchase redirect.                                         | `http://localhost:3001/billing?checkout=complete`  |
+| `DODO_PAYMENTS_CHECKOUT_CANCEL_URL`                                  | Cancelled-checkout redirect.                                    | `http://localhost:3001/billing?checkout=cancelled` |
+| `DODO_PAYMENTS_PORTAL_RETURN_URL`                                    | Billing-portal return URL.                                      | `http://localhost:3001/billing`                    |
+
+A plan or interval whose product ID is unset is reported as _not configured_ and cannot be purchased
+— this is how the public catalog decides which intervals to offer.
+
+### Object storage (Cloudflare R2)
+
+All five are **required in production** — portfolio image uploads fail without them.
+
+| Variable                                    | Description                                                        |
+| :------------------------------------------ | :----------------------------------------------------------------- |
+| `R2_ENDPOINT`                               | S3-compatible endpoint.                                            |
+| `R2_BUCKET`                                 | Bucket name.                                                       |
+| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | Credentials.                                                       |
+| `R2_PUBLIC_BASE_URL`                        | Public base URL served to browsers. Trailing slashes are stripped. |
+
+### Portfolio
+
+| Variable                      | Description                                                     | Default                 |
+| :---------------------------- | :-------------------------------------------------------------- | :---------------------- |
+| `PORTFOLIO_URL`               | Public URL of the portfolio application.                        | `http://localhost:3004` |
+| `PORTFOLIO_GRACE_DAYS`        | Days a lapsed portfolio stays live before suspension.           | `7`                     |
+| `PORTFOLIO_REVALIDATE_SECRET` | Shared secret for the publish-time cache revalidation callback. | `dev-revalidate-secret` |
+
+### Growth programs
+
+| Variable                     | Description                               | Default                                                |
+| :--------------------------- | :---------------------------------------- | :----------------------------------------------------- |
+| `AFFILIATE_PROGRAM_ENABLED`  | Enables the affiliate API and dashboard.  | enabled outside production, **disabled** in production |
+| `AMBASSADOR_PROGRAM_ENABLED` | Enables the ambassador API and dashboard. | enabled outside production, **disabled** in production |
+
+Both are read **once at server boot**. Changing either requires a restart. When a flag is off, the
+corresponding routes return `503` and Studio shows a "Coming Soon" screen.
+
+### GitHub sync
+
+| Variable                       | Description                                                                                 | Default        |
+| :----------------------------- | :------------------------------------------------------------------------------------------ | :------------- |
+| `GITHUB_SYNC_ENABLED`          | Enables the scheduled repository statistics sync.                                           | `true`         |
+| `GITHUB_TOKEN`                 | Personal access token with repository read scope. Also used by paid GitHub profile imports. | —              |
+| `GITHUB_OWNER` / `GITHUB_REPO` | Target repository.                                                                          | —              |
+| `GITHUB_PROJECT_URL`           | Project board URL surfaced in the roadmap UI.                                               | —              |
+| `GITHUB_SYNC_CRON`             | Sync schedule.                                                                              | `0 0,12 * * *` |
+| `GITHUB_SYNC_TIMEZONE`         | Cron timezone.                                                                              | `UTC`          |
+| `INTERNAL_SYNC_API_KEY`        | Shared secret authorising the internal manual-sync endpoint.                                | —              |
+
+### Changelog sync
+
+| Variable                          | Description                                         | Default     |
+| :-------------------------------- | :-------------------------------------------------- | :---------- |
+| `CHANGELOG_RELEASE_SYNC_ENABLED`  | Imports missing GitHub Releases into the changelog. | `true`      |
+| `CHANGELOG_RELEASE_SYNC_CRON`     | Sync schedule.                                      | `0 6 * * *` |
+| `CHANGELOG_RELEASE_SYNC_TIMEZONE` | Cron timezone.                                      | `UTC`       |
+
+### Usage metrics
+
+| Variable                             | Description                                       | Default      |
+| :----------------------------------- | :------------------------------------------------ | :----------- |
+| `USAGE_METRICS_FLUSH_CRON`           | Flush schedule.                                   | `10 0 * * *` |
+| `USAGE_METRICS_FLUSH_TIMEZONE`       | Cron timezone.                                    | `UTC`        |
+| `USAGE_METRICS_REDIS_RETENTION_DAYS` | How long buffered counters are retained in Redis. | `10`         |
+
+### Cache TTLs (seconds)
+
+| Variable                          | Default             |
+| :-------------------------------- | :------------------ |
+| `ROADMAP_CACHE_TTL_SECONDS`       | `2592000` (30 days) |
+| `ROADMAP_STATS_CACHE_TTL_SECONDS` | `2592000`           |
+| `ROADMAP_TAGS_CACHE_TTL_SECONDS`  | `2592000`           |
+| `CHANGELOG_CACHE_TTL_SECONDS`     | `2592000`           |
+| `GITHUB_STATS_CACHE_TTL_SECONDS`  | `43200` (12 hours)  |
+
 ---
 
-## Optional Service Integrations
+## Production requirements
 
-### GitHub Roadmap Sync
+The boot validator enforces all of the following when `NODE_ENV=production`. Any failure aborts
+startup with a message naming the variable.
 
-| Variable                | Description                                    | Default        |
-| :---------------------- | :--------------------------------------------- | :------------- |
-| `GITHUB_SYNC_ENABLED`   | Enables automated synchronization with GitHub. | `false`        |
-| `GITHUB_TOKEN`          | Personal Access Token with repository scope.   |                |
-| `GITHUB_OWNER` / `REPO` | Target repository for synchronization.         |                |
-| `GITHUB_SYNC_CRON`      | Cron schedule for the synchronization task.    | `0 0,12 * * *` |
+**Always checked (all environments)**
+
+- `ADMIN_EMAIL`, `AUTH_SECRET`, and `AUTH_BASE_URL` are set.
+- Every numeric auth and API-key setting parses to a positive integer.
+- When `AUTH_EMAIL_PROVIDER=smtp`, the SMTP host, user, and password are all set.
+
+**Production only**
+
+- `AUTH_EMAIL_PROVIDER` is `smtp` — the `console` provider does not send mail.
+- `AUTH_SECRET` is not the development default `dev-auth-secret`.
+- `AUTH_BASE_URL` starts with `https://`.
+- `TRUST_PROXY` is **not** a bare `true` — use an explicit hop count or CIDR.
+- `API_KEY_HASH_SECRET` is explicitly set and differs from `AUTH_SECRET`.
+- `AI_API_KEY` is set, and the AI policy defines both modes for every action.
+- `DODO_PAYMENTS_API_KEY` and `DODO_PAYMENTS_WEBHOOK_SECRET` are set.
+- All five `R2_*` variables are set.
+
+---
+
+## Related
+
+- [Docker Deployment](/docs/getting-started/docker-deployment)
+- [Local Development Setup](/docs/getting-started/local-setup)
+- [Service Status](/docs/operations/service-status)

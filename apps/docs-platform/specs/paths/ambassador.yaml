@@ -1,0 +1,107 @@
+getAmbassadorStatus:
+  get:
+    tags:
+      - Ambassador
+    operationId: getAmbassadorStatus
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Get Ambassador Status
+    description: |
+      Returns the caller's current ambassador application status. This is intentionally a small
+      surface today — application intake and status are the only things live. There is no
+      points/rewards/redemption API yet; that system has not been built.
+
+      Gated behind a feature flag (`config.growth.ambassadorProgramEnabled`) that defaults off in
+      production until explicitly enabled — every route in this group returns `503` while the flag
+      is off. Session-authenticated only.
+    responses:
+      "200":
+        description: Status fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/AmbassadorStatusResponse"
+            example:
+              success: true
+              message: "Success"
+              data:
+                role: "USER"
+                ambassadorStatus: "NONE"
+                collegeName: null
+                graduationYear: null
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "404":
+        description: User not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+      "503":
+        $ref: "../components/responses.yaml#/FeatureDisabledError"
+
+applyForAmbassador:
+  post:
+    tags:
+      - Ambassador
+    operationId: applyForAmbassador
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Apply For Campus Ambassador Program
+    description: |
+      Submits (or resubmits, once previously rejected) a campus ambassador application. Rejects a
+      duplicate application from a user who already has one pending review, and rejects existing
+      ambassadors from re-applying. `graduationYear` is validated as a real 4-digit year on both the
+      client and the server. Session-authenticated only.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/AmbassadorApplicationRequest"
+          example:
+            collegeName: "State University"
+            graduationYear: "2027"
+            whyJoin: "I want to help students discover VeriWorkly and build better resumes."
+            superpower: "I can explain anything in under a minute."
+            funFact: "I've organized three hackathons on campus."
+    responses:
+      "200":
+        description: Application submitted successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/AmbassadorApplicationResponse"
+            example:
+              success: true
+              message: "Success"
+              data:
+                success: true
+                ambassadorStatus: "PENDING"
+                collegeName: "State University"
+                graduationYear: "2027"
+      "400":
+        description: Already an ambassador, application already pending, or validation error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            examples:
+              alreadyAmbassador:
+                summary: Already approved
+                value:
+                  success: false
+                  statusCode: 400
+                  message: "You are already a campus ambassador."
+              alreadyPending:
+                summary: Application already pending
+                value:
+                  success: false
+                  statusCode: 400
+                  message: "Your ambassador application is already pending review."
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "503":
+        $ref: "../components/responses.yaml#/FeatureDisabledError"

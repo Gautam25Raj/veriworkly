@@ -1,0 +1,113 @@
+---
+title: Affiliate Program
+description: Commission tiers, enrolment states, admin-driven tier promotion, and how payouts actually work.
+---
+
+# Affiliate Program
+
+A full affiliate dashboard lives in Studio across `/affiliate`, `/affiliate/tiers`,
+`/affiliate/referrals`, `/affiliate/commissions`, `/affiliate/payouts`, and
+`/affiliate/leaderboard`.
+
+<Callout type="info" title="Feature-flag gated">
+  The program sits behind a boot-time flag, `config.growth.affiliateProgramEnabled`, read once from
+  `AFFILIATE_PROGRAM_ENABLED` at server startup. It defaults to **enabled outside production** and
+  **disabled in production** unless explicitly turned on. When off, the affiliate API returns `503`
+  and Studio's `/affiliate` route shows a "Coming Soon" screen. Changing it requires a restart.
+</Callout>
+
+---
+
+## Enrolment states
+
+Four distinct states, each with its own UI:
+
+| State            | Behaviour                                                                                             |
+| :--------------- | :---------------------------------------------------------------------------------------------------- |
+| **Not enrolled** | Shows an Enrol button, with explicit copy that signups alone earn nothing — only paid conversions do. |
+| **Pending**      | Enrolment submitted, awaiting activation.                                                             |
+| **Active**       | Referral link live, commissions accruing.                                                             |
+| **Suspended**    | Existing earnings stay visible; new activity is disabled.                                             |
+
+---
+
+## Commission tiers
+
+A three-tier recurring commission structure. Rates are stored in basis points.
+
+| Tier     | Name    | Rate             | Required conversions | Perks                               |
+| :------- | :------ | :--------------- | :------------------- | :---------------------------------- |
+| `TIER_1` | Starter | **2%** (200 bps) | 0                    | Monthly leaderboard access          |
+| `TIER_2` | Growth  | **3%** (300 bps) | 10                   | Priority payout review              |
+| `TIER_3` | Partner | **5%** (500 bps) | 50                   | Priority support, partner campaigns |
+
+<Callout type="warn" title="Tier promotion is manual, not automatic">
+  The conversion thresholds are **informational**. Nothing in the code auto-promotes an affiliate
+  based on conversion count — the dashboard displays progress toward the next tier, but the only
+  thing that actually changes an affiliate's tier is a human admin action in the monetization
+  console at `/admin/monetization`.
+</Callout>
+
+---
+
+## Wallet and payouts
+
+- **Balances** — pending and available, tracked in cents.
+- **Minimum withdrawal** — **$25.00** (2,500 cents).
+- **Payout request flow** — an affiliate requests a withdrawal; an admin approves, rejects, or marks
+  it paid.
+
+<Callout type="info" title="Why payouts are manual">
+  Dodo Payments provides no payout or transfer API — only a read-only settlements list. Payouts are
+  therefore always executed **out-of-band** (bank transfer or equivalent) and then recorded in the
+  system. A commission can only be marked `PAID` by an admin action.
+</Callout>
+
+Withdrawal states are `REQUESTED`, `APPROVED`, `REJECTED`, and `PAID`. Commission states are
+`PENDING`, `AVAILABLE`, `REVERSED`, and `PAID`.
+
+---
+
+## Public leaderboard
+
+Monthly and all-time boards, explicitly scoped to **released and paid commissions only** — pending
+or reversed commissions never appear. Leaderboard results are cached for 5 minutes; the affiliate
+dashboard for 1 minute.
+
+---
+
+## Program terms
+
+Surfaced on the public marketing page at
+[veriworkly.com/affiliate](https://veriworkly.com/affiliate):
+
+- **Self-referral is blocked.**
+- **One referral per account for life** — a user can only ever be attributed to one affiliate.
+- **No attribution expiry window** — unlike the typical 30-day industry norm, attribution does not
+  time out.
+- **No brand-keyword bidding** — affiliates may not bid on VeriWorkly's own brand keywords in paid
+  advertising.
+
+---
+
+## Data model
+
+`AffiliateReferral` (signed up / converted / rejected), `AffiliateClick`, `AffiliateCommission`
+(with a basis-points rate and a cent amount), `AffiliateWallet`, and `AffiliateWithdrawal`. See
+[Database Schema](/docs/architecture/database-schema#growth-programs).
+
+Affiliate fields also live directly on `User`: `affiliateStatus`, `affiliateTier`, a unique
+`affiliateCode`, and `affiliateEnrolledAt`.
+
+---
+
+## API
+
+See the [Affiliates API reference](/api-reference/affiliates) for the full endpoint list, including
+the `503` response shape returned when the program flag is off.
+
+## Related
+
+- [Ambassador Program](/docs/product/ambassador-program)
+- [Billing & Credits](/docs/product/billing-and-credits) — commissions are triggered by billing
+  webhooks.

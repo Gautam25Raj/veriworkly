@@ -1,16 +1,20 @@
-getMasterProfile:
+masterProfile:
   get:
     tags:
       - Profile
     operationId: getMasterProfile
     security:
+      - ApiKeyAuth: []
       - LocalSession: []
       - ProdSession: []
     summary: Get Master Profile
     description: |
-      Retrieves the authenticated user's master profile along with a summary.
+      Retrieves the authenticated user's master profile along with an account summary. Requires the
+      `resume:read` scope when called with an API key.
 
-      Uses caching for improved performance.
+      When the user has never saved a profile, this still returns `200` with a placeholder whose
+      `id` is an empty string and whose `content` is `{}` — it does not return `404`. Cached for
+      1 hour and invalidated on write.
     responses:
       "200":
         description: Master profile fetched successfully
@@ -54,19 +58,27 @@ getMasterProfile:
               statusCode: 404
               message: "User not found"
 
-updateMasterProfile:
   put:
     tags:
       - Profile
     operationId: updateMasterProfile
     security:
+      - ApiKeyAuth: []
       - LocalSession: []
       - ProdSession: []
     summary: Update Master Profile
     description: |
-      Updates the authenticated user's master profile.
+      Replaces the authenticated user's master profile. Requires the `resume:write` scope when
+      called with an API key.
 
-      Uses optimistic concurrency control via `expectedUpdatedAt`.
+      **This is a full replacement, not a patch.** `profile` is validated strictly: every property
+      of `MasterProfileContent` must be present, and any key not in the schema is rejected. Send
+      empty arrays for sections you have no data for. Read the profile first, modify the object you
+      got back, and send the whole thing.
+
+      Pass the `updatedAt` you last read as `expectedUpdatedAt` for optimistic concurrency; omit it
+      only when creating the profile for the first time. The example below is a complete minimal
+      payload that validates.
     requestBody:
       required: true
       content:
@@ -82,11 +94,42 @@ updateMasterProfile:
                 role: "Software Engineer"
                 headline: "Building scalable systems"
                 email: "john@example.com"
-                phone: "1234567890"
+                phone: "9876543210"
                 location: "India"
                 linkEmail: true
                 linkPhone: false
                 linkLocation: false
+              links:
+                displayMode: "icon"
+                items: []
+              summary: "Backend engineer focused on distributed systems."
+              experience: []
+              education: []
+              projects: []
+              skills: []
+              languages: []
+              interests: []
+              awards: []
+              certificates: []
+              publications: []
+              volunteer: []
+              references: []
+              achievements: []
+              customSections: []
+              sections: []
+              customization:
+                accentColor: "#2563eb"
+                textColor: "#111827"
+                mutedTextColor: "#6b7280"
+                pageBackgroundColor: "#ffffff"
+                sectionBackgroundColor: "#ffffff"
+                borderColor: "#e5e7eb"
+                sectionHeadingColor: "#111827"
+                fontFamily: "Inter"
+                sectionSpacing: 16
+                pagePadding: 40
+                bodyLineHeight: 1.5
+                headingLineHeight: 1.2
 
     responses:
       "200":
@@ -123,3 +166,240 @@ updateMasterProfile:
               success: false
               statusCode: 413
               message: "Master profile payload is too large"
+
+getImportQuota:
+  get:
+    tags:
+      - Profile Import
+    operationId: getImportQuota
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    summary: Get Profile Import Quota
+    description: |
+      Returns the caller's current GitHub and LinkedIn import quota status in one call.
+
+      - **GitHub import** is a real GitHub OAuth-backed integration (up to 30 of the account's most
+        recently updated repositories, deterministically mapped to skills by repository language —
+        no AI is involved). Free users get 1 import/day and may only import their own OAuth-connected
+        GitHub account. Paid users (any active AI Credits or Portfolio Pro/Bundle plan) may import
+        any public GitHub username, but are still capped at a hidden 50 imports/day — this protects
+        the single shared `config.github.token` request budget used by every paid import and the
+        GitHub sync cron job from being exhausted by one account.
+      - **LinkedIn import** is not a LinkedIn API integration — it's an AI parse of raw text the
+        user pastes in (copied profile text, or text extracted from an exported PDF). Free users get
+        1 import/month; paid users get unlimited imports.
+
+      Both import types share a single `replaceMaster` request flag and always create a brand-new
+      RESUME document from the imported data, in addition to optionally overwriting the master
+      profile.
+    responses:
+      "200":
+        description: Quota status fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ProfileImportQuotaResponse"
+            example:
+              success: true
+              message: "Quota status fetched successfully"
+              data:
+                github:
+                  isPaid: false
+                  remaining: 1
+                  limit: 1
+                  resetsInSeconds: 0
+                  connectedUsername: "octocat"
+                linkedin:
+                  isPaid: false
+                  remaining: 1
+                  limit: 1
+                  resetsInSeconds: 0
+                  connectedUsername: null
+
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+
+importGithub:
+  post:
+    tags:
+      - Profile Import
+    operationId: importGithub
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    summary: Import Profile From GitHub
+    description: |
+      Imports a GitHub profile and repositories directly via the GitHub REST API (no AI parsing) and
+      creates a new RESUME document from the result. Free users can only import their own
+      OAuth-connected GitHub account (`usernameOrUrl` is ignored in that case); paid users may import
+      any public username, subject to the hidden 50/day shared-token cap described on
+      `GET /profiles/import/quota`.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/ImportGithubRequest"
+          example:
+            usernameOrUrl: "octocat"
+            replaceMaster: false
+    responses:
+      "200":
+        description: GitHub profile imported successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ProfileImportResponse"
+            example:
+              success: true
+              message: "GitHub profile imported successfully"
+              data:
+                id: "doc_123"
+                userId: "user_123"
+                type: "RESUME"
+                title: "GitHub Import (octocat)"
+                slug: "github-import-octocat"
+                tags: []
+                content: {}
+                templateId: "executive-clarity"
+                schemaVersion: 1
+                revision: 1
+                visibility: "PRIVATE"
+                createdAt: "2026-04-01T10:00:00.000Z"
+                updatedAt: "2026-04-01T10:00:00.000Z"
+
+      "400":
+        description: Free user has no connected GitHub account, or a validation error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 400
+              message: "Please connect your GitHub account in settings to import your profile."
+
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+
+      "404":
+        description: GitHub profile not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 404
+              message: 'GitHub profile for "octocat" not found or API call failed.'
+
+      "429":
+        description: Import quota exceeded
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            examples:
+              freeDailyLimit:
+                summary: Free-tier daily limit
+                value:
+                  success: false
+                  statusCode: 429
+                  message: "Free users can only import from GitHub once a day. Upgrade to Creator Pro for unlimited imports."
+              paidSharedCap:
+                summary: Paid hidden shared-token cap
+                value:
+                  success: false
+                  statusCode: 429
+                  message: "You've reached the daily limit of 50 GitHub imports. This protects the shared GitHub API budget used by all users. Please try again tomorrow."
+
+importLinkedin:
+  post:
+    tags:
+      - Profile Import
+    operationId: importLinkedin
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    summary: Import Profile From LinkedIn
+    description: |
+      Parses raw copy-pasted LinkedIn profile text (or text extracted from an exported PDF) using AI
+      and creates a new RESUME document from the result. This is an AI-parsed paste, not a LinkedIn
+      API integration. Free users get 1 import/month; paid users (AI Credits or Portfolio Pro/Bundle)
+      get unlimited imports.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/ImportLinkedinRequest"
+          example:
+            profileText: "Jane Doe\nSoftware Engineer at Acme Corp\n..."
+            replaceMaster: false
+    responses:
+      "200":
+        description: LinkedIn profile imported successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ProfileImportResponse"
+            example:
+              success: true
+              message: "LinkedIn profile imported successfully"
+              data:
+                id: "doc_124"
+                userId: "user_123"
+                type: "RESUME"
+                title: "LinkedIn Import"
+                slug: "linkedin-import"
+                tags: []
+                content: {}
+                templateId: "executive-clarity"
+                schemaVersion: 1
+                revision: 1
+                visibility: "PRIVATE"
+                createdAt: "2026-04-01T10:00:00.000Z"
+                updatedAt: "2026-04-01T10:00:00.000Z"
+
+      "400":
+        description: Validation error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 400
+              message: "Validation failed"
+              details:
+                - path: "profileText"
+                  message: "LinkedIn profile text must be at least 10 characters long"
+
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+
+      "429":
+        description: Import quota exceeded
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 429
+              message: "Free users can only import from LinkedIn once a month. Upgrade to Creator Pro for unlimited imports."
+
+      "502":
+        description: AI parsing failed
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 502
+              message: "Failed to parse profile data using AI. Please try again."

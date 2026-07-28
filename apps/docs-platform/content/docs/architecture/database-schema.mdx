@@ -1,91 +1,123 @@
 ---
 title: Database Schema
-description: Technical reference for the VeriWorkly relational data model and Prisma schema.
+description: The VeriWorkly relational data model — documents, sharing, billing, credits, portfolios, growth programs, and observability.
 ---
 
 # Database Schema
 
-VeriWorkly utilizes **PostgreSQL** for persistent storage, interfaced via **Prisma ORM**. The schema is optimized for session management, resume versioning, and background job synchronization.
-
-The source of truth for the database schema can be found in the repository:
-[apps/server/prisma/schema.prisma](https://github.com/VeriWorkly/veriworkly/blob/master/apps/server/prisma/schema.prisma)
+VeriWorkly uses **PostgreSQL** through **Prisma 7**. The source of truth is
+[`apps/server/prisma/schema.prisma`](https://github.com/VeriWorkly/veriworkly/blob/master/apps/server/prisma/schema.prisma);
+this page summarises the model groups and the design decisions worth knowing.
 
 ---
 
-## Core Authentication
+## Identity and authentication
 
-VeriWorkly implements a session-based authentication system.
+Better-Auth's standard tables, extended with VeriWorkly-specific fields on `User`.
 
 ### User
 
-The central entity for account management and ownership.
-
 ```prisma
 model User {
-  id                  String               @id @default(cuid())
-  email               String               @unique
-  name                String?
-  emailVerified       Boolean              @default(false)
-  image               String?
-  autoSyncEnabled     Boolean              @default(false)
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  sessions            Session[]
-  accounts            Account[]
-  resumes             Resume[]
-  masterProfile       MasterProfile?
+  id                    String                 @id @default(cuid())
+  email                 String                 @unique
+  name                  String?
+  username              String?                @unique
+  emailVerified         Boolean                @default(false)
+  image                 String?
+
+  autoSyncEnabled       Boolean                @default(true)
+
+  // Affiliate program
+  affiliateStatus       AffiliateStatus        @default(NOT_ENROLLED)
+  affiliateTier         AffiliateTier          @default(TIER_1)
+  affiliateCode         String?                @unique
+  affiliateEnrolledAt   DateTime?
+
+  // Roles and ambassador program
+  role                  Role                   @default(USER)
+  ambassadorStatus      String                 @default("NONE")
+  ambassadorApplication AmbassadorApplication?
+
+  // Free-tier import cooldowns
+  lastLinkedinImportAt  DateTime?
+  lastGithubImportAt    DateTime?
+
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  // …plus relations to sessions, documents, credits, billing, portfolios, and more
 }
+
+enum Role            { USER  AMBASSADOR  ADMIN }
+enum AffiliateStatus { NOT_ENROLLED  PENDING  ACTIVE  SUSPENDED }
+enum AffiliateTier   { TIER_1  TIER_2  TIER_3 }
 ```
 
-### Session
+`username` is required before a document can be shared publicly — share URLs are username-scoped.
+`lastLinkedinImportAt` and `lastGithubImportAt` are what enforce the free-tier import cooldowns
+described in [Importing Your Profile](/docs/product/importing-your-profile).
 
-Handles active authentication states and security metadata.
+### Session, Account, Verification
 
-```prisma
-model Session {
-  id        String   @id @default(cuid())
-  expiresAt DateTime
-  token     String   @unique
-  ipAddress String?
-  userAgent String?
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-```
+Standard Better-Auth tables for sessions, OAuth/credential links, and email verification. `Session`
+carries `expiresAt`, a unique `token`, and the originating `ipAddress` / `userAgent` used for
+new-device login alerts.
 
 ---
 
-## Content Management
+## Documents
 
-### Resume
+### Document — the unified content model
 
-Stores individual resume documents and their synchronization status.
+Resumes, cover letters, portfolios, and link-in-bio pages are all **one table**, distinguished by
+`type`.
 
 ```prisma
-model Resume {
-  id            String   @id @default(cuid())
+enum DocumentType { RESUME  COVER_LETTER  PORTFOLIO  LINK_IN_BIO }
+enum Visibility   { PRIVATE  UNLISTED  PUBLIC }
+
+model Document {
+  id            String       @id @default(cuid())
   userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title         String   @default("My Resume")
-  content       Json     // Full resume data structure
-  template      String   @default("modern")
-  isPublic      Boolean  @default(false)
-  syncStatus    String   @default("local-only")
+  type          DocumentType @default(RESUME)
+  title         String       @default("Untitled Document")
+  slug          String
+  tags          String[]     @default([])
+
+  content       Json         // Document body, JSON-Resume-shaped for resumes
+  metadata      Json?        // UI state, favourites, and other client hints
+
+  templateId    String       @default("modern")
+  schemaVersion Int          @default(1)
+  revision      Int          @default(1)   // Optimistic concurrency control
+
+  visibility    Visibility   @default(PRIVATE)
   lastSyncedAt  DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?    // Soft delete
+
+  @@unique([userId, slug])
 }
 ```
 
-### Master Profile
+- **`revision`** is the optimistic-concurrency guard. A sync write that carries a stale revision is
+  rejected rather than applied, which is what surfaces as a `conflicted` sync state in Studio.
+- **`deletedAt`** is a soft delete. Restore and hard-delete methods exist in the service layer, but
+  no route currently exposes them — only soft delete is reachable through the API today.
+- **Payload cap** — document `content` is limited to roughly 1 MB per document, enforced server-side.
+- **Free-tier cap** — one active document _per type_ for users without the `ai_credits` or
+  `portfolio_publish` entitlement.
 
-A centralized career profile used for seeding multiple resumes.
+### MasterProfile
+
+One JSON blob per user, with no other structural fields and no entitlement gate.
 
 ```prisma
 model MasterProfile {
   id        String   @id @default(cuid())
   userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   content   Json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -94,67 +126,202 @@ model MasterProfile {
 
 ---
 
-## Sharing and Analytics
+## Sharing
 
-### ResumeShareLink
-
-Manages public access to resumes with snapshotting and optional protection.
+### ShareLink and ShareView
 
 ```prisma
-model ResumeShareLink {
-  id           String   @id @default(cuid())
+model ShareLink {
+  id           String    @id @default(cuid())
   userId       String
-  resumeId     String
-  resumeTitle  String
-  token        String   @unique
-  snapshot     Json     // Point-in-time copy of resume data
-  passwordHash String?
+  documentId   String
+
+  slug         String    // Stable public URL slug
+  snapshot     Json      // Static copy of the document at share time
+
+  passwordHash String?   // scrypt, verified with a timing-safe comparison
   expiresAt    DateTime?
-  viewCount    Int      @default(0)
+  viewCount    Int       @default(0)
   lastViewedAt DateTime?
+
+  @@unique([userId, documentId])
+  @@unique([userId, slug])
 }
 ```
+
+Two things follow directly from this shape:
+
+- **The public page serves `snapshot`, not the live document.** Editing a document after sharing does
+  not change what a recipient sees until the link is refreshed.
+- **One share link per document per user** (`@@unique([userId, documentId])`). Re-sharing updates the
+  existing link rather than minting a second one.
+
+`ShareView` records individual views, feeding the buffered view-count flush job. Repeat views from
+the same IP within a 30-minute window are deduplicated before any counter is incremented.
+
+Public share URLs take the form `/share/{username}/{slug}`.
 
 ---
 
-## System Operations
+## Billing, entitlements, and credits
 
-### AuditLog
-
-Tracks API access and security events across the platform.
+### Subscription
 
 ```prisma
-model AuditLog {
-  id        String   @id @default(cuid())
-  method    String
-  path      String
-  status    Int
-  ip        String?
-  userAgent String?
-  error     String?
-  createdAt DateTime @default(now())
+enum SubscriptionStatus { INACTIVE  TRIALING  ACTIVE  PAST_DUE  CANCELED }
+enum BillingInterval    { ONE_DAY  SEVEN_DAY  MONTHLY  ANNUAL }
+```
+
+Holds provider/customer/price/subscription IDs, a `productKey`, status, interval, a grace-period end
+date, a cancel-at-period-end flag, and a last-webhook timestamp used to keep out-of-order webhook
+delivery from corrupting state.
+
+### EntitlementGrant
+
+A named capability (`ai_credits`, `portfolio_publish`, `custom_subdomain`, `seo_controls`,
+`analytics`, `watermark_removal`), its source (`SUBSCRIPTION`, `MANUAL`, `PROMOTION`, `SYSTEM`), and
+a start/end/revoked window. Access checks read entitlements, never plan names — which is why a
+manual admin grant behaves identically to a paid subscription.
+
+### The credit ledger
+
+Five tables work together:
+
+| Model                   | Role                                                                    |
+| :---------------------- | :---------------------------------------------------------------------- |
+| `CreditWallet`          | Balance, reserved amount, and lifetime credited/debited totals.         |
+| `CreditGrant`           | An individual batch of credits with its own expiry.                     |
+| `CreditReservation`     | The two-phase reserve → commit/release record for an in-flight AI call. |
+| `CreditTransaction`     | The full, user-visible transaction history.                             |
+| `CreditUsageAllocation` | Records exactly which grant(s) funded each transaction, FIFO by expiry. |
+
+`CreditUsageAllocation` is what makes multi-grant balances correct: a user holding a subscription
+grant plus a leftover top-up is debited from the soonest-to-expire grant first.
+
+### BillingWebhookEvent
+
+Every Dodo Payments webhook, keyed by the provider's event ID for idempotency, with a processing
+status and retry count. This table also powers the user-facing billing history list.
+
+---
+
+## Portfolio
+
+| Model                  | Role                                                                                                                                                                           |
+| :--------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PortfolioPublication` | A published portfolio's live state — status (`LIVE`/`GRACE`/`SUSPENDED`), unique subdomain, template, content snapshot, published revision, suspension metadata. One per user. |
+| `PortfolioAsset`       | Uploaded images (avatar, project cover, social image) with R2 upload status (`PENDING`/`READY`), checksum, and size.                                                           |
+| `PortfolioViewDaily`   | Daily view counts, unique per (publication, date, referrer host).                                                                                                              |
+
+Abandoned `PENDING` uploads older than 24 hours — and their R2 objects — are garbage-collected by the
+hourly portfolio access job, which also suspends publications whose billing grace period has expired.
+
+---
+
+## Growth programs
+
+### Affiliate
+
+`AffiliateReferral` (signed up / converted / rejected), `AffiliateClick`, `AffiliateCommission`
+(pending / available / reversed / paid, with a basis-points rate and a cent amount),
+`AffiliateWallet` (pending / available / paid cent totals), and `AffiliateWithdrawal` (requested /
+approved / rejected / paid).
+
+### Ambassador
+
+```prisma
+enum AmbassadorApplicationStatus { PENDING  APPROVED  REJECTED }
+
+model AmbassadorApplication {
+  id             String                      @id @default(cuid())
+  userId         String                      @unique
+  collegeName    String
+  graduationYear String
+  whyJoin        String
+  superpower     String
+  funFact        String
+  vibeCheck      String?
+  socialHandle   String?
+  status         AmbassadorApplicationStatus @default(PENDING)
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  reviewNote     String?
 }
 ```
 
-### ApiKey
+Approval flips both the application's `status` and the user's `role` to `AMBASSADOR` inside a single
+transaction. See [Ambassador Program](/docs/product/ambassador-program).
 
-Manages access control for internal services and third-party integrations.
+### AdminAuditEntry
+
+The admin action log actually written to by the monetization console — credit and entitlement
+grants, affiliate moderation, and withdrawal decisions.
+
+---
+
+## Public content
+
+### RoadmapFeature and RoadmapInteraction
+
+`RoadmapFeature` holds public roadmap items: a free-text `status` (`"todo"` / `"in-progress"` /
+`"done"` — a string, not a database enum), an ETA, tags, and rich detail fields (`fullDescription`,
+`whyItMatters`, `timeline`, `details`).
+
+`RoadmapInteraction` models per-user votes, bookmarks, and comments.
+
+<Callout type="warn" title="Roadmap interactions are read-only in practice">
+  Existing `RoadmapInteraction` rows are returned as part of a feature's public detail response, but
+  no route lets a user create, update, or delete one. The feature is read-visible but not
+  write-reachable.
+</Callout>
+
+### ChangelogEntry
+
+One row per shipped release: `version` (unique), title, summary, a `type` (`major` / `minor` /
+`patch`), publish date, GitHub URL, and five categorised string arrays — `added`, `improved`,
+`fixed`, `breaking`, `security` — plus tags and PR references. A daily sync job can import missing
+entries from GitHub Releases.
+
+---
+
+## Observability
+
+| Model                                      | Role                                                                                                          |
+| :----------------------------------------- | :------------------------------------------------------------------------------------------------------------ |
+| `UsageMetricDaily`                         | Daily aggregate event counters, unique per (date, event).                                                     |
+| `UsageMetricFlushBatch` / `ViewFlushBatch` | Idempotency markers so a crashed or racing flush job can neither double-count nor silently drop a batch.      |
+| `GitHubSync` / `GitHubSyncItem`            | The VeriWorkly repository's own issue/PR sync state (etag, last status, next sync time) and the synced items. |
+| `AuditLog`                                 | A generic HTTP request/error audit table.                                                                     |
+
+<Callout type="info" title="Two different audit tables">
+  `AdminAuditEntry` is the live admin action log. `AuditLog` is a separate, generic HTTP audit table
+  that is modelled but currently has no writer anywhere in the server source — it is effectively
+  unused today.
+</Callout>
+
+Usage metrics are **aggregate-only product telemetry** — counts of events like resumes created,
+exports, and logins — buffered in Redis and flushed daily. They are not per-user tracking, and no
+third-party analytics is present.
+
+---
+
+## API keys
 
 ```prisma
 model ApiKey {
-  id         String    @id @default(cuid())
-  keyHash    String    @unique
-  keyPrefix  String
-  keySuffix  String
-  name       String
-  scopes     String[]  @default(["user:read"])
-  userId     String
-  isActive   Boolean   @default(true)
-  rateLimit  Int       @default(20)
-  expiresAt  DateTime?
-  revokedAt  DateTime?
-  lastUsed   DateTime?
+  id        String    @id @default(cuid())
+  keyHash   String    @unique   // HMAC-SHA256; the key itself is never stored
+  keyPrefix String
+  keySuffix String
+  name      String
+  scopes    String[]  @default(["user:read"])
+  userId    String
+  isActive  Boolean   @default(true)
+  rateLimit Int       @default(20)
+  expiresAt DateTime?
+  revokedAt DateTime?
+  lastUsed  DateTime?
 }
 ```
 
-For the complete list of models including Roadmap and GitHub Sync entities, refer to the [full schema file](https://github.com/VeriWorkly/veriworkly/blob/master/apps/server/prisma/schema.prisma).
+See [API Keys](/docs/api-keys) for scope semantics and rotation behaviour.

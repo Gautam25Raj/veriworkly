@@ -1,6 +1,6 @@
 ---
 title: GitHub Integrations
-description: Fetch live repository statistics, issues, and pull requests directly from the VeriWorkly repository.
+description: Fetch repository statistics, issues, and pull requests synced from the VeriWorkly repository.
 ---
 
 import { GitPullRequest, GitMerge, RefreshCw } from "lucide-react";
@@ -9,7 +9,7 @@ import { GitPullRequest, GitMerge, RefreshCw } from "lucide-react";
 
 ## Description
 
-VeriWorkly is built in the open. The GitHub API module acts as a highly optimized proxy that fetches, caches, and serves live metrics directly from the official VeriWorkly repository.
+VeriWorkly is built in the open. The GitHub API module serves metrics that a background job syncs from the official VeriWorkly repository into our own database — reads never call GitHub at request time.
 
 By routing these requests through our backend rather than fetching them directly from the client, we achieve three critical benefits:
 
@@ -31,14 +31,21 @@ Data is not fetched in real-time on every `GET` request. Instead, we use a backg
 
 ## Authentication & Access
 
-| Method | Endpoint            | Access Level | Requirement                                 |
-| :----- | :------------------ | :----------- | :------------------------------------------ |
-| `GET`  | `/stats`, `/issues` | **Public**   | None                                        |
-| `POST` | `/sync`             | **Admin**    | Valid session cookie with admin privileges. |
+| Method | Endpoint            | Access Level   | Requirement                                                        |
+| :----- | :------------------ | :------------- | :-------------------------------------------------------------------- |
+| `GET`  | `/stats`, `/issues` | **No session** | An API key with the `github:read` scope, or a first-party origin.   |
+| `POST` | `/admin/sync`       | **Admin**      | A session cookie whose email matches the configured `ADMIN_EMAIL`.  |
 
 <Callout type="warn">
-  The manual `/sync` endpoint is strictly protected. Unauthorized calls will be rejected with a `401
-  Unauthorized` status.
+  `POST /github/admin/sync` is strictly protected and **cannot be reached with an API key** — it
+  requires an admin session. A request with no session returns `401 Unauthorized`; an authenticated
+  non-admin returns `403 Forbidden`.
+</Callout>
+
+<Callout type="info" title="The read endpoints still need credentials">
+  `/github/stats` and `/github/issues` require no logged-in user, but they are not open to
+  anonymous callers: a request carrying neither an API key nor a whitelisted first-party
+  `Origin`/`Referer` is rejected with `401`.
 </Callout>
 
 ---
@@ -88,7 +95,7 @@ Data is not fetched in real-time on every `GET` request. Instead, we use a backg
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 uppercase">Post</span>
-          <span className="text-[10px] font-mono text-muted-foreground truncate">/github/sync</span>
+          <span className="text-[10px] font-mono text-muted-foreground truncate">/github/admin/sync</span>
         </div>
         <h4 className="font-bold text-sm mb-1 group-hover:text-primary transition-colors">Trigger Manual Sync</h4>
         <div className="text-xs text-muted-foreground leading-normal">Force an immediate data pull from GitHub (Admin only).</div>

@@ -1,0 +1,116 @@
+---
+title: "Portfolio: Publishing & Analytics"
+description: Shared path vs. custom subdomain publishing, the premium gates, the readiness score, and analytics' two locked states.
+---
+
+# Portfolio: Publishing & Analytics
+
+## Publishing
+
+| Tier        | Published at                                                                                         |
+| :---------- | :--------------------------------------------------------------------------------------------------- |
+| **Free**    | A shared path: `portfolio.veriworkly.com/portfolio/{your-slug}` (`/user/{your-slug}` also resolves). |
+| **Premium** | A true custom subdomain: `{your-slug}.veriworkly.com`.                                               |
+
+Both forms are handled by the portfolio app's `proxy.ts` middleware, which rewrites the subdomain
+host and the shared path onto the same internal route.
+
+- **Subdomain access is enforced at the routing layer**, not just in the UI. A non-premium account
+  hitting a custom-subdomain URL directly is server-redirected back to the shared path, and
+  multi-page slug routes return `404` for non-premium accounts regardless of subdomain.
+- **Premium templates gate at publish time.** Publishing — or re-publishing after an edit — with
+  Nimbus or Cipher blocks a non-premium account with an upgrade prompt.
+- **Unpublishing** takes the site down while leaving the draft intact.
+
+<Callout type="warn" title="Publishing is currently admin-only in production">
+  Independent of plan tier, `PortfolioController.publish` rejects non-admin accounts with a `403`
+  when `NODE_ENV=production`, while the general-availability rollout completes. Dashboard access,
+  draft editing, previews, and unpublishing are unaffected and open to everyone. See [Portfolio:
+  Overview](/docs/product/portfolio/overview).
+</Callout>
+
+### Publication lifecycle
+
+A `PortfolioPublication` record holds one of three statuses:
+
+| Status      | Meaning                                                                                                        |
+| :---------- | :------------------------------------------------------------------------------------------------------------- |
+| `LIVE`      | Publicly served.                                                                                               |
+| `GRACE`     | The owning subscription lapsed; the site stays up during the grace period (`PORTFOLIO_GRACE_DAYS`, default 7). |
+| `SUSPENDED` | The grace period expired and the hourly portfolio access job took the site down.                               |
+
+Publishing stores a **content snapshot** and the published revision number, so continuing to edit the
+draft does not change the live site until you publish again.
+
+---
+
+## Dashboard
+
+Shows all-time views, published section and project counts, and a **readiness percentage**:
+
+```
+readiness = round(((identityFieldsCompleted + min(visibleSections, 4)) / 8) × 100)
+```
+
+where `identityFieldsCompleted` counts how many of `{name, headline, bio, email}` are filled in
+(0–4). Both halves are capped at 4, so a portfolio reaches 100% with all four identity fields and at
+least four visible sections.
+
+A health checklist covers four items: profile details complete, at least two visible sections, SEO
+metadata present (title **and** description both set), and publicly published.
+
+<Callout type="info" title='The "recommended next steps" panel is mostly static'>
+  It is largely fixed guidance copy, with only one line's wording conditional on whether you have
+  added projects yet — less personalised than the heading suggests.
+</Callout>
+
+---
+
+## Analytics
+
+Total views, a recent-window trend, active days, and a referrer breakdown, aggregated daily per
+publication and referrer host.
+
+**Premium-gated** (the `analytics` entitlement), with two distinct locked states:
+
+- A **logged-out** visitor sees a "Log In" prompt.
+- A **logged-in free** user sees the real metrics blurred behind an "Upgrade to Pro" overlay.
+
+<Callout type="info" title="View counting is deduplicated">
+  Repeat views from the same IP within a 30-minute window are ignored before any counter increments,
+  so refreshing your own portfolio does not inflate your numbers. Counts are buffered in Redis and
+  flushed to PostgreSQL every 10 minutes, so very recent views can lag slightly.
+</Callout>
+
+---
+
+## Settings
+
+The subdomain/slug editor (with an inline format hint), SEO meta title and description, and social
+share image upload.
+
+All are **disabled for free users** — each field is individually re-checked server-side rather than
+merely hidden — and editable for premium accounts, with an explicit banner naming exactly which
+fields are locked. The relevant entitlements are `custom_subdomain` and `seo_controls`.
+
+### Image uploads
+
+Social share images and other portfolio assets upload through presigned Cloudflare R2 URLs valid for
+10 minutes, followed by a verify step that `HEAD`-checks the uploaded object's size, content type,
+and ETag against what was declared. Only JPG, PNG, and WebP are accepted, capped at 5 MB.
+
+---
+
+## Watermark
+
+A floating "Built with VeriWorkly" badge appears on every free-tier published portfolio. Accounts
+with the `watermark_removal` entitlement get a per-portfolio toggle to remove it.
+
+---
+
+## Related
+
+- [Portfolio: Overview](/docs/product/portfolio/overview)
+- [Portfolio: Editor](/docs/product/portfolio/editor)
+- [Portfolio: Templates](/docs/product/portfolio/templates)
+- [Billing & Credits](/docs/product/billing-and-credits)

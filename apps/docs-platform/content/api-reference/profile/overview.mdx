@@ -1,0 +1,30 @@
+---
+title: Master Profile
+description: The single source of truth new resumes, cover letters, and portfolios are seeded from.
+---
+
+## Description
+
+The Master Profile is the canonical, resume-shaped record of a user's career data — basics,
+experience, education, projects, skills, and a dozen other optional sections. When a user creates
+a new Resume or Cover Letter document without providing initial content, the API automatically
+seeds it from this profile.
+
+Updates use **Optimistic Concurrency Control**: pass the `updatedAt` timestamp you last read as
+`expectedUpdatedAt`, and the API rejects the write with `409` if someone else (another tab,
+another device) updated the profile in the meantime.
+
+## Authentication
+
+| Method | Access Level      | Requirement                                          |
+| :----- | :----------------- | :---------------------------------------------------- |
+| `GET`  | **Authenticated**  | Session cookie or API key with the `resume:read` scope.  |
+| `PUT`  | **Authenticated**  | Session cookie or API key with the `resume:write` scope. |
+
+## Available Endpoints
+
+- `GET /profiles/master` — [Get Master Profile](./getMasterProfile)
+- `PUT /profiles/master` — [Update Master Profile](./updateMasterProfile)
+
+For importing profile data from GitHub or LinkedIn instead of writing it by hand, see
+[Profile Import](/api-reference/profile-import).

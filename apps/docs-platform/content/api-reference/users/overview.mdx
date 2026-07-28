@@ -21,27 +21,33 @@ To maintain strict data privacy, this module respects a clear boundary: **User I
 
 The User profile returned by these endpoints _only_ contains top-level account metadata:
 
-- Display Name
-- Verified Email Address
-- Cloud Sync Preferences (`autoSyncEnabled`)
-- Relational counts (e.g., total resumes, total active share links)
+- Display name and public username
+- Verified email address
+- Cloud sync preference (`autoSyncEnabled`)
+- Relational counts under `_count`: `apiKeys`, `shareLinks`, and `resumes`
 
 <Callout type="info">
   Actual resume content (experience, education, templates) is never exposed through the `/users`
   routes. That data is strictly managed via the separate Profile and Resume domains.
 </Callout>
 
+<Callout type="warn" title="`_count.resumes` counts every document">
+  Despite the name, `_count.resumes` counts **all** of the user's documents — every type, including
+  soft-deleted ones. It is not a count of RESUME-type documents. Use
+  [`GET /documents`](/api-reference/documents/listDocuments) when you need an accurate, filterable
+  list.
+</Callout>
+
 ---
 
 ## Security & Access Control
 
-Identity operations are highly sensitive. All endpoints in this module enforce strict session validation.
-
-| Feature                 | Enforcement                                                                                  |
-| :---------------------- | :------------------------------------------------------------------------------------------- |
-| **Authentication**      | Requires a valid **Better Auth** HTTP-only session cookie (`veriworkly-auth.session_token`). |
-| **Data Integrity**      | Email addresses are strictly **read-only** to prevent account hijacking.                     |
-| **Unauthorized Access** | Requests missing valid cookies immediately return `401 Unauthorized`.                        |
+| Feature                 | Enforcement                                                                                                            |
+| :---------------------- | :----------------------------------------------------------------------------------------------------------------------- |
+| **Authentication**      | A **Better Auth** session cookie, or an API key with the `user:read` / `user:write` scope.                               |
+| **Data Integrity**      | Email addresses are strictly **read-only** to prevent account hijacking.                                                |
+| **Username immutable**  | A username can be claimed once. Changing it afterwards returns `409`, because it is baked into existing public URLs.    |
+| **Unauthorized Access** | Requests with no valid session and no API key return `401 Unauthorized`.                                                |
 
 ---
 

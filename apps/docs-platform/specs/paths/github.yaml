@@ -8,26 +8,44 @@ getGitHubStats:
       - ApiKeyAuth: []
       - LocalSession: []
       - ProdSession: []
-    description: Fetch aggregated GitHub issue statistics for the configured repository.
+    description: |
+      Fetch aggregated issue and pull-request statistics for the configured repository, as of the
+      last sync. Served from the last synced snapshot, not live from GitHub — `syncedAt` tells you
+      how fresh it is. Cached for 12 hours.
+
+      This endpoint has no user session of its own: call it with an API key holding the
+      `github:read` scope, or from a whitelisted first-party origin. A request with neither is
+      rejected with `401`.
     responses:
       "200":
-        description: Stats fetched successfully
+        description: GitHub stats fetched successfully
         content:
           application/json:
             schema:
               $ref: "../components/schemas.yaml#/GitHubStatsResponse"
-            example:
-              success: true
-              message: "Stats fetched successfully"
-              data:
-                projectName: "owner/repo"
-                stats:
-                  total: 120
-                  todo: 40
-                  inProgress: 30
-                  done: 50
-                  completionRate: "41.67"
-                syncedAt: "2026-04-26T10:00:00.000Z"
+            examples:
+              synced:
+                summary: Stats available
+                value:
+                  success: true
+                  message: "GitHub stats fetched successfully"
+                  data:
+                    projectName: "owner/repo"
+                    stats:
+                      total: 120
+                      issues: 70
+                      pullRequests: 50
+                      todo: 40
+                      inProgress: 30
+                      done: 50
+                      completionRate: "41.67"
+                    syncedAt: "2026-04-26T10:00:00.000Z"
+              neverSynced:
+                summary: No sync has run yet
+                value:
+                  success: true
+                  message: "GitHub stats fetched successfully"
+                  data: null
 
 getGitHubIssues:
   get:
@@ -39,41 +57,66 @@ getGitHubIssues:
       - ApiKeyAuth: []
       - LocalSession: []
       - ProdSession: []
-    description: Fetch paginated GitHub issues and pull requests with optional filters.
+    description: |
+      Fetch paginated GitHub issues and pull requests with optional filters, from the last synced
+      snapshot rather than live from GitHub. Ordered by most recently updated. Returns an empty
+      page when no sync has run yet.
+
+      Requires the `github:read` scope when called with an API key.
     parameters:
       - in: query
         name: status
         schema:
           type: string
           enum: [todo, in-progress, done]
+        description: |
+          Derived at sync time — closed items and items labelled `done` map to `done`; items
+          labelled `in-progress`, `in progress`, or `active` map to `in-progress`; everything else
+          is `todo`.
       - in: query
         name: kind
         schema:
           type: string
           enum: [issue, pull-request, all]
+        description: "`all` is equivalent to omitting the filter."
       - in: query
         name: limit
         schema:
           type: integer
           minimum: 1
-          maximum: 100
+          maximum: 50
           default: 20
+        description: Items per page. Values above 50 are rejected with `400`.
       - in: query
         name: offset
         schema:
           type: integer
           minimum: 0
           default: 0
+      - in: query
+        name: page
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        description: 1-based page index. An alternative to `offset`.
+      - in: query
+        name: pageSize
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+        description: Alternative spelling of `limit`. Takes precedence over `limit` when both are sent.
     responses:
       "200":
-        description: Issues fetched successfully
+        description: GitHub issues fetched successfully
         content:
           application/json:
             schema:
               $ref: "../components/schemas.yaml#/GitHubIssuesResponse"
             example:
               success: true
-              message: "Issues fetched successfully"
+              message: "GitHub issues fetched successfully"
               data:
                 items:
                   - id: "gh-123456"
@@ -88,6 +131,14 @@ getGitHubIssues:
                 total: 1
                 limit: 20
                 offset: 0
+                page: 1
+                pageSize: 20
+                totalPages: 1
+                hasMore: false
+                pagination:
+                  mode: "offset"
+                  nextOffset: null
+                  nextCursor: null
       "400":
         $ref: "../components/responses.yaml#/ValidationError"
 
@@ -100,18 +151,64 @@ syncGitHubStats:
       - LocalSession: []
       - ProdSession: []
     summary: (Admin) Sync GitHub
-    description: Manually trigger GitHub stats synchronization. Intended for admin use.
+    description: |
+      Manually triggers a GitHub sync. **Administrators only** — the caller's session email must
+      match the configured `ADMIN_EMAIL`; an API key cannot reach this route.
+
+      Incremental by default: only issues updated since the last sync are refetched. The run is
+      guarded by a 10-minute Redis lock, so a concurrent attempt fails with `409` rather than
+      double-syncing. The response is the updated sync record.
     responses:
       "200":
-        description: Manual sync completed
+        description: Manual GitHub sync completed successfully
         content:
           application/json:
             schema:
               $ref: "../components/schemas.yaml#/GenericSuccessResponse"
             example:
               success: true
-              message: "Manual sync completed"
+              message: "Manual GitHub sync completed successfully"
               data:
                 id: "sync_123"
+                projectName: "owner/repo"
                 projectUrl: "https://github.com/owner/repo"
+                issueCount: 120
+                onlyIssueCount: 70
+                prCount: 50
+                todoCount: 40
+                inProgressCount: 30
+                doneCount: 50
                 syncedAt: "2026-04-26T10:00:00.000Z"
+                nextSyncAt: "2026-04-26T22:00:00.000Z"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "403":
+        description: The authenticated user is not the configured administrator.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 403
+              message: "Forbidden"
+      "409":
+        description: A sync is already running.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 409
+              message: "GitHub sync is already in progress"
+      "502":
+        description: The GitHub API could not be reached, or kept returning a retryable error.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 502
+              message: "GitHub API communication failed"

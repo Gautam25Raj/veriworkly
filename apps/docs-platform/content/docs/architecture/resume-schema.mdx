@@ -1,22 +1,25 @@
 ---
 title: Resume Schema
-description: Technical reference for the Master Profile and Resume data structures.
+description: TypeScript reference for ResumeData, MasterProfileData, and the customization model.
 ---
 
 # Resume Schema
 
-VeriWorkly utilizes a standardized, type-safe schema to represent professional data across the entire ecosystem. This schema ensures consistency between the local-first store, the synchronization engine, and the dual-engine rendering pipeline.
+Every resume and Master Profile in VeriWorkly follows a shared, type-safe schema defined in
+[`apps/studio/types/resume.ts`](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/types/resume.ts).
+The same shapes flow through the local store, the sync engine, both rendering engines, and every
+export format.
 
 ---
 
-## The Master Profile
-
-The `MasterProfile` is the core data structure that stores a user's complete professional history. It is designed to be a "Source of Truth" from which individual resumes are derived.
-
-### Core Interface
+## `ResumeData` — a single resume document
 
 ```typescript
-export interface MasterProfileData {
+export interface ResumeData {
+  id: string;
+  templateId: string;
+  title?: string;
+
   basics: ResumeBasics;
   links: ResumeLinks;
   summary: string;
@@ -24,19 +27,100 @@ export interface MasterProfileData {
   education: ResumeEducationItem[];
   projects: ResumeProjectItem[];
   skills: ResumeSkillGroup[];
+  customSections: ResumeCustomSection[];
+
   sections: ResumeSection[];
   customization: ResumeCustomization;
-  // ... extended sections
+
+  sync: ResumeSyncState;
+  updatedAt: string;
 }
 ```
 
+Note the split: the **core sections** (experience, education, projects, skills) are top-level typed
+arrays, while everything else — certifications, awards, publications, languages, interests,
+volunteer, references, achievements, and freeform custom blocks — lives inside `customSections`,
+each tagged with a `kind`.
+
 ---
 
-## Detailed Section Schemas
+## `MasterProfileData` — the canonical career record
 
-### 1. Basics & Links
+The Master Profile is deliberately **wider** than a single resume: it stores fully typed arrays for
+every extended section rather than folding them into generic custom sections.
 
-Manages personal identity and digital presence.
+```typescript
+export interface MasterProfileData {
+  templateId: string;
+
+  basics: ResumeBasics;
+  links: ResumeLinks;
+  summary: string;
+  experience: ResumeExperienceItem[];
+  education: ResumeEducationItem[];
+  projects: ResumeProjectItem[];
+  skills: ResumeSkillGroup[];
+
+  languages: ResumeLanguage[];
+  interests: ResumeInterest[];
+  awards: ResumeAward[];
+  certificates: ResumeCertificate[];
+  publications: ResumePublication[];
+  volunteer: ResumeVolunteer[];
+  references: ResumeReference[];
+  achievements: ResumeAchievement[];
+
+  customSections: ResumeCustomSection[];
+  sections: ResumeSection[];
+  customization: ResumeCustomization;
+  updatedAt?: string;
+}
+```
+
+Unlike `ResumeData`, `MasterProfileData` carries no `id` and no `sync` state — it is a single
+per-user record, synced through its own dedicated endpoints.
+
+---
+
+## Section control
+
+```typescript
+export type ResumeSectionId =
+  | "basics"
+  | "links"
+  | "summary"
+  | "experience"
+  | "education"
+  | "projects"
+  | "skills"
+  | "certifications"
+  | "awards"
+  | "publications"
+  | "languages"
+  | "interests"
+  | "volunteer"
+  | "references"
+  | "achievements"
+  | "custom";
+
+export interface ResumeSection {
+  id: ResumeSectionId;
+  label: string;
+  visible: boolean;
+  order: number;
+  column?: "left" | "right"; // For two-column templates
+}
+```
+
+`sections` is what drives visibility and ordering in both the editor and the exports. Hiding a
+section keeps its data intact while removing it from the rendered document — this is how one Master
+Profile produces several differently-scoped resumes.
+
+---
+
+## Section schemas
+
+### Basics and links
 
 ```typescript
 export interface ResumeBasics {
@@ -46,19 +130,45 @@ export interface ResumeBasics {
   email: string;
   phone: string;
   location: string;
+
+  // Whether each field renders as a clickable link in exports
+  linkEmail: boolean;
+  linkPhone: boolean;
+  linkLocation: boolean;
+}
+
+export type ResumeLinkType =
+  | "github"
+  | "linkedin"
+  | "dribbble"
+  | "twitter"
+  | "portfolio"
+  | "behance"
+  | "medium"
+  | "youtube"
+  | "custom";
+
+export type ResumeLinkDisplayMode = "icon" | "url" | "icon-username";
+
+export interface ResumeLinks {
+  displayMode: ResumeLinkDisplayMode;
+  items: ResumeLinkItem[];
 }
 
 export interface ResumeLinkItem {
   id: string;
-  type: "github" | "linkedin" | "portfolio" | "custom" | string;
+  type: ResumeLinkType;
   label: string;
   url: string;
 }
 ```
 
-### 2. Professional Experience
+<Callout type="warn" title="Phone validation is US-format only">
+  Phone-number validation in both the Basics section and the Master Profile is hard-coded to a
+  10-digit US format. International numbers will fail validation. This is a known limitation.
+</Callout>
 
-Represents a single career milestone.
+### Experience
 
 ```typescript
 export interface ResumeExperienceItem {
@@ -66,53 +176,144 @@ export interface ResumeExperienceItem {
   company: string;
   role: string;
   location: string;
-  startDate: string; // ISO format
-  endDate: string; // ISO format or empty
-  current: boolean;
-  summary: string; // Rich text or markdown
-  highlights: string[];
-}
-```
-
-### 3. Education & Projects
-
-Academic background and personal initiatives.
-
-```typescript
-export interface ResumeEducationItem {
-  school: string;
-  degree: string;
-  field: string;
   startDate: string;
-  endDate: string;
-}
-
-export interface ResumeProjectItem {
-  name: string;
-  role: string;
-  link: string;
+  endDate: string; // Empty when `current` is true
+  current: boolean;
   summary: string;
   highlights: string[];
 }
 ```
 
+### Education
+
+```typescript
+export interface ResumeEducationItem {
+  id: string;
+  school: string;
+  degree: string;
+  field: string;
+  startDate: string;
+  endDate: string;
+  current: boolean;
+  summary: string;
+}
+```
+
+### Projects
+
+```typescript
+export interface ResumeProjectItem {
+  id: string;
+  name: string;
+  role: string;
+  link: string;
+  linkLabel: string;
+  showLinkAsText: boolean; // Render the raw URL instead of a hyperlink
+  summary: string;
+  highlights: string[];
+  skills: string[];
+}
+```
+
+### Skills
+
+```typescript
+export interface ResumeSkillGroup {
+  id: string;
+  name: string; // e.g. "Languages"
+  keywords: string[]; // e.g. ["TypeScript", "Go", "Python"]
+}
+```
+
+### Custom and extended sections
+
+```typescript
+export type ResumeAdditionalSectionKind =
+  | "certifications"
+  | "awards"
+  | "publications"
+  | "languages"
+  | "interests"
+  | "volunteer"
+  | "references"
+  | "achievements"
+  | "custom";
+
+export interface ResumeCustomSection {
+  id: string;
+  kind: ResumeAdditionalSectionKind;
+  title: string;
+  items: ResumeAdditionalItem[];
+  editableTitle?: boolean;
+}
+
+export interface ResumeAdditionalItem {
+  id: string;
+  name: string;
+  issuer: string;
+  date: string;
+  link: string;
+  referenceId: string;
+  description: string;
+  details: string[];
+}
+```
+
+`ResumeAdditionalItem` is intentionally a single generic shape reused across all nine kinds, so the
+editor and both rendering engines can handle a new section kind without new field-level code.
+
+The Master Profile's typed equivalents (`ResumeLanguage`, `ResumeAward`, `ResumeCertificate`,
+`ResumePublication`, `ResumeVolunteer`, `ResumeReference`, `ResumeAchievement`, `ResumeInterest`)
+carry richer per-kind fields — for example `ResumeLanguage.fluency` is a union of `"elementary" |
+"limited" | "professional" | "fluent" | "native"`, and award/certificate/publication entries each
+carry an optional `website` plus a `showLink` toggle.
+
 ---
 
-## Customization Engine
+## Customization
 
-The `ResumeCustomization` interface defines the visual parameters utilized by both the Web and PDF rendering engines.
+```typescript
+export interface ResumeCustomization {
+  fontFamily: string;
+  theme?: string;
 
-| Property         | Type     | Description                                     |
-| :--------------- | :------- | :---------------------------------------------- |
-| `fontFamily`     | `string` | The primary typeface for the document.          |
-| `accentColor`    | `string` | HEX code for headings and interactive elements. |
-| `sectionSpacing` | `number` | Vertical gap between major resume blocks.       |
-| `pagePadding`    | `number` | Inner margins for the document container.       |
-| `bodyLineHeight` | `number` | Typographic line-height for body text.          |
+  accentColor: string;
+  textColor: string;
+  mutedTextColor: string;
+  pageBackgroundColor: string;
+  sectionBackgroundColor: string;
+  borderColor: string;
+  sectionHeadingColor: string;
+
+  sectionSpacing: number;
+  pagePadding: number;
+  bodyLineHeight: number;
+  headingLineHeight: number;
+}
+```
+
+| Property                                         | Effect                                                                                |
+| :----------------------------------------------- | :------------------------------------------------------------------------------------ |
+| `fontFamily`                                     | Selects a family from the shared font registry, which also drives PDF font embedding. |
+| `accentColor`                                    | Headings, rules, and link colour.                                                     |
+| `textColor` / `mutedTextColor`                   | Primary and secondary body text.                                                      |
+| `pageBackgroundColor` / `sectionBackgroundColor` | Page canvas and section block backgrounds.                                            |
+| `borderColor`                                    | Dividers and section rules.                                                           |
+| `sectionHeadingColor`                            | Section heading text, independent of `accentColor`.                                   |
+| `sectionSpacing`                                 | Vertical gap between section blocks.                                                  |
+| `pagePadding`                                    | Page margins.                                                                         |
+| `bodyLineHeight` / `headingLineHeight`           | Typographic line heights.                                                             |
+
+Both the web engine and the PDF engine read this same object, which is what keeps the on-screen
+preview and the exported file visually aligned.
 
 ---
 
-## Source Code Reference
+## Sync state
 
-The full TypeScript definitions for the resume schema can be explored on GitHub:
-[apps/studio/types/resume.ts](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/types/resume.ts)
+```typescript
+export type ResumeSyncStatus = SyncStatus; // "local-only" | "pending" | "syncing" | "synced" | "conflicted"
+export type ResumeSyncState = DocumentSyncState;
+```
+
+See [State Management](/docs/architecture/state-management) for how these states transition.

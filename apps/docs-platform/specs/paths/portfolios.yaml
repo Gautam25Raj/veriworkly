@@ -1,0 +1,568 @@
+listPublicPortfolios:
+  get:
+    tags:
+      - Portfolios
+    operationId: listPublicPortfolios
+    summary: List Public Portfolios
+    description: |
+      Lists the subdomains of every portfolio currently in `LIVE` or `GRACE` status, most recently
+      updated first. Returns subdomain and timestamp only — no portfolio content.
+
+      No user session is required, but the request must carry an API key or originate from a
+      whitelisted first-party origin; otherwise it is rejected with `401`. Cached for 5 minutes.
+    security:
+      - ApiKeyAuth: []
+      - {}
+    parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 5000
+    responses:
+      "200":
+        description: Portfolios fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/PortfolioPublicListResponse"
+      "400":
+        $ref: "../components/responses.yaml#/ValidationError"
+
+getPublicPortfolio:
+  get:
+    tags:
+      - Portfolios
+    operationId: getPublicPortfolio
+    summary: Get Public Portfolio By Subdomain
+    description: |
+      Returns the published snapshot for a live portfolio subdomain.
+
+      Returns `404` for a suspended portfolio, or one whose grace period has just expired — that
+      lookup also flips the record to `SUSPENDED` as a side effect. Cached for up to 10 minutes,
+      shortened to the remaining grace window for portfolios in `GRACE`.
+
+      No user session is required, but the request must carry an API key or originate from a
+      whitelisted first-party origin; otherwise it is rejected with `401`.
+    security:
+      - ApiKeyAuth: []
+      - {}
+    parameters:
+      - name: subdomain
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Portfolio fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/PortfolioPublicResponse"
+      "400":
+        description: The subdomain is empty or reserved once normalised.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 400
+              message: "Choose a valid portfolio subdomain."
+      "404":
+        description: No live portfolio exists at this subdomain.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 404
+              message: "Portfolio not found"
+
+recordPortfolioView:
+  post:
+    tags:
+      - Portfolios
+    operationId: recordPortfolioView
+    summary: Record Portfolio View
+    description: |
+      Records an analytics view for a published portfolio. Responds `202 Accepted` with
+      `data: null` — the count is not persisted synchronously.
+
+      Views are buffered in Redis, deduplicated per viewer IP for 30 minutes, and flushed to
+      Postgres by a scheduled job. A repeat view inside that window is accepted and silently
+      dropped, so a `202` does not guarantee the count increased.
+
+      No user session is required, but the request must carry an API key or originate from a
+      whitelisted first-party origin; otherwise it is rejected with `401`.
+    security:
+      - ApiKeyAuth: []
+      - {}
+    parameters:
+      - name: subdomain
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              referrer:
+                type: string
+                description: |
+                  Full referring URL. Only its hostname is stored, lowercased and truncated to 255
+                  characters; an unparseable value is recorded as an empty host.
+    responses:
+      "202":
+        description: View accepted
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/NullDataResponse"
+            example:
+              success: true
+              message: "Success"
+              data: null
+      "404":
+        description: No live portfolio exists at this subdomain.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 404
+              message: "Portfolio not found"
+
+getMyPortfolio:
+  get:
+    tags:
+      - Portfolios
+    operationId: getMyPortfolio
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Get My Portfolio
+    description: |
+      Returns the caller's current portfolio draft document (if any), publication status, and
+      billing summary in one call. Session-authenticated only — this route does not accept an API
+      key.
+    responses:
+      "200":
+        description: Portfolio state fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/PortfolioMeResponse"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+
+savePortfolioDraft:
+  put:
+    tags:
+      - Portfolios
+    operationId: savePortfolioDraft
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Save Portfolio Draft
+    description: |
+      Creates or updates the caller's single PORTFOLIO document with a new content snapshot.
+      Uses optimistic concurrency via `revision` once a draft already exists. Session-authenticated
+      only.
+
+      The response is a trimmed projection of the document, not a full `Document` record.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/PortfolioSaveDraftRequest"
+    responses:
+      "200":
+        description: Draft saved successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/PortfolioDraftResponse"
+      "400":
+        $ref: "../components/responses.yaml#/ValidationError"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "404":
+        description: Portfolio draft not found (when documentId was provided but doesn't belong to the caller)
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+      "409":
+        description: Draft was changed in another session, or the subdomain conflicts with an existing document slug
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 409
+              message: "Portfolio draft changed in another session."
+
+checkPortfolioSubdomainAvailability:
+  get:
+    tags:
+      - Portfolios
+    operationId: checkPortfolioSubdomainAvailability
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Check Portfolio Subdomain Availability
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Availability checked successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/PortfolioSubdomainAvailabilityResponse"
+      "400":
+        $ref: "../components/responses.yaml#/ValidationError"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+
+previewPortfolio:
+  get:
+    tags:
+      - Portfolios
+    operationId: previewPortfolio
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Preview Portfolio Draft
+    description: |
+      Returns the caller's own portfolio draft for rendering a preview, without publishing it.
+      The response is a trimmed projection of the document, not a full `Document` record — it has
+      no `slug`. Session-authenticated only.
+    parameters:
+      - name: documentId
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Draft fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/PortfolioPreviewResponse"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "404":
+        description: Portfolio draft not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 404
+              message: "Portfolio draft not found."
+
+publishPortfolio:
+  post:
+    tags:
+      - Portfolios
+    operationId: publishPortfolio
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Publish Portfolio
+    description: |
+      Publishes the given draft revision to its chosen subdomain, making it publicly reachable.
+      Premium templates (`nimbus`, `cipher`) require an active Creator Pro subscription.
+
+      **Current-state caveat:** in production, publishing is gated behind a hardcoded
+      `ADMIN_EMAIL` check independent of plan tier (`isAdminUser`) — regular users can save drafts,
+      preview, and manage everything except actually flipping a portfolio live. This is a
+      temporary rollout restriction, not a permanent product limitation. Only administrators can
+      exercise this endpoint end-to-end in production today; it is unrestricted in development.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/PortfolioPublishRequest"
+    responses:
+      "201":
+        description: Portfolio published successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/PortfolioPublishResponse"
+      "400":
+        description: Validation error, incomplete portfolio content, or an unusable image reference
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            examples:
+              incompleteContent:
+                summary: Draft does not satisfy the stricter publish schema
+                value:
+                  success: false
+                  statusCode: 400
+                  message: "Complete the required portfolio details before publishing."
+              badAsset:
+                summary: Referenced image is missing, not owned, or not READY
+                value:
+                  success: false
+                  statusCode: 400
+                  message: "Portfolio contains an unavailable or invalid image."
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "403":
+        description: Production publishing restriction, or premium template requires a subscription
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            examples:
+              productionGate:
+                summary: Non-admin in production
+                value:
+                  success: false
+                  statusCode: 403
+                  message: "Publishing is disabled in production during this phase."
+              premiumTemplate:
+                summary: Premium template without subscription
+                value:
+                  success: false
+                  statusCode: 403
+                  message: 'Publishing the premium template "nimbus" requires an active Creator Pro subscription.'
+      "404":
+        description: Portfolio draft not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+      "409":
+        description: Stale revision, or subdomain already in use
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 409
+              message: "Save the latest draft before publishing."
+
+unpublishPortfolio:
+  post:
+    tags:
+      - Portfolios
+    operationId: unpublishPortfolio
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Unpublish Portfolio
+    description: |
+      Takes a published portfolio offline — status becomes `SUSPENDED` with reason
+      `user_unpublished`, and the underlying document reverts to `PRIVATE` visibility. The document
+      itself is not deleted, so the portfolio can be republished later.
+
+      Idempotent: if the caller has never published, the call still succeeds and returns
+      `data: null`. Session-authenticated only.
+    responses:
+      "200":
+        description: Portfolio unpublished successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/PortfolioUnpublishResponse"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+
+getPortfolioAnalytics:
+  get:
+    tags:
+      - Portfolios
+    operationId: getPortfolioAnalytics
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Get Portfolio Analytics
+    description: Views for the last 30 days plus top referrer hosts. Returns all-zero data if the caller has never published.
+    responses:
+      "200":
+        description: Analytics fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/PortfolioAnalyticsResponse"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+
+createPortfolioAssetUploadUrl:
+  post:
+    tags:
+      - Portfolio Assets
+    operationId: createPortfolioAssetUploadUrl
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Create Portfolio Asset Upload URL
+    description: |
+      Issues a presigned Cloudflare R2 PUT URL (10-minute expiry) for a JPG, PNG, or WebP image up
+      to 5MB. Upload the file directly to `uploadUrl` with a matching Content-Type/Content-Length,
+      then call `POST /portfolio-assets/complete` to verify and activate it. Session-authenticated
+      only.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/PortfolioAssetUploadRequest"
+          example:
+            kind: "AVATAR"
+            mimeType: "image/png"
+            sizeBytes: 204800
+    responses:
+      "200":
+        description: Upload URL created successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/PortfolioAssetUploadResponse"
+      "400":
+        description: Unsupported image type, or size out of range
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 400
+              message: "Upload a JPG, PNG, or WebP image."
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "503":
+        description: Media uploads are not configured (R2 credentials missing)
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+
+completePortfolioAssetUpload:
+  post:
+    tags:
+      - Portfolio Assets
+    operationId: completePortfolioAssetUpload
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Complete Portfolio Asset Upload
+    description: |
+      Verifies an uploaded asset with a server-side HEAD request against R2 (confirming size,
+      content type, and optional checksum match what was declared) and marks it `READY` so it can
+      be referenced from a portfolio. Session-authenticated only.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/PortfolioAssetCompleteRequest"
+    responses:
+      "200":
+        description: Asset completed successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/PortfolioAssetCompleteResponse"
+      "400":
+        description: Uploaded file does not match the declared size/type/checksum
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "404":
+        description: Asset not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 404
+              message: "Portfolio asset not found."
+      "503":
+        description: Media delivery is not configured (public base URL missing)
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+
+deletePortfolioAsset:
+  delete:
+    tags:
+      - Portfolio Assets
+    operationId: deletePortfolioAsset
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Delete Portfolio Asset
+    description: |
+      Deletes the R2 object and its metadata row. `data` is `null` on success.
+      Session-authenticated only.
+
+      This does not rewrite any portfolio that still references the asset — remove the reference
+      and save the draft first, or publishing will fail with `400`.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Asset deleted successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/NullDataResponse"
+            example:
+              success: true
+              message: "Success"
+              data: null
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "404":
+        description: Asset not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 404
+              message: "Portfolio asset not found."

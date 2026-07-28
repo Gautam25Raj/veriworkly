@@ -1,0 +1,52 @@
+---
+title: Portfolios
+description: Public portfolio pages, drafts, publishing, and analytics.
+---
+
+## Description
+
+Portfolios are published from a single PORTFOLIO-type [Document](/api-reference/documents) to a
+subdomain of `veriworkly.com`. The flow is: save a draft (`PUT /portfolios/draft`), preview it,
+then publish it (`POST /portfolios/publish`) once the content passes the full validation schema.
+Premium templates (`nimbus`, `cipher`) require an active Creator Pro subscription.
+
+<Callout type="warn" title="Publishing is temporarily admin-gated">
+  In production, publishing currently requires the caller's email to match a hardcoded
+  `ADMIN_EMAIL` — independent of plan tier. Regular users can still save drafts, preview, and manage
+  everything except actually flipping a portfolio live. This is a rollout-phase restriction, not a
+  permanent limitation, and does not apply in development.
+</Callout>
+
+The `/portfolios/public*` routes serve published content and need no user session. View tracking is
+buffered in Redis, deduplicated per viewer IP for 30 minutes, and flushed to Postgres by a
+scheduled job — so `POST /public/{subdomain}/view` returns `202` and does not reflect a persisted
+count.
+
+## Authentication
+
+| Method                                                                      | Access Level      | Requirement                                      |
+| :--------------------------------------------------------------------------- | :----------------- | :------------------------------------------------- |
+| `/public`, `/public/{subdomain}`, `/public/{subdomain}/view`                 | **No session**    | An API key, or a whitelisted first-party origin. |
+| All other routes                                                            | **Authenticated** | Session cookie only — no API key support.        |
+
+<Callout type="warn" title="“Public” means no user session, not no credentials">
+  The `/portfolios/public*` routes do not require a logged-in user, but they are **not** open to
+  anonymous callers. A request that carries neither an API key nor a whitelisted first-party
+  `Origin`/`Referer` is rejected with `401`. Only `GET /health` and `GET /health/ready` are
+  genuinely unauthenticated.
+</Callout>
+
+## Available Endpoints
+
+- `GET /portfolios/public` — [List Public Portfolios](./listPublicPortfolios)
+- `GET /portfolios/public/{subdomain}` — [Get Public Portfolio By Subdomain](./getPublicPortfolio)
+- `POST /portfolios/public/{subdomain}/view` — [Record Portfolio View](./recordPortfolioView)
+- `GET /portfolios/me` — [Get My Portfolio](./getMyPortfolio)
+- `PUT /portfolios/draft` — [Save Portfolio Draft](./savePortfolioDraft)
+- `GET /portfolios/subdomains/{slug}/availability` — [Check Subdomain Availability](./checkPortfolioSubdomainAvailability)
+- `GET /portfolios/preview/{documentId}` — [Preview Portfolio Draft](./previewPortfolio)
+- `POST /portfolios/publish` — [Publish Portfolio](./publishPortfolio)
+- `POST /portfolios/unpublish` — [Unpublish Portfolio](./unpublishPortfolio)
+- `GET /portfolios/analytics` — [Get Portfolio Analytics](./getPortfolioAnalytics)
+
+For uploading portfolio images, see [Portfolio Assets](/api-reference/portfolio-assets).

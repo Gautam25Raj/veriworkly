@@ -1,0 +1,328 @@
+createShareLink:
+  post:
+    tags:
+      - Shares
+    operationId: createShareLink
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    summary: Create Share Link
+    description: |
+      Creates (or replaces, if one already exists for this document) a public share link for a
+      document. Optionally password-protected — passwords are scrypt-hashed and never returned in
+      any response — and optionally set to expire.
+
+      The caller **must have claimed a username first**, since it forms the public URL
+      (`/{username}/{slug}`); without one the request fails with `400`. Requires the
+      `resume:write` scope when called with an API key.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/ShareLinkCreateRequest"
+          example:
+            documentId: "doc_123"
+            snapshot: {}
+            noExpiry: true
+    responses:
+      "201":
+        description: Share link created successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ShareLinkResponse"
+      "400":
+        description: Validation error, or the caller has not claimed a username yet.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            examples:
+              noUsername:
+                summary: Username not set
+                value:
+                  success: false
+                  statusCode: 400
+                  message: "Username required before sharing"
+              validation:
+                summary: Validation error
+                value:
+                  success: false
+                  statusCode: 400
+                  message: "Validation failed"
+                  details:
+                    - path: "documentId"
+                      message: "String must contain at least 1 character(s)"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "404":
+        description: Document not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 404
+              message: "Document not found"
+
+listSharedDocumentIds:
+  get:
+    tags:
+      - Shares
+    operationId: listSharedDocumentIds
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    summary: List Shared Document IDs
+    description: Given a comma-separated list of document IDs, returns which of them currently have an active (non-expired) share link. Useful for badging a document list in the UI.
+    parameters:
+      - name: ids
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Comma-separated document IDs.
+    responses:
+      "200":
+        description: Shared document ids fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/SharedDocumentIdsResponse"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+
+listShareLinksForDocument:
+  get:
+    tags:
+      - Shares
+    operationId: listShareLinksForDocument
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    summary: List Share Links For Document
+    description: Returns the (at most one) share link for a document, offset-paginated for shape consistency with other list endpoints.
+    parameters:
+      - name: documentId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+    responses:
+      "200":
+        description: Share links fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ShareLinkListResponse"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+
+revokeShareLink:
+  delete:
+    tags:
+      - Shares
+    operationId: revokeShareLink
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    summary: Revoke Share Link
+    description: |
+      Deletes the share link, immediately breaking its public URL. `data` is `null` on success.
+      Requires the `resume:write` scope when called with an API key.
+    parameters:
+      - name: documentId
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: shareLinkId
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Share link revoked successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/NullDataResponse"
+            example:
+              success: true
+              message: "Share link revoked successfully"
+              data: null
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "404":
+        description: Share link not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 404
+              message: "Share link not found"
+
+getPublicShareLink:
+  get:
+    tags:
+      - Shares
+    operationId: getPublicShareLink
+    summary: Get Public Share Link
+    description: |
+      Returns the shared document's title and snapshot, unless the link is password-protected — in
+      which case only `passwordRequired: true` is returned and the caller must call
+      `POST /shares/public/{username}/{slug}/verify` with the password.
+
+      No user session is required, but the request is still gated: it must carry an API key, or
+      originate from a whitelisted first-party origin. A bare request from an unrecognised origin
+      is rejected with `401`.
+    security:
+      - ApiKeyAuth: []
+      - {}
+    parameters:
+      - name: username
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      "200":
+        description: Shared document fetched successfully (or password required)
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/PublicShareResponse"
+      "404":
+        description: Link not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 404
+              message: "Link not found"
+      "410":
+        description: Link expired
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 410
+              message: "Link expired"
+
+verifyPublicShareLinkPassword:
+  post:
+    tags:
+      - Shares
+    operationId: verifyPublicShareLinkPassword
+    summary: Verify Public Share Link Password
+    description: |
+      Verifies a password-protected share link's password using a timing-safe comparison against
+      the stored scrypt hash, and returns the full snapshot on success.
+
+      No user session is required, but the request must carry an API key or originate from a
+      whitelisted first-party origin, same as the read endpoint.
+
+      **Rate limited to 3 attempts per 5 minutes per IP** — considerably tighter than the rest of
+      the API, to make these links impractical to brute-force.
+    security:
+      - ApiKeyAuth: []
+      - {}
+    parameters:
+      - name: username
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/VerifySharePasswordRequest"
+    responses:
+      "200":
+        description: Shared document unlocked successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/PublicShareResponse"
+      "400":
+        $ref: "../components/responses.yaml#/ValidationError"
+      "401":
+        description: Invalid password
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 401
+              message: "Invalid password"
+      "404":
+        description: Link not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 404
+              message: "Link not found"
+      "410":
+        description: Link expired
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 410
+              message: "Link expired"
+      "429":
+        description: Too many password attempts — 3 per 5 minutes per IP.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 429
+              message: "Too many requests. Please try again later."

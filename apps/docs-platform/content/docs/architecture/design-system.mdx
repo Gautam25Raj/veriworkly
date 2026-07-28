@@ -1,40 +1,70 @@
 ---
 title: Shared Design System
-description: Technical architecture, components, and token variables of the @veriworkly/ui package.
+description: Architecture, components, and theme tokens of the @veriworkly/ui package.
 ---
 
 import { Step, Steps } from "fumadocs-ui/components/steps";
 
 # Shared Design System (`@veriworkly/ui`)
 
-The `@veriworkly/ui` package is the centralized design system and UI library for the VeriWorkly monorepo. It ensures visual consistency, accessibility, and high performance across all workspace platforms:
+`@veriworkly/ui` is the centralised UI library for the monorepo. It is consumed by all five Next.js
+applications:
 
-- **Marketing Site** (`apps/site` on port 3000)
-- **Builder Studio** (`apps/studio` on port 3001)
-- **Documentation** (`apps/docs-platform` on port 3002)
-- **Blog** (`apps/blog-platform` on port 3003)
+- **Marketing site** (`apps/site`, port 3000)
+- **Studio** (`apps/studio`, port 3001)
+- **Documentation** (`apps/docs-platform`, port 3002)
+- **Blog** (`apps/blog-platform`, port 3003)
+- **Portfolio builder** (`apps/portfolio`, port 3004)
+
+The package is consumed **directly from source** — its `package.json` points `main` and `types` at
+`./src/index.ts` with no build step — so edits hot-reload in every consuming application
+immediately.
+
+<Callout type="info" title="No tailwind.config.ts">
+  Tailwind CSS 4 defines its theme in CSS via the `@theme` at-rule, so this package has no
+  JavaScript Tailwind config. All tokens live in `src/styles/themes.css`.
+</Callout>
 
 ---
 
-## Theme & Tokens System
+## Theme and tokens
 
-The design system implements a dark-and-light theme design using native CSS variables mapped to Tailwind CSS v4 custom theme tokens. This configuration resides in `packages/ui/src/styles/themes.css`.
+`packages/ui/src/styles/themes.css` defines **two parallel layers** of CSS custom properties:
 
-### Theme CSS Variables
+1. **Application tokens** (`--background`, `--foreground`, `--card`, …) declared on `:root` for light
+   mode and `.dark` for dark mode. These are what application CSS and hand-written styles use.
+2. **Fumadocs tokens** (`--color-fd-*`) declared inside `@theme`, mapping the same palette onto the
+   variable names Fumadocs' components expect, so the docs and blog inherit the brand palette without
+   a separate theme.
 
-The following core variables are injected into `:root` (light mode) and `.dark` (dark mode) contexts:
+### Core application tokens
 
-| CSS Variable   | Tailwind Token        | Description               | Light Value            | Dark Value               |
-| :------------- | :-------------------- | :------------------------ | :--------------------- | :----------------------- |
-| `--background` | `color-fd-background` | Canvas background         | `#f5f4ef` (cream)      | `#0d1117` (deep dark)    |
-| `--foreground` | `color-fd-foreground` | Primary text and icons    | `#171717` (charcoal)   | `#f3f4f6` (light gray)   |
-| `--card`       | `color-fd-card`       | Container elements        | `#ffffff` (pure white) | `#121924` (slate navy)   |
-| `--border`     | `color-fd-border`     | Divider borders           | `rgba(23,23,23,0.12)`  | `rgba(148,163,184,0.24)` |
-| `--accent`     | `color-fd-primary`    | Interactive action states | `#2563eb` (royal blue) | `#60a5fa` (light blue)   |
+| CSS variable               | Purpose                        | Light                  | Dark                        |
+| :------------------------- | :----------------------------- | :--------------------- | :-------------------------- |
+| `--background`             | Page canvas                    | `#f5f4ef` (cream)      | `#0d1117` (deep navy-black) |
+| `--foreground`             | Primary text and icons         | `#171717` (charcoal)   | `#f3f4f6` (light grey)      |
+| `--card`                   | Container and panel surfaces   | `#ffffff`              | `#121924` (slate navy)      |
+| `--muted`                  | Secondary text                 | `#5f5c54`              | `#94a3b8`                   |
+| `--border`                 | Dividers and outlines          | `rgba(23,23,23,0.12)`  | `rgba(148,163,184,0.25)`    |
+| `--accent`                 | Interactive and action states  | `#2563eb` (royal blue) | `#60a5fa` (light blue)      |
+| `--accent-foreground`      | Text on accent surfaces        | `#f8fbff`              | `#0f172a`                   |
+| `--destructive`            | Errors and destructive actions | `#dc2626`              | `#ef4444`                   |
+| `--destructive-foreground` | Text on destructive surfaces   | `#ffffff`              | `#ffffff`                   |
 
-### CSS Usage Example
+### Corresponding Fumadocs tokens
 
-To style a custom element outside the predefined Tailwind utilities, use the CSS custom properties:
+| Fumadocs token                | Maps to                         |
+| :---------------------------- | :------------------------------ |
+| `--color-fd-background`       | `--background`                  |
+| `--color-fd-foreground`       | `--foreground`                  |
+| `--color-fd-card`             | `--card`                        |
+| `--color-fd-border`           | `--border`                      |
+| `--color-fd-primary`          | `--accent`                      |
+| `--color-fd-muted`            | A translucent surface tint      |
+| `--color-fd-muted-foreground` | `--muted`                       |
+| `--color-fd-ring`             | Focus ring — matches `--accent` |
+
+### Using tokens in custom CSS
 
 ```css
 .custom-panel {
@@ -49,45 +79,58 @@ To style a custom element outside the predefined Tailwind utilities, use the CSS
 }
 ```
 
----
+### Global styles
 
-## Component Library
-
-### UI Elements (`src/components/ui`)
-
-All primitives are designed to be fully modular, responsive, and lightweight:
-
-- **Accordion**: Collapsible accordion panels for FAQs and dense details.
-- **Badge**: Pill badges for tag attributes or status indicators.
-- **Button**: Action triggers with loaders, icons, and multiple style variants.
-- **Card**: Elevated border boxes representing standalone content sections.
-- **Checkbox**: Fully accessible check selectors.
-- **Input**: Validated input text fields with layout error messaging.
-- **Menu**: Nested contextual navigation triggers and action menus.
-- **Modal**: Overlay modal displays utilizing smooth transitions.
-- **Select**: Interactive form dropdown components.
-- **Switch**: Visual toggle state controls.
-- **TextArea**: Expandable multi-line textual fields.
-- **Tooltip**: Contextual bubble descriptions on hover.
-
-### Structural Layout Components (`src/components/layout`)
-
-- **Container**: Page margins and content max-width constraints.
-- **MarketingNavbar**: Landing header supporting desktop actions and mobile menu slide-out navigation.
-- **MarketingFooter**: Multi-column site link index containing copyright and social integrations.
-- **AppShell**: Left-rail navigation layout shell for the builder workspace.
-- **ThemeToggle**: Class-based theme switcher button (`light` vs `.dark` DOM root updates).
-- **SocialIcons**: Vector brand assets linking to GitHub, LinkedIn, and Twitter/X.
+`src/styles/globals.css` sets the shared baseline: a default `border-color` on every element, smooth
+scroll behaviour, the subtle dual radial-gradient page background, an accent-tinted `::selection`,
+and utility classes such as `.surface-grid` (a token-derived grid overlay) and `.hide-scrollbar`.
 
 ---
 
-## Typography & Font Setup
+## Component library
 
-Google **Geist** and **Geist Mono** are pre-configured in `src/lib/fonts.ts`. The variables are consolidated into the `globalFontVariables` helper:
+### UI primitives (`src/components/ui`)
 
-### Next.js Integration Guide
+Twelve primitives, all built with Tailwind utilities and no third-party headless UI dependency:
 
-Import the fonts and global CSS stylesheet into the main root layout (`app/layout.tsx`):
+| Component     | Purpose                                                         |
+| :------------ | :-------------------------------------------------------------- |
+| **Accordion** | Collapsible panels for FAQs and dense detail.                   |
+| **Badge**     | Pill badges for tags and status indicators.                     |
+| **Button**    | Action triggers with loading states, icons, and style variants. |
+| **Card**      | Bordered content containers.                                    |
+| **Checkbox**  | Accessible check selectors.                                     |
+| **Input**     | Text fields with validation and error messaging.                |
+| **Menu**      | Contextual dropdown and action menus.                           |
+| **Modal**     | Overlay dialogs with transitions.                               |
+| **Select**    | Form dropdowns.                                                 |
+| **Switch**    | Toggle controls.                                                |
+| **TextArea**  | Multi-line text fields.                                         |
+| **Tooltip**   | Hover descriptions.                                             |
+
+### Layout components (`src/components/layout`)
+
+| Component           | Purpose                                                                                                                                                            |
+| :------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Container**       | Page margins and max-width constraints.                                                                                                                            |
+| **AppShell**        | Left-rail navigation shell for authenticated workspaces.                                                                                                           |
+| **MarketingNavbar** | The marketing header. Composed from `MarketingNavLogo`, `MarketingDesktopNav`, `MarketingMobileNav`, and `MarketingNavActions`, all exported from `layout/navbar`. |
+| **MarketingFooter** | Multi-column link index with copyright and social links.                                                                                                           |
+| **ThemeToggle**     | Light / dark theme switcher, toggling the `.dark` class on the document root.                                                                                      |
+| **SocialIcons**     | Brand vector icons for the project's social links.                                                                                                                 |
+
+Everything is re-exported from `src/index.ts`, so consumers import from the package root:
+
+```tsx
+import { Button, Card, Badge, MarketingFooter } from "@veriworkly/ui";
+```
+
+---
+
+## Typography
+
+**Geist** and **Geist Mono** are configured through `next/font/google` in `src/lib/fonts.ts` and
+exported as a single `globalFontVariables` string.
 
 ```tsx
 import { globalFontVariables } from "@veriworkly/ui";
@@ -102,18 +145,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }
 ```
 
+This exposes `--font-geist-sans` and `--font-geist-mono` as CSS variables for the whole document.
+
 ---
 
-## Development & Extension
-
-### Creating a New Component
-
-To add a new shared UI component to the design system:
+## Adding a component
 
 <Steps>
   <Step>
-    #### Component Implementation
-    Create your component file inside `packages/ui/src/components/ui/` or `/layout/`. Always write styling with Tailwind utilities:
+    #### Implement it
+
+    Create the file under `packages/ui/src/components/ui/` or `packages/ui/src/components/layout/`.
+    Style with Tailwind utilities and the shared `cn` helper — never hardcode hex colours; use theme
+    tokens so both themes work automatically.
+
     ```tsx
     // packages/ui/src/components/ui/CardHeader.tsx
     import React from "react";
@@ -121,25 +166,39 @@ To add a new shared UI component to the design system:
 
     export interface CardHeaderProps extends React.HTMLAttributes<HTMLDivElement> {}
 
-    export const CardHeader = ({ className, ...props }: CardHeaderProps) => {
-      return (
-        <div
-          className={cn("border-b border-border pb-4 mb-4", className)}
-          {...props}
-        />
-      );
-    };
+    export const CardHeader = ({ className, ...props }: CardHeaderProps) => (
+      <div className={cn("border-border mb-4 border-b pb-4", className)} {...props} />
+    );
     ```
 
   </Step>
 
-<Step>
-  #### Export the Component Expose your component in the main entrypoint `packages/ui/src/index.ts`:
-  ```typescript export * from "./components/ui/CardHeader"; ```
-</Step>
+  <Step>
+    #### Export it
+
+    Add it to `packages/ui/src/index.ts`:
+
+    ```typescript
+    export * from "./components/ui/CardHeader";
+    ```
+
+  </Step>
 
   <Step>
-    #### Workspace Hot Reloading
-    Since npm workspaces track the files directly, other apps (`site`, `studio`) will automatically rebuild with Hot Module Replacement (HMR) once you save changes.
+    #### Verify in both themes
+
+    Because the package is consumed from source, every running application picks the change up via
+    hot module replacement. Check the component against both light and dark themes, and against the
+    contrast and keyboard-focus expectations in the
+    [Coding Standards](/docs/contributing/coding-standards).
+
   </Step>
 </Steps>
+
+---
+
+## Public style guide
+
+The marketing site publishes a live showcase of this design system — colours, typography,
+components, brand assets, motion, and layout rules — at
+[veriworkly.com/style-guide](https://veriworkly.com/style-guide).

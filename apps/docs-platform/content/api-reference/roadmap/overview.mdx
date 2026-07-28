@@ -11,7 +11,7 @@ import { Map, BarChart, Target } from "lucide-react";
 
 Transparency is a core tenet of VeriWorkly. The Roadmap API exposes our internal development pipeline directly to the public. This allows the community (and our frontend client) to query upcoming features, track active progress, and view historical completion data.
 
-Unlike the GitHub proxy (which fetches from an external source), the Roadmap data is managed internally within our PostgreSQL database, ensuring zero-latency responses and highly relational queries.
+Unlike the GitHub module (whose records originate from an external repository), roadmap entries are authored directly in our PostgreSQL database, and responses are Redis-cached for fast reads.
 
 ---
 
@@ -19,17 +19,23 @@ Unlike the GitHub proxy (which fetches from an external source), the Roadmap dat
 
 Because the roadmap will grow indefinitely over the lifecycle of the project, the list endpoint is heavily optimized for large datasets.
 
-- **Offset Pagination:** All lists are paginated. You must use the `limit` (max 50) and `offset` parameters to traverse the data. The response will always include a `hasMore` boolean to inform your UI if a "Load More" button is needed.
-- **Granular Filtering:** You can filter the pipeline strictly by its lifecycle `status` (`todo`, `in-progress`, `done`).
-- **Chronological Sorting:** Support for time-series sorting via `newest`, `oldest`, or `recently-completed`.
+- **Offset Pagination:** Lists are paginated with a default page size of **20** and a hard maximum of **50** — a `limit` above 50 is rejected with `400`, not clamped. You can page with either `limit`/`offset` or `page`/`pageSize`; the response echoes both, plus `totalPages`, `hasMore`, and a `pagination` block.
+- **Granular Filtering:** Filter the pipeline by lifecycle `status` (`todo`, `in-progress`, `done`), and drop a specific entry with `excludeId` when building "related features" lists.
+- **Chronological Sorting:** Sort via `newest` (default), `oldest`, or `recently-completed`.
 
 ---
 
 ## Authentication
 
-| Method | Access Level | Requirement                                                            |
-| :----- | :----------- | :--------------------------------------------------------------------- |
-| `GET`  | **Public**   | None. No session cookies are required to fetch features or statistics. |
+| Method | Access Level   | Requirement                                                                 |
+| :----- | :------------- | :---------------------------------------------------------------------------- |
+| `GET`  | **No session** | An API key with the `roadmap:read` scope, or a whitelisted first-party origin. |
+
+<Callout type="info">
+  No user session is needed to read the roadmap, but these endpoints are not open to anonymous
+  callers — a request carrying neither an API key nor a whitelisted first-party `Origin`/`Referer`
+  is rejected with `401`.
+</Callout>
 
 ---
 

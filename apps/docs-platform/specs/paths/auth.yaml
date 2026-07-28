@@ -5,7 +5,14 @@ sendOtp:
     operationId: sendOTP
     summary: Send OTP
 
-    description: Sends a one-time password (OTP) to the specified email address.
+    description: |
+      Emails a one-time password to the given address.
+
+      Authentication is handled by **Better Auth**, mounted at `/api/v1/auth`. Its endpoints return
+      Better Auth's own payloads — they are **not** wrapped in the `{ success, message, data }`
+      envelope the rest of this API uses.
+
+      Rate limited to 3 requests per minute per IP.
     requestBody:
       required: true
       content:
@@ -14,22 +21,55 @@ sendOtp:
             type: object
             required:
               - email
+              - type
             properties:
               email:
                 type: string
                 format: email
+              type:
+                type: string
+                enum: [sign-in, email-verification, forget-password]
+                description: |
+                  Required. Use `sign-in` for the login flow — that is what the VeriWorkly
+                  dashboard sends.
+          example:
+            email: "user@example.com"
+            type: "sign-in"
     responses:
       "200":
-        description: OTP sent successfully
+        description: |
+          OTP sent. Returns `{ "success": true }` whether or not the address maps to an existing
+          account, so this endpoint cannot be used to enumerate registered emails.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+            example:
+              success: true
+      "400":
+        description: Missing or malformed email address.
+      "429":
+        description: Too many OTP requests — 3 per minute per IP.
 
 verifyOtp:
   post:
     tags:
       - Authentication
     operationId: verifyOTP
-    summary: Verify OTP
+    summary: Sign In With Email OTP
 
-    description: Verifies the OTP sent to the email address and starts a session.
+    description: |
+      Exchanges a valid OTP for a session. On success the session cookie is set via `Set-Cookie`
+      and the session token plus the user record are returned.
+
+      A user is created automatically on first sign-in. Codes expire after 5 minutes and allow 3
+      attempts by default. This endpoint returns Better Auth's payload, not the
+      `{ success, message, data }` envelope.
+
+      Rate limited to 5 requests per minute per IP.
     requestBody:
       required: true
       content:
@@ -45,9 +85,28 @@ verifyOtp:
                 format: email
               otp:
                 type: string
+          example:
+            email: "user@example.com"
+            otp: "123456"
     responses:
       "200":
-        description: OTP verified successfully. Sets session cookies.
+        description: OTP verified. Sets the session cookie and returns the session token and user.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, user]
+              properties:
+                token:
+                  type: string
+                  description: Session token for the authenticated session.
+                user:
+                  type: object
+                  additionalProperties: true
+      "400":
+        description: The OTP is invalid, expired, or the attempt limit was exceeded.
+      "429":
+        description: Too many verification attempts — 5 per minute per IP.
 
 getSession:
   get:
@@ -59,12 +118,27 @@ getSession:
     security:
       - LocalSession: []
       - ProdSession: []
-    description: Retrieves the current active session based on cookies.
+    description: |
+      Returns the active session and its user, based on the request's session cookie. Returns
+      `null` rather than an error when no valid session cookie is present.
+
+      This endpoint returns Better Auth's payload, not the `{ success, message, data }` envelope.
     responses:
       "200":
-        description: Session information retrieved successfully.
-      "401":
-        $ref: "../components/responses.yaml#/UnauthorizedError"
+        description: The active `{ session, user }` pair, or `null` when the caller has no valid session.
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  properties:
+                    session:
+                      type: object
+                      additionalProperties: true
+                    user:
+                      type: object
+                      additionalProperties: true
+                - type: "null"
 
 signOut:
   post:
@@ -73,7 +147,23 @@ signOut:
     operationId: signOut
     summary: Sign Out
 
-    description: Terminates the current session and clears cookies.
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    description: |
+      Revokes the current session and clears the session cookie. Also flushes the server-side
+      session cache for that cookie.
+
+      This endpoint returns Better Auth's payload, not the `{ success, message, data }` envelope.
     responses:
       "200":
-        description: Signed out successfully.
+        description: Signed out. Clears the session cookie.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                success:
+                  type: boolean
+            example:
+              success: true

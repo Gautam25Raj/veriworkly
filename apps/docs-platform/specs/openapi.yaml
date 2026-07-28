@@ -7,21 +7,45 @@ info:
 
     ### Authentication Methods
 
-    VeriWorkly supports two primary authentication methods:
+    VeriWorkly supports two authentication methods:
 
-    #### 1. API Key Authentication (Recommended for API Docs & Scripts)
-    For programmatic access, use the `X-API-Key` header. This is **required** for all requests made from these documentation pages and external integrations.
+    #### 1. API Key Authentication (recommended for scripts and integrations)
+    For programmatic access, send your key either way — both are accepted:
 
-    - **Header**: `X-API-Key`
-    - **Rate Limit**: 20 requests per 15 minutes (default).
+    - `X-API-Key: vw_...`
+    - `Authorization: Bearer vw_...`
 
-    #### 2. Session Authentication (Dashboard only)
-    Used internally by the VeriWorkly dashboard and resume builder. This method uses secure HTTP-only cookies.
+    A key is **required** for any request that does not originate from a whitelisted VeriWorkly
+    origin, including requests made from these documentation pages.
 
-    - **Cookies**: 
+    - **Format**: `vw_` followed by 64 hexadecimal characters.
+    - **Rate limit**: 20 requests per 15 minutes per key by default, configurable per key at
+      creation. Responses carry `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and
+      `X-RateLimit-Reset`.
+    - **Scopes**: keys are scope-gated. A key missing a route's required scope gets `403`. Session
+      callers are never scope-gated.
+
+    #### 2. Session Authentication (dashboard only)
+    Used internally by the VeriWorkly dashboard and resume builder, via secure HTTP-only cookies
+    issued by Better Auth.
+
+    - **Cookies**:
       - Local: `veriworkly-auth.session_token`
       - Production: `__Secure-veriworkly-auth.session_token`
-    - **Note**: This method is only allowed for whitelisted domains (e.g., veriworkly.com). Requests from documentation pages **must** use an API Key.
+    - **Note**: sessions are only honoured for whitelisted origins. Send `credentials: 'include'`
+      (fetch) or `withCredentials: true` (axios). Requests from these documentation pages **must**
+      use an API key.
+
+    #### Endpoints that need neither
+    Only `GET /api/v1/health` and `GET /api/v1/health/ready` are fully open. Everything else —
+    including the endpoints labelled "public", such as public portfolios and share links — still
+    requires an API key or a whitelisted first-party origin, and returns `401` without one.
+
+    ### Response Envelope
+
+    Every endpoint under `/api/v1` except the Better Auth routes at `/api/v1/auth/*` returns
+    `{ success, message, data }` on success and `{ success, message, statusCode, details? }` on
+    failure. Better Auth endpoints return their own payload shapes.
 
 servers:
   - url: https://api.veriworkly.com
@@ -42,10 +66,34 @@ tags:
     description: Authentication operations using email OTP and sessions.
   - name: API Keys
     description: Operations related to managing personal API keys.
+  - name: Profile
+    description: The authenticated user's master profile — the single source of truth new documents are seeded from.
+  - name: Profile Import
+    description: Importing a master profile from GitHub (real OAuth) or LinkedIn (AI-parsed paste).
+  - name: Documents
+    description: CRUD for resumes, cover letters, portfolios, and link-in-bio documents.
+  - name: ATS
+    description: Deterministic and AI-assisted ATS resume scanning against a job description.
+  - name: AI
+    description: AI-powered content generation actions and their credit costs.
+  - name: Portfolios
+    description: Public portfolio pages, drafts, publishing, and analytics.
+  - name: Portfolio Assets
+    description: Presigned image uploads for portfolio avatars, project covers, and social images.
+  - name: Billing
+    description: Subscriptions, AI credit wallet, and Dodo Payments checkout/portal sessions.
+  - name: Shares
+    description: Public, optionally password-protected share links for documents.
+  - name: Affiliates
+    description: Affiliate enrollment, referrals, commissions, and withdrawals. Off by default in production behind a feature flag.
+  - name: Ambassador
+    description: Campus ambassador program application intake. Off by default in production behind a feature flag.
 
 paths:
   /api/v1/health:
     $ref: "./paths/health.yaml#/healthCheck"
+  /api/v1/health/ready:
+    $ref: "./paths/health.yaml#/healthReady"
 
   /api/v1/users/me:
     $ref: "./paths/users.yaml#/getCurrentUser"
@@ -66,9 +114,9 @@ paths:
   /api/v1/github/admin/sync:
     $ref: "./paths/github.yaml#/syncGitHubStats"
 
-  /api/v1/auth/email-otp/send-otp:
+  /api/v1/auth/email-otp/send-verification-otp:
     $ref: "./paths/auth.yaml#/sendOtp"
-  /api/v1/auth/email-otp/verify-otp:
+  /api/v1/auth/sign-in/email-otp:
     $ref: "./paths/auth.yaml#/verifyOtp"
   /api/v1/auth/get-session:
     $ref: "./paths/auth.yaml#/getSession"
@@ -84,13 +132,122 @@ paths:
   /api/v1/api-keys/{id}:
     $ref: "./paths/api-keys.yaml#/apiKeyItem"
 
+  /api/v1/profiles/master:
+    $ref: "./paths/profile.yaml#/masterProfile"
+
+  /api/v1/profiles/import/quota:
+    $ref: "./paths/profile.yaml#/getImportQuota"
+  /api/v1/profiles/import/github:
+    $ref: "./paths/profile.yaml#/importGithub"
+  /api/v1/profiles/import/linkedin:
+    $ref: "./paths/profile.yaml#/importLinkedin"
+
+  /api/v1/documents:
+    $ref: "./paths/documents.yaml#/documentCollection"
+  /api/v1/documents/{id}:
+    $ref: "./paths/documents.yaml#/documentItem"
+
+  /api/v1/ats/quota:
+    $ref: "./paths/ats.yaml#/getAtsQuota"
+  /api/v1/ats/extract:
+    $ref: "./paths/ats.yaml#/extractAtsResumeText"
+  /api/v1/ats/check:
+    $ref: "./paths/ats.yaml#/checkAtsResume"
+  /api/v1/ats/analyze:
+    $ref: "./paths/ats.yaml#/analyzeAtsResume"
+  /api/v1/ats/convert-resume:
+    $ref: "./paths/ats.yaml#/convertAtsResume"
+
+  /api/v1/ai/actions:
+    $ref: "./paths/ai.yaml#/getAiActions"
+  /api/v1/ai/generate:
+    $ref: "./paths/ai.yaml#/generateAiContent"
+
+  /api/v1/portfolios/public:
+    $ref: "./paths/portfolios.yaml#/listPublicPortfolios"
+  /api/v1/portfolios/public/{subdomain}:
+    $ref: "./paths/portfolios.yaml#/getPublicPortfolio"
+  /api/v1/portfolios/public/{subdomain}/view:
+    $ref: "./paths/portfolios.yaml#/recordPortfolioView"
+  /api/v1/portfolios/me:
+    $ref: "./paths/portfolios.yaml#/getMyPortfolio"
+  /api/v1/portfolios/draft:
+    $ref: "./paths/portfolios.yaml#/savePortfolioDraft"
+  /api/v1/portfolios/subdomains/{slug}/availability:
+    $ref: "./paths/portfolios.yaml#/checkPortfolioSubdomainAvailability"
+  /api/v1/portfolios/preview/{documentId}:
+    $ref: "./paths/portfolios.yaml#/previewPortfolio"
+  /api/v1/portfolios/publish:
+    $ref: "./paths/portfolios.yaml#/publishPortfolio"
+  /api/v1/portfolios/unpublish:
+    $ref: "./paths/portfolios.yaml#/unpublishPortfolio"
+  /api/v1/portfolios/analytics:
+    $ref: "./paths/portfolios.yaml#/getPortfolioAnalytics"
+
+  /api/v1/portfolio-assets/upload-url:
+    $ref: "./paths/portfolios.yaml#/createPortfolioAssetUploadUrl"
+  /api/v1/portfolio-assets/complete:
+    $ref: "./paths/portfolios.yaml#/completePortfolioAssetUpload"
+  /api/v1/portfolio-assets/{id}:
+    $ref: "./paths/portfolios.yaml#/deletePortfolioAsset"
+
+  /api/v1/billing/me:
+    $ref: "./paths/billing.yaml#/getBillingSummary"
+  /api/v1/billing/history:
+    $ref: "./paths/billing.yaml#/getBillingHistory"
+  /api/v1/billing/credits:
+    $ref: "./paths/billing.yaml#/getCreditWallet"
+  /api/v1/billing/credits/history:
+    $ref: "./paths/billing.yaml#/getCreditHistory"
+  /api/v1/billing/checkout:
+    $ref: "./paths/billing.yaml#/createBillingCheckout"
+  /api/v1/billing/checkout/cancel:
+    $ref: "./paths/billing.yaml#/cancelBillingCheckout"
+  /api/v1/billing/portal:
+    $ref: "./paths/billing.yaml#/createBillingPortal"
+  /api/v1/billing/credits/checkout:
+    $ref: "./paths/billing.yaml#/createCreditPackCheckout"
+
+  /api/v1/shares:
+    $ref: "./paths/shares.yaml#/createShareLink"
+  /api/v1/shares/documents/shared-ids:
+    $ref: "./paths/shares.yaml#/listSharedDocumentIds"
+  /api/v1/shares/documents/{documentId}:
+    $ref: "./paths/shares.yaml#/listShareLinksForDocument"
+  /api/v1/shares/documents/{documentId}/links/{shareLinkId}:
+    $ref: "./paths/shares.yaml#/revokeShareLink"
+  /api/v1/shares/public/{username}/{slug}:
+    $ref: "./paths/shares.yaml#/getPublicShareLink"
+  /api/v1/shares/public/{username}/{slug}/verify:
+    $ref: "./paths/shares.yaml#/verifyPublicShareLinkPassword"
+
+  /api/v1/affiliates/click:
+    $ref: "./paths/affiliates.yaml#/trackAffiliateClick"
+  /api/v1/affiliates/leaderboard:
+    $ref: "./paths/affiliates.yaml#/getAffiliateLeaderboard"
+  /api/v1/affiliates/me:
+    $ref: "./paths/affiliates.yaml#/getMyAffiliateDashboard"
+  /api/v1/affiliates/enroll:
+    $ref: "./paths/affiliates.yaml#/enrollAsAffiliate"
+  /api/v1/affiliates/referral:
+    $ref: "./paths/affiliates.yaml#/applyAffiliateReferral"
+  /api/v1/affiliates/withdrawals:
+    $ref: "./paths/affiliates.yaml#/requestAffiliateWithdrawal"
+
+  /api/v1/ambassador/me:
+    $ref: "./paths/ambassador.yaml#/getAmbassadorStatus"
+  /api/v1/ambassador/apply:
+    $ref: "./paths/ambassador.yaml#/applyForAmbassador"
+
 components:
   securitySchemes:
     ApiKeyAuth:
       type: apiKey
       in: header
       name: X-API-Key
-      description: Your personal API key.
+      description: |
+        Your personal API key — `vw_` followed by 64 hex characters. The same key is also accepted
+        as `Authorization: Bearer vw_...`.
     LocalSession:
       type: apiKey
       in: cookie

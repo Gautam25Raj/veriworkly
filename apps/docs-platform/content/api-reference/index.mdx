@@ -3,13 +3,30 @@ title: API Reference
 description: Complete integration guide and OpenAPI specifications for the VeriWorkly backend.
 ---
 
-import { Server, Lock, Activity, Map, TerminalSquare } from "lucide-react";
+import {
+  Key,
+  Shield,
+  Lock,
+  Activity,
+  Map,
+  UserCircle,
+  Import,
+  FileText,
+  ScanSearch,
+  Sparkles,
+  LayoutTemplate,
+  Image,
+  CreditCard,
+  Link2,
+  Handshake,
+  GraduationCap,
+} from "lucide-react";
 
 # VeriWorkly API Reference
 
 Welcome to the official API documentation for **VeriWorkly**.
 
-Our backend powers a secure, privacy-first, and highly scalable resume platform. Designed with strict RESTful principles, this API enables developers to manage profiles, resumes, background PDF generation, and GitHub syncing.
+Our backend powers a secure, privacy-first, and highly scalable resume platform. Designed with strict RESTful principles, this API lets you manage profiles, resumes, portfolios, AI generation, ATS scanning, billing, and share links.
 
 ---
 
@@ -44,17 +61,41 @@ All API endpoints are relative to the following base URLs depending on your envi
 
 ## Authentication
 
-VeriWorkly deliberately avoids standard `Bearer` tokens in favor of highly secure, `HttpOnly` session cookies managed by **Better Auth**.
+There are two ways to authenticate, and which one you need depends on where the request comes from.
 
-When interacting with protected endpoints (like updating user profiles or fetching private stats), your HTTP client must include credentials.
+### 1. API keys — for scripts, integrations, and these docs
 
-### Cookie Configuration
+Send your key in either header; both are accepted:
 
-- **Local Environment:** Uses `veriworkly-auth.session_token`.
-- **Production Environment:** Uses `__Secure-veriworkly-auth.session_token`.
+```http
+X-API-Key: vw_...
+Authorization: Bearer vw_...
+```
+
+Keys are `vw_` followed by 64 hexadecimal characters, are scope-gated, and default to 20 requests
+per 15 minutes. See [API Keys](/api-reference/api-keys) for scopes and lifecycle.
+
+### 2. Session cookies — for the VeriWorkly dashboard
+
+`HttpOnly` cookies issued by **Better Auth**, honoured only for whitelisted first-party origins.
+
+- **Local Environment:** `veriworkly-auth.session_token`
+- **Production Environment:** `__Secure-veriworkly-auth.session_token`
 
 <Callout type="warn" title="Important for Frontend Integration">
   If you are calling this API from a browser or a frontend framework (like Next.js client components), you **must** configure your fetch requests to include cookies: `fetch(url, { credentials: 'include' })`. Axios users must set `withCredentials: true`.
+</Callout>
+
+<Callout type="warn" title="“Public” endpoints still need credentials">
+  Endpoints described as public — public portfolios, public share links, the roadmap, GitHub stats —
+  need no **logged-in user**, but they are not open to anonymous callers. Without an API key or a
+  whitelisted first-party `Origin`/`Referer` they return `401`. The only genuinely unauthenticated
+  endpoints on the whole API are `GET /health` and `GET /health/ready`.
+</Callout>
+
+<Callout type="info" title="Auth routes are the one exception to the response format">
+  Endpoints under `/api/v1/auth/*` are served by Better Auth and return **its** payload shapes, not
+  the `{ success, message, data }` envelope described below.
 </Callout>
 
 ---
@@ -63,16 +104,28 @@ When interacting with protected endpoints (like updating user profiles or fetchi
 
 ### Optimistic Concurrency Control
 
-To prevent data loss when updating Master Profiles or Resumes across different browser tabs or devices, VeriWorkly implements **Optimistic Concurrency Control**.
+To prevent data loss when editing across browser tabs or devices, VeriWorkly implements
+**Optimistic Concurrency Control** — but the token you send differs by resource:
 
-Every profile or resume object includes an `updatedAt` timestamp. When making a `PUT` or `PATCH` request to update data, you must provide the timestamp you are editing against.
+| Resource                             | Field you send        | Type       | Source                                    |
+| :----------------------------------- | :--------------------- | :--------- | :---------------------------------------- |
+| Master Profile (`PUT /profiles/master`) | `expectedUpdatedAt` | timestamp  | The `updatedAt` you last read.            |
+| Documents (`PATCH /documents/{id}`)  | `revision`             | integer    | The document's current `revision`.        |
+| Portfolio drafts (`PUT /portfolios/draft`) | `revision`       | integer    | The draft's current `revision`.           |
 
-- If your timestamp matches the server's timestamp, the update succeeds.
-- If the server's timestamp is newer (meaning someone else updated it), the API will reject your request with a `409 Conflict`.
+If your value matches the server's, the write succeeds — and for documents and drafts, `revision`
+is incremented by 1. If it doesn't, the API rejects the request with `409 Conflict`; re-read the
+resource, reapply your changes, and retry.
 
-### Background Job Processing
+<Callout type="info">
+  `PUT /profiles/master` is a **full replacement**, not a patch. Its payload is validated strictly:
+  every property must be present, and unknown keys are rejected. Read the profile first, modify the
+  object you got back, and send the whole thing.
+</Callout>
 
-Heavy tasks, such as generating high-fidelity PDFs via **Playwright**, are not executed synchronously. The API will queue a job in **BullMQ (Redis)** and return an immediate response. You will either poll a status endpoint or receive a webhook when the PDF is successfully uploaded to **AWS S3**.
+### Document Export Is Client-Side, Not a Background Job
+
+PDF, DOCX, HTML, Markdown, and JSON export are generated entirely in the browser (via `react-pdf` for PDF and the `docx` package for Word documents) — there is no server-side rendering job, queue, or webhook involved in producing an exported file. The API's own background jobs (GitHub sync, usage-metrics flush, portfolio access checks) are internal, Redis-lock-guarded scheduled tasks, not something a client polls or receives a webhook for.
 
 ---
 
@@ -102,13 +155,13 @@ Successful requests will return a `200 OK` status code and a payload containing 
 
 ### Error Handling & Validation
 
-Failed requests return `success: false.` If the failure is due to a validation error (e.g., passing a string instead of a number for a pagination limit), a `details` array will pinpoint the exact structural failure.
+Failed requests return `success: false`. When the failure is a validation error, a `details` array pinpoints the exact structural failure. `details` is omitted entirely for non-validation errors.
 
 ```json
 {
   "success": false,
-  "statusCode": 400,
   "message": "Validation failed",
+  "statusCode": 400,
   "details": [
     {
       "path": "limit",
@@ -121,29 +174,58 @@ Failed requests return `success: false.` If the failure is due to a validation e
 ### Common HTTP Status Codes
 
 - **`200 OK`**: The request was successful.
-- **`400 Bad Request`**: Validation error (missing parameters, malformed body).
-- **`401 Unauthorized`**: Authentication failed or session expired.
-- **`404 Not Found`**: The requested resource does not exist.
-- **`409 Conflict`**: Optimistic concurrency failure (timestamp mismatch).
-- **`429 Too Many Requests`**: Rate limit exceeded. Slow down your requests.
-- **`503 Service Unavailable`**: The server, database, or Redis queue is unreachable.
+- **`201 Created`**: A resource was created — document creation, share links, API keys, publishing a portfolio.
+- **`202 Accepted`**: Queued for asynchronous processing (portfolio view tracking).
+- **`400 Bad Request`**: Validation error (missing parameters, malformed body, unsupported scope).
+- **`401 Unauthorized`**: No valid session and no valid API key, or the session expired.
+- **`402 Payment Required`**: Not enough AI credits for the requested action.
+- **`403 Forbidden`**: Authenticated, but not allowed — an API key missing a required scope, a non-admin calling an admin route, or a feature gated to subscribers.
+- **`404 Not Found`**: The requested resource does not exist, or is not yours.
+- **`408 Request Timeout`**: Resume text extraction took too long.
+- **`409 Conflict`**: Optimistic concurrency failure, or a uniqueness clash (slug/subdomain already in use).
+- **`410 Gone`**: The share link expired.
+- **`413 Payload Too Large`**: Profile or document content exceeded the 1 MB limit.
+- **`429 Too Many Requests`**: Rate limit exceeded. Check the `Retry-After` header.
+- **`502 Bad Gateway`**: An upstream provider (AI or GitHub) failed.
+- **`503 Service Unavailable`**: A dependency is unreachable, a feature flag is off, or a required integration is unconfigured.
+
+## Rate Limiting
+
+Limits are enforced per IP, and additionally per key for API-key traffic. Rate limiting is disabled
+entirely in development.
+
+| Scope                                | Limit                    |
+| :----------------------------------- | :----------------------- |
+| Default (per IP)                     | 100 requests / 15 min    |
+| Per API key                          | 20 requests / 15 min     |
+| `/api/v1/auth/*`                     | 20 requests / min        |
+| `/api/v1/ai/*`                       | 20 requests / min        |
+| `/api/v1/contact`                    | 5 requests / hour        |
+| `/api/v1/stats/events`               | 15 requests / min        |
+| Share-link password verification     | 3 requests / 5 min       |
+
+A `429` response carries `Retry-After`. API-key traffic also gets `X-RateLimit-Limit`,
+`X-RateLimit-Remaining`, and `X-RateLimit-Reset`.
 
 ## Pagination
 
-Endpoints that return lists (like `/roadmap` or `/github/issues`) use **Offset Pagination**.
+Endpoints that return lists (like `/roadmap`, `/github/issues`, `/api-keys`, or
+`/shares/documents/{documentId}`) use **Offset Pagination**. Paginated payloads put the rows in
+`items` alongside the metadata below.
 
-Query parameters allow you to control the data flow:
-
-- `limit`: Number of items to return (maximum is usually clamped at 20 or 50).
-- `offset`: The number of items to skip.
-
-The response object will always include a `pagination` metadata block so you know if there is more data to fetch:
+You can page two equivalent ways — `limit`/`offset`, or `page`/`pageSize`. The response echoes
+both. Page size defaults to 20 and is capped at 50; on `/roadmap` and `/github/issues` a `limit`
+above 50 is **rejected with `400`** rather than clamped.
 
 ```json
 {
+  "items": [],
   "total": 120,
   "limit": 20,
   "offset": 0,
+  "page": 1,
+  "pageSize": 20,
+  "totalPages": 6,
   "hasMore": true,
   "pagination": {
     "mode": "offset",
@@ -153,6 +235,9 @@ The response object will always include a `pagination` metadata block so you kno
 }
 ```
 
+`nextCursor` is always `null` — these endpoints are offset-paginated, and the field exists only to
+keep the envelope stable.
+
 ---
 
 ## Explore the API
@@ -161,8 +246,17 @@ Dive into the specific modules to see precise schemas, request bodies, and live 
 
 <Cards>
   <Card title="Health & Diagnostics" icon={<Activity />} href="/api-reference/health">
-    Monitor system uptime, PostgreSQL database connectivity, and Redis queue health.
+    A cheap liveness probe for uptime monitoring, plus a deeper readiness probe that verifies
+    PostgreSQL and Redis.
   </Card>
+
+<Card title="Authentication" icon={<Key />} href="/api-reference/authentication">
+  Passwordless email-OTP sign-in, session retrieval, and sign-out, powered by Better Auth.
+</Card>
+
+<Card title="API Keys" icon={<Shield />} href="/api-reference/api-keys">
+  Create, rotate, revoke, and scope the keys used for programmatic access.
+</Card>
 
 <Card title="Users Module" icon={<Lock />} href="/api-reference/users">
   Protected operations for authenticated users. Fetch profile metadata and manage account
@@ -175,5 +269,51 @@ Dive into the specific modules to see precise schemas, request bodies, and live 
 
   <Card title="GitHub Integrations" icon={<img width={24} height={24} src="/icons/socials/github.svg" alt="GitHub Icon" className="w-5 h-5" />} href="/api-reference/github">
     Fetch live repository statistics, paginated issues, and pull requests directly from the VeriWorkly repo.
+  </Card>
+
+<Card title="Master Profile" icon={<UserCircle />} href="/api-reference/profile">
+  Read and update the canonical profile that new resumes, cover letters, and portfolios are seeded
+  from.
+</Card>
+
+<Card title="Profile Import" icon={<Import />} href="/api-reference/profile-import">
+  Import a profile from a real GitHub OAuth connection or an AI-parsed LinkedIn text/PDF paste.
+</Card>
+
+<Card title="Documents" icon={<FileText />} href="/api-reference/documents">
+  Create, update, and soft-delete resumes, cover letters, portfolios, and link-in-bio pages.
+</Card>
+
+<Card title="ATS Scanning" icon={<ScanSearch />} href="/api-reference/ats">
+  Run a deterministic ATS readiness scan or a deeper AI-powered analysis against a job description.
+</Card>
+
+<Card title="AI Generation" icon={<Sparkles />} href="/api-reference/ai">
+  List available AI writing actions and their credit costs, then generate content with a
+  reserve-then-commit credit flow.
+</Card>
+
+<Card title="Portfolios" icon={<LayoutTemplate />} href="/api-reference/portfolios">
+  Save drafts, publish to a subdomain, and view analytics for a public portfolio page.
+</Card>
+
+<Card title="Portfolio Assets" icon={<Image />} href="/api-reference/portfolio-assets">
+  Presigned image uploads for portfolio avatars, project covers, and social share images.
+</Card>
+
+<Card title="Billing" icon={<CreditCard />} href="/api-reference/billing">
+  Manage subscriptions, the AI credit wallet, and Dodo Payments checkout/portal sessions.
+</Card>
+
+<Card title="Shares" icon={<Link2 />} href="/api-reference/shares">
+  Create public, optionally password-protected share links for any document.
+</Card>
+
+<Card title="Affiliates" icon={<Handshake />} href="/api-reference/affiliates">
+  Enroll as an affiliate, track referrals and commissions, and request withdrawals.
+</Card>
+
+  <Card title="Ambassador Program" icon={<GraduationCap />} href="/api-reference/ambassador">
+    Apply to the campus ambassador program and check your application status.
   </Card>
 </Cards>

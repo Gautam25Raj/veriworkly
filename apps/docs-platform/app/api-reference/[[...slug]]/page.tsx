@@ -10,8 +10,10 @@ import {
 import { notFound } from "next/navigation";
 
 import { apiSource, getApiPageImage } from "@/lib/source";
+import { openapi } from "@/lib/openapi";
 
 import { getMDXComponents } from "@/components/mdx";
+import { OpenAPIPage } from "@/components/api-page";
 
 type PageProps = {
   params: Promise<{ slug?: string[] }>;
@@ -35,6 +37,16 @@ export default async function Page(props: PageProps) {
 
   const MDX = pageData.body;
 
+  // Generated pages declare the schemas they need in `_openapi.preload`; resolve them here so the
+  // client renderer receives the bundled document instead of fetching it.
+  const { preloaded } = await openapi.preloadOpenAPIPage(page);
+
+  const components = getMDXComponents({
+    OpenAPIPage: (props: Record<string, unknown>) => (
+      <OpenAPIPage {...(props as never)} preloaded={preloaded} />
+    ),
+  });
+
   return (
     <DocsPage
       tableOfContent={{
@@ -51,7 +63,7 @@ export default async function Page(props: PageProps) {
       <DocsTitle>{pageData.title}</DocsTitle>
       <DocsDescription>{pageData.description}</DocsDescription>
       <DocsBody>
-        <MDX components={getMDXComponents()} />
+        <MDX components={components} />
       </DocsBody>
     </DocsPage>
   );

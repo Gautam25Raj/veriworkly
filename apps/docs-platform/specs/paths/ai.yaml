@@ -1,0 +1,148 @@
+getAiActions:
+  get:
+    tags:
+      - AI
+    operationId: getAiActions
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    summary: List AI Actions
+    description: |
+      Lists every available AI generation action along with its Standard and Expert mode credit
+      costs. Use this to build pricing UI before calling `/ai/generate`.
+
+      Costs only — no user data is returned, and no credits are spent. This endpoint carries no
+      scope requirement, but it is not open to the public: the request must carry an API key or
+      originate from a whitelisted first-party origin, or it is rejected with `401`.
+
+      The response always contains an entry for all seven action keys. **Treat this endpoint as the
+      only source of truth for pricing** — the actual credit values come from server-side
+      configuration and can change without a documentation update, so read them at runtime rather
+      than hardcoding the illustrative numbers shown here.
+    responses:
+      "200":
+        description: Actions fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/AiActionsResponse"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "503":
+        description: The AI policy is missing or invalid on the server.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 503
+              message: "AI generation policy is invalid."
+
+generateAiContent:
+  post:
+    tags:
+      - AI
+    operationId: generateAiContent
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    summary: Generate AI Content
+    description: |
+      Runs an AI generation action (rewriting a section, generating a cover letter, tailoring a
+      resume to a job description, etc). Requires the `ai:write` scope when called with an API key.
+
+      Credits are handled with a two-phase reserve → commit/release flow: the cost for the chosen
+      action + mode is reserved from the caller's AI credit wallet before the AI provider is called,
+      then committed only after a successful response. If the AI call fails or errors out, the
+      reservation is released instead of committed — a failed generation never burns credits.
+
+      Expert mode uses a stronger, more expensive model than Standard mode for the same action.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas.yaml#/AiGenerateRequest"
+          example:
+            action: "generate_cover_letter"
+            mode: "standard"
+            input:
+              text: ""
+              context: "5 years of experience building React applications."
+              jobDescription: "We are looking for a Senior Frontend Engineer..."
+              instructions: "Keep it under 300 words."
+            requestId: "ai-gen-8f3ac1e2b9"
+    responses:
+      "200":
+        description: Content generated successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/AiGenerateResponse"
+            example:
+              success: true
+              message: "Success"
+              data:
+                content: "Dear Hiring Manager, ..."
+                usage:
+                  promptTokens: 420
+                  completionTokens: 280
+                  totalTokens: 700
+                credits:
+                  spent: 4
+                  balance: 46
+      "400":
+        description: Validation error, or text/context exceeds the action's character limit
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 400
+              message: "Provide text, context, or a job description for this AI action."
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "402":
+        description: Not enough AI credits
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 402
+              message: "Not enough AI credits."
+      "403":
+        description: API key is missing the ai:write scope
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 403
+              message: "This API key does not have permission for this action."
+      "409":
+        description: requestId was already used, or is still processing
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 409
+              message: "This AI request id can no longer be reused."
+      "502":
+        description: AI provider error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 502
+              message: "The AI provider could not complete the request."

@@ -29,3 +29,17 @@ NotFoundError:
     application/json:
       schema:
         $ref: "./schemas.yaml#/ErrorResponse"
+
+FeatureDisabledError:
+  description: |
+    Service Unavailable - This feature is gated behind a feature flag that is currently off
+    (`config.growth.affiliateProgramEnabled` / `config.growth.ambassadorProgramEnabled`), which is
+    the default in production until the program is explicitly enabled.
+  content:
+    application/json:
+      schema:
+        $ref: "./schemas.yaml#/ErrorResponse"
+      example:
+        success: false
+        statusCode: 503
+        message: "The affiliate program is not available yet. Check back soon."

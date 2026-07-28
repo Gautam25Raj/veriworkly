@@ -1,0 +1,5 @@
+{
+  "title": "AI",
+  "description": "AI-powered content generation actions and their credit costs.",
+  "pages": ["overview", "getAiActions", "generateAiContent"]
+}

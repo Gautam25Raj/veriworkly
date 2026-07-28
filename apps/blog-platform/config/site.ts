@@ -7,8 +7,9 @@ export const siteConfig = {
   creator: "Gautam Raj",
   email: "info@veriworkly.com",
 
-  tagline: "Career platform ideas and architecture stories.",
-  description: "Insights, product notes, and career guidance from the VeriWorkly team.",
+  tagline: "Resume and job search guidance, backed by evidence.",
+  description:
+    "Research-backed guidance on resumes, job search strategy, and hiring technology — plus engineering notes from the team building VeriWorkly.",
   url: process.env.SITE_URL || "https://blog.veriworkly.com",
 
   links: {
@@ -23,5 +24,13 @@ export const siteConfig = {
     portfolio: isDev ? "http://localhost:3004" : "https://portfolio.veriworkly.com",
   },
 
-  keywords: ["VeriWorkly", "blog", "career tips", "architecture"],
+  keywords: [
+    "resume tips",
+    "ats resume",
+    "applicant tracking system",
+    "job search advice",
+    "resume writing",
+    "free resume builder",
+    "VeriWorkly",
+  ],
 } as const;

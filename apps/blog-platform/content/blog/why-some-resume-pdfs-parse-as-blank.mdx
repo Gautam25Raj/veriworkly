@@ -1,0 +1,130 @@
+---
+title: "Why Some Resume PDFs Parse as Blank Pages"
+description: "A PDF can look perfect on screen and contain zero readable text. The cause is how the file was generated — and it is the one formatting failure that genuinely zeroes out an application."
+author: VeriWorkly Engineering
+date: 2026-07-29
+updated: 2026-07-29
+category: Engineering
+cluster: engineering
+primaryKeyword: resume pdf not parsing
+tags:
+  - pdf generation
+  - resume parsing
+  - react-pdf
+  - html2canvas
+  - ats
+faq:
+  - question: How do I know if my resume PDF is text-based or image-based?
+    answer: >-
+      Open the PDF and try to select your name with the cursor. If it highlights
+      character by character, the file has a real text layer. If the whole page
+      selects as one block or nothing highlights, the text is an image and
+      parsers will read the document as empty.
+  - question: Why does my resume look fine but parse as blank?
+    answer: >-
+      Because the tool that made it rendered the page to a bitmap and wrapped
+      that image in a PDF container. Visually identical, structurally empty.
+      Libraries like html2canvas and jsPDF produce this by default when used to
+      snapshot a DOM node.
+  - question: Does converting a Word file to PDF cause this problem?
+    answer: >-
+      No. Word, Google Docs, LaTeX, and browser print-to-PDF all emit real text
+      layers. The problem is specific to tools that rasterize a web page into an
+      image before exporting. Scanning a printed resume also produces an
+      image-only PDF.
+---
+
+# Why Some Resume PDFs Parse as Blank Pages
+
+**A PDF can render perfectly on screen and contain no machine-readable text at all.** The file looks like a resume to you and looks like an empty page to every parser that receives it. This is the one formatting failure that genuinely zeroes out an application, and it is invisible unless you know to check.
+
+The cause is entirely in how the file was generated.
+
+## Two ways to make a PDF
+
+PDF is a container format. What goes inside it varies enormously.
+
+**Text-based PDFs** store glyphs, fonts, and positioning as structured objects. The word "Engineer" is stored as the characters E-n-g-i-n-e-e-r with a font reference and coordinates. Any parser can extract it. This is what Word, Google Docs, LaTeX, and browser print-to-PDF produce.
+
+**Image-based PDFs** store a bitmap. The word "Engineer" is a grid of pixels that happens to look like letters. There is no text to extract, because no text was stored. This is what a scanner produces — and, less obviously, what a certain class of web application produces.
+
+Both open identically in a PDF viewer. Only one survives contact with a resume parser.
+
+## How web apps accidentally produce image PDFs
+
+Browsers have no native API for generating a structured PDF from arbitrary DOM. So the common workaround is a two-step pipeline:
+
+1. `html2canvas` (or similar) walks the DOM and paints it onto a `<canvas>` element — producing a raster image.
+2. `jsPDF` takes that canvas image and embeds it in a PDF container.
+
+The output is pixel-accurate. Everything you designed appears exactly as designed. And the text layer does not exist, because step one destroyed it. The canvas never had characters — only colored pixels.
+
+This approach is popular because it is genuinely easy and the visual fidelity is perfect. It works fine for charts, receipts, and dashboards. It is quietly catastrophic for a document whose entire purpose is being read by software.
+
+```js
+// The pattern that produces an unreadable resume
+const canvas = await html2canvas(resumeElement);
+const image = canvas.toDataURL("image/png");
+
+const pdf = new jsPDF();
+pdf.addImage(image, "PNG", 0, 0, 210, 297); // a picture of a resume
+pdf.save("resume.pdf");
+```
+
+## The alternative: render to PDF primitives
+
+The correct approach skips the DOM entirely and constructs the PDF from its own primitives. [`react-pdf`](https://react-pdf.org) is the common choice in React applications: instead of styling `div` and `span`, you compose `Document`, `Page`, `View`, and `Text` components that map onto PDF 1.7 objects directly.
+
+```jsx
+// Real text objects, embedded fonts, selectable output
+<Document>
+  <Page size="A4" style={styles.page}>
+    <View style={styles.header}>
+      <Text style={styles.name}>{profile.name}</Text>
+      <Text style={styles.title}>{profile.title}</Text>
+    </View>
+  </Page>
+</Document>
+```
+
+The tradeoff is real and worth stating: you now maintain two rendering paths. The editor preview is HTML/CSS; the export is react-pdf. They share a data model but not a layout engine, so keeping them visually identical is ongoing work — flexbox support differs, some CSS has no equivalent, and fonts must be registered and embedded explicitly.
+
+That is the cost of a selectable text layer. For a resume builder it is not optional.
+
+## The ten-second check
+
+Whatever tool you used, verify the output rather than trusting it:
+
+1. Open your exported PDF in any viewer.
+2. Try to select your name with the cursor.
+3. Then press Ctrl/Cmd+F and search for a word you know is in the document.
+
+**Selects character by character, search finds it** — real text layer. Fine.
+
+**Whole page selects as one block, or search finds nothing** — image-based PDF. Every parser will receive an empty document.
+
+A second check worth doing: copy the whole document (Ctrl/Cmd+A, Ctrl/Cmd+C) and paste into a plain text editor. What you see is approximately what a parser sees. If the order is scrambled or sections are missing, that tells you something useful too.
+
+## What this is not
+
+Worth being precise, because this topic attracts overstatement.
+
+This is **not** a general argument that PDFs are risky. Text-based PDFs parse reliably, and format testing across major platforms in 2026 found [negligible difference between PDF and DOCX](https://www.rezi.ai/posts/ats-myths). The old "always send .docx" advice is outdated.
+
+This is **not** an argument that visual design breaks parsing. Two-column layouts, color, and reasonable styling are handled fine by current systems. The narrower genuine risks are text rendered as image, information conveyed only through graphics, and contact details placed in a header region.
+
+And it is **not** the main reason applications fail. Volume math and knockout questions cost far more candidates than parsing does — we covered that in [what applicant tracking systems actually do](/ats-resume-myths-what-the-evidence-shows). Image-based PDFs are simply the one failure that is total rather than probabilistic: not a weaker application, an empty one.
+
+## Why we build it this way
+
+Every [VeriWorkly](https://veriworkly.com) template ships two renderers against one data model — a `web.tsx` for the live editor and a `pdf.tsx` built on react-pdf for export. Export runs entirely in the browser: no server round-trip, no headless Chromium, no rendering queue. Fonts are embedded by the renderer so layout holds regardless of what is installed on the viewing machine, and the resulting blob downloads directly.
+
+The privacy property is a side effect we like — document content never has to leave the device to become a file — but the reason for the architecture is narrower than that. It is simply the only way to guarantee the export contains real text.
+
+The code is [open source](https://github.com/VeriWorkly/veriworkly) if you want to read the export path rather than take our word for it. And if you use a different tool, the ten-second check above works on any file, from any source.
+
+## The short version
+
+Some PDF generators rasterize a web page and wrap the image in a PDF. The result is visually perfect and structurally empty. Tools that render true PDF text primitives do not have this problem.
+
+You do not need to know which approach your tool uses. You need to open the file and try to select your own name.

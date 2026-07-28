@@ -4,20 +4,38 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { DocsBody } from "fumadocs-ui/layouts/notebook/page";
-import { ArrowLeft, Clock, Calendar, ArrowRight } from "lucide-react";
+import { ArrowLeft, Clock, Calendar, ArrowRight, RefreshCw } from "lucide-react";
 
 import { blog } from "@/lib/source";
 import { siteConfig } from "@/config/site";
 import { getReadingTime } from "@/lib/read-time";
 
 import PostActions from "@/components/blog/PostActions";
+import PostFaq from "@/components/blog/PostFaq";
 
 import { getMDXComponents } from "@/components/mdx";
 
 import { Container } from "@/components/layout/Container";
+import { buildPostSchema } from "@/lib/structured-data";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
+};
+
+const formatDate = (value: string | Date) =>
+  new Date(value).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+const ogImageFor = (title: string, description: string) => {
+  const url = new URL(`${siteConfig.url}/api/og`);
+
+  url.searchParams.set("title", title || siteConfig.name);
+  url.searchParams.set("description", description || siteConfig.description);
+
+  return url.toString();
 };
 
 export default async function BlogPostPage(props: PageProps) {
@@ -28,9 +46,27 @@ export default async function BlogPostPage(props: PageProps) {
 
   const MDX = page.data.body;
   const postUrl = `${siteConfig.url}/${params.slug}`;
+  const { faq, tags, category, updated, date, title, description, author } = page.data;
+
+  const schema = buildPostSchema({
+    title,
+    description,
+    author,
+    date,
+    updated,
+    tags,
+    faq,
+    url: postUrl,
+    imageUrl: ogImageFor(title, description),
+  });
 
   return (
     <div className="min-h-screen py-12 md:py-20">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+      />
+
       <Container>
         <div className="grid gap-12 lg:grid-cols-4 lg:gap-16">
           <main className="space-y-8 lg:col-span-3">
@@ -45,15 +81,15 @@ export default async function BlogPostPage(props: PageProps) {
 
               <div className="space-y-4">
                 <div className="bg-accent/10 text-accent w-fit rounded-full px-3 py-1 text-xs font-bold tracking-wider uppercase">
-                  Engineering
+                  {category}
                 </div>
 
                 <h1 className="text-foreground text-3xl leading-[1.15] font-bold tracking-tight sm:text-4xl md:text-5xl lg:text-6xl">
-                  {page.data.title}
+                  {title}
                 </h1>
 
                 <p className="text-muted max-w-3xl text-lg leading-relaxed font-medium md:text-xl">
-                  {page.data.description}
+                  {description}
                 </p>
               </div>
             </header>
@@ -61,10 +97,12 @@ export default async function BlogPostPage(props: PageProps) {
             <div className="bg-border/40 h-px" />
 
             <div className="prose prose-zinc dark:prose-invert max-w-none">
-              <DocsBody className="[&_h2]:text-foreground [&_h3]:text-foreground [&_p]:text-muted [&_li]:text-muted [&_blockquote]:text-muted max-w-none [&_a]:text-blue-600 [&_a]:underline hover:[&_a]:text-blue-500 [&_blockquote]:border-l-4 [&_blockquote]:border-blue-500/40 [&_blockquote]:pl-6 [&_blockquote]:italic [&_code]:rounded-md [&_code]:bg-zinc-500/10 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.9em] [&_h2]:mt-12 [&_h2]:mb-4 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:tracking-tight [&_h2]:md:text-3xl [&_h3]:mt-8 [&_h3]:mb-3 [&_h3]:text-xl [&_h3]:font-bold [&_h3]:tracking-tight [&_h3]:md:text-2xl [&_li]:my-2 [&_li]:leading-7 [&_p]:my-6 [&_p]:text-base [&_p]:leading-8 md:[&_p]:text-lg [&_ul]:my-6 [&_ul]:list-disc [&_ul]:pl-6">
+              <DocsBody className="[&_h2]:text-foreground [&_h3]:text-foreground [&_h4]:text-foreground [&_p]:text-muted [&_li]:text-muted [&_blockquote]:text-muted [&_td]:text-muted [&_th]:text-foreground max-w-none [&_a]:text-blue-600 [&_a]:underline hover:[&_a]:text-blue-500 [&_blockquote]:border-l-4 [&_blockquote]:border-blue-500/40 [&_blockquote]:pl-6 [&_blockquote]:italic [&_code]:rounded-md [&_code]:bg-zinc-500/10 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.9em] [&_h2]:mt-12 [&_h2]:mb-4 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:tracking-tight [&_h2]:md:text-3xl [&_h3]:mt-8 [&_h3]:mb-3 [&_h3]:text-xl [&_h3]:font-bold [&_h3]:tracking-tight [&_h3]:md:text-2xl [&_h4]:mt-6 [&_h4]:mb-2 [&_h4]:text-lg [&_h4]:font-bold [&_li]:my-2 [&_li]:leading-7 [&_ol]:my-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:my-6 [&_p]:text-base [&_p]:leading-8 md:[&_p]:text-lg [&_table]:my-8 [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm [&_td]:border-t [&_td]:border-zinc-500/20 [&_td]:px-4 [&_td]:py-3 [&_td]:align-top [&_th]:border-b [&_th]:border-zinc-500/30 [&_th]:px-4 [&_th]:py-3 [&_th]:text-left [&_th]:font-bold [&_thead]:bg-zinc-500/5 [&_ul]:my-6 [&_ul]:list-disc [&_ul]:pl-6">
                 <MDX components={getMDXComponents()} />
               </DocsBody>
             </div>
+
+            <PostFaq items={faq} />
           </main>
 
           {/* Sticky Metadata & Project Callout Sidebar */}
@@ -85,8 +123,8 @@ export default async function BlogPostPage(props: PageProps) {
                   />
                 </div>
                 <div>
-                  <p className="text-foreground text-sm leading-none font-bold">VeriWorkly Team</p>
-                  <p className="text-muted mt-1 text-xs">Core Contributors</p>
+                  <p className="text-foreground text-sm leading-none font-bold">{author}</p>
+                  <p className="text-muted mt-1 text-xs">Career &amp; hiring research</p>
                 </div>
               </div>
             </div>
@@ -101,15 +139,15 @@ export default async function BlogPostPage(props: PageProps) {
               <div className="space-y-3 text-sm font-medium text-zinc-500">
                 <div className="flex items-center gap-2.5">
                   <Calendar className="size-4 text-zinc-400" />
-
-                  <span>
-                    {new Date(page.data.date).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </span>
+                  <span>Published {formatDate(date)}</span>
                 </div>
+
+                {updated && (
+                  <div className="flex items-center gap-2.5">
+                    <RefreshCw className="size-4 text-zinc-400" />
+                    <span>Updated {formatDate(updated)}</span>
+                  </div>
+                )}
 
                 <div className="flex items-center gap-2.5">
                   <Clock className="size-4 text-zinc-400" />
@@ -164,38 +202,49 @@ export async function generateMetadata(props: PageProps): Promise<Metadata> {
 
   if (!page) notFound();
 
-  const ogUrl = new URL(`${siteConfig.url}/api/og`);
+  const { title, description, author, date, updated, tags } = page.data;
 
-  ogUrl.searchParams.set("title", page.data.title || siteConfig.name);
-  ogUrl.searchParams.set("description", page.data.description || siteConfig.description);
+  const ogUrl = ogImageFor(title, description);
+  const postUrl = `${siteConfig.url}/${params.slug}`;
 
   return {
-    title: page.data.title,
-    description: page.data.description,
+    title,
+    description,
 
-    authors: [{ name: "VeriWorkly Team" }],
-    creator: "Gautam Raj",
-    publisher: "Gautam Raj",
+    authors: [{ name: author }],
+    creator: siteConfig.creator,
+    publisher: siteConfig.shortName,
+
+    ...(tags.length > 0 && { keywords: tags }),
+
+    alternates: {
+      canonical: postUrl,
+    },
 
     openGraph: {
-      title: page.data.title,
-      description: page.data.description,
+      title,
+      description,
       type: "article",
+      url: postUrl,
+      publishedTime: new Date(date).toISOString(),
+      modifiedTime: new Date(updated ?? date).toISOString(),
+      authors: [author],
+      tags: [...tags],
       images: [
         {
-          url: ogUrl.toString(),
+          url: ogUrl,
           width: 1200,
           height: 630,
-          alt: page.data.title || siteConfig.name,
+          alt: title || siteConfig.name,
         },
       ],
     },
 
     twitter: {
       card: "summary_large_image",
-      title: page.data.title,
-      description: page.data.description,
-      images: [ogUrl.toString()],
+      title,
+      description,
+      images: [ogUrl],
     },
   };
 }

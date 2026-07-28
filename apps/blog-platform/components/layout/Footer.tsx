@@ -42,7 +42,7 @@ const Footer = () => {
           title: "Resources",
           links: [
             { name: "Docs & APIs", href: siteConfig.links.docs, external: true },
-            { name: "Engineering Blog", href: "/", external: false },
+            { name: "Blog", href: "/", external: false },
             { name: "System Security", href: `${siteConfig.links.main}/security`, external: true },
             { name: "Design System", href: `${siteConfig.links.main}/style-guide`, external: true },
             { name: "FAQ & Help", href: `${siteConfig.links.main}/faq`, external: true },

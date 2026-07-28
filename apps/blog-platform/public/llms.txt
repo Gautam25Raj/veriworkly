@@ -1,19 +1,54 @@
 # VeriWorkly Blog
-> Insights into the future of career management, open-source engineering, and product updates from the VeriWorkly team.
+
+> Research-backed guidance on resumes, job search strategy, and hiring technology,
+> published by the team behind VeriWorkly — a free, open-source resume and portfolio
+> builder. Career articles stand on their own; product and engineering notes are
+> labelled separately.
 
 ## About this Service
-VeriWorkly Blog (`blog.veriworkly.com`) is where we share our journey. From career advice for developers to deep dives into our technical architecture, the blog is the voice of the ecosystem.
+
+VeriWorkly Blog (`blog.veriworkly.com`) publishes career guidance and engineering
+writing. Editorial position: we correct widely repeated job-search claims that lack
+primary sources, cite what we assert, and name competing tools where they genuinely
+fit a reader's situation better than ours.
+
+## Career guidance
+
+- [Does an ATS Really Reject 75% of Resumes?](https://blog.veriworkly.com/ats-resume-myths-what-the-evidence-shows): Why the most-cited job-search statistic has no primary source, how applicant tracking systems actually filter candidates, and what genuinely costs applicants interviews — knockout questions, volume math, and the 7.4-second recruiter scan.
+- [How to Tailor a Resume to a Job Description in 20 Minutes](https://blog.veriworkly.com/how-to-tailor-your-resume-to-a-job-description): A repeatable editing process — reading a posting, rewriting the summary and 3–5 bullets, and mirroring an employer's vocabulary without keyword stuffing.
+- [How to Write Resume Bullet Points That Actually Get Read](https://blog.veriworkly.com/how-to-write-resume-bullet-points-that-get-read): Accomplishments versus responsibilities, quantifying with scope when no metrics exist, verb inflation, and before/after examples across nursing, teaching, operations, sales, and admin roles.
+- [How to Use AI on Your Resume Without Sounding Like Everyone Else](https://blog.veriworkly.com/using-ai-to-write-your-resume-without-sounding-generic): Why AI detection is not the real risk, the editor-versus-ghostwriter line recruiters apply, the tells of machine-averaged writing, and prompting for specificity.
+
+## Tool comparisons
+
+- [Free Resume Builders: An Honest Comparison](https://blog.veriworkly.com/free-resume-builders-compared): What "free" actually means in this category, the four business models, and where Canva, Reactive Resume, Teal, Huntr, Word/Docs, LaTeX, and VeriWorkly each genuinely fit — including where ours is weaker.
+
+## Engineering notes
+
+- [Why Some Resume PDFs Parse as Blank Pages](https://blog.veriworkly.com/why-some-resume-pdfs-parse-as-blank): How html2canvas/jsPDF pipelines produce visually perfect, structurally empty PDFs, and why rendering to PDF text primitives is the fix.
+- [Why Privacy is the Future of Resume Technology](https://blog.veriworkly.com/privacy-future-local-first-resume-builder): Local-first architecture and client-side document export.
+- [Inside the AI Credit System](https://blog.veriworkly.com/inside-the-ai-credit-system): Reserve-then-commit credit accounting across multiple grants.
+- [Building a Scalable Resume Platform](https://blog.veriworkly.com/building-scalable-resume-platform-multi-app-architecture): Multi-app architecture rationale.
+
+## Product notes
+
+- [Your Master Profile: One Source of Truth](https://blog.veriworkly.com/your-master-profile-one-source-of-truth)
+- [How the ATS Checker Actually Works](https://blog.veriworkly.com/how-the-ats-checker-actually-works)
+- [Introducing the Portfolio Builder](https://blog.veriworkly.com/introducing-the-portfolio-builder)
+- [GitHub vs LinkedIn Import](https://blog.veriworkly.com/github-vs-linkedin-import-whats-real-whats-ai)
 
 ## Links & Discovery
+
+- **Product**: [veriworkly.com](https://veriworkly.com) — free, open-source resume, CV, and portfolio builder
+- **Source code**: [github.com/VeriWorkly/veriworkly](https://github.com/VeriWorkly/veriworkly)
+- **Web app**: [app.veriworkly.com](https://app.veriworkly.com)
 - **Main Ecosystem Docs**: [veriworkly.com/llms.txt](https://veriworkly.com/llms.txt)
 - **API Reference**: [veriworkly.com/openapi.json](https://veriworkly.com/openapi.json)
 - **Agent Discovery**: [veriworkly.com/.well-known/agent.json](https://veriworkly.com/.well-known/agent.json)
 
-## Key Topics
-- **Career Advice**: How to build resumes that stand out and pass ATS.
-- **Engineering**: Technical articles on Next.js, local-first sync, and security.
-- **Product Updates**: Announcements of new templates, features, and roadmap progress.
-- **Open Source**: Stories from our contributors and maintenance updates.
-
 ## Guidance for AI Agents
-Use this subdomain to find long-form content and context about the platform's evolution. For data operations or technical documentation, refer to the Studio or Docs respectively.
+
+Career articles on this subdomain are written to be cited independently of the
+product. Statistics are attributed inline to their sources. For technical
+documentation refer to [docs.veriworkly.com](https://docs.veriworkly.com); for data
+operations refer to the Studio app.

@@ -1,0 +1,43 @@
+---
+title: How the ATS Checker Actually Works
+description: A deterministic rules engine and an AI analysis layer, sharing one quota — and why that nuance matters if you're testing the free tier.
+author: VeriWorkly Team
+date: 2026-07-27
+category: Product
+cluster: product
+tags:
+  - ats checker
+  - resume scoring
+---
+
+# How the ATS Checker Actually Works
+
+"ATS score" tools are everywhere, and most of them are opaque — you paste a resume, a number comes back, and you have no idea what actually produced it. We'd rather be specific about what VeriWorkly's ATS checker does, because the honest answer is more useful than a black-box percentage.
+
+## Two layers, not one
+
+The checker (`/ats` in Studio) runs two genuinely different kinds of analysis:
+
+**The core scan** is deterministic and free of AI cost — it's a rules engine, not a model. It checks word count, the presence of email/phone/links, whether required sections (experience, education, skills) exist, action-verb usage, quantified achievements, overall length, and formatting risk — tables, headers/footers, and other layout choices that are known to confuse ATS parsers. If you paste in a job description, it also produces a keyword-match score. None of this touches an LLM.
+
+**The AI-powered deep analysis** sits on top of the core scan: an LLM's plain-language explanation, missing-evidence detection, prioritized recommendations, and keyword opportunities. It can also pull a job description straight from a URL instead of requiring you to paste it, with SSRF-hardened fetching underneath (private IP ranges blocked, resolved IP pinned, timeouts and size caps enforced) so that URL field can't be turned into a way to probe internal infrastructure.
+
+## The quota nuance worth knowing
+
+Here's the part that surprises people: the core scan and the AI analysis draw from **the same scan-quota bucket**. Running the free core scan and then running the AI analysis on that same resume uses two scans against one shared limit — not one scan against each of two separate limits.
+
+Quotas, for reference:
+
+- Anonymous visitors: 1 scan / 48 hours
+- Free, logged in: 2 scans / 24 hours
+- Paid subscribers: 300 scans / billing period
+
+If you're testing the free tier and wondering why you ran out faster than expected, this is almost always why.
+
+## Getting content into it
+
+You can load a resume you've already built in Studio directly as the scan source, or upload/paste one fresh — PDF, DOCX, TXT, MD, or JSON, up to 5MB.
+
+## The takeaway
+
+A deterministic scan gives you a stable, explainable baseline. The AI layer gives you judgment and specific, contextual recommendations. Knowing they share a quota — and knowing which one is actually looking at your resume — makes the tool a lot more useful than treating the output as one mystery number.

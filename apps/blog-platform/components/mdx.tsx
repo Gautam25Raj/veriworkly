@@ -20,6 +20,13 @@ export function getMDXComponents(components?: MDXComponents) {
     Cards,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     img: (props: any) => <ImageZoom {...props} />,
+    // Comparison tables are wide by nature. Scroll them in place so the page
+    // body never scrolls horizontally on small screens.
+    table: (props: React.ComponentProps<"table">) => (
+      <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
+        <table {...props} />
+      </div>
+    ),
     pre: (props) => (
       <CodeBlock {...props}>
         <Pre>{props.children}</Pre>

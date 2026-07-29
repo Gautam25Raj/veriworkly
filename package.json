@@ -44,6 +44,7 @@
     "@hono/node-server": "2.0.12",
     "@types/node": "^25",
     "eslint": "^9",
+    "js-yaml": "^4.3.0",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.7.3",
     "typescript": "^6"

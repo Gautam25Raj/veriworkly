@@ -13,7 +13,6 @@ const creatorProFeatures = [
   "Custom subdomain mapping",
   "CDN media hosting & storage",
   "Watermark & branding removed",
-  "1.5% commerce checkout fee",
   "1 active resume & cover letter",
   "No AI credits included",
 ];
@@ -21,13 +20,12 @@ const creatorProFeatures = [
 const bundleFeatures = [
   "Everything in Creator Pro",
   "Unlimited resumes & cover letters",
-  "Master Profile unlocked",
   "GitHub & LinkedIn generators",
   "Legacy PDF/DOCX importer",
   "1,000 monthly AI credits",
 ];
 
-const BundlePricingSection = () => {
+const BundlePricingSection = ({ paymentsBlocked = false }: { paymentsBlocked?: boolean }) => {
   const [bundleInterval, setBundleInterval] = useState<"monthly" | "annual">("annual");
 
   const creatorProPrice =
@@ -100,6 +98,7 @@ const BundlePricingSection = () => {
             cadence={creatorProPrice.cadence}
             href={`${siteConfig.links.app}/checkout?productKey=portfolio_pro&interval=${bundleInterval}`}
             description="The dedicated web hosting suite for developers, designers, and professional creators."
+            paymentsBlocked={paymentsBlocked}
           />
 
           <PriceCard
@@ -113,6 +112,7 @@ const BundlePricingSection = () => {
             cadence={bundlePrice.cadence}
             href={`${siteConfig.links.app}/checkout?productKey=bundle&interval=${bundleInterval}`}
             description="The complete workspace for active job searches, unlocking AI document tailoring and importers."
+            paymentsBlocked={paymentsBlocked}
           />
         </div>
 
@@ -150,7 +150,7 @@ const BundlePricingSection = () => {
                   </div>
                   <h4 className="text-ink mt-4 text-base font-bold">3-Day Sprint</h4>
                   <p className="text-muted mt-2 text-[11px] leading-5">
-                    Portfolio Pro hosting, ATS optimization tools, unlimited downloads, and 150 AI
+                    Creator Pro hosting, ATS optimization tools, unlimited downloads, and 150 AI
                     credits.
                   </p>
                 </div>
@@ -165,6 +165,7 @@ const BundlePricingSection = () => {
                   </div>
                   <CheckoutButton
                     href={`${siteConfig.links.app}/checkout?productKey=bundle&interval=one_day`}
+                    disabled={paymentsBlocked}
                     className="bg-accent hover:bg-accent-strong rounded-xl px-4 py-2.5 text-[10px] font-bold text-white transition-all duration-150 active:scale-[0.97]"
                   >
                     Get Pass
@@ -183,7 +184,7 @@ const BundlePricingSection = () => {
                   </div>
                   <h4 className="text-ink mt-4 text-base font-bold">7-Day Hunt</h4>
                   <p className="text-muted mt-2 text-[11px] leading-5">
-                    Portfolio Pro hosting, ATS optimization tools, unlimited downloads, and 400 AI
+                    Creator Pro hosting, ATS optimization tools, unlimited downloads, and 400 AI
                     credits.
                   </p>
                 </div>
@@ -198,6 +199,7 @@ const BundlePricingSection = () => {
                   </div>
                   <CheckoutButton
                     href={`${siteConfig.links.app}/checkout?productKey=bundle&interval=seven_day`}
+                    disabled={paymentsBlocked}
                     className="bg-accent hover:bg-accent-strong rounded-xl px-4 py-2.5 text-[10px] font-bold text-white transition-all duration-150 active:scale-[0.97]"
                   >
                     Get Pass

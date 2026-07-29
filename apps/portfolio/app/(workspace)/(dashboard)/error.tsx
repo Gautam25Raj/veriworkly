@@ -89,7 +89,7 @@ export default function DashboardError({
               <div className="font-bold opacity-95">
                 {error.message || "No error message provided."}
               </div>
-              {error.stack && (
+              {process.env.NODE_ENV !== "production" && error.stack && (
                 <pre className="mt-2 whitespace-pre-wrap opacity-60">{error.stack}</pre>
               )}
             </div>

@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { clampOgText } from "@/lib/og-text";
 
 export const runtime = "edge";
 
@@ -6,15 +7,22 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
 
-    const name = searchParams.get("name") ?? "Gautam Raj";
-    const headline =
-      searchParams.get("headline") ?? "Builder shaping VeriWorkly into useful public tools.";
-    const bio =
+    const name = clampOgText(searchParams.get("name") ?? "Gautam Raj", 60);
+    const headline = clampOgText(
+      searchParams.get("headline") ?? "Builder shaping VeriWorkly into useful public tools.",
+      100,
+    );
+    const bio = clampOgText(
       searchParams.get("bio") ??
-      "I build VeriWorkly across resumes, portfolios, docs, publishing, and product workflows.";
-    const availability = searchParams.get("availability") ?? "Available for collaborations";
-    const location = searchParams.get("location") ?? "India";
-    const subdomain = searchParams.get("subdomain") ?? "gautam";
+        "I build VeriWorkly across resumes, portfolios, docs, publishing, and product workflows.",
+      180,
+    );
+    const availability = clampOgText(
+      searchParams.get("availability") ?? "Available for collaborations",
+      60,
+    );
+    const location = clampOgText(searchParams.get("location") ?? "India", 60);
+    const subdomain = clampOgText(searchParams.get("subdomain") ?? "gautam", 63);
 
     const initials = name
       .split(" ")

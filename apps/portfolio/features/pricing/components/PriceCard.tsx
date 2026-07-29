@@ -15,6 +15,7 @@ interface PriceCardProps {
   featured?: boolean;
   href: string;
   toggle?: React.ReactNode;
+  paymentsBlocked?: boolean;
 }
 
 export function PriceCard({
@@ -29,6 +30,7 @@ export function PriceCard({
   featured,
   href,
   toggle,
+  paymentsBlocked = false,
 }: PriceCardProps) {
   return (
     <article
@@ -96,6 +98,7 @@ export function PriceCard({
 
         <CheckoutButton
           href={href}
+          disabled={paymentsBlocked}
           className={`mt-auto w-full transition-all duration-200 active:scale-[0.97] ${
             featured
               ? "text-accent hover:bg-paper-2 bg-white shadow-[0_8px_20px_rgba(255,255,255,0.1)]"

@@ -24,10 +24,14 @@ export const templates: TemplateSummary[] = Object.entries(templatesRegistry).ma
     audience: entry.audience,
     strengths: entry.strengths,
     image: entry.image,
-    isPremium: (entry as { isPremium?: boolean }).isPremium,
+    isPremium: entry.isPremium,
   }),
 );
 
 export function isTemplateId(value: string): value is TemplateId {
   return value in templatesRegistry;
+}
+
+export function isPremiumTemplate(templateId: string): boolean {
+  return Boolean(templatesRegistry[templateId as TemplateId]?.isPremium);
 }

@@ -2,10 +2,14 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { isPremiumTemplate } from "@/lib/portfolio";
 import { usePortfolioStore } from "@/store/portfolio-store";
+import { useWorkspace } from "@/components/WorkspaceProvider";
 import { SettingsHeader } from "./SettingsHeader";
 import { SettingsForm } from "./SettingsForm";
 import { SettingsPreviews } from "./SettingsPreviews";
+
+const isProd = process.env.NODE_ENV === "production";
 
 export function PortfolioSettingsWorkspace() {
   const {
@@ -20,9 +24,13 @@ export function PortfolioSettingsWorkspace() {
     billing,
     user,
   } = usePortfolioStore();
+  const { isAdmin } = useWorkspace();
   const [uploading, setUploading] = useState(false);
 
   const isPremium = billing.canPublish;
+  // Mirrors EditorCommandBar's publish gate — saving settings for an already-live portfolio
+  // re-publishes it, so it needs the same production block (enforced server-side either way).
+  const publishingDisabledInProd = isProd && !isAdmin;
 
   const handleSave = async () => {
     if (!user) {
@@ -31,13 +39,19 @@ export function PortfolioSettingsWorkspace() {
       return;
     }
 
-    const isPremiumTemplate = content.templateId === "nimbus" || content.templateId === "cipher";
     const isLive = publication && (publication.status === "LIVE" || publication.status === "GRACE");
 
     if (isLive) {
-      if (isPremiumTemplate && !isPremium) {
+      if (publishingDisabledInProd) {
         toast.error(
-          `"${content.templateId}" is a premium template. Upgrade to Portfolio Pro to save live settings.`,
+          "Publishing is disabled in production right now, so live settings can't be updated. It's available in development.",
+        );
+        return;
+      }
+
+      if (isPremiumTemplate(content.templateId) && !isPremium) {
+        toast.error(
+          `"${content.templateId}" is a premium template. Upgrade to Creator Pro to save live settings.`,
         );
         return;
       }
@@ -59,7 +73,7 @@ export function PortfolioSettingsWorkspace() {
       return;
     }
     if (!isPremium) {
-      toast.error("Uploading custom sharing images requires an active Portfolio Pro subscription.");
+      toast.error("Uploading custom sharing images requires an active Creator Pro subscription.");
       return;
     }
     setUploading(true);

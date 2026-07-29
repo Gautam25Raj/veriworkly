@@ -87,7 +87,7 @@ export default function ErrorPage({
                 </div>
 
                 <div className="opacity-95">{error.message || "No message found."}</div>
-                {error.stack && (
+                {process.env.NODE_ENV !== "production" && error.stack && (
                   <pre className="mt-3 font-mono text-[10px] whitespace-pre-wrap opacity-70">
                     {error.stack}
                   </pre>

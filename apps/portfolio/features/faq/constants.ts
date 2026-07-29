@@ -22,7 +22,7 @@ export const faqs = [
     category: "general",
     question: "Can I build my portfolio before paying?",
     answer:
-      "Yes. You can create a private draft, fill your content, and preview live templates before upgrading to Portfolio Pro.",
+      "Yes. You can create a private draft, fill your content, and preview live templates before upgrading to Creator Pro.",
   },
 
   {

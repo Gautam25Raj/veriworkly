@@ -1,8 +1,8 @@
 import type { PortfolioWorkspaceBootstrap } from "@/store/portfolio-store";
 
+import { isAdminUser } from "@/lib/admin";
 import { fetchServerApiData } from "@/lib/server-api";
 
-import { RestrictedAccess } from "@/components/RestrictedAccess";
 import { WorkspaceProvider } from "@/components/WorkspaceProvider";
 
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
@@ -12,13 +12,16 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     fetchServerApiData<PortfolioWorkspaceBootstrap["analytics"]>("/portfolios/analytics"),
   ]);
 
-  const isProd = process.env.NODE_ENV === "production";
-  const adminEmail = (process.env.ADMIN_EMAIL || "ashragautam25@gmail.com").toLowerCase();
-  const isUserAdmin = user && user.email && user.email.toLowerCase() === adminEmail;
-
-  if (isProd && user && !isUserAdmin) return <RestrictedAccess />;
+  // The dashboard/editor stays open in production for every user — only the publish action
+  // itself is blocked there for non-admins (see EditorCommandBar.tsx and the server's
+  // PortfolioController.publish, which is the actual enforcement point). `isAdmin` is computed
+  // here, server-side, from the server-only ADMIN_EMAIL — never send the email itself to the
+  // client, only this boolean.
+  const isAdmin = isAdminUser(user);
 
   return (
-    <WorkspaceProvider initialData={{ user, workspace, analytics }}>{children}</WorkspaceProvider>
+    <WorkspaceProvider initialData={{ user, workspace, analytics, isAdmin }}>
+      {children}
+    </WorkspaceProvider>
   );
 }

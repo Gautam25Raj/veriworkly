@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { clampOgText } from "@/lib/og-text";
 
 export const runtime = "edge";
 
@@ -6,14 +7,18 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
 
-    const name = searchParams.get("name") ?? "Gautam Raj";
-    const headline =
-      searchParams.get("headline") ?? "Designer & Builder crafting elegant workspaces.";
-    const bio =
+    const name = clampOgText(searchParams.get("name") ?? "Gautam Raj", 60);
+    const headline = clampOgText(
+      searchParams.get("headline") ?? "Designer & Builder crafting elegant workspaces.",
+      100,
+    );
+    const bio = clampOgText(
       searchParams.get("bio") ??
-      "Focusing on visual rhythm, editorial layouts, and high-fidelity product design.";
-    const location = searchParams.get("location") ?? "New York City";
-    const subdomain = searchParams.get("subdomain") ?? "gautam";
+        "Focusing on visual rhythm, editorial layouts, and high-fidelity product design.",
+      180,
+    );
+    const location = clampOgText(searchParams.get("location") ?? "New York City", 60);
+    const subdomain = clampOgText(searchParams.get("subdomain") ?? "gautam", 63);
 
     return new ImageResponse(
       <div

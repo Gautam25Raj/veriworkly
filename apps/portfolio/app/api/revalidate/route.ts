@@ -1,7 +1,26 @@
 import { NextResponse } from "next/server";
 import { revalidatePath, revalidateTag } from "next/cache";
+import { createHash, timingSafeEqual } from "node:crypto";
+
+// Hashing both sides to a fixed-length digest before comparing avoids
+// crypto.timingSafeEqual's "buffers must be the same length" throw for
+// mismatched secret lengths, while still comparing in constant time.
+function secretsMatch(provided: string, expected: string) {
+  const providedHash = createHash("sha256").update(provided).digest();
+  const expectedHash = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(providedHash, expectedHash);
+}
 
 export async function POST(request: Request) {
+  const expectedSecret = process.env.PORTFOLIO_REVALIDATE_SECRET;
+
+  // Fail closed: an unconfigured secret must never fall back to a public,
+  // guessable default that lets anyone force-revalidate arbitrary paths/tags.
+  if (!expectedSecret) {
+    console.error("PORTFOLIO_REVALIDATE_SECRET is not configured; refusing revalidate requests.");
+    return NextResponse.json({ message: "Revalidation is not configured." }, { status: 503 });
+  }
+
   let body: { paths?: string[]; tags?: string[]; secret?: string };
 
   try {
@@ -11,9 +30,8 @@ export async function POST(request: Request) {
   }
 
   const { paths, tags, secret } = body;
-  const expectedSecret = process.env.PORTFOLIO_REVALIDATE_SECRET || "dev-revalidate-secret";
 
-  if (secret !== expectedSecret) {
+  if (typeof secret !== "string" || !secretsMatch(secret, expectedSecret)) {
     return NextResponse.json({ message: "Invalid secret" }, { status: 401 });
   }
 

@@ -7,6 +7,7 @@ import { siteConfig } from "@/config/site";
 import { isTemplateId, templates } from "@/templates/catalog/templates";
 
 import PortfolioPublicFooter from "@/components/PortfolioPublicFooter";
+import { JsonLd } from "@/components/JsonLd";
 
 import { templateDetails } from "@/features/templates/data/template-details";
 import TemplatesNavigation from "@/features/templates/components/TemplatesNavigation";
@@ -85,26 +86,20 @@ const PortfolioTemplateDetailPage = async ({ params }: PageProps) => {
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(templateSchema) }}
-      />
+      <JsonLd data={templateSchema} />
       {details.faqs && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "FAQPage",
-              mainEntity: details.faqs.map((faq) => ({
-                "@type": "Question",
-                name: faq.question,
-                acceptedAnswer: {
-                  "@type": "Answer",
-                  text: faq.answer,
-                },
-              })),
-            }),
+        <JsonLd
+          data={{
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: details.faqs.map((faq) => ({
+              "@type": "Question",
+              name: faq.question,
+              acceptedAnswer: {
+                "@type": "Answer",
+                text: faq.answer,
+              },
+            })),
           }}
         />
       )}

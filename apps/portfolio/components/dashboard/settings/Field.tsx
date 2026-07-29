@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 
-export interface FieldProps {
+export interface SettingsFieldProps {
   label: string;
   hint: string;
   children: ReactNode;
 }
 
-export function Field({ label, hint, children }: FieldProps) {
+export function SettingsField({ label, hint, children }: SettingsFieldProps) {
   return (
     <label className="grid gap-2 text-xs font-bold">
       <span className="flex justify-between">

@@ -1,16 +1,32 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ExternalLink, Eye, Globe2, Save } from "lucide-react";
+import { ExternalLink, Eye, Globe2, Lock, Save } from "lucide-react";
 import { toast } from "sonner";
 import { portfolioPublicUrl, siteConfig } from "@/config/site";
+import { isPremiumTemplate } from "@/lib/portfolio";
 import { usePortfolioStore } from "@/store/portfolio-store";
+import { useWorkspace } from "@/components/WorkspaceProvider";
 import { actionClass as action } from "./constants";
+
+const isProd = process.env.NODE_ENV === "production";
 
 export function EditorCommandBar() {
   const { slug, status, billing, publication, draft, saveDraft, publish, content, user } =
     usePortfolioStore();
+  const { isAdmin } = useWorkspace();
+
+  // Publishing is blocked in production for everyone except the admin — this mirrors the
+  // server's hard block in PortfolioController.publish, which is the actual enforcement point.
+  // This client-side check only exists to avoid a doomed save+publish round trip and to make the
+  // state visible in the UI.
+  const publishingDisabledInProd = isProd && !isAdmin;
 
   const handlePublish = async () => {
+    if (publishingDisabledInProd) {
+      toast.error("Publishing is disabled in production right now. It's available in development.");
+      return;
+    }
+
     if (!user) {
       toast.error("Please log in to publish your portfolio.", {
         action: {
@@ -24,12 +40,11 @@ export function EditorCommandBar() {
       return;
     }
 
-    const isPremiumTemplate = content.templateId === "nimbus" || content.templateId === "cipher";
     const isPremiumUser = billing.canPublish;
 
-    if (isPremiumTemplate && !isPremiumUser) {
+    if (isPremiumTemplate(content.templateId) && !isPremiumUser) {
       toast.error(
-        `"${content.templateId === "nimbus" ? "Nimbus" : "Cipher"}" is a Premium template. Upgrade to Portfolio Pro to publish it, or switch to a free template (Signal or Atelier).`,
+        `This is a Premium template. Upgrade to Creator Pro to publish it, or switch to a free template.`,
         {
           action: {
             label: "Upgrade",
@@ -111,11 +126,19 @@ export function EditorCommandBar() {
           <Save size={14} aria-hidden="true" /> Save
         </button>
         <button
-          className={`${action} bg-accent text-(--color-accent-ink) hover:bg-(--color-accent-strong)`}
+          className={`${action} bg-accent text-(--color-accent-ink) hover:bg-(--color-accent-strong) disabled:cursor-not-allowed disabled:opacity-50`}
           onClick={() => void handlePublish()}
+          disabled={publishingDisabledInProd}
+          title={
+            publishingDisabledInProd ? "Publishing is disabled in production right now." : undefined
+          }
           type="button"
         >
-          <Globe2 size={14} aria-hidden="true" />{" "}
+          {publishingDisabledInProd ? (
+            <Lock size={14} aria-hidden="true" />
+          ) : (
+            <Globe2 size={14} aria-hidden="true" />
+          )}{" "}
           {publication?.status === "LIVE" ? "Update live" : "Publish"}
         </button>
       </div>

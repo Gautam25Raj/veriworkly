@@ -6,7 +6,7 @@ import { siteConfig } from "@/config/site";
 
 import { CheckoutButton } from "@/features/pricing/components/CheckoutButton";
 
-const CustomPlansSection = () => {
+const CustomPlansSection = ({ paymentsBlocked = false }: { paymentsBlocked?: boolean }) => {
   return (
     <section className="border-line relative border-b py-24 lg:py-32">
       <div className="bg-accent/5 pointer-events-none absolute top-40 -right-32 size-96 rounded-full blur-3xl" />
@@ -52,7 +52,6 @@ const CustomPlansSection = () => {
                   "Unlimited pageviews",
                   "SEO meta controls",
                   "Watermark removed",
-                  "1.5% checkout fee",
                 ].map((feature) => (
                   <span
                     className="border-line bg-paper/60 text-ink/80 rounded-full border px-3 py-1.5 text-xs font-semibold"
@@ -72,6 +71,7 @@ const CustomPlansSection = () => {
 
               <CheckoutButton
                 href={`${siteConfig.links.app}/checkout?productKey=portfolio_pro&interval=monthly`}
+                disabled={paymentsBlocked}
                 className="bg-accent hover:bg-accent-strong rounded-xl px-5 py-2.5 font-bold text-white shadow-[0_10px_20px_rgba(37,99,235,0.1)] transition-all duration-150 active:scale-[0.97]"
               >
                 Choose Pro
@@ -123,6 +123,7 @@ const CustomPlansSection = () => {
 
               <CheckoutButton
                 href={`${siteConfig.links.app}/checkout?productKey=ai_credits&interval=monthly`}
+                disabled={paymentsBlocked}
                 className="bg-accent hover:bg-accent-strong rounded-xl px-5 py-2.5 font-bold text-white shadow-[0_10px_20px_rgba(37,99,235,0.1)] transition-all duration-150 active:scale-[0.97]"
               >
                 Choose AI

@@ -80,6 +80,58 @@ describe("portfolio content contract", () => {
     expect(parsed.sections.some((section) => section.id === "unknown")).toBe(false);
   });
 
+  it("does not crash on malformed sections in a corrupted draft (null/array/primitive entries)", () => {
+    const content = createDefaultPortfolio();
+    expect(() =>
+      parsePortfolioContent({
+        ...content,
+        sections: [null, "not-a-section", 42, [], undefined, ...content.sections],
+      }),
+    ).not.toThrow();
+
+    const parsed = parsePortfolioContent({
+      ...content,
+      sections: [null, "not-a-section", 42, [], undefined, ...content.sections],
+    });
+    expect(parsed.sections).toHaveLength(content.sections.length);
+  });
+
+  it("does not crash on malformed items inside an otherwise-valid section", () => {
+    const content = createDefaultPortfolio();
+    const parsed = parsePortfolioContent({
+      ...content,
+      sections: [
+        {
+          id: "projects",
+          type: "projects",
+          title: "Projects",
+          visible: true,
+          items: [null, "not-an-item", 1, { id: "ok", title: "Kept" }],
+        },
+      ],
+    });
+    expect(parsed.sections[0].items).toEqual([{ id: "ok", title: "Kept" }]);
+  });
+
+  it("falls back to the default portfolio for a non-object or null draft", () => {
+    expect(() => parsePortfolioContent(null)).not.toThrow();
+    expect(() => parsePortfolioContent(undefined)).not.toThrow();
+    expect(() => parsePortfolioContent("garbage")).not.toThrow();
+    expect(() => parsePortfolioContent(42)).not.toThrow();
+    expect(parsePortfolioContent(null).schemaVersion).toBe(1);
+  });
+
+  it("drops malformed social links but keeps well-formed ones", () => {
+    const content = createDefaultPortfolio();
+    const parsed = parsePortfolioContent({
+      ...content,
+      socialLinks: [null, "not-a-link", { id: "gh", label: "GitHub", url: "https://github.com" }],
+    });
+    expect(parsed.socialLinks).toEqual([
+      { id: "gh", label: "GitHub", url: "https://github.com" },
+    ]);
+  });
+
   it("ships a complete template gallery demo", () => {
     expect(demoPortfolio.sections.map((section) => section.type)).toEqual([
       "projects",

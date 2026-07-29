@@ -46,13 +46,16 @@ async function fetchPayload(path: string, fallbackMessage: string, init?: Reques
   return payload;
 }
 
+// Module-level (not store state) so concurrent `loadWorkspace()` calls can
+// share the in-flight promise without triggering extra re-renders.
+let loadWorkspaceInFlight: Promise<void> | null = null;
+
 interface PortfolioStoreState {
   content: PortfolioContent;
   slug: string;
   draft: CloudPortfolioDraft | null;
   publication: Publication;
   billing: Billing;
-  analytics: number;
   user: { name?: string | null; email?: string | null } | null;
   analyticsData: PortfolioAnalyticsData | null;
   status: SaveStatus;
@@ -71,7 +74,6 @@ interface PortfolioStoreState {
   setDraft: (draft: CloudPortfolioDraft | null) => void;
   setPublication: (publication: Publication) => void;
   setBilling: (billing: Billing) => void;
-  setAnalytics: (analytics: number) => void;
   setStatus: (status: SaveStatus) => void;
   setMessage: (message: string) => void;
   setReady: (ready: boolean) => void;
@@ -109,7 +111,6 @@ export const usePortfolioStore = create<PortfolioStoreState>()(
     draft: null,
     publication: null,
     billing: { canPublish: false, status: "INACTIVE" },
-    analytics: 0,
     user: null,
     analyticsData: null,
     status: "Saved",
@@ -125,14 +126,13 @@ export const usePortfolioStore = create<PortfolioStoreState>()(
     setSlug: (slug) => set({ slug }),
     updateSlug: (slug) =>
       set((state) => ({
-        slug,
+        slug: normalizeSlug(slug),
         isDirty: state.ready ? true : state.isDirty,
         status: state.ready ? "Unsaved changes" : state.status,
       })),
     setDraft: (draft) => set({ draft }),
     setPublication: (publication) => set({ publication }),
     setBilling: (billing) => set({ billing }),
-    setAnalytics: (analytics) => set({ analytics }),
     setStatus: (status) => set({ status }),
     setMessage: (message) => set({ message }),
     setReady: (ready) => set({ ready }),
@@ -326,7 +326,6 @@ export const usePortfolioStore = create<PortfolioStoreState>()(
         slug,
         publication: workspace?.publication ?? null,
         billing: workspace?.billing ?? { canPublish: false, status: "INACTIVE" },
-        analytics: analytics?.totalViews ?? 0,
         analyticsData: analytics,
         message: isGuest ? "" : workspace ? "" : "Could not load your portfolio workspace.",
         previewIssue: "",
@@ -338,115 +337,150 @@ export const usePortfolioStore = create<PortfolioStoreState>()(
     },
 
     loadWorkspace: async () => {
-      const cached = loadPortfolioCache();
-      if (cached) {
-        set({ content: cached.content, slug: cached.slug });
-      }
-      set({ workspaceState: "loading", previewIssue: "" });
-      try {
-        // Standard check to see if user has a session without triggering redirect
-        const response = await fetch(backendApiUrl("/users/me"), { credentials: "include" });
-        if (response.status === 401 || response.status === 404) {
-          // Guest mode!
-          set({
-            user: null,
-            draft: null,
-            publication: null,
-            billing: { canPublish: false, status: "INACTIVE" },
-            analytics: 0,
-            analyticsData: null,
-            message: "",
-            workspaceState: "ready",
-            status: "Saved",
-            ready: true,
-          });
-          return;
+      // Re-entrancy guard: a double-mount effect (React StrictMode, a fast
+      // remount, etc.) firing this twice in a row must not race two
+      // concurrent loads — the second one piggybacks on the first instead
+      // of duplicating the fetch and the "no cloud draft yet" auto-save.
+      if (loadWorkspaceInFlight) return loadWorkspaceInFlight;
+
+      loadWorkspaceInFlight = (async () => {
+        const cached = loadPortfolioCache();
+        if (cached) {
+          set({ content: cached.content, slug: cached.slug });
         }
+        set({ workspaceState: "loading", previewIssue: "" });
+        try {
+          // Standard check to see if user has a session without triggering redirect
+          const response = await fetch(backendApiUrl("/users/me"), { credentials: "include" });
+          if (response.status === 401 || response.status === 404) {
+            // Guest mode!
+            set({
+              user: null,
+              draft: null,
+              publication: null,
+              billing: { canPublish: false, status: "INACTIVE" },
+              analyticsData: null,
+              message: "",
+              workspaceState: "ready",
+              status: "Saved",
+              ready: true,
+            });
+            return;
+          }
 
-        // User is logged in, continue with fetching data
-        const [userPayload, portfolioPayload, analyticsPayload] = await Promise.all([
-          response
-            .json()
-            .then((r) => r.data)
-            .catch(() => null),
-          fetchPayload("/portfolios/me", "Could not load your portfolio workspace."),
-          fetchPayload("/portfolios/analytics", "Could not load portfolio analytics.").catch(
-            () => null,
-          ),
-        ]);
-        const user = userPayload ?? null;
-        const analytics = analyticsPayload?.data ?? null;
-        const cloud = portfolioPayload?.data?.draft;
+          // User is logged in, continue with fetching data
+          const [userPayload, portfolioPayload, analyticsPayload] = await Promise.all([
+            response
+              .json()
+              .then((r) => r.data)
+              .catch(() => null),
+            fetchPayload("/portfolios/me", "Could not load your portfolio workspace."),
+            fetchPayload("/portfolios/analytics", "Could not load portfolio analytics.").catch(
+              () => null,
+            ),
+          ]);
+          const user = userPayload ?? null;
+          const analytics = analyticsPayload?.data ?? null;
+          const cloud = portfolioPayload?.data?.draft;
 
-        let draftToSet: CloudPortfolioDraft | null = null;
-        let contentToSet = cached?.content ?? createDefaultPortfolio(user ?? undefined);
-        let slugToSet = cached?.slug ?? (normalizeSlug(user?.name || "portfolio") || "portfolio");
-        let shouldSyncLocalToCloud = false;
+          let draftToSet: CloudPortfolioDraft | null = null;
+          let contentToSet = cached?.content ?? createDefaultPortfolio(user ?? undefined);
+          let slugToSet = cached?.slug ?? (normalizeSlug(user?.name || "portfolio") || "portfolio");
+          let shouldSyncLocalToCloud = false;
+          let mergeMessage = "";
 
-        if (cloud) {
-          const restoredCloud = {
-            ...cloud,
-            content: parsePortfolioContent(cloud.content),
-          } as CloudPortfolioDraft;
+          if (cloud) {
+            const restoredCloud = {
+              ...cloud,
+              content: parsePortfolioContent(cloud.content),
+            } as CloudPortfolioDraft;
 
-          draftToSet = restoredCloud;
+            draftToSet = restoredCloud;
 
-          if (cached) {
-            // Compare local cache with cloud content to see if there are local guest edits
-            const localSerialized = JSON.stringify(cached.content);
-            const cloudSerialized = JSON.stringify(restoredCloud.content);
-            if (localSerialized !== cloudSerialized || cached.slug !== restoredCloud.slug) {
-              // Local is different. Sync guest changes to cloud.
-              contentToSet = cached.content;
-              slugToSet = cached.slug;
-              shouldSyncLocalToCloud = true;
+            if (cached) {
+              // Compare local cache with cloud content to see if there are local guest edits
+              const localSerialized = JSON.stringify(cached.content);
+              const cloudSerialized = JSON.stringify(restoredCloud.content);
+              const contentDiffers =
+                localSerialized !== cloudSerialized || cached.slug !== restoredCloud.slug;
+
+              if (!contentDiffers) {
+                contentToSet = restoredCloud.content;
+                slugToSet = restoredCloud.slug;
+              } else {
+                // Both a local guest draft and a cloud draft exist, and they
+                // disagree. Only let the local copy win when it is *provably*
+                // newer than the cloud draft — otherwise a stale local cache
+                // (or one written before timestamps existed) would silently
+                // clobber cloud content that may have been edited elsewhere,
+                // e.g. from another device or after publishing.
+                const localUpdatedAt = cached.updatedAt ? Date.parse(cached.updatedAt) : NaN;
+                const cloudUpdatedAt = Date.parse(restoredCloud.updatedAt);
+                const localIsNewer =
+                  !Number.isNaN(localUpdatedAt) &&
+                  !Number.isNaN(cloudUpdatedAt) &&
+                  localUpdatedAt > cloudUpdatedAt;
+
+                if (localIsNewer) {
+                  contentToSet = cached.content;
+                  slugToSet = cached.slug;
+                  shouldSyncLocalToCloud = true;
+                } else {
+                  contentToSet = restoredCloud.content;
+                  slugToSet = restoredCloud.slug;
+                  if (Number.isNaN(localUpdatedAt)) {
+                    mergeMessage =
+                      "We found local draft changes made before you logged in that couldn't be dated, so your saved portfolio was kept. Re-apply those changes if you still need them.";
+                  }
+                }
+              }
             } else {
               contentToSet = restoredCloud.content;
               slugToSet = restoredCloud.slug;
             }
           } else {
-            contentToSet = restoredCloud.content;
-            slugToSet = restoredCloud.slug;
+            // No cloud draft exists yet.
+            if (cached) {
+              shouldSyncLocalToCloud = true;
+            } else {
+              const seeded = createDefaultPortfolio(user ?? undefined);
+              contentToSet = seeded;
+              slugToSet = normalizeSlug(user?.name || "portfolio") || "portfolio";
+              shouldSyncLocalToCloud = true;
+            }
           }
-        } else {
-          // No cloud draft exists yet.
-          if (cached) {
-            shouldSyncLocalToCloud = true;
-          } else {
-            const seeded = createDefaultPortfolio(user ?? undefined);
-            contentToSet = seeded;
-            slugToSet = normalizeSlug(user?.name || "portfolio") || "portfolio";
-            shouldSyncLocalToCloud = true;
+
+          set({
+            user,
+            draft: draftToSet,
+            content: contentToSet,
+            slug: slugToSet,
+            publication: portfolioPayload?.data?.publication ?? null,
+            billing: portfolioPayload?.data?.billing ?? { canPublish: false, status: "INACTIVE" },
+            analyticsData: analytics,
+            message: mergeMessage,
+            workspaceState: "ready",
+            ready: true,
+          });
+
+          if (shouldSyncLocalToCloud) {
+            void get().saveDraft();
           }
+        } catch (error) {
+          set({
+            status: "Offline",
+            workspaceState: "error",
+            previewIssue: "Live preview is unavailable until the workspace reconnects.",
+            message:
+              error instanceof Error ? error.message : "Could not load your portfolio workspace.",
+            ready: true,
+          });
         }
+      })().finally(() => {
+        loadWorkspaceInFlight = null;
+      });
 
-        set({
-          user,
-          draft: draftToSet,
-          content: contentToSet,
-          slug: slugToSet,
-          publication: portfolioPayload?.data?.publication ?? null,
-          billing: portfolioPayload?.data?.billing ?? { canPublish: false, status: "INACTIVE" },
-          analytics: analytics?.totalViews ?? 0,
-          analyticsData: analytics,
-          message: "",
-          workspaceState: "ready",
-          ready: true,
-        });
-
-        if (shouldSyncLocalToCloud) {
-          void get().saveDraft();
-        }
-      } catch (error) {
-        set({
-          status: "Offline",
-          workspaceState: "error",
-          previewIssue: "Live preview is unavailable until the workspace reconnects.",
-          message:
-            error instanceof Error ? error.message : "Could not load your portfolio workspace.",
-          ready: true,
-        });
-      }
+      return loadWorkspaceInFlight;
     },
 
     saveDraft: async () => {

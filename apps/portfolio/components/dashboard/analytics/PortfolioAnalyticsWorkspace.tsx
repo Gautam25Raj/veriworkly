@@ -2,6 +2,7 @@
 
 import { useWorkspace } from "@/components/WorkspaceProvider";
 import { usePortfolioStore } from "@/store/portfolio-store";
+import { siteConfig } from "@/config/site";
 import { Lock } from "lucide-react";
 import Link from "next/link";
 import { AnalyticsHeader } from "./AnalyticsHeader";
@@ -57,14 +58,27 @@ export function PortfolioAnalyticsWorkspace() {
               <p className="text-muted mt-1.5 max-w-sm text-xs leading-5">
                 {!user
                   ? "Create an account or log in to sync your portfolio and enable visitor tracking."
-                  : "Upgrade to Portfolio Pro to unlock visitor metrics, referral history, and traffic trends."}
+                  : "Upgrade to Creator Pro to unlock visitor metrics, referral history, and traffic trends."}
               </p>
-              <Link
-                href={!user ? "/login" : "/pricing"}
-                className="bg-accent text-accent-foreground hover:bg-accent-strong mt-5 inline-flex min-h-10 items-center justify-center rounded-lg px-5 text-xs font-bold transition"
-              >
-                {!user ? "Log In" : "Upgrade to Pro"}
-              </Link>
+              {!user ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const loginUrl = `${siteConfig.links.app}/login`;
+                    window.location.href = `${loginUrl}?callbackURL=${encodeURIComponent(window.location.href)}`;
+                  }}
+                  className="bg-accent text-accent-foreground hover:bg-accent-strong mt-5 inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg px-5 text-xs font-bold transition"
+                >
+                  Log In
+                </button>
+              ) : (
+                <Link
+                  href="/pricing"
+                  className="bg-accent text-accent-foreground hover:bg-accent-strong mt-5 inline-flex min-h-10 items-center justify-center rounded-lg px-5 text-xs font-bold transition"
+                >
+                  Upgrade to Pro
+                </Link>
+              )}
             </div>
           ) : null}
         </div>

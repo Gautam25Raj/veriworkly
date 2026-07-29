@@ -1,6 +1,5 @@
 "use client";
 
-/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V5 */
 import { useEffect, useState } from "react";
 import { usePortfolioStore } from "@/store/portfolio-store";
 import { EditorCommandBar } from "@/components/dashboard/editor/EditorCommandBar";
@@ -40,6 +39,18 @@ export function PortfolioEditorWorkspace() {
     }, 12000);
     return () => window.clearInterval(timer);
   }, [save]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!usePortfolioStore.getState().isDirty) return;
+      event.preventDefault();
+      // Legacy browsers ignore preventDefault() here and instead show the
+      // "leave site?" prompt only when returnValue is set to a truthy value.
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
 
   return (
     <main className="workspace-theme bg-paper-2 text-ink flex h-dvh min-h-0 flex-col overflow-hidden">

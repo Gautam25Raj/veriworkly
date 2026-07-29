@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { siteConfig } from "@/config/site";
+
 const PLATFORM_HOST = "portfolio.veriworkly.com";
 const publicPlatformPaths = [
   "/",
@@ -16,6 +18,7 @@ const publicPlatformPaths = [
   "/settings",
   "/profile",
 ];
+
 const SESSION_COOKIE_NAMES = [
   "__Secure-veriworkly-auth.session_token",
   "veriworkly-auth.session_token",
@@ -29,6 +32,15 @@ export function hasPortfolioSessionCookie(request: NextRequest) {
   return SESSION_COOKIE_NAMES.some((cookieName) => Boolean(request.cookies.get(cookieName)?.value));
 }
 
+// A precise "is this a static file request" check: only the final path
+// segment ending in a dot-extension counts, so a route or username that
+// merely contains a literal dot elsewhere (e.g. deeper in the path) doesn't
+// get misclassified as a static asset and skip the auth gate below.
+export function looksLikeStaticAssetPath(path: string) {
+  const lastSegment = path.split("/").pop() ?? "";
+  return /\.[a-zA-Z0-9]+$/.test(lastSegment);
+}
+
 export default function proxy(request: NextRequest) {
   const hostname = (request.headers.get("host") ?? "").split(":")[0];
 
@@ -40,21 +52,18 @@ export default function proxy(request: NextRequest) {
     isPlatformHost &&
     !isPublicPlatformPath(path) &&
     !path.startsWith("/api") &&
-    !path.includes(".")
+    !looksLikeStaticAssetPath(path)
   ) {
     const hasSession = hasPortfolioSessionCookie(request);
 
     if (!hasSession) {
-      const loginUrl =
-        process.env.NODE_ENV === "development"
-          ? "http://localhost:3001/login"
-          : "https://app.veriworkly.com/login";
+      const loginUrl = `${siteConfig.links.app}/login`;
 
       return NextResponse.redirect(`${loginUrl}?callbackURL=${encodeURIComponent(request.url)}`);
     }
   }
 
-  if (path.startsWith("/_next") || path.startsWith("/api") || path.includes("."))
+  if (path.startsWith("/_next") || path.startsWith("/api") || looksLikeStaticAssetPath(path))
     return NextResponse.next();
 
   if (isPlatformHost) {

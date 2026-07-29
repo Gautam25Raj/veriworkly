@@ -1,9 +1,8 @@
 import Image from "next/image";
 import { ExternalLink, Search, ImagePlus, Lock } from "lucide-react";
 import Link from "next/link";
-import { normalizeSlug } from "@/lib/portfolio";
 import { Panel } from "./Panel";
-import { Field } from "./Field";
+import { SettingsField } from "./Field";
 
 const input =
   "w-full rounded-lg border border-line bg-panel px-3 py-2.5 text-sm outline-none focus:border-accent focus:ring-4 focus:ring-accent-soft text-ink disabled:opacity-50 disabled:cursor-not-allowed";
@@ -38,7 +37,7 @@ export function SettingsForm({
           </p>
           <p className="mt-1.5">
             Configuring a custom subdomain, editing search metadata, and uploading social preview
-            images require an active <strong>Portfolio Pro</strong> subscription.
+            images require an active <strong>Creator Pro</strong> subscription.
           </p>
           <Link
             href="/pricing"
@@ -57,17 +56,20 @@ export function SettingsForm({
               className={`${input} rounded-r-none`}
               value={slug}
               disabled={!isPremium}
-              onChange={(e) => updateSlug(normalizeSlug(e.target.value))}
+              onChange={(e) => updateSlug(e.target.value)}
             />
             <span className="border-line bg-paper text-muted flex items-center rounded-r-lg border border-l-0 px-3 text-[11px]">
               .veriworkly.com
             </span>
           </div>
+          <span className="text-muted font-medium normal-case">
+            Lowercase letters, numbers, and hyphens only.
+          </span>
         </label>
       </Panel>
 
       <Panel title="Search metadata" icon={<Search size={15} />}>
-        <Field label="Meta title" hint={`${seo.title.length}/120`}>
+        <SettingsField label="Meta title" hint={`${seo.title.length}/120`}>
           <input
             className={input}
             maxLength={120}
@@ -75,8 +77,8 @@ export function SettingsForm({
             disabled={!isPremium}
             onChange={(e) => updateSeo({ title: e.target.value })}
           />
-        </Field>
-        <Field label="Meta description" hint={`${seo.description.length}/300`}>
+        </SettingsField>
+        <SettingsField label="Meta description" hint={`${seo.description.length}/300`}>
           <textarea
             className={input}
             rows={4}
@@ -85,7 +87,7 @@ export function SettingsForm({
             disabled={!isPremium}
             onChange={(e) => updateSeo({ description: e.target.value })}
           />
-        </Field>
+        </SettingsField>
       </Panel>
 
       <Panel title="Social sharing image" icon={<ImagePlus size={15} />}>

@@ -3,6 +3,7 @@ import { landingFaqs } from "@/features/faq/constants";
 
 import LandingMotion from "@/components/LandingMotion";
 import Navigation from "@/components/Navigation";
+import { JsonLd } from "@/components/JsonLd";
 import SeoSection from "@/components/landing/SeoSection";
 import CtaSection from "@/components/landing/CtaSection";
 import FaqSection from "@/components/landing/FaqSection";
@@ -137,14 +138,8 @@ const HomePage = () => {
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
-      />
+      <JsonLd data={webAppSchema} />
+      <JsonLd data={faqSchema} />
       <LandingMotion>
         <main className="text-ink-2 bg-paper w-full max-w-full overflow-x-clip">
           <div

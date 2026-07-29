@@ -24,7 +24,7 @@ const comparisonRows: ComparisonRow[] = [
   },
   {
     label: "Master Profile (Single Source of Truth)",
-    values: ["Locked", "Locked", "Unlocked", "Unlocked"],
+    values: ["Unlocked", "Unlocked", "Unlocked", "Unlocked"],
   },
   {
     label: "GitHub & LinkedIn Connect",
@@ -33,10 +33,6 @@ const comparisonRows: ComparisonRow[] = [
   {
     label: "Legacy PDF/DOCX Importer",
     values: ["Locked", "Locked", "Unlocked", "Unlocked"],
-  },
-  {
-    label: "Digital Sales Checkout Fees",
-    values: ["5.0%", "1.5%", "1.5%", "1.5%"],
   },
   {
     label: "Watermark & Branding",
@@ -85,7 +81,7 @@ function renderCell(val: string, colIndex: number) {
   return <span className="text-xs font-semibold text-white/80">{val}</span>;
 }
 
-const ComparisonTable = () => {
+const ComparisonTable = ({ paymentsBlocked = false }: { paymentsBlocked?: boolean }) => {
   const checkoutUrl = `${siteConfig.links.app}/checkout?productKey=bundle&interval=annual`;
 
   return (
@@ -175,6 +171,7 @@ const ComparisonTable = () => {
 
           <CheckoutButton
             href={checkoutUrl}
+            disabled={paymentsBlocked}
             className="text-accent hover:bg-paper-2 bg-white shadow-lg"
           >
             Get the yearly bundle

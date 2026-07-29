@@ -31,12 +31,28 @@ async function clearInvalidSessionAndRedirect() {
   return cleanupPromise;
 }
 
+const DEFAULT_TIMEOUT_MS = 15000;
+
 export async function authenticatedFetch(path: string, init?: RequestInit) {
-  const response = await fetch(backendApiUrl(path), { credentials: "include", ...init });
+  // Only time out requests that didn't already bring their own abort signal
+  // — a hung backend used to leave callers (editor saves, AI generation,
+  // asset uploads) waiting indefinitely with no feedback.
+  const controller = init?.signal ? null : new AbortController();
+  const timeout = controller ? setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS) : null;
 
-  if (isInvalidSessionResponse(path, response.status)) {
-    await clearInvalidSessionAndRedirect();
+  try {
+    const response = await fetch(backendApiUrl(path), {
+      credentials: "include",
+      ...init,
+      signal: init?.signal ?? controller?.signal,
+    });
+
+    if (isInvalidSessionResponse(path, response.status)) {
+      await clearInvalidSessionAndRedirect();
+    }
+
+    return response;
+  } finally {
+    if (timeout) clearTimeout(timeout);
   }
-
-  return response;
 }

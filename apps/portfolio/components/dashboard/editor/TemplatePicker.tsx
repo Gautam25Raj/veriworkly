@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { X } from "lucide-react";
 import { Modal } from "@veriworkly/ui";
 import { templates as templateCatalog } from "@/templates/catalog/templates";
@@ -65,12 +66,12 @@ export function TemplatePicker({ open, onClose }: TemplatePickerProps) {
                   </div>
                 )}
                 <div className="bg-paper-2 relative aspect-[16/10] overflow-hidden">
-                  <iframe
-                    loading="lazy"
-                    tabIndex={-1}
-                    title={`${template.name} template preview`}
-                    src={`/templates/${template.id}/preview`}
-                    className={`bg-panel pointer-events-none h-[200%] w-[200%] origin-top-left scale-50 border-0 ${isDisabled ? "opacity-50 grayscale" : ""}`}
+                  <Image
+                    fill
+                    src={template.image}
+                    alt={`${template.name} template preview`}
+                    sizes="(max-width: 768px) 90vw, 45vw"
+                    className={`object-cover ${isDisabled ? "opacity-50 grayscale" : ""}`}
                   />
                 </div>
                 <div className="p-4">

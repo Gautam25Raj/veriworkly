@@ -8,7 +8,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/dashboard", "/editor", "/analytics", "/settings", "/profile"],
+        disallow: ["/dashboard", "/editor", "/analytics", "/settings", "/profile", "/og-generator"],
       },
     ],
 

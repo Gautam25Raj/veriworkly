@@ -1,6 +1,6 @@
 import { type TemplateId, isTemplateId } from "@/templates/catalog/templates";
 
-export { templates } from "@/templates/catalog/templates";
+export { templates, isPremiumTemplate } from "@/templates/catalog/templates";
 export type { TemplateId } from "@/templates/catalog/templates";
 
 export type PortfolioSectionType =
@@ -216,9 +216,9 @@ export const demoPortfolio: PortfolioContent = {
             "A privacy-first editor with real-time markdown parsing, print layouts, and local-only browser storage.",
           highlights: [
             "Designed a print CSS system to ensure PDF output matches ATS standards.",
-            "Implemented IndexedDB caching, reducing save operations from database to client.",
+            "Implemented LocalStorage caching, reducing save operations from database to client.",
           ],
-          skills: ["React", "Tailwind CSS", "IndexedDB"],
+          skills: ["React", "Tailwind CSS", "LocalStorage"],
           coverImage: null,
         },
         {
@@ -234,7 +234,7 @@ export const demoPortfolio: PortfolioContent = {
             "Designed canvas-based document outline tree with fluid interactive physics.",
             "Built local-first synchronization pipeline using the File System Access API.",
           ],
-          skills: ["TypeScript", "Canvas API", "IndexedDB"],
+          skills: ["TypeScript", "Canvas API", "LocalStorage"],
           coverImage: null,
         },
       ],
@@ -522,7 +522,7 @@ export const demoPortfolio: PortfolioContent = {
           date: "2025-02",
           link: "https://veriworkly.com",
           description:
-            "A comprehensive guide on storing state in IndexedDB and synchronization protocols for zero-server architectures.",
+            "A comprehensive guide on storing state in LocalStorage and synchronization protocols for zero-server architectures.",
           details: [],
           coverImage: null,
         },
@@ -868,19 +868,35 @@ export function parsePortfolioContent(input: unknown, fallback = demoPortfolio):
       socialImage: asset(seo.socialImage),
     },
     socialLinks: Array.isArray(value.socialLinks)
-      ? (value.socialLinks as PortfolioLink[]).slice(0, 12)
+      ? value.socialLinks
+          .filter(
+            (link): link is Record<string, unknown> => !!link && typeof link === "object",
+          )
+          .slice(0, 12)
+          .map((link) => ({
+            id: text(link.id, createId("link"), 64),
+            label: text(link.label, "", 60),
+            url: text(link.url, "", 2048),
+          }))
       : [],
-    sections: (value.sections as PortfolioSection[])
+    sections: (value.sections as unknown[])
+      .filter((section): section is Record<string, unknown> => !!section && typeof section === "object")
       .slice(0, 24)
       .filter((section) => isPortfolioSectionType(section.type))
       .map((section) => ({
         id: text(section.id, createId("section"), 128),
-        type: section.type,
+        type: section.type as PortfolioSectionType,
         title: text(section.title, "Section", 120),
         visible: section.visible !== false,
-        items: Array.isArray(section.items) ? section.items.slice(0, 24) : [],
+        items: Array.isArray(section.items)
+          ? (section.items as unknown[])
+              .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
+              .slice(0, 24)
+          : [],
         settings:
-          section.settings && typeof section.settings === "object" ? section.settings : undefined,
+          section.settings && typeof section.settings === "object"
+            ? (section.settings as Record<string, unknown>)
+            : undefined,
       })),
   };
 }

@@ -7,6 +7,7 @@ import { getPublishedPortfolio } from "@/lib/published-portfolio";
 import { renderTemplate } from "@/templates/runtime/registry";
 import { PublicViewTracker } from "@/components/PublicViewTracker";
 import { Watermark } from "@/components/Watermark";
+import { JsonLd } from "@/components/JsonLd";
 
 export const revalidate = 3600;
 
@@ -155,10 +156,7 @@ export default async function Portfolio({
   };
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
-      />
+      <JsonLd data={jsonLd} />
       <PublicViewTracker subdomain={publication.subdomain} />
       {await renderTemplate(pageProject)}
       {!publication.isPremium || !project.removeWatermark ? <Watermark /> : null}

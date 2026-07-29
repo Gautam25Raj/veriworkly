@@ -7,14 +7,21 @@ import {
   type PortfolioContent,
 } from "@/lib/portfolio";
 
-export function loadPortfolioCache(): { slug: string; content: PortfolioContent } | null {
+export function loadPortfolioCache(): {
+  slug: string;
+  content: PortfolioContent;
+  updatedAt: string | null;
+} | null {
   try {
     const raw = window.localStorage.getItem(PORTFOLIO_CACHE_KEY);
     if (!raw) return null;
-    const value = JSON.parse(raw) as { slug?: unknown; content?: unknown };
+    const value = JSON.parse(raw) as { slug?: unknown; content?: unknown; updatedAt?: unknown };
     return {
       slug: typeof value.slug === "string" ? value.slug : "portfolio",
       content: parsePortfolioContent(value.content),
+      // Absent on caches written before this field existed — callers must
+      // treat `null` as "recency unknown", not "very old".
+      updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : null,
     };
   } catch {
     window.localStorage.removeItem(PORTFOLIO_CACHE_KEY);
@@ -25,6 +32,10 @@ export function loadPortfolioCache(): { slug: string; content: PortfolioContent 
 export function savePortfolioCache(draft: Pick<CloudPortfolioDraft, "slug" | "content">) {
   window.localStorage.setItem(
     PORTFOLIO_CACHE_KEY,
-    JSON.stringify({ slug: draft.slug, content: draft.content }),
+    JSON.stringify({
+      slug: draft.slug,
+      content: draft.content,
+      updatedAt: new Date().toISOString(),
+    }),
   );
 }

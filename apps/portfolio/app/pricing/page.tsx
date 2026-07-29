@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 
 import { siteConfig } from "@/config/site";
+import { isAdminUser } from "@/lib/admin";
 import { fetchServerApiData } from "@/lib/server-api";
+import { JsonLd } from "@/components/JsonLd";
 
 import { pricingFaqs } from "@/features/faq/constants";
 
@@ -52,15 +54,13 @@ export const metadata: Metadata = {
 export default async function PricingPage() {
   const user = await fetchServerApiData<{ email: string | null }>("/users/me");
   const isProd = process.env.NODE_ENV === "production";
-  const adminEmail = (process.env.ADMIN_EMAIL || "ashragautam25@gmail.com").toLowerCase();
-  const isAdmin = user && user.email && user.email.toLowerCase() === adminEmail;
-  const paymentsBlocked = isProd && !isAdmin;
+  const paymentsBlocked = isProd && !isAdminUser(user);
 
   const pricingSchema = {
     "@context": "https://schema.org",
     "@type": "Product",
 
-    name: "VeriWorkly Portfolio Pro",
+    name: "VeriWorkly Creator Pro",
     description:
       "Publish a professional portfolio website on a custom VeriWorkly subdomain with SEO metadata, image hosting, and page views analytics.",
 
@@ -158,15 +158,8 @@ export default async function PricingPage() {
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(pricingSchema) }}
-      />
-
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
-      />
+      <JsonLd data={pricingSchema} />
+      <JsonLd data={faqSchema} />
 
       <div className="text-ink-2 selection:bg-accent selection:text-accent-ink bg-paper relative min-h-dvh overflow-x-clip">
         <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(var(--color-ink)_0.8px,transparent_0.8px)] bg-size-[24px_24px] opacity-[0.14]" />
@@ -180,9 +173,9 @@ export default async function PricingPage() {
               perform checkouts.
             </div>
           )}
-          <BundlePricingSection />
-          <CustomPlansSection />
-          <ComparisonTable />
+          <BundlePricingSection paymentsBlocked={paymentsBlocked} />
+          <CustomPlansSection paymentsBlocked={paymentsBlocked} />
+          <ComparisonTable paymentsBlocked={paymentsBlocked} />
           <PricingFaq />
         </main>
 

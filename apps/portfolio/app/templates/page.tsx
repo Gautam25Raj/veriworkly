@@ -5,6 +5,7 @@ import { templates } from "@/lib/portfolio";
 
 import Navigation from "@/components/Navigation";
 import PortfolioPublicFooter from "@/components/PortfolioPublicFooter";
+import { JsonLd } from "@/components/JsonLd";
 
 import TemplatesHero from "@/features/templates/components/TemplatesHero";
 import TemplateCatalog from "@/features/templates/components/TemplateCatalog";
@@ -56,10 +57,7 @@ const PortfolioTemplatesPage = () => {
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(templatesSchema) }}
-      />
+      <JsonLd data={templatesSchema} />
 
       <main className="text-ink-2 selection:bg-accent selection:text-accent-ink bg-paper relative min-h-dvh overflow-x-hidden pt-28 font-['Outfit','Avenir_Next','Trebuchet_MS',sans-serif]">
         <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(var(--color-ink)_0.8px,transparent_0.8px)] bg-size-[24px_24px] opacity-[0.14]" />

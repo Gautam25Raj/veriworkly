@@ -4,6 +4,7 @@ import { faqs } from "@/features/faq/constants";
 
 import Navigation from "@/components/Navigation";
 import PortfolioPublicFooter from "@/components/PortfolioPublicFooter";
+import { JsonLd } from "@/components/JsonLd";
 
 import SupportSidebar from "@/features/faq/components/SupportSidebar";
 import FaqInteractiveSection from "@/features/faq/components/FaqInteractiveSection";
@@ -61,10 +62,7 @@ const FAQPage = () => {
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
-      />
+      <JsonLd data={faqSchema} />
 
       <div className="text-ink-2 selection:bg-accent selection:text-accent-ink bg-paper relative min-h-dvh">
         <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(var(--color-ink)_0.8px,transparent_0.8px)] bg-size-[24px_24px] opacity-[0.14]" />

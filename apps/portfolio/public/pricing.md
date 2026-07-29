@@ -9,14 +9,13 @@ VeriWorkly offers flexible options tailored to your job search pace. Choose betw
 Start building your professional brand today at no cost.
 
 - **Price**: $0
-- **Duration**: Lifetime
+- **Duration**: Lifetime, no card required
 - **Features**:
-  - 1 active Resume and 1 active Cover Letter.
-  - 1 Free Link-in-Bio site with standard templates and a small _Identity by VeriWorkly_ badge on a subdomain.
-  - Basic visitor view counts.
-  - **Master Profile, GitHub/LinkedIn generation, and legacy resume imports are locked** (Upgrade to unlock).
-  - Sell digital products or services (e.g., templates, guides) with a **5.0% checkout fee**.
-  - _No AI writing credits included._
+  - Full resume and cover letter editor, local-first, no account needed to start.
+  - Master Profile access, with no entitlement lock.
+  - GitHub import of your own connected account (1x/day) and LinkedIn paste-import (1x/month).
+  - Private portfolio drafts and template previews — publishing to a public URL requires Creator Pro or a pass.
+  - _No AI writing credits included on the Free tier._
 
 ---
 
@@ -28,14 +27,14 @@ Perfect for short-term projects, sudden applications, or quick updates without o
 
 - **Price**: $2.99 (One-time payment)
 - **Duration**: 3 days (72 hours)
-- **Features**: Unlocked Portfolio Pro publishing (subdomain), 150 AI writing credits, ATS scanner, and unlimited document exports (PDF & DOCX).
+- **Features**: Unlocked Creator Pro publishing (subdomain), 150 AI writing credits, ATS scanner, and unlimited document exports (PDF & DOCX).
 - **Expiration**: Credits and hosting expire when the 3-day plan duration ends.
 
 ### 7-Day Hunt Pass
 
 - **Price**: $5.99 (One-time payment)
 - **Duration**: 7 days
-- **Features**: Unlocked Portfolio Pro publishing (subdomain), 400 AI writing credits, ATS scanner, and unlimited document exports (PDF & DOCX).
+- **Features**: Unlocked Creator Pro publishing (subdomain), 400 AI writing credits, ATS scanner, and unlimited document exports (PDF & DOCX).
 - **Expiration**: Credits and hosting expire when the 7-day plan duration ends.
 
 ---
@@ -48,22 +47,20 @@ Build a persistent professional presence and run continuous job search campaigns
 
 - **Price**: $9.99 / month (or $7.99 / month, billed annually at $95.88 / year)
 - **Features**:
-  - Custom subdomain mapping (e.g., `yourname.veriworkly.com`).
-  - High-speed CDN hosting for portfolio media.
+  - Publish your portfolio to a VeriWorkly subdomain (e.g., `yourname.veriworkly.com`), enforced at the routing layer.
+  - CDN-backed hosting for portfolio media and screenshots.
+  - Portfolio view analytics and SEO meta controls (title, description, share image).
   - VeriWorkly branding and watermark removed.
-  - Sell digital products or services on your site with a reduced **1.5% checkout fee**.
-  - _Note: custom domains, and AI writing credits are not included._
+  - _Note: a fully custom domain (e.g., yourname.com) and AI writing credits are not included._
 
 ### Job Hunter Bundle (Complete Package)
 
-- **Price**: $14.99 / month (or $10.00 / month, billed annually at $120 / year)
+- **Price**: $14.99 / month (or $11.99 / month, billed annually at $143.88 / year)
 - **Features**:
-  - **Everything in Creator Pro** (subdomain hosting, CDN, watermark removal).
-  - **Unlimited active resumes and cover letters** in the Studio editor.
-  - **Master Profile fully unlocked** (your central source of truth for career facts).
-  - **GitHub & LinkedIn Connectors** (sync profiles to generate resumes instantly).
-  - **Legacy Resume Importer** (upload old PDF/DOCX resumes to generate a clean VeriWorkly setup).
-  - **1,000 monthly AI credits** refilled every billing cycle (enough for multiple job-specific resume tailorings).
+  - **Everything in Creator Pro** (subdomain hosting, analytics, watermark removal).
+  - **1,000 monthly AI credits** refilled every billing cycle, for resume tailoring, cover letter generation, and AI-powered ATS analysis.
+  - **Unlimited GitHub import** (any public username, not just your own) and **unlimited LinkedIn paste-import**.
+  - **300 ATS scans per billing period**, including the AI-powered deep-analysis layer.
 - **Credit Expiration**: Unused monthly credits do not roll over.
 
 ---
@@ -76,10 +73,10 @@ If you only need one core capability, you can subscribe or purchase on-demand.
 
 - **Price**: $5.99 / month (Billed monthly)
 - **Features**:
-  - 1,000 AI writing credits per month.
-  - Access to resume builders, cover letter tailor engine, and ATS scanner.
-  - Master Profile, LinkedIn/GitHub connectors, and Legacy Resume Importer unlocked.
-  - _Note: Website hosting and portfolio custom subdomains are not included._
+  - 1,000 AI writing credits per month for resume tailoring and cover letter generation.
+  - Unlimited GitHub import (any public username) and unlimited LinkedIn paste-import.
+  - Full ATS Checker, including the AI-powered deep-analysis layer.
+  - _Note: portfolio subdomain hosting and analytics are not included — pair with Creator Pro or the Job Hunter Bundle for that._
 - **Credit Expiration**: Unused credits do not roll over.
 
 ### One-Time Credit Packs (Add-ons)

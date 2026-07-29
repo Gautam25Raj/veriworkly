@@ -8,6 +8,7 @@ import { siteConfig } from "@/config/site";
 import { ThemeProvider } from "@/provider/ThemeProvider";
 
 import { Toaster } from "@/components/Toaster";
+import { JsonLd } from "@/components/JsonLd";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -107,10 +108,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       suppressHydrationWarning
     >
       <head>
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
-        />
+        <JsonLd data={organizationSchema} />
       </head>
 
       <body>

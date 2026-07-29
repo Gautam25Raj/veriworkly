@@ -11,6 +11,7 @@ interface WorkspaceContextType {
   user: PortfolioWorkspaceBootstrap["user"];
   workspace: PortfolioWorkspaceBootstrap["workspace"];
   analytics: PortfolioWorkspaceBootstrap["analytics"];
+  isAdmin: boolean;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextType | null>(null);
@@ -66,6 +67,7 @@ export function WorkspaceProvider({
     user,
     workspace: ready ? { draft, publication, billing } : null,
     analytics: analyticsData,
+    isAdmin: initialData.isAdmin,
   };
 
   return <WorkspaceContext.Provider value={contextValue}>{children}</WorkspaceContext.Provider>;

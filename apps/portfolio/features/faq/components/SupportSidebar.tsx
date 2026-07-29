@@ -14,7 +14,7 @@ const SupportSidebar = () => {
         </p>
 
         <div className="mt-6 space-y-3">
-          <Link
+          <a
             href="mailto:support@veriworkly.com"
             className="group border-line bg-paper/40 hover:bg-paper-2 text-ink flex items-center justify-between rounded-2xl border p-4 text-xs font-bold uppercase transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.97]"
           >
@@ -24,21 +24,7 @@ const SupportSidebar = () => {
             </div>
 
             <ArrowRight className="text-muted size-3.5 transition-transform group-hover:translate-x-0.5" />
-          </Link>
-
-          {/* <Link
-            target="_blank"
-            rel="noreferrer"
-            href="https://discord.gg/veriworkly"
-            className="group border-line bg-paper/40 hover:bg-paper-2 text-ink flex items-center justify-between rounded-2xl border p-4 text-xs font-bold uppercase transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.97]"
-          >
-            <div className="flex items-center gap-3">
-              <MessageSquare className="text-accent size-4 transition-transform group-hover:scale-110" />
-              <span>Join Discord</span>
-            </div>
-
-            <ArrowRight className="text-muted size-3.5 transition-transform group-hover:translate-x-0.5" />
-          </Link> */}
+          </a>
         </div>
       </div>
 

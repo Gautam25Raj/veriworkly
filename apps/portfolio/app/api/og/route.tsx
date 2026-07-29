@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { clampOgText } from "@/lib/og-text";
 
 export const runtime = "edge";
 
@@ -6,14 +7,19 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
 
-    const title = searchParams.get("title") ?? "Create and Publish Your Portfolio";
-    const description =
+    const title = clampOgText(
+      searchParams.get("title") ?? "Create and Publish Your Portfolio",
+      80,
+    );
+    const description = clampOgText(
       searchParams.get("description") ??
-      "Choose a premium template, edit details, and launch your live portfolio in minutes.";
+        "Choose a premium template, edit details, and launch your live portfolio in minutes.",
+      160,
+    );
     const theme = searchParams.get("theme") ?? "light";
     const type = searchParams.get("type") ?? "landing";
     const template = searchParams.get("template") ?? "";
-    const badge = searchParams.get("badge") ?? "PORTFOLIO BUILDER";
+    const badge = clampOgText(searchParams.get("badge") ?? "PORTFOLIO BUILDER", 40);
 
     const isDark = theme === "dark";
 

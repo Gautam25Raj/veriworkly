@@ -26,6 +26,14 @@ vi.mock("#config", () => ({
       authMaxRequests: 20,
       windowMs: 900000,
       maxRequests: 100,
+      globalWindowMs: 900000,
+      globalMaxRequests: 1000,
+    },
+    // Present because this module graph transitively imports #lib/prisma, which sizes the
+    // connection pool from the cluster worker count at load time.
+    server: {
+      clusteringEnabled: false,
+      workers: 1,
     },
   },
 }));

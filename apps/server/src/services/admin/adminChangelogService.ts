@@ -145,7 +145,9 @@ export async function updateChangelogEntry(id: string, input: ChangelogAdminUpda
       security: input.security,
       tags: input.tags,
       prRefs:
-        enrichedPrRefs === null ? Prisma.JsonNull : (enrichedPrRefs as Prisma.InputJsonValue | undefined),
+        enrichedPrRefs === null
+          ? Prisma.JsonNull
+          : (enrichedPrRefs as Prisma.InputJsonValue | undefined),
     },
   });
 

@@ -1,0 +1,62 @@
+import { auth } from "#auth/index";
+
+import { cacheDel } from "#lib/redis";
+import { logger } from "#lib/logger";
+import { prisma } from "#lib/prisma";
+import { invalidateCacheByToken } from "#utils/authCache";
+
+/**
+ * Revoking a session means clearing it from THREE independent stores. Deleting the Postgres row
+ * on its own does nothing observable, because better-auth is configured with `secondaryStorage`
+ * and its `findSession` reads Redis first and returns without ever querying the database — so a
+ * raw `prisma.session.deleteMany()` leaves the user fully authenticated until the Redis entry
+ * expires on its own (`AUTH_SESSION_TTL_SECONDS`, 30 days by default).
+ *
+ * The three stores:
+ *   1. better-auth's session-by-token entry in Redis  -> internalAdapter.deleteSessions()
+ *   2. better-auth's `active-sessions-<userId>` index  -> deleted here; note that the *plural*
+ *      deleteSessions() does not prune it (only the singular deleteSession() does)
+ *   3. this app's own `auth:session:<cookie-hash>` cache -> invalidateCacheByToken()
+ *
+ * A raw Prisma delete also bypasses better-auth's `databaseHooks.session.delete.after`, which is
+ * what would otherwise have called invalidateCacheByToken for us. Always route session removal
+ * through this module rather than deleting `session` rows directly.
+ *
+ * Not revocable: the `cookieCache` JWT held by the client (`AUTH_SESSION_CACHE_MAX_AGE_SECONDS`,
+ * 15 min). That is inherent to a stateless cookie cache — it bounds how fast any revocation can
+ * take effect, so keep that TTL short.
+ */
+export async function revokeAllSessionsForUser(userId: string): Promise<number> {
+  const sessions = await prisma.session.findMany({
+    where: { userId },
+    select: { token: true },
+  });
+
+  if (!sessions.length) return 0;
+
+  const tokens = sessions.map((session) => session.token);
+  const context = await auth.$context;
+
+  await context.internalAdapter.deleteSessions(tokens);
+  await cacheDel(`active-sessions-${userId}`);
+  await Promise.all(tokens.map((token) => invalidateCacheByToken(token)));
+
+  return tokens.length;
+}
+
+/**
+ * Same as revokeAllSessionsForUser, but tolerates failure. Used on paths where the primary
+ * action (deleting a user) must not be blocked by a cache-eviction problem — the rows are gone
+ * from Postgres via cascade either way, so the worst case is a stale Redis entry rather than a
+ * failed delete.
+ */
+export async function revokeAllSessionsForUserSafely(userId: string): Promise<void> {
+  try {
+    await revokeAllSessionsForUser(userId);
+  } catch (error) {
+    logger.error("Failed to revoke sessions during user teardown", {
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}

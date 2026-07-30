@@ -2,6 +2,10 @@
   "name": "veriworkly",
   "version": "3.21.0",
   "private": true,
+  "packageManager": "npm@11.16.0",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/VeriWorkly/veriworkly.git"
@@ -41,16 +45,16 @@
     "db:studio": "npm run db:studio -w @veriworkly/server"
   },
   "devDependencies": {
-    "@hono/node-server": "2.0.12",
     "@types/node": "^25",
     "eslint": "^9",
-    "js-yaml": "^4.3.0",
-    "prettier": "^3.8.3",
-    "prettier-plugin-tailwindcss": "^0.7.3",
+    "prettier": "^3.9.6",
+    "prettier-plugin-tailwindcss": "^0.8.1",
     "typescript": "^6"
   },
   "overrides": {
-    "postcss": "8.5.24",
+    "postcss": "8.5.25",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
     "next": {
       "sharp": "0.35.3"
     },
@@ -84,8 +88,8 @@
   },
   "optionalDependencies": {
     "@esbuild/linux-x64": "^0.28.1",
-    "@rolldown/binding-linux-x64-gnu": "^1.1.2",
-    "@tailwindcss/oxide-linux-x64-gnu": "^4.3.0",
-    "lightningcss-linux-x64-gnu": "^1.32.0"
+    "@rolldown/binding-linux-x64-gnu": "^1.2.1",
+    "@tailwindcss/oxide-linux-x64-gnu": "^4.3.3",
+    "lightningcss-linux-x64-gnu": "^1.33.0"
   }
 }

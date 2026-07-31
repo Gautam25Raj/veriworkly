@@ -17,8 +17,11 @@ export interface AdminRoadmapPayload {
   completedQuarter?: string | null;
 }
 
+// Roadmap writes live under the single admin router (`/admin/roadmap`); the public
+// `/roadmap` router now serves reads only.
+
 export async function createRoadmapFeature(payload: AdminRoadmapPayload) {
-  return fetchApiData<RoadmapFeature>("/roadmap/admin", {
+  return fetchApiData<RoadmapFeature>("/admin/roadmap", {
     method: "POST",
     body: JSON.stringify(payload),
     errorMessage: "Failed to create roadmap feature",
@@ -26,7 +29,7 @@ export async function createRoadmapFeature(payload: AdminRoadmapPayload) {
 }
 
 export async function updateRoadmapFeature(id: string, payload: Partial<AdminRoadmapPayload>) {
-  return fetchApiData<RoadmapFeature>(`/roadmap/admin/${id}`, {
+  return fetchApiData<RoadmapFeature>(`/admin/roadmap/${id}`, {
     method: "PUT",
     body: JSON.stringify(payload),
     errorMessage: "Failed to update roadmap feature",
@@ -34,7 +37,7 @@ export async function updateRoadmapFeature(id: string, payload: Partial<AdminRoa
 }
 
 export async function deleteRoadmapFeature(id: string) {
-  return fetchApiData<{ id: string }>(`/roadmap/admin/${id}`, {
+  return fetchApiData<{ id: string }>(`/admin/roadmap/${id}`, {
     method: "DELETE",
     errorMessage: "Failed to delete roadmap feature",
   });

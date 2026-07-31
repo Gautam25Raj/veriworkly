@@ -1,228 +1,363 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Card, Badge, Button } from "@veriworkly/ui";
+import { Badge, Card } from "@veriworkly/ui";
 
 import { AuthInitializer } from "@/providers/auth-provider";
 import AdminActionButtons from "@/app/admin/components/AdminActionButtons";
+import AdminPageHeader from "@/components/admin/AdminPageHeader";
+import AdminStatCard from "@/components/admin/AdminStatCard";
+import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
 
 import { fetchCurrentUser } from "@/features/auth/services/current-user";
-import { fetchAdminDashboardStatsServer } from "@/features/admin/services/admin-server";
+import {
+  fetchAdminOverview,
+  fetchAdminRecentActivity,
+} from "@/features/admin/services/admin-server";
+import {
+  formatCents,
+  formatCompactNumber,
+  formatDuration,
+  formatNumber,
+  formatPercent,
+  formatRelativeTime,
+  humanizeKey,
+} from "@/features/admin/utils/admin-format";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard",
-  description: "Monitor platform metrics, roadmap operations, and admin controls.",
+  description: "Monitor platform metrics, moderation queues, and admin controls.",
   robots: { index: false, follow: false },
 };
 
-function toNumber(value: unknown): number {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-
-  return 0;
-}
-
-function humanizeMetricKey(key: string): string {
-  return key
-    .replace(/_/g, " ")
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function buildMetricCards(source: Record<string, unknown> = {}, fallbackKeys: string[] = []) {
-  const uniqueKeys = Array.from(new Set([...fallbackKeys, ...Object.keys(source)]));
-
-  return uniqueKeys
-    .filter((key) => key !== "raw")
-    .map((key) => ({
-      key,
-      label: humanizeMetricKey(key),
-      value: toNumber(source[key]),
-    }));
-}
+/** Queues an operator is expected to drain, each linking to the page that can drain it. */
+const ACTION_QUEUE_ITEMS: Array<{
+  key: keyof Awaited<ReturnType<typeof fetchAdminOverview>>["actionQueue"];
+  label: string;
+  href: string;
+}> = [
+  {
+    key: "pendingAmbassadorApplications",
+    label: "Ambassador applications",
+    href: "/admin/ambassadors?status=PENDING",
+  },
+  {
+    key: "pendingWithdrawals",
+    label: "Affiliate withdrawals",
+    href: "/admin/affiliates/withdrawals?status=REQUESTED",
+  },
+  {
+    key: "pendingCommissions",
+    label: "Commissions to review",
+    href: "/admin/affiliates/commissions?status=PENDING",
+  },
+  {
+    key: "failedWebhooks",
+    label: "Failed webhooks",
+    href: "/admin/billing/webhooks?status=FAILED",
+  },
+  {
+    key: "suspendedPortfolios",
+    label: "Suspended portfolios",
+    href: "/admin/portfolios?status=SUSPENDED",
+  },
+  { key: "pendingPortfolioAssets", label: "Pending assets", href: "/admin/system" },
+];
 
 export default async function AdminPage() {
-  const [user, stats] = await Promise.all([fetchCurrentUser(), fetchAdminDashboardStatsServer()]);
-
-  const githubStats = (stats?.githubStats?.stats || {}) as Record<string, unknown>;
-  const usageMetrics = stats?.usageMetrics || {};
-
-  const githubTotal = toNumber(githubStats.total ?? githubStats.totalItems);
-
-  const todayMetrics = buildMetricCards((usageMetrics.today as Record<string, unknown>) || {}, [
-    "resumeCreated",
-    "resumeExported",
-    "loginSuccess",
+  const [user, overview, activity] = await Promise.all([
+    fetchCurrentUser(),
+    fetchAdminOverview(30),
+    fetchAdminRecentActivity(),
   ]);
 
-  const totalMetrics = buildMetricCards((usageMetrics.totals as Record<string, unknown>) || {}, [
-    "resumeCreated",
-    "resumeDeleted",
-    "resumeExported",
-    "loginSuccess",
-    "otpSent",
-    "dashboardOpened",
-    "roadmapViewed",
-  ]);
-
-  const formattedGeneratedAt = usageMetrics.generatedAt
-    ? new Date(usageMetrics.generatedAt).toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      })
-    : "Just now";
+  const openQueues = ACTION_QUEUE_ITEMS.filter((item) => overview.actionQueue[item.key] > 0);
 
   return (
     <>
       <AuthInitializer initialUser={user} />
 
-      <div className="space-y-8 md:space-y-10">
-        <section className="border-border bg-card relative overflow-hidden rounded-4xl border px-6 py-7 shadow-[0_30px_90px_-50px_rgba(0,0,0,0.45)] md:px-8">
-          <div className="bg-accent/12 pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full blur-3xl" />
+      <div className="space-y-8">
+        <AdminPageHeader
+          eyebrow="Admin Control Panel"
+          title="Operations Dashboard"
+          description={`Signed in as ${user?.email ?? "admin"}. Figures cover the last ${overview.windowDays} days unless stated otherwise.`}
+          actions={<AdminActionButtons />}
+        />
 
-          <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-3">
-              <Badge className="bg-background/70">Admin Control Panel</Badge>
+        {/* Anything needing a human decision is surfaced first — everything below is context. */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-foreground text-lg font-semibold tracking-tight">
+              Needs attention
+            </h2>
 
-              <div>
-                <h2 className="text-foreground text-3xl font-semibold tracking-tight md:text-4xl">
-                  Admin Operations Dashboard
-                </h2>
+            <AdminStatusBadge status={overview.health.status} />
+          </div>
 
-                <p className="text-muted mt-2 text-sm leading-6 md:text-base">
-                  Signed in as
-                  <span className="text-foreground font-semibold"> {user?.email || "Admin"}</span>
-                </p>
+          {openQueues.length === 0 ? (
+            <Card className="rounded-3xl p-6">
+              <p className="text-muted text-sm">
+                Every queue is clear — no pending applications, payouts, or failed webhooks.
+              </p>
+            </Card>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {openQueues.map((item) => (
+                <AdminStatCard
+                  key={item.key}
+                  label={item.label}
+                  value={formatNumber(overview.actionQueue[item.key])}
+                  tone={item.key === "failedWebhooks" ? "critical" : "warning"}
+                  hint="Open the queue"
+                  href={item.href}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-foreground text-lg font-semibold tracking-tight">Platform</h2>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <AdminStatCard
+              label="Total users"
+              value={formatNumber(overview.users.total)}
+              hint={`${formatNumber(overview.users.newInWindow)} new · ${formatPercent(overview.users.growthPercent)} vs previous period`}
+              tone={
+                overview.users.growthPercent !== null && overview.users.growthPercent < 0
+                  ? "warning"
+                  : "default"
+              }
+              href="/admin/users"
+            />
+
+            <AdminStatCard
+              label="Paying subscriptions"
+              value={formatNumber(overview.billing.subscriptions.paying)}
+              hint={`${formatNumber(overview.billing.subscriptions.cancelingAtPeriodEnd)} canceling at period end`}
+              href="/admin/billing"
+            />
+
+            <AdminStatCard
+              label="Live portfolios"
+              value={formatNumber(overview.portfolios.live)}
+              hint={`${formatCompactNumber(overview.portfolios.views.last30Days)} views in 30 days`}
+              href="/admin/portfolios?status=LIVE"
+            />
+
+            <AdminStatCard
+              label="Documents"
+              value={formatNumber(overview.documents.active)}
+              hint={`${formatNumber(overview.documents.shareLinks)} share links · ${formatCompactNumber(overview.documents.shareViews)} views`}
+              href="/admin/documents"
+            />
+
+            <AdminStatCard
+              label="Affiliate payouts owed"
+              value={formatCents(
+                overview.affiliates.wallets.pendingCents +
+                  overview.affiliates.wallets.availableCents,
+              )}
+              hint={`${formatCents(overview.affiliates.wallets.paidCents)} paid to date`}
+              href="/admin/affiliates"
+            />
+
+            <AdminStatCard
+              label="Active ambassadors"
+              value={formatNumber(overview.ambassadors.activeAmbassadors)}
+              hint={`${formatNumber(overview.ambassadors.applicationsLast7Days)} applications in 7 days`}
+              href="/admin/ambassadors/roster"
+            />
+
+            <AdminStatCard
+              label="Credit float"
+              value={formatNumber(overview.billing.credits.balance)}
+              hint={`${formatNumber(overview.billing.credits.spentLast30Days)} spent in 30 days`}
+              href="/admin/billing/credits"
+            />
+
+            <AdminStatCard
+              label="Active API keys"
+              value={formatNumber(overview.apiKeys.active)}
+              hint={`${formatNumber(overview.apiKeys.usedLast7Days)} used in 7 days`}
+              href="/admin/api-keys"
+            />
+          </div>
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-2">
+          <Card className="space-y-4 rounded-3xl p-6">
+            <h3 className="text-foreground font-semibold tracking-tight">Users by role</h3>
+
+            <div className="space-y-2 text-sm">
+              {Object.entries(overview.users.byRole).map(([role, count]) => (
+                <div key={role} className="flex items-center justify-between">
+                  <AdminStatusBadge status={role} />
+                  <span className="text-foreground font-medium">{formatNumber(count)}</span>
+                </div>
+              ))}
+
+              <div className="border-border/60 flex items-center justify-between border-t pt-2">
+                <span className="text-muted">Verified email</span>
+                <span className="text-foreground font-medium">
+                  {formatNumber(overview.users.verified)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-muted">Active sessions</span>
+                <span className="text-foreground font-medium">
+                  {formatNumber(overview.users.activeSessions)}
+                </span>
               </div>
             </div>
-
-            <AdminActionButtons />
-          </div>
-        </section>
-
-        <section className="grid gap-4 md:grid-cols-2">
-          <Link href="/admin/monetization">
-            <Card className="border-border/80 bg-card/90 h-full cursor-pointer rounded-4xl p-6 transition duration-200 hover:-translate-y-0.5">
-              <div className="space-y-3">
-                <Badge className="bg-background/70">Revenue</Badge>
-                <h3 className="text-foreground text-xl font-semibold">Monetization Operations</h3>
-                <p className="text-muted text-sm leading-6">
-                  Review affiliate withdrawals, credit adjustments, entitlements, and audit
-                  activity.
-                </p>
-              </div>
-              <div className="text-accent mt-5 text-sm font-semibold">Open Monetization</div>
-            </Card>
-          </Link>
-          <Link href="/admin/roadmap">
-            <Card className="border-border/80 bg-card/90 h-full cursor-pointer rounded-4xl p-6 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_70px_-38px_rgba(0,0,0,0.5)]">
-              <div className="space-y-3">
-                <Badge className="bg-background/70">Planning</Badge>
-
-                <h3 className="text-foreground text-xl font-semibold tracking-tight">
-                  Manage Roadmap
-                </h3>
-
-                <p className="text-muted text-sm leading-6">
-                  Browse, create, and edit detailed roadmap items from the new admin routes.
-                </p>
-              </div>
-
-              <div className="text-accent mt-5 text-sm font-semibold">Open Admin Roadmap</div>
-            </Card>
-          </Link>
-
-          <Link href="/admin/roadmap/new">
-            <Card className="border-border/80 bg-card/90 h-full cursor-pointer rounded-4xl p-6 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_70px_-38px_rgba(0,0,0,0.5)]">
-              <div className="space-y-3">
-                <Badge className="bg-background/70">Creation</Badge>
-
-                <h3 className="text-foreground text-xl font-semibold tracking-tight">
-                  Create Roadmap Item
-                </h3>
-
-                <p className="text-muted text-sm leading-6">
-                  Use dedicated create/edit pages to manage complete schema-backed feature details.
-                </p>
-              </div>
-
-              <div className="text-accent mt-5 text-sm font-semibold">Create New Item</div>
-            </Card>
-          </Link>
-        </section>
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Card className="space-y-2 rounded-4xl p-6">
-            <p className="text-muted text-sm">GitHub Items Tracked</p>
-            <p className="text-foreground text-3xl font-semibold">{githubTotal}</p>
           </Card>
 
-          <Card className="space-y-2 rounded-4xl p-6">
-            <p className="text-muted text-sm">Completion Rate</p>
-            <p className="text-foreground text-3xl font-semibold">
-              {String(githubStats.completionRate ?? "0.00")}
-              <span className="text-muted text-lg">%</span>
-            </p>
-          </Card>
+          <Card className="space-y-4 rounded-3xl p-6">
+            <h3 className="text-foreground font-semibold tracking-tight">System</h3>
 
-          <Card className="space-y-2 rounded-4xl p-6">
-            <p className="text-muted text-sm">GitHub Issues</p>
-            <p className="text-foreground text-3xl font-semibold">{toNumber(githubStats.issues)}</p>
-          </Card>
+            <div className="space-y-2 text-sm">
+              {overview.health.checks.map((check) => (
+                <div key={check.name} className="flex items-center justify-between">
+                  <span className="text-muted">{humanizeKey(check.name)}</span>
 
-          <Card className="space-y-2 rounded-4xl p-6">
-            <p className="text-muted text-sm">GitHub Pull Requests</p>
-            <p className="text-foreground text-3xl font-semibold">
-              {toNumber(githubStats.pullRequests)}
-            </p>
+                  <span className="flex items-center gap-2">
+                    <span className="text-muted text-xs">{check.latencyMs}ms</span>
+                    <AdminStatusBadge status={check.status} />
+                  </span>
+                </div>
+              ))}
+
+              <div className="border-border/60 flex items-center justify-between border-t pt-2">
+                <span className="text-muted">Uptime</span>
+                <span className="text-foreground font-medium">
+                  {formatDuration(overview.health.uptimeSeconds)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-muted">Last usage-metric flush</span>
+                <span className="text-foreground font-medium">
+                  {formatRelativeTime(overview.jobs.lastUsageMetricFlush?.createdAt)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-muted">Last view flush</span>
+                <span className="text-foreground font-medium">
+                  {formatRelativeTime(overview.jobs.lastViewFlush?.createdAt)}
+                </span>
+              </div>
+            </div>
           </Card>
         </section>
 
-        <section className="space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-foreground text-lg font-semibold tracking-tight">Today Metrics</h3>
+        <section className="grid gap-4 lg:grid-cols-2">
+          <Card className="space-y-3 rounded-3xl p-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-foreground font-semibold tracking-tight">Newest signups</h3>
+              <Link href="/admin/users" className="text-accent text-xs font-semibold">
+                View all
+              </Link>
+            </div>
 
-            <span className="text-muted text-sm">{formattedGeneratedAt}</span>
-          </div>
+            <div className="divide-border/50 divide-y">
+              {activity.signups.length === 0 ? (
+                <p className="text-muted py-4 text-sm">No signups yet.</p>
+              ) : (
+                activity.signups.map((signup) => (
+                  <div key={signup.id} className="flex items-center justify-between gap-3 py-2.5">
+                    <div className="min-w-0">
+                      <Link
+                        href={`/admin/users/${signup.id}`}
+                        className="text-foreground truncate text-sm font-medium hover:underline"
+                      >
+                        {signup.name || signup.email}
+                      </Link>
+                      <p className="text-muted truncate text-xs">{signup.email}</p>
+                    </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {todayMetrics.map((metric) => (
-              <Card key={metric.key} className="space-y-2 rounded-4xl p-6">
-                <p className="text-muted text-sm">{metric.label}</p>
-                <p className="text-foreground text-3xl font-semibold">{metric.value}</p>
-              </Card>
-            ))}
-          </div>
+                    <span className="text-muted shrink-0 text-xs">
+                      {formatRelativeTime(signup.createdAt)}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
+
+          <Card className="space-y-3 rounded-3xl p-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-foreground font-semibold tracking-tight">Recently published</h3>
+              <Link href="/admin/portfolios" className="text-accent text-xs font-semibold">
+                View all
+              </Link>
+            </div>
+
+            <div className="divide-border/50 divide-y">
+              {activity.publications.length === 0 ? (
+                <p className="text-muted py-4 text-sm">No published portfolios yet.</p>
+              ) : (
+                activity.publications.map((publication) => (
+                  <div
+                    key={publication.id}
+                    className="flex items-center justify-between gap-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <Link
+                        href={`/admin/portfolios/${publication.id}`}
+                        className="text-foreground truncate text-sm font-medium hover:underline"
+                      >
+                        {publication.subdomain}
+                      </Link>
+                      <p className="text-muted truncate text-xs">
+                        {publication.user.name || publication.user.email}
+                      </p>
+                    </div>
+
+                    <span className="flex shrink-0 items-center gap-2">
+                      <AdminStatusBadge status={publication.status} />
+                      <span className="text-muted text-xs">
+                        {formatRelativeTime(publication.publishedAt)}
+                      </span>
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </Card>
         </section>
 
-        <Card className="space-y-4 rounded-4xl p-6 md:p-7">
-          <h3 className="text-foreground text-lg font-semibold tracking-tight">Platform Signals</h3>
-
-          <div className="grid gap-3 text-sm md:grid-cols-2 md:text-base">
-            {totalMetrics.map((metric) => (
-              <div key={metric.key} className="flex items-center justify-between">
-                <span className="text-muted">Total {metric.label}</span>
-
-                <span className="text-foreground font-semibold">{metric.value}</span>
-              </div>
-            ))}
+        <Card className="space-y-3 rounded-3xl p-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-foreground font-semibold tracking-tight">Recent admin activity</h3>
+            <Link href="/admin/audit" className="text-accent text-xs font-semibold">
+              Open audit log
+            </Link>
           </div>
 
-          <div className="bg-border h-px" />
+          <div className="divide-border/50 divide-y">
+            {overview.recentActivity.length === 0 ? (
+              <p className="text-muted py-4 text-sm">No admin actions recorded yet.</p>
+            ) : (
+              overview.recentActivity.map((entry) => (
+                <div key={entry.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5">
+                  <Badge className="bg-background/70">{humanizeKey(entry.action)}</Badge>
 
-          <p className="text-muted text-sm leading-6">
-            GitHub sync runs every 12 hours. Usage metrics are buffered in Redis and flushed daily.
-          </p>
+                  <span className="text-muted text-xs">
+                    {entry.targetType}
+                    {entry.reason ? ` · ${entry.reason}` : ""}
+                  </span>
 
-          <Button asChild variant="secondary" size="sm" className="w-fit">
-            <Link href="/stats">Open Public Development Page</Link>
-          </Button>
+                  <span className="text-muted ml-auto text-xs">
+                    {entry.actor?.email ?? "system"} · {formatRelativeTime(entry.createdAt)}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
         </Card>
       </div>
     </>

@@ -6,24 +6,26 @@ import { useRouter } from "next/navigation";
 import { Button } from "@veriworkly/ui";
 
 import { fetchApiData } from "@/utils/fetchApiData";
+import { triggerAdminGithubSync } from "@/features/admin/services/admin-actions";
 
 const AdminActionButtons = () => {
   const router = useRouter();
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSyncNow = async () => {
     try {
       setIsSyncing(true);
+      setError("");
 
-      await fetchApiData("/github/admin/sync", {
-        method: "POST",
-      });
+      // The sync endpoint audits who triggered it, so it always needs a reason.
+      await triggerAdminGithubSync("Manual sync from the admin dashboard");
 
       router.refresh();
-    } catch (error) {
-      console.error("Failed to sync GitHub:", error);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to sync GitHub");
     } finally {
       setIsSyncing(false);
     }
@@ -33,27 +35,36 @@ const AdminActionButtons = () => {
     try {
       setIsSigningOut(true);
 
-      await fetchApiData("/auth/sign-out", {
-        method: "POST",
-      });
+      await fetchApiData("/auth/sign-out", { method: "POST" });
 
       router.push("/");
-    } catch (error) {
-      console.error("Failed to sign out:", error);
-    } finally {
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Failed to sign out");
       setIsSigningOut(false);
     }
   };
 
   return (
     <div className="flex w-full flex-col gap-2 sm:w-auto">
-      <Button size="md" variant="secondary" disabled={isSyncing} onClick={handleSyncNow}>
-        {isSyncing ? "Syncing GitHub..." : "Sync GitHub Now"}
+      <Button
+        size="sm"
+        variant="secondary"
+        loading={isSyncing}
+        onClick={() => void handleSyncNow()}
+      >
+        Sync GitHub now
       </Button>
 
-      <Button size="md" variant="secondary" onClick={handleSignOut} disabled={isSigningOut}>
-        {isSigningOut ? "Signing out..." : "Sign out"}
+      <Button
+        size="sm"
+        variant="secondary"
+        loading={isSigningOut}
+        onClick={() => void handleSignOut()}
+      >
+        Sign out
       </Button>
+
+      {error ? <p className="text-xs text-red-600">{error}</p> : null}
     </div>
   );
 };

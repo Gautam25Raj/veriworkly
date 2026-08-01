@@ -50,9 +50,18 @@ const StatsPagination = ({
         </p>
       </div>
 
-      <div className="flex items-center gap-3">
+      <nav aria-label="Pagination" className="flex items-center gap-3">
+        {/*
+          Previous/Next alone gave no sense of position — nothing on the page said which
+          page you were on, so paging deep and losing your place was a one-way trip.
+        */}
+        <span className="text-muted mr-1 font-mono text-xs font-bold whitespace-nowrap">
+          Page {currentPage}
+        </span>
+
         <Link
           href={prevHref}
+          rel="prev"
           aria-disabled={!hasPrev}
           tabIndex={!hasPrev ? -1 : undefined}
           className={cn(
@@ -65,6 +74,7 @@ const StatsPagination = ({
 
         <Link
           href={nextHref}
+          rel="next"
           aria-disabled={!hasMore}
           tabIndex={!hasMore ? -1 : undefined}
           className={cn(
@@ -74,7 +84,7 @@ const StatsPagination = ({
         >
           Next
         </Link>
-      </div>
+      </nav>
     </section>
   );
 };

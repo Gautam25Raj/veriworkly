@@ -1,10 +1,42 @@
 import Link from "next/link";
-import { Component, ArrowRight, CheckCircle2, Info, AlertTriangle } from "lucide-react";
+import { Component, ArrowRight, CheckCircle2, Info, AlertTriangle, XCircle } from "lucide-react";
 
 import { Card, Button, Badge } from "@veriworkly/ui";
 import { siteConfig } from "@/config/site";
 
 import { SectionHeader } from "./SectionHeader";
+
+/**
+ * Every status colour here resolves to a theme token, never a raw Tailwind shade.
+ * A status painted in `emerald-500` is invisible to the design system: it will not
+ * follow a theme change and it appears in no palette.
+ */
+const STATUSES = [
+  {
+    label: "Success",
+    token: "--success",
+    icon: CheckCircle2,
+    classes: "text-success border-success/25 bg-success/10",
+  },
+  {
+    label: "Info",
+    token: "--accent",
+    icon: Info,
+    classes: "text-accent border-accent/25 bg-accent/10",
+  },
+  {
+    label: "Warning",
+    token: "--warning",
+    icon: AlertTriangle,
+    classes: "text-warning border-warning/25 bg-warning/10",
+  },
+  {
+    label: "Error",
+    token: "--destructive",
+    icon: XCircle,
+    classes: "text-destructive border-destructive/25 bg-destructive/10",
+  },
+];
 
 export const ComponentsSection = () => {
   return (
@@ -22,46 +54,57 @@ export const ComponentsSection = () => {
 
             <Button variant="ghost">Ghost</Button>
           </div>
+
+          <p className="text-muted text-xs leading-relaxed">
+            Primary carries the accent fill and is limited to one per view. Secondary and ghost are
+            for everything else.
+          </p>
         </Card>
 
         <Card className="space-y-6 p-8">
           <h3 className="text-lg font-semibold">Badges</h3>
 
           <div className="flex flex-wrap gap-4">
-            <Badge>Default Badge</Badge>
+            <Badge>Default</Badge>
 
-            <Badge className="border-emerald-500/20 bg-emerald-500/10 text-emerald-600">
-              Success
-            </Badge>
-
-            <Badge className="border-amber-500/20 bg-amber-500/10 text-amber-600">Warning</Badge>
-
-            <Badge className="border-red-500/20 bg-red-500/10 text-red-600">Error</Badge>
+            {STATUSES.map((status) => (
+              <Badge key={status.label} className={status.classes}>
+                {status.label}
+              </Badge>
+            ))}
           </div>
+
+          <p className="text-muted text-xs leading-relaxed">
+            Status badges use a 10% fill and a 25% border of their own token, so the same badge
+            works on both the page and card backgrounds.
+          </p>
         </Card>
 
         <Card className="space-y-6 p-8">
           <h3 className="text-lg font-semibold">Interactive Elements</h3>
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col items-start gap-4">
             <Link
               href="/docs"
-              className="group flex items-center gap-2 text-sm font-bold tracking-wider text-blue-600 uppercase"
+              className="group text-accent focus-visible:ring-accent flex items-center gap-2 rounded text-sm font-bold tracking-wider uppercase focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
             >
               Open Docs
-              <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+              <ArrowRight
+                className="size-4 transition-transform group-hover:translate-x-1"
+                aria-hidden="true"
+              />
             </Link>
 
             <Link
               href="/templates"
-              className="flex items-center gap-2 text-sm font-medium hover:underline"
+              className="focus-visible:ring-accent rounded text-sm font-medium hover:underline focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
             >
               Browse Templates
             </Link>
 
             <Link
               href={siteConfig.links.blog}
-              className="flex items-center gap-2 text-sm font-medium hover:underline"
+              className="focus-visible:ring-accent rounded text-sm font-medium hover:underline focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
             >
               Visit Blog
             </Link>
@@ -69,24 +112,27 @@ export const ComponentsSection = () => {
         </Card>
 
         <Card className="space-y-6 p-8">
-          <h3 className="text-lg font-semibold">Status Icons</h3>
+          <h3 className="text-lg font-semibold">Status Colours</h3>
 
-          <div className="flex gap-6">
-            <div className="flex flex-col items-center gap-2">
-              <CheckCircle2 className="size-6 text-emerald-500" />
-              <span className="text-muted text-[10px] font-bold uppercase">Success</span>
-            </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {STATUSES.map((status) => (
+              <div key={status.label} className="flex flex-col items-center gap-2 text-center">
+                <status.icon
+                  className={`size-6 ${status.classes.split(" ")[0]}`}
+                  aria-hidden="true"
+                />
 
-            <div className="flex flex-col items-center gap-2">
-              <Info className="size-6 text-blue-500" />
-              <span className="text-muted text-[10px] font-bold uppercase">Info</span>
-            </div>
+                <span className="text-muted text-[10px] font-bold uppercase">{status.label}</span>
 
-            <div className="flex flex-col items-center gap-2">
-              <AlertTriangle className="size-6 text-amber-500" />
-              <span className="text-muted text-[10px] font-bold uppercase">Warning</span>
-            </div>
+                <span className="text-muted font-mono text-[9px]">{status.token}</span>
+              </div>
+            ))}
           </div>
+
+          <p className="text-muted text-xs leading-relaxed">
+            Four states, four tokens. Informational states reuse the accent rather than introducing
+            a fifth hue.
+          </p>
         </Card>
       </div>
     </section>

@@ -1,6 +1,7 @@
 import { MessageSquareText } from "lucide-react";
 
 import { Card } from "@veriworkly/ui";
+import { pressFacts } from "@/config/brand";
 
 import BrandSectionHeader from "./BrandSectionHeader";
 
@@ -8,7 +9,7 @@ const VOICE_PRINCIPLES = [
   {
     title: "Direct, not hypey",
     description:
-      "Lead with what the product does, not adjectives. \"No login required to start\" beats \"revolutionary, game-changing career platform.\"",
+      'Lead with what the product does, not adjectives. "No login required to start" beats "revolutionary, game-changing career platform."',
   },
   {
     title: "Privacy-forward",
@@ -23,7 +24,7 @@ const VOICE_PRINCIPLES = [
   {
     title: "Confident about being free and open",
     description:
-      "\"Free-to-use and open-core\" is a real differentiator, not an apology — state it plainly rather than hedging.",
+      '"Free-to-use and open-core" is a real differentiator, not an apology — state it plainly rather than hedging.',
   },
 ];
 
@@ -53,8 +54,17 @@ const VoiceSection = () => {
         <ul className="text-muted space-y-2 text-sm leading-relaxed">
           <li>
             <span className="text-foreground font-semibold">VeriWorkly</span> — the company and
-            product name. One word, capital V and W. Not &quot;Veriworkly,&quot;
-            &quot;veriworkly,&quot; or &quot;Veri Workly.&quot;
+            product name. One word, capital V and W, no space and no suffix.
+            <span className="mt-2 flex flex-wrap gap-1.5">
+              {pressFacts.misspellings.map((wrong) => (
+                <span
+                  key={wrong}
+                  className="text-destructive border-destructive/25 bg-destructive/5 rounded-full border px-2.5 py-0.5 font-mono text-xs line-through"
+                >
+                  {wrong}
+                </span>
+              ))}
+            </span>
           </li>
           <li>
             <span className="text-foreground font-semibold">VeriWorkly Resume</span> — used only

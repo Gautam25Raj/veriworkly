@@ -16,6 +16,12 @@ interface FAQCardProps {
 const FAQCard = ({ question, answer, isOpen, onToggle, index }: FAQCardProps) => {
   const number = String(index + 1).padStart(2, "0");
 
+  // `aria-expanded` on its own only announces a state; without `aria-controls` pointing at
+  // a real element, nothing tells assistive tech *what* just expanded, and the answer that
+  // appears has no relationship to the control that revealed it.
+  const panelId = `faq-panel-${index}`;
+  const buttonId = `faq-trigger-${index}`;
+
   return (
     <motion.div
       layout="position"
@@ -36,11 +42,14 @@ const FAQCard = ({ question, answer, isOpen, onToggle, index }: FAQCardProps) =>
     >
       <button
         type="button"
+        id={buttonId}
         onClick={onToggle}
         aria-expanded={isOpen}
+        aria-controls={panelId}
         className="flex w-full items-center gap-4 p-6 text-left transition-transform duration-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50 active:scale-[0.99]"
       >
         <span
+          aria-hidden="true"
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-mono text-xs font-bold transition-colors duration-300 ${
             isOpen
               ? "bg-blue-600 text-white"
@@ -61,13 +70,16 @@ const FAQCard = ({ question, answer, isOpen, onToggle, index }: FAQCardProps) =>
               : "border-zinc-100 bg-zinc-50 text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900"
           }`}
         >
-          <ChevronDown className="h-3.5 w-3.5" />
+          <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
         </motion.div>
       </button>
 
       <AnimatePresence initial={false}>
         {isOpen && (
           <motion.div
+            id={panelId}
+            role="region"
+            aria-labelledby={buttonId}
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}

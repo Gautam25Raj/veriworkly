@@ -16,9 +16,7 @@ const BrandSectionHeader = ({ icon: Icon, title, description }: BrandSectionHead
       <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
     </div>
 
-    {description && (
-      <p className="text-muted max-w-2xl text-sm leading-relaxed">{description}</p>
-    )}
+    {description && <p className="text-muted max-w-2xl text-sm leading-relaxed">{description}</p>}
   </div>
 );
 

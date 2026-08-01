@@ -136,7 +136,6 @@ const ContactExperience = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successData, setSuccessData] = useState<{
-    ticketId: string;
     name: string;
     email: string;
     subject: string;
@@ -196,10 +195,11 @@ const ContactExperience = () => {
         body: JSON.stringify({ name, email, subject, message }),
       });
 
-      const referenceId = `VW-${Date.now().toString(36).toUpperCase()}`;
-
+      // The backend does not return a ticket id, so this used to mint one from
+      // `Date.now()` and present it as "Ticket VW-…". Quoting that number back to support
+      // would have matched nothing — it existed only in this browser tab. Better to show
+      // no reference than a reference nobody can look up.
       setSuccessData({
-        ticketId: referenceId,
         name: response.name,
         email: response.email,
         subject: response.subject,
@@ -402,9 +402,15 @@ const ContactExperience = () => {
                 />
                 <div>
                   <strong className="text-zinc-800 dark:text-zinc-200">Security issues</strong>
+                  {/*
+                    This said "report directly via email" while the Security Report card
+                    above sends people to SECURITY.md — two different instructions for the
+                    one channel where following the wrong one means a public disclosure.
+                  */}
                   <p className="mt-1 text-xs leading-5">
-                    Report security flaws directly via email. Please do not disclose vulnerabilities
-                    in public forums before we check and resolve them.
+                    Follow the private disclosure process in our security policy. Please do not
+                    report vulnerabilities in public issues or forums before we have had a chance to
+                    check and resolve them.
                   </p>
                 </div>
               </li>
@@ -444,12 +450,6 @@ const ContactExperience = () => {
             </div>
 
             <div className="space-y-3 px-7 py-6 font-mono text-xs leading-5">
-              <div className="flex justify-between">
-                <span className="text-zinc-400 dark:text-zinc-600">Ticket</span>
-                <strong className="font-semibold text-zinc-900 dark:text-white">
-                  {successData.ticketId}
-                </strong>
-              </div>
               <div className="flex justify-between gap-4">
                 <span className="text-zinc-400 dark:text-zinc-600">From</span>
                 <span className="truncate text-right text-zinc-700 dark:text-zinc-300">

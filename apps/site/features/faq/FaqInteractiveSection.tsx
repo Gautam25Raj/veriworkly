@@ -51,7 +51,11 @@ const FaqInteractiveSection = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-6 border-b border-zinc-200/60 pb-6 md:flex-row md:items-center md:justify-between dark:border-zinc-800/60">
-        <div className="flex flex-wrap gap-2">
+        <div
+          role="group"
+          aria-label="Filter questions by category"
+          className="flex flex-wrap gap-2"
+        >
           {categories.map((cat) => {
             const Icon = cat.icon;
             const isActive = selectedCategory === cat.id;
@@ -60,6 +64,7 @@ const FaqInteractiveSection = () => {
               <button
                 key={cat.id}
                 type="button"
+                aria-pressed={isActive}
                 onClick={() => setSelectedCategory(cat.id)}
                 className={`flex cursor-pointer items-center gap-2 rounded-full px-4 py-2 text-xs font-bold transition-all duration-200 ${
                   isActive
@@ -77,9 +82,15 @@ const FaqInteractiveSection = () => {
         <div className="relative flex w-full items-center rounded-full border border-zinc-200 bg-white px-4 py-2 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-500/10 md:max-w-xs dark:border-zinc-800 dark:bg-[#0c0c0c]">
           <Search className="mr-2.5 h-4 w-4 shrink-0 text-zinc-400" aria-hidden="true" />
 
+          {/*
+            A placeholder is not a label — it disappears the moment anything is typed, and
+            screen readers announced this as an unnamed text field. Same for the clear
+            button below, which was an icon inside a button with no text at all.
+          */}
           <input
-            type="text"
+            type="search"
             value={searchQuery}
+            aria-label="Search frequently asked questions"
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search FAQs..."
             className="w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-white"
@@ -88,6 +99,7 @@ const FaqInteractiveSection = () => {
           {searchQuery && (
             <button
               type="button"
+              aria-label="Clear search"
               onClick={() => setSearchQuery("")}
               className="rounded-full p-0.5 hover:bg-zinc-100 dark:hover:bg-white/10"
             >
@@ -96,6 +108,16 @@ const FaqInteractiveSection = () => {
           )}
         </div>
       </div>
+
+      {/*
+        Typing or switching category silently rewrites the list. Without this, a screen
+        reader user gets no feedback at all that the search did anything.
+      */}
+      <p className="sr-only" role="status" aria-live="polite">
+        {filteredFaqs.length === 0
+          ? "No questions match your search."
+          : `${filteredFaqs.length} question${filteredFaqs.length === 1 ? "" : "s"} shown.`}
+      </p>
 
       {filteredFaqs.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start">

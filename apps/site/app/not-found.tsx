@@ -1,7 +1,21 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Frown } from "lucide-react";
 
 import { Button, Container } from "@veriworkly/ui";
+import { siteConfig } from "@/config/site";
+
+/**
+ * The root 404 catches everything outside the (marketing) group — /ambassador/*,
+ * /affiliate/*, /api/*. Without this it inherited the root layout's metadata verbatim, so
+ * every one of those misses served the homepage's title and description under a 404
+ * status, and declared itself indexable while doing it.
+ */
+export const metadata: Metadata = {
+  title: `Page Not Found | ${siteConfig.shortName}`,
+  description: "This page moved or never existed. Head back home or browse the template gallery.",
+  robots: { index: false, follow: true },
+};
 
 const NotFound = () => {
   return (

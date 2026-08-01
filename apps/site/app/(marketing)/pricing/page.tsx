@@ -6,6 +6,7 @@ import { jsonLdScriptProps } from "@/utils/json-ld";
 import { buildPageMetadata } from "@/utils/metadata";
 import { isAdminUser } from "@/lib/admin";
 import { fetchServerApiData } from "@/lib/server-api";
+import { fetchInrPerUsd } from "@/features/pricing/services/exchange-rate";
 import PricingExperience from "@/features/pricing/PricingExperience";
 
 const pageUrl = `${siteConfig.url}/pricing`;
@@ -80,14 +81,19 @@ const pricingSchema = {
  *
  * Split out like this, the shell is prerendered and only this subtree streams in.
  */
-const PricingGate = async () => {
+const PricingGate = async ({ inrPerUsd }: { inrPerUsd: number }) => {
   const user = await fetchServerApiData<{ email: string | null }>("/users/me");
   const paymentsBlocked = process.env.NODE_ENV === "production" && !isAdminUser(user);
 
-  return <PricingExperience paymentsBlocked={paymentsBlocked} />;
+  return <PricingExperience paymentsBlocked={paymentsBlocked} inrPerUsd={inrPerUsd} />;
 };
 
-const PricingPage = () => {
+const PricingPage = async () => {
+  // Resolved here, on the server, and shared by both the Suspense fallback and the gated
+  // subtree so the two never disagree on a price mid-stream. Cached for 12h, with a
+  // fallback baked in, so this cannot delay or fail the render.
+  const inrPerUsd = await fetchInrPerUsd();
+
   return (
     <>
       <script
@@ -101,8 +107,8 @@ const PricingPage = () => {
         to "blocked" means a slow or failed session lookup can never flash an enabled
         checkout button. The backend re-checks regardless.
       */}
-      <Suspense fallback={<PricingExperience paymentsBlocked />}>
-        <PricingGate />
+      <Suspense fallback={<PricingExperience paymentsBlocked inrPerUsd={inrPerUsd} />}>
+        <PricingGate inrPerUsd={inrPerUsd} />
       </Suspense>
     </>
   );

@@ -188,7 +188,12 @@ const TemplatesPortalPage = () => {
       </section>
 
       <section className="mx-auto w-full max-w-350 border-t border-zinc-200/40 px-6 py-16 md:px-8 md:py-20 dark:border-zinc-800/20">
-        <div className="grid gap-6 lg:grid-cols-2" aria-label="Available document types">
+        {/*
+          `aria-label` on a plain <div> is discarded — a generic element has no role to
+          attach a name to, so this grid was effectively unlabelled. A <section> can carry
+          one.
+        */}
+        <section className="grid gap-6 lg:grid-cols-2" aria-label="Available document types">
           {availableDocTypes.map((docType, idx) => {
             const templatesForType = templateSummaries.filter(
               (template) => template.documentType === docType.id,
@@ -263,7 +268,7 @@ const TemplatesPortalPage = () => {
               </Reveal>
             );
           })}
-        </div>
+        </section>
       </section>
 
       <section className="mx-auto w-full max-w-350 border-t border-zinc-200/40 px-6 py-16 md:px-8 md:py-20 dark:border-zinc-800/20">
@@ -273,7 +278,7 @@ const TemplatesPortalPage = () => {
             Coming soon
           </h2>
         </div>
-        <div className="grid gap-4 md:grid-cols-3" aria-label="Coming soon document types">
+        <section className="grid gap-4 md:grid-cols-3" aria-label="Coming soon document types">
           {plannedDocTypes.map((docType) => (
             <div
               key={docType.id}
@@ -298,7 +303,7 @@ const TemplatesPortalPage = () => {
               </p>
             </div>
           ))}
-        </div>
+        </section>
       </section>
 
       <InteractiveCTA />

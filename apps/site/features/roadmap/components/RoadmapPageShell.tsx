@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import {
   type RoadmapStatus,
   type RoadmapResponse,
@@ -62,6 +64,15 @@ const RoadmapPageShell = ({
     })),
   }));
 
+  /**
+   * `fetchRoadmapFromBackend` swallows its own failures and returns empty sections, which
+   * is the right call for the page as a whole — but it renders identically to a roadmap
+   * that genuinely has nothing on it. On a page whose entire purpose is showing that work
+   * is happening, "we're not building anything" is the worst possible reading of an
+   * outage, so an all-empty board says so explicitly.
+   */
+  const boardIsEmpty = columns.every((column) => column.items.length === 0);
+
   const columnHrefMap = {
     "To Do": `${normalizedRootPath}/todo`,
     "In Progress": `${normalizedRootPath}/in-progress`,
@@ -92,6 +103,23 @@ const RoadmapPageShell = ({
         </div>
 
         <RoadmapStatsGrid sections={sections} />
+
+        {boardIsEmpty && (
+          <div
+            role="status"
+            className="border-warning/30 bg-warning/5 mb-10 rounded-2xl border p-4 text-sm"
+          >
+            <p className="text-foreground font-semibold">Roadmap items aren&apos;t loading</p>
+            <p className="text-muted mt-1 text-xs leading-relaxed">
+              We couldn&apos;t reach the roadmap service just now, so this board is showing empty
+              rather than out of date. Try the refresh control on a column, or check{" "}
+              <Link href="/stats" className="text-accent underline underline-offset-2">
+                development activity
+              </Link>{" "}
+              in the meantime.
+            </p>
+          </div>
+        )}
 
         <KanbanBoard
           showDescription

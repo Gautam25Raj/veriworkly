@@ -6,6 +6,7 @@ import { buildPageMetadata } from "@/utils/metadata";
 
 import { ColorSection } from "./_components/ColorSection";
 import { LayoutSection } from "./_components/LayoutSection";
+import { MotionSection } from "./_components/MotionSection";
 import { EffectsSection } from "./_components/EffectsSection";
 import { StyleGuideHeader } from "./_components/StyleGuideHeader";
 import { TypographySection } from "./_components/TypographySection";
@@ -44,6 +45,7 @@ const StyleGuidePage = () => {
         <BrandAssetsSection />
         <EffectsSection />
         <LayoutSection />
+        <MotionSection />
       </Container>
     </div>
   );

@@ -98,18 +98,36 @@ export function formatRelativeTime(input: string | null | undefined): string {
   return rtf.format(-Math.floor(diffInSeconds / 86400), "day");
 }
 
+/**
+ * Formats an absolute timestamp in UTC, labelled as such.
+ *
+ * This used to be a bare `toLocaleString()` on a *server*-rendered component. Node picks
+ * the container's locale and timezone — in practice `en-US` and UTC — so every visitor was
+ * shown a UTC clock time with no indication that it was not their own. Someone in IST read
+ * "next sync 6:00:00 PM" and was five and a half hours out.
+ *
+ * Rendering it explicitly in UTC is unambiguous for everyone and, unlike a client-side
+ * conversion, produces the same string on the server and after hydration.
+ */
 export function formatAbsoluteTime(input: string | null | undefined) {
   if (!input) {
     return "not scheduled";
   }
 
-  const time = new Date(input).getTime();
+  const date = new Date(input);
 
-  if (Number.isNaN(time)) {
+  if (Number.isNaN(date.getTime())) {
     return "not scheduled";
   }
 
-  return new Date(input).toLocaleString();
+  return `${date.toLocaleString("en-GB", {
+    timeZone: "UTC",
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })} UTC`;
 }
 
 export function buildSearchHref(input: {

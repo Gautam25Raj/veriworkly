@@ -126,6 +126,19 @@ export const HeroHeader = () => {
             >
               Start Building Free
             </Link>
+
+            {/*
+              The hero offered exactly one action: leave for another origin. Visitors who
+              are not ready to start had nothing to click, and the pages that do the
+              convincing (templates, the pipeline walkthrough) were reachable only from the
+              header. A low-commitment second path keeps them on the site.
+            */}
+            <Link
+              href="/how-it-works"
+              className="flex h-14 items-center justify-center rounded-full border border-black/10 bg-white/70 px-10 text-base font-medium text-gray-800 backdrop-blur-md transition-colors duration-200 ease-out hover:border-blue-500/30 hover:text-blue-600 active:scale-[0.97] dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:text-blue-400"
+            >
+              See how it works
+            </Link>
           </motion.div>
 
           <motion.div
@@ -375,11 +388,19 @@ export const HeroHeader = () => {
                   </div>
                 </div>
               </div>
-              <div className="rounded-[1.25rem] bg-gray-100 p-3.5 text-center transition-colors group-hover:bg-blue-50 dark:bg-white/5 dark:group-hover:bg-blue-900/20">
+              {/*
+                Styled exactly like a button and sitting under a "Premium Templates" card,
+                so it read as the card's call to action — but it was a plain <div> and did
+                nothing when clicked. It now goes where it always looked like it went.
+              */}
+              <Link
+                href="/templates"
+                className="focus-visible:ring-opacity-60 block rounded-[1.25rem] bg-gray-100 p-3.5 text-center transition-colors group-hover:bg-blue-50 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:bg-white/5 dark:group-hover:bg-blue-900/20"
+              >
                 <span className="text-sm font-medium text-gray-900 dark:text-white">
                   Explore Gallery
                 </span>
-              </div>
+              </Link>
             </div>
           </motion.div>
         </div>

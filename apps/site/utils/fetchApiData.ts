@@ -107,7 +107,8 @@ export async function fetchApiData<T>(
     const timedOut = cause instanceof DOMException && cause.name === "TimeoutError";
 
     throw new ApiRequestError(
-      errorMessage || (timedOut ? "Request to the backend timed out." : "Could not reach the backend."),
+      errorMessage ||
+        (timedOut ? "Request to the backend timed out." : "Could not reach the backend."),
       timedOut ? 504 : 503,
     );
   }

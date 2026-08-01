@@ -84,14 +84,9 @@ export const siteConfig = {
     cardType: "summary_large_image",
   },
 
-  navigation: [
-    { href: "/templates", label: "Templates" },
-    { href: "/roadmap", label: "Roadmap" },
-    { href: "/stats", label: "Development" },
-
-    { href: links.app, label: "Dashboard" },
-    { href: links.blog, label: "Blog" },
-    { href: links.docs, label: "Docs" },
-    { href: links.portfolio, label: "Portfolio" },
-  ],
+  // NOTE: a `navigation` array used to live here. Nothing imported it — the header reads
+  // `components/layout/navbar/constants.ts` and the footer builds its own columns — so it
+  // was a second, silently diverging copy of the site's nav (it still listed /roadmap and
+  // /stats as top-level items long after the header dropped them). Header nav belongs in
+  // navbar/constants.ts; footer nav in components/layout/Footer.tsx.
 } as const;

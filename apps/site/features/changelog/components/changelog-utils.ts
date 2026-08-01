@@ -1,4 +1,11 @@
-import { Sparkles, TrendingUp, Wrench, ShieldCheck, AlertTriangle, type LucideIcon } from "lucide-react";
+import {
+  Sparkles,
+  TrendingUp,
+  Wrench,
+  ShieldCheck,
+  AlertTriangle,
+  type LucideIcon,
+} from "lucide-react";
 
 import { type ChangelogEntry } from "@/features/changelog/services/changelog-backend";
 
@@ -84,10 +91,7 @@ export function formatChangelogDate(iso: string) {
   });
 }
 
-export function buildChangelogHref(
-  basePath: string,
-  updates: Record<string, string | undefined>,
-) {
+export function buildChangelogHref(basePath: string, updates: Record<string, string | undefined>) {
   const params = new URLSearchParams();
 
   for (const [key, value] of Object.entries(updates)) {

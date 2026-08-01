@@ -1,18 +1,24 @@
 "use client";
 
-import React, { useEffect, useState, type ReactNode } from "react";
+import React, { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
   ArrowRight,
   CornerDownLeft,
   GraduationCap,
+  Lock,
   PartyPopper,
   Rocket,
   Sparkles,
+  Wand2,
 } from "lucide-react";
 import Link from "next/link";
+
 import { submitAmbassadorApplication } from "@/features/ambassador/ambassador-api";
+import { APPLY_REACTIONS } from "@/features/ambassador/apply-reactions";
+import { ReactionMedia } from "@/features/ambassador/ReactionMedia";
+import type { AmbassadorApplicationPayload, ApplyViewer } from "@/features/ambassador/types";
 
 type FormState = {
   collegeName: string;
@@ -47,6 +53,8 @@ const QUESTION_STEPS = [
 const STEP_ORDER = ["intro", ...QUESTION_STEPS, "review"] as const;
 type StepId = (typeof STEP_ORDER)[number];
 
+const REVIEW_INDEX = STEP_ORDER.indexOf("review");
+
 const VIBES = [
   { value: "Meme Lord", emoji: "😎" },
   { value: "Library Goblin", emoji: "📚" },
@@ -58,9 +66,17 @@ const VIBES = [
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_CHIPS = [CURRENT_YEAR, CURRENT_YEAR + 1, CURRENT_YEAR + 2, CURRENT_YEAR + 3];
+/** Mirrors GRADUATION_YEARS_AHEAD in the server's ambassadorValidator. */
+const MAX_GRADUATION_YEAR = CURRENT_YEAR + 8;
+const MIN_GRADUATION_YEAR = CURRENT_YEAR - 1;
 
 const FORM_ERROR_ID = "ambassador-apply-error";
 
+/**
+ * Mirrors AMBASSADOR_FIELD_LIMITS in the server's ambassadorValidator. These are the
+ * server's real ceilings — when they drifted, `maxLength` silently truncated answers the
+ * API would happily have accepted.
+ */
 const FIELD_LIMITS = {
   collegeName: 120,
   graduationYear: 4,
@@ -70,18 +86,83 @@ const FIELD_LIMITS = {
   socialHandle: 100,
 } as const;
 
+/**
+ * Guests fill the whole form before signing in, so the answers have to survive a
+ * round-trip to the login app on another origin. sessionStorage (not localStorage) keeps
+ * that scoped to the tab, so a shared computer does not leak half an application into the
+ * next person's session.
+ */
+const DRAFT_KEY = "veriworkly:ambassador-apply-draft";
+
+type StoredDraft = {
+  form: FormState;
+  stepIndex: number;
+  /** Set when a guest hit "sign in & send" — tells us to auto-submit once they return. */
+  pendingSubmit: boolean;
+};
+
+function readDraft(): StoredDraft | null {
+  try {
+    const raw = window.sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<StoredDraft>;
+    if (!parsed || typeof parsed !== "object" || !parsed.form) return null;
+
+    return {
+      form: { ...EMPTY_FORM, ...parsed.form },
+      stepIndex:
+        typeof parsed.stepIndex === "number"
+          ? Math.min(Math.max(parsed.stepIndex, 0), STEP_ORDER.length - 1)
+          : 0,
+      pendingSubmit: Boolean(parsed.pendingSubmit),
+    };
+  } catch {
+    // Private-mode storage errors and hand-mangled JSON both land here. A lost draft is
+    // annoying; a crashed apply page is worse.
+    return null;
+  }
+}
+
+function writeDraft(draft: StoredDraft) {
+  try {
+    window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    /* storage unavailable — the form still works, it just will not survive a reload */
+  }
+}
+
+function clearDraft() {
+  try {
+    window.sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* nothing to do */
+  }
+}
+
 function validateStep(step: StepId, form: FormState): string | null {
   switch (step) {
     case "college":
-      return form.collegeName.trim().length >= 2 ? null : "Tell us where you're studying.";
-    case "year":
-      return /^(19|20)\d{2}$/.test(form.graduationYear.trim())
+      return form.collegeName.trim().length >= 2
         ? null
-        : "Enter a real 4-digit graduation year.";
-    case "why":
-      return form.whyJoin.trim().length >= 20
+        : "We need a campus name — even if it's just 'the library, mostly'.";
+    case "year": {
+      const value = form.graduationYear.trim();
+      if (!/^\d{4}$/.test(value)) return "Enter a real 4-digit graduation year.";
+
+      const year = Number(value);
+      if (year < MIN_GRADUATION_YEAR || year > MAX_GRADUATION_YEAR) {
+        return `This one's for current students — pick a year between ${MIN_GRADUATION_YEAR} and ${MAX_GRADUATION_YEAR}.`;
+      }
+
+      return null;
+    }
+    case "why": {
+      const remaining = 20 - form.whyJoin.trim().length;
+      return remaining <= 0
         ? null
-        : `Give us ${20 - form.whyJoin.trim().length} more characters — we want the real story.`;
+        : `${remaining} more character${remaining === 1 ? "" : "s"} — we want the real story.`;
+    }
     case "superpower":
       return form.superpower.trim().length >= 2 ? null : "Every ambassador needs a superpower.";
     case "funfact":
@@ -89,6 +170,16 @@ function validateStep(step: StepId, form: FormState): string | null {
     default:
       return null;
   }
+}
+
+/** Re-checks every required question. Guards the review step and the post-login resume. */
+function findFirstInvalidStep(form: FormState): { step: StepId; message: string } | null {
+  for (const step of QUESTION_STEPS) {
+    const message = validateStep(step, form);
+    if (message) return { step, message };
+  }
+
+  return null;
 }
 
 const stepVariants = {
@@ -142,10 +233,34 @@ function ConfettiBurst() {
   );
 }
 
-const AmbassadorApplyExperience = () => {
+function formFromViewer(viewer: ApplyViewer): FormState {
+  const draft = viewer.draft;
+  if (!draft) return EMPTY_FORM;
+
+  return {
+    collegeName: draft.collegeName ?? "",
+    graduationYear: draft.graduationYear ?? "",
+    whyJoin: draft.whyJoin ?? "",
+    superpower: draft.superpower ?? "",
+    funFact: draft.funFact ?? "",
+    vibeCheck: draft.vibeCheck ?? "",
+    socialHandle: draft.socialHandle ?? "",
+  };
+}
+
+const AmbassadorApplyExperience = ({
+  viewer,
+  loginUrl,
+}: {
+  viewer: ApplyViewer;
+  /** Where a guest goes to sign in, already carrying a callback back to this page. */
+  loginUrl: string;
+}) => {
+  const prefilled = formFromViewer(viewer);
+
   const [stepIndex, setStepIndex] = useState(0);
   const [direction, setDirection] = useState(1);
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [form, setForm] = useState<FormState>(prefilled);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -154,6 +269,88 @@ const AmbassadorApplyExperience = () => {
   const questionNumber = QUESTION_STEPS.indexOf(step as (typeof QUESTION_STEPS)[number]) + 1;
   const progress =
     questionNumber > 0 ? Math.round((questionNumber / QUESTION_STEPS.length) * 100) : 0;
+
+  const autofilledSchool = Boolean(prefilled.collegeName || prefilled.graduationYear);
+
+  const submitApplication = useCallback(async (payload: FormState) => {
+    setSubmitting(true);
+    setError("");
+
+    try {
+      const body: AmbassadorApplicationPayload = {
+        collegeName: payload.collegeName.trim(),
+        graduationYear: payload.graduationYear.trim(),
+        whyJoin: payload.whyJoin.trim(),
+        superpower: payload.superpower.trim(),
+        funFact: payload.funFact.trim(),
+        vibeCheck: payload.vibeCheck || undefined,
+        socialHandle: payload.socialHandle.trim() || undefined,
+      };
+
+      await submitAmbassadorApplication(body);
+      clearDraft();
+      setSubmitted(true);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Something glitched. Mind giving it another shot?",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }, []);
+
+  // Restore a draft on mount, and finish the job for a guest who just came back from
+  // logging in. Runs once — later edits are persisted by the effect below.
+  const restored = useRef(false);
+  useEffect(() => {
+    if (restored.current) return;
+    restored.current = true;
+
+    const draft = readDraft();
+    if (!draft) return;
+
+    // The account is the better source for school/year; the local draft wins everywhere
+    // else, since it is what the visitor actually typed this session.
+    const merged: FormState = {
+      ...draft.form,
+      collegeName: draft.form.collegeName || prefilled.collegeName,
+      graduationYear: draft.form.graduationYear || prefilled.graduationYear,
+    };
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setForm(merged);
+
+    if (draft.pendingSubmit && viewer.isAuthenticated) {
+      const invalid = findFirstInvalidStep(merged);
+
+      if (invalid) {
+        // Signed in but the draft no longer validates — drop them on the offending
+        // question rather than firing a request we know the API will reject.
+        setStepIndex(STEP_ORDER.indexOf(invalid.step));
+        setError(invalid.message);
+        return;
+      }
+
+      setStepIndex(REVIEW_INDEX);
+      void submitApplication(merged);
+      return;
+    }
+
+    setStepIndex(draft.stepIndex);
+  }, [prefilled.collegeName, prefilled.graduationYear, viewer.isAuthenticated, submitApplication]);
+
+  // Keep the draft warm so a reload — or the trip through login — does not cost answers.
+  useEffect(() => {
+    if (submitted || !restored.current) return;
+    writeDraft({ form, stepIndex, pendingSubmit: false });
+  }, [form, stepIndex, submitted]);
+
+  const updateField = useCallback((patch: Partial<FormState>) => {
+    setForm((f) => ({ ...f, ...patch }));
+    // Clearing on edit stops a stale message from sitting there — and stops the field
+    // being announced as invalid while the visitor is actively fixing it.
+    setError("");
+  }, []);
 
   const goNext = () => {
     const validationError = validateStep(step, form);
@@ -172,37 +369,32 @@ const AmbassadorApplyExperience = () => {
     setStepIndex((i) => Math.max(i - 1, 0));
   };
 
-  const handleSubmit = async () => {
-    setSubmitting(true);
-    setError("");
-    try {
-      await submitAmbassadorApplication({
-        collegeName: form.collegeName.trim(),
-        graduationYear: form.graduationYear.trim(),
-        whyJoin: form.whyJoin.trim(),
-        superpower: form.superpower.trim(),
-        funFact: form.funFact.trim(),
-        vibeCheck: form.vibeCheck || undefined,
-        socialHandle: form.socialHandle.trim() || undefined,
-      });
-      setSubmitted(true);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Something glitched. Mind giving it another shot?",
-      );
-    } finally {
-      setSubmitting(false);
+  const handleReviewSubmit = () => {
+    const invalid = findFirstInvalidStep(form);
+    if (invalid) {
+      setDirection(-1);
+      setStepIndex(STEP_ORDER.indexOf(invalid.step));
+      setError(invalid.message);
+      return;
     }
+
+    if (!viewer.isAuthenticated) {
+      // Park the finished application and send them to sign in. The mount effect above
+      // picks it back up and submits automatically when they land here again.
+      writeDraft({ form, stepIndex, pendingSubmit: true });
+      window.location.href = loginUrl;
+      return;
+    }
+
+    void submitApplication(form);
   };
 
   const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (submitting) return;
-    if (step === "review") {
-      void handleSubmit();
-    } else {
-      goNext();
-    }
+
+    if (step === "review") handleReviewSubmit();
+    else goNext();
   };
 
   useEffect(() => {
@@ -230,8 +422,10 @@ const AmbassadorApplyExperience = () => {
         </h2>
         <p className="mt-3 max-w-sm text-sm leading-6 text-zinc-500 dark:text-zinc-400">
           We just read your application and we&apos;re already vibing with it. Give us a few days to
-          review, then check your inbox — good news travels fast.
+          review — your status lives in your dashboard, and we&apos;ll email you the moment it
+          changes.
         </p>
+        <ReactionMedia reaction={APPLY_REACTIONS.success} className="mt-8" />
         <Link
           href="/"
           className="mt-8 inline-flex items-center justify-center rounded-full border border-zinc-950/10 bg-zinc-950 px-8 py-3.5 text-xs font-black tracking-wider text-white uppercase shadow-lg transition-all hover:bg-zinc-900 active:scale-[0.98] dark:border-white/20 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100"
@@ -293,15 +487,43 @@ const AmbassadorApplyExperience = () => {
                   <Rocket className="h-8 w-8" />
                 </motion.div>
                 <h1 className="mt-6 text-2xl font-extrabold tracking-tight text-zinc-950 sm:text-4xl dark:text-white">
-                  Let&apos;s see if you&apos;ve got main-character energy 🎓
+                  {viewer.name
+                    ? `${viewer.name.split(" ")[0]}, let's see that main-character energy 🎓`
+                    : "Let's see if you've got main-character energy 🎓"}
                 </h1>
                 <p className="mt-4 max-w-md text-sm leading-6 text-zinc-500 sm:text-base dark:text-zinc-400">
-                  Seven quick questions. No essays, no cover letters, no cap. Just be yourself —
-                  that&apos;s literally the whole application.
+                  Seven quick questions. No essays, no cover letters, no cap. Roughly two minutes —
+                  less if you type like you&apos;re in a group chat.
                 </p>
+                <ReactionMedia reaction={APPLY_REACTIONS.intro} className="mt-8" />
+                {viewer.draft?.whyJoin && (
+                  <p className="mt-6 max-w-md rounded-xl border border-zinc-200/70 bg-zinc-50 px-4 py-3 text-xs leading-5 text-zinc-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-400">
+                    We kept your last answers — edit what you want and send it again.
+                  </p>
+                )}
+                {viewer.reviewNote && (
+                  <div className="mt-4 max-w-md rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3 text-left">
+                    <p className="text-[10px] font-black tracking-widest text-amber-700 uppercase dark:text-amber-500">
+                      Feedback from last time
+                    </p>
+                    <p className="mt-1.5 text-xs leading-5 text-zinc-600 dark:text-zinc-300">
+                      {viewer.reviewNote}
+                    </p>
+                  </div>
+                )}
+                {!viewer.isAuthenticated && (
+                  <p className="mt-6 flex items-center gap-1.5 rounded-full bg-zinc-100 px-4 py-2 text-[11px] font-semibold text-zinc-500 dark:bg-white/5 dark:text-zinc-400">
+                    <Lock className="h-3 w-3" aria-hidden="true" />
+                    Answer first, sign in at the end. We&apos;ll keep your answers.
+                  </p>
+                )}
                 <button
+                  // Explicitly `button`: inside a <form> the default is `submit`, which
+                  // fired onClick *and* the form's onSubmit, advancing two steps at once
+                  // and skipping the very first question.
+                  type="button"
                   onClick={goNext}
-                  className="mt-10 inline-flex items-center justify-center gap-2 rounded-full border border-zinc-950/10 bg-zinc-950 px-8 py-4 text-xs font-black tracking-wider text-white uppercase shadow-lg transition-all hover:bg-zinc-900 active:scale-[0.98] dark:border-white/20 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100"
+                  className="mt-8 inline-flex items-center justify-center gap-2 rounded-full border border-zinc-950/10 bg-zinc-950 px-8 py-4 text-xs font-black tracking-wider text-white uppercase shadow-lg transition-all hover:bg-zinc-900 active:scale-[0.98] dark:border-white/20 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100"
                 >
                   Let&apos;s go
                   <ArrowRight className="h-4 w-4" />
@@ -312,7 +534,7 @@ const AmbassadorApplyExperience = () => {
             {step === "college" && (
               <QuestionShell
                 fieldId="collegeName"
-                emoji="🏫"
+                reactionKey="college"
                 title="Where do you go to school?"
                 subtitle="College, university, bootcamp — whatever your campus looks like."
               >
@@ -324,28 +546,29 @@ const AmbassadorApplyExperience = () => {
                   maxLength={FIELD_LIMITS.collegeName}
                   autoComplete="organization"
                   invalid={Boolean(error)}
-                  onChange={(v) => setForm((f) => ({ ...f, collegeName: v }))}
+                  onChange={(v) => updateField({ collegeName: v })}
                 />
+                {autofilledSchool && <AutofillHint />}
               </QuestionShell>
             )}
 
             {step === "year" && (
               <QuestionShell
                 fieldId="graduationYear"
-                emoji="🎓"
-                title="When do you graduate?"
+                reactionKey="year"
+                title="When do they finally let you leave?"
                 subtitle="Pick a year or type your own."
               >
                 <BigInput
                   autoFocus
                   id="graduationYear"
                   value={form.graduationYear}
-                  placeholder="e.g. 2027"
+                  placeholder={`e.g. ${CURRENT_YEAR + 1}`}
                   inputMode="numeric"
                   maxLength={FIELD_LIMITS.graduationYear}
                   invalid={Boolean(error)}
                   onChange={(v) =>
-                    setForm((f) => ({ ...f, graduationYear: v.replace(/\D/g, "").slice(0, 4) }))
+                    updateField({ graduationYear: v.replace(/\D/g, "").slice(0, 4) })
                   }
                 />
                 <div
@@ -358,17 +581,18 @@ const AmbassadorApplyExperience = () => {
                       key={year}
                       label={String(year)}
                       active={form.graduationYear === String(year)}
-                      onClick={() => setForm((f) => ({ ...f, graduationYear: String(year) }))}
+                      onClick={() => updateField({ graduationYear: String(year) })}
                     />
                   ))}
                 </div>
+                {autofilledSchool && <AutofillHint />}
               </QuestionShell>
             )}
 
             {step === "why" && (
               <QuestionShell
                 fieldId="whyJoin"
-                emoji="💬"
+                reactionKey="why"
                 title="Why do you want to rep VeriWorkly on campus?"
                 subtitle="Real talk, no corporate speak. At least 20 characters."
               >
@@ -379,7 +603,7 @@ const AmbassadorApplyExperience = () => {
                   placeholder="I'm the friend who unofficially fixes everyone's resume anyway..."
                   maxLength={FIELD_LIMITS.whyJoin}
                   invalid={Boolean(error)}
-                  onChange={(v) => setForm((f) => ({ ...f, whyJoin: v }))}
+                  onChange={(v) => updateField({ whyJoin: v })}
                 />
               </QuestionShell>
             )}
@@ -387,9 +611,9 @@ const AmbassadorApplyExperience = () => {
             {step === "superpower" && (
               <QuestionShell
                 fieldId="superpower"
-                emoji="⚡"
-                title="If you had one superpower for this gig, what would it be?"
-                subtitle="Convincing your entire group chat to try a new app counts."
+                reactionKey="superpower"
+                title="What's your unfair advantage?"
+                subtitle="Convincing your entire group chat to try a new app absolutely counts."
               >
                 <BigInput
                   autoFocus
@@ -398,7 +622,7 @@ const AmbassadorApplyExperience = () => {
                   placeholder="e.g. Turning DMs into instant conversions"
                   maxLength={FIELD_LIMITS.superpower}
                   invalid={Boolean(error)}
-                  onChange={(v) => setForm((f) => ({ ...f, superpower: v }))}
+                  onChange={(v) => updateField({ superpower: v })}
                 />
               </QuestionShell>
             )}
@@ -406,9 +630,9 @@ const AmbassadorApplyExperience = () => {
             {step === "funfact" && (
               <QuestionShell
                 fieldId="funFact"
-                emoji="🎲"
+                reactionKey="funfact"
                 title="Give us a fun fact about you"
-                subtitle="Weird talent, wild trivia, embarrassing hobby — we want it."
+                subtitle="Weird talent, wild trivia, deeply embarrassing hobby — we want it."
               >
                 <BigInput
                   autoFocus
@@ -417,7 +641,7 @@ const AmbassadorApplyExperience = () => {
                   placeholder="e.g. I can solve a Rubik's cube in under a minute"
                   maxLength={FIELD_LIMITS.funFact}
                   invalid={Boolean(error)}
-                  onChange={(v) => setForm((f) => ({ ...f, funFact: v }))}
+                  onChange={(v) => updateField({ funFact: v })}
                 />
               </QuestionShell>
             )}
@@ -425,9 +649,9 @@ const AmbassadorApplyExperience = () => {
             {step === "vibe" && (
               <QuestionShell
                 fieldId="vibeCheck"
-                emoji="🌈"
+                reactionKey="vibe"
                 title="Pick your campus vibe"
-                subtitle="Optional — but we're curious."
+                subtitle="Optional — but this is the one we'll all argue about internally."
               >
                 <div
                   role="group"
@@ -441,10 +665,7 @@ const AmbassadorApplyExperience = () => {
                       label={`${vibe.emoji} ${vibe.value}`}
                       active={form.vibeCheck === vibe.value}
                       onClick={() =>
-                        setForm((f) => ({
-                          ...f,
-                          vibeCheck: f.vibeCheck === vibe.value ? "" : vibe.value,
-                        }))
+                        updateField({ vibeCheck: form.vibeCheck === vibe.value ? "" : vibe.value })
                       }
                     />
                   ))}
@@ -455,7 +676,7 @@ const AmbassadorApplyExperience = () => {
             {step === "social" && (
               <QuestionShell
                 fieldId="socialHandle"
-                emoji="📱"
+                reactionKey="social"
                 title="Drop a social handle"
                 subtitle="Instagram, LinkedIn, X, TikTok — optional, so we can hype you up."
               >
@@ -466,7 +687,7 @@ const AmbassadorApplyExperience = () => {
                   placeholder="@yourhandle"
                   maxLength={FIELD_LIMITS.socialHandle}
                   invalid={Boolean(error)}
-                  onChange={(v) => setForm((f) => ({ ...f, socialHandle: v }))}
+                  onChange={(v) => updateField({ socialHandle: v })}
                 />
               </QuestionShell>
             )}
@@ -500,12 +721,24 @@ const AmbassadorApplyExperience = () => {
                   {form.socialHandle && <ReviewRow label="Social" value={form.socialHandle} />}
                 </dl>
 
+                {!viewer.isAuthenticated && (
+                  <p className="mt-5 flex items-start gap-2 rounded-xl border border-indigo-500/20 bg-indigo-500/5 px-4 py-3 text-xs leading-5 font-semibold text-indigo-700 dark:text-indigo-300">
+                    <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    One last step: sign in so we know who to send the good news to. Your answers are
+                    saved and sent automatically the second you&apos;re back.
+                  </p>
+                )}
+
                 <button
                   type="submit"
                   disabled={submitting}
                   className="mt-8 flex h-14 w-full items-center justify-center gap-2 rounded-full bg-zinc-950 text-sm font-black tracking-wider text-white uppercase shadow-lg transition-all hover:bg-zinc-900 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-100"
                 >
-                  {submitting ? "Sending it..." : "Submit application"}
+                  {submitting
+                    ? "Sending it..."
+                    : viewer.isAuthenticated
+                      ? "Submit application"
+                      : "Sign in & send it"}
                   {!submitting && <ArrowRight className="h-4 w-4" aria-hidden="true" />}
                 </button>
               </div>
@@ -567,14 +800,23 @@ const AmbassadorApplyExperience = () => {
   );
 };
 
+function AutofillHint() {
+  return (
+    <p className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+      <Wand2 className="h-3 w-3" aria-hidden="true" />
+      Filled in from your account — change it if it&apos;s wrong.
+    </p>
+  );
+}
+
 function QuestionShell({
-  emoji,
+  reactionKey,
   title,
   subtitle,
   fieldId,
   children,
 }: {
-  emoji: string;
+  reactionKey: keyof typeof APPLY_REACTIONS;
   title: string;
   subtitle: string;
   /** Id of the field this question labels — wires the heading/subtitle to it. */
@@ -583,18 +825,23 @@ function QuestionShell({
 }) {
   return (
     <div>
-      <span className="text-3xl" aria-hidden="true">
-        {emoji}
-      </span>
-      <h2
-        id={`${fieldId}-label`}
-        className="mt-4 text-xl font-extrabold tracking-tight text-zinc-950 sm:text-2xl dark:text-white"
-      >
-        {title}
-      </h2>
-      <p id={`${fieldId}-hint`} className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-        {subtitle}
-      </p>
+      <div className="flex items-start justify-between gap-6">
+        <div className="min-w-0">
+          <h2
+            id={`${fieldId}-label`}
+            className="text-xl font-extrabold tracking-tight text-zinc-950 sm:text-2xl dark:text-white"
+          >
+            {title}
+          </h2>
+          <p id={`${fieldId}-hint`} className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+            {subtitle}
+          </p>
+        </div>
+        <ReactionMedia
+          reaction={APPLY_REACTIONS[reactionKey]}
+          className="hidden shrink-0 sm:flex"
+        />
+      </div>
       <div className="mt-6">{children}</div>
     </div>
   );

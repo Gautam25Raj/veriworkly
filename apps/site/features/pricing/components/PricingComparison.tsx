@@ -1,5 +1,6 @@
 import { CheckCircle2, Minus } from "lucide-react";
 import { comparisonRows, type ProductKey, type BillingInterval } from "../data/pricingData";
+import { useCurrency } from "../context/CurrencyContext";
 import CheckoutButton from "./CheckoutButton";
 
 interface PricingComparisonProps {
@@ -9,6 +10,10 @@ interface PricingComparisonProps {
 }
 
 const PricingComparison = ({ loading, paymentsBlocked, onCheckout }: PricingComparisonProps) => {
+  // Hardcoding "$11.99" here contradicted the hero's cards for anyone on INR — the same
+  // plan quoted two different prices on one page.
+  const { formatPrice } = useCurrency();
+
   return (
     <section className="bg-card border-border border-b py-24 lg:py-32">
       <div className="mx-auto w-[min(1180px,calc(100%-32px))]">
@@ -25,12 +30,19 @@ const PricingComparison = ({ loading, paymentsBlocked, onCheckout }: PricingComp
           </p>
         </div>
 
+        {/*
+          A horizontally scrollable region has to be reachable by keyboard (WCAG 2.1.1) —
+          without tabIndex a keyboard-only visitor can never scroll to the Bundle column.
+          The ARIA table roles live on the inner grid so the focusable scroll container
+          does not sit between `table` and its `row` children and break the structure.
+        */}
         <div
-          role="table"
-          aria-label="Feature and plan comparison"
-          className="border-border bg-background mt-14 overflow-x-auto rounded-3xl border"
+          tabIndex={0}
+          role="group"
+          aria-label="Feature and plan comparison, scrollable"
+          className="border-border bg-background focus-visible:ring-accent/40 mt-14 overflow-x-auto rounded-3xl border focus-visible:ring-2 focus-visible:outline-none"
         >
-          <div className="min-w-210">
+          <div className="min-w-210" role="table" aria-label="Feature and plan comparison">
             <div
               className="border-border bg-muted/30 text-muted grid grid-cols-[minmax(250px,1.2fr)_repeat(4,140px)] border-b px-6 py-5 text-xs font-bold tracking-wider uppercase"
               role="row"
@@ -56,9 +68,21 @@ const PricingComparison = ({ loading, paymentsBlocked, onCheckout }: PricingComp
                 key={label}
                 role="row"
               >
-                <span className="text-foreground/90 pr-4 font-medium">{label}</span>
+                {/*
+                  Needs an explicit role: an element with no role inside role="row" is not
+                  a valid cell, and assistive tech drops the whole row's labels — every
+                  checkmark would be announced with nothing to say what it applies to.
+                */}
+                <span role="rowheader" className="text-foreground/90 pr-4 font-medium">
+                  {label}
+                </span>
                 {values.map((enabled, index) => (
                   <span className="grid place-items-center" key={`${label}-${index}`} role="cell">
+                    {/*
+                      Every cell is an icon, so without this the entire body of the table
+                      is announced as blank rows — the icons carry 100% of the meaning.
+                    */}
+                    <span className="sr-only">{enabled ? "Included" : "Not included"}</span>
                     {enabled ? (
                       <span
                         className={`inline-flex items-center justify-center rounded-full border p-1 transition-colors ${
@@ -67,7 +91,7 @@ const PricingComparison = ({ loading, paymentsBlocked, onCheckout }: PricingComp
                             : "bg-foreground/5 border-foreground/10 text-foreground"
                         }`}
                       >
-                        <CheckCircle2 className="size-3.5 shrink-0" />
+                        <CheckCircle2 className="size-3.5 shrink-0" aria-hidden="true" />
                       </span>
                     ) : (
                       <span className="bg-muted/10 border-border text-muted/40 inline-flex items-center justify-center rounded-full border p-1">
@@ -87,7 +111,7 @@ const PricingComparison = ({ loading, paymentsBlocked, onCheckout }: PricingComp
               Best long-term value
             </p>
             <h3 className="mt-2 text-2xl font-bold tracking-tight">
-              A full year for $11.99 per month.
+              A full year for {formatPrice(11.99)} per month.
             </h3>
           </div>
           <CheckoutButton

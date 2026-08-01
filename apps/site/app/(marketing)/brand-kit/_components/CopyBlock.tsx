@@ -33,7 +33,7 @@ const CopyBlock = ({ label, text }: CopyBlockProps) => {
         >
           {copied ? (
             <>
-              <Check className="text-emerald-500 size-3.5" aria-hidden="true" />
+              <Check className="text-success size-3.5" aria-hidden="true" />
               Copied
             </>
           ) : (

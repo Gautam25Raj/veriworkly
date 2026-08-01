@@ -1,68 +1,47 @@
 import { Palette } from "lucide-react";
 
-import { ColorCard } from "./ColorCard";
+import { TokenSwatch } from "@/components/brand/TokenSwatch";
+import { brandColors } from "@/config/brand";
+
 import { SectionHeader } from "./SectionHeader";
 
-const COLORS = [
-  {
-    hex: "#F5F4EF",
-    name: "Background",
-    variable: "--background",
-    description: "Primary page background",
-  },
-  {
-    hex: "#171717",
-    name: "Foreground",
-    variable: "--foreground",
-    description: "Main text color",
-  },
-  {
-    hex: "#2563EB",
-    name: "Accent (Blue)",
-    variable: "--accent",
-    description: "Primary action color",
-  },
-  {
-    name: "Card",
-    hex: "#FFFFFF",
-    variable: "--card",
-    description: "Component surfaces",
-  },
-  {
-    name: "Muted",
-    hex: "#5F5C54",
-    variable: "--muted",
-    description: "Secondary text and details",
-  },
-  {
-    name: "Border",
-    variable: "--border",
-    hex: "rgba(23, 23, 23, 0.12)",
-    description: "Subtle dividers",
-  },
-  {
-    name: "Destructive",
-    hex: "#DC2626",
-    variable: "--destructive",
-    description: "Error and danger states",
-  },
-  {
-    name: "Accent FG",
-    hex: "#F8FBFF",
-    variable: "--accent-foreground",
-    description: "Text on accent background",
-  },
-];
-
 export const ColorSection = () => {
+  const core = brandColors.filter((token) => token.core);
+  const rest = brandColors.filter((token) => !token.core);
+
   return (
     <section id="colors" className="scroll-mt-24 space-y-8">
       <SectionHeader icon={Palette} title="Colors" />
 
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {COLORS.map((color) => (
-          <ColorCard key={color.variable} {...color} />
-        ))}
+      <p className="text-muted max-w-3xl text-sm leading-relaxed">
+        Every token carries a light and a dark value, both read from{" "}
+        <code className="font-mono text-xs">packages/ui/src/styles/themes.css</code>. Each swatch
+        shows the two side by side, composited over the page background of its own theme so that
+        alpha tokens like <code className="font-mono text-xs">--border</code> read honestly.
+      </p>
+
+      <div className="space-y-6">
+        <h3 className="text-muted text-xs font-semibold tracking-[0.24em] uppercase">
+          Core palette
+        </h3>
+
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {core.map((token) => (
+            <TokenSwatch key={token.variable} {...token} />
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <h3 className="text-muted text-xs font-semibold tracking-[0.24em] uppercase">
+          Status &amp; internal tokens
+        </h3>
+
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {rest.map((token) => (
+            <TokenSwatch key={token.variable} {...token} />
+          ))}
+        </div>
       </div>
     </section>
   );

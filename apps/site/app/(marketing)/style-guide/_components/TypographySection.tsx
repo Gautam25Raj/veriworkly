@@ -1,83 +1,63 @@
 import { Type } from "lucide-react";
 
 import { Card } from "@veriworkly/ui";
+import { fontStack, typeScale } from "@/config/brand";
 
 import { SectionHeader } from "./SectionHeader";
 
-const TYPOGRAPHY_SAMPLES = [
-  {
-    label: "Display",
-    title: "Heading 1 (Hero)",
-    className: "text-4xl font-semibold tracking-tight sm:text-5xl md:text-6xl",
-    description: "text-4xl sm:text-5xl md:text-6xl / font-semibold / tracking-tight",
-    tag: "p",
-  },
-  {
-    label: "Section Header",
-    title: "Heading 2 (Section)",
-    className: "text-3xl font-semibold tracking-tight",
-    description: "text-3xl / font-semibold / tracking-tight",
-    tag: "h2",
-  },
-  {
-    label: "Component Header",
-    title: "Heading 3 (Card Title)",
-    className: "text-xl font-semibold tracking-tight",
-    description: "text-xl / font-semibold / tracking-tight",
-    tag: "h3",
-  },
-];
+const SPECIMEN = "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz 0123456789";
 
 export const TypographySection = () => {
   return (
     <section id="typography" className="scroll-mt-24 space-y-8">
       <SectionHeader icon={Type} title="Typography" />
 
-      <Card className="divide-border divide-y overflow-hidden">
-        {TYPOGRAPHY_SAMPLES.map((sample, index) => (
-          <div key={index} className="space-y-4 p-8">
-            <p className="text-muted text-xs font-semibold tracking-[0.24em] uppercase">
-              {sample.label}
-            </p>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="space-y-4 p-8">
+          <p className="text-muted text-xs font-semibold tracking-[0.24em] uppercase">
+            {fontStack.sans.family}
+          </p>
 
-            {sample.tag === "h2" ? (
-              <h2 className={sample.className}>{sample.title}</h2>
-            ) : sample.tag === "h3" ? (
-              <h3 className={sample.className}>{sample.title}</h3>
-            ) : (
-              <p className={sample.className}>{sample.title}</p>
-            )}
+          <p className="text-3xl leading-tight font-semibold tracking-tight">Aa Bb Cc</p>
 
-            <p className="text-muted text-sm italic">{sample.description}</p>
+          <p className="text-sm leading-relaxed wrap-break-word">{SPECIMEN}</p>
+
+          <p className="text-muted font-mono text-xs">var({fontStack.sans.variable})</p>
+          <p className="text-muted text-xs leading-relaxed">{fontStack.sans.usage}</p>
+        </Card>
+
+        <Card className="space-y-4 p-8">
+          <p className="text-muted text-xs font-semibold tracking-[0.24em] uppercase">
+            {fontStack.mono.family}
+          </p>
+
+          <p className="font-mono text-3xl leading-tight font-semibold">Aa Bb Cc</p>
+
+          <p className="font-mono text-sm leading-relaxed wrap-break-word">{SPECIMEN}</p>
+
+          <p className="text-muted font-mono text-xs">var({fontStack.mono.variable})</p>
+          <p className="text-muted text-xs leading-relaxed">{fontStack.mono.usage}</p>
+        </Card>
+      </div>
+
+      <Card className="divide-border divide-y overflow-hidden p-0">
+        {typeScale.map((step) => (
+          <div key={step.label} className="space-y-4 p-8">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+              <p className="text-muted text-xs font-semibold tracking-[0.24em] uppercase">
+                {step.label}
+              </p>
+
+              <p className="text-muted font-mono text-xs tabular-nums">
+                {step.sizes} · {step.weight} · {step.tracking} · {step.lineHeight}
+              </p>
+            </div>
+
+            <p className={step.className}>{step.usage}</p>
+
+            <p className="text-muted font-mono text-[11px] wrap-break-word">{step.className}</p>
           </div>
         ))}
-
-        <div className="space-y-4 p-8">
-          <p className="text-muted text-xs font-semibold tracking-[0.24em] uppercase">Body Text</p>
-
-          <p className="text-base leading-8 md:text-lg">
-            The quick brown fox jumps over the lazy dog. This is the primary body text used for
-            descriptions and long-form content. It prioritizes readability and proper line spacing.
-          </p>
-
-          <p className="text-muted text-sm italic">text-base leading-8 md:text-lg</p>
-        </div>
-
-        <div className="space-y-4 p-8">
-          <p className="text-muted text-xs font-semibold tracking-[0.24em] uppercase">Font Stack</p>
-
-          <p className="text-base leading-7">
-            Primary font token: <span className="font-mono">--font-geist-sans</span>
-          </p>
-
-          <p className="text-base leading-7">
-            Monospace token: <span className="font-mono">--font-geist-mono</span>
-          </p>
-
-          <p className="text-muted text-sm italic">
-            Configured through @veriworkly/ui font variables and consumed by each app.
-          </p>
-        </div>
       </Card>
     </section>
   );

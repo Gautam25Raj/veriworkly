@@ -66,8 +66,10 @@ const Footer = () => {
     <LandingFooter
       shortName={siteConfig.shortName}
       headingPrefix="Are You Interested"
-      ctaText="Contact Sales"
-      ctaHref={siteConfig.links.app}
+      // Was pointing at the Studio dashboard, so the one button labelled "Contact" was
+      // the only footer link that could not reach anyone.
+      ctaText="Talk to the team"
+      ctaHref="/contact"
       logoSrc="/veriworkly-logo.png"
       authorName="Gautam Raj"
       socialLinks={socialLinks}

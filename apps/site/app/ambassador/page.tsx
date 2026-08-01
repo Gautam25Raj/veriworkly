@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import dynamic from "next/dynamic";
 import { siteConfig } from "@/config/site";
+import { jsonLdScriptProps } from "@/utils/json-ld";
 import AmbassadorNav from "@/features/ambassador/AmbassadorNav";
 import AmbassadorHero from "@/features/ambassador/AmbassadorHero";
 import AmbassadorPerks from "@/features/ambassador/AmbassadorPerks";
@@ -66,11 +67,10 @@ const AmbassadorPage = () => {
 
   return (
     <>
+      {/* Uses the shared helper rather than a hand-rolled copy of the same escaping. */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(ambassadorSchema).replace(/</g, "\\u003c"),
-        }}
+        dangerouslySetInnerHTML={jsonLdScriptProps(ambassadorSchema)}
       />
 
       <div className="bg-background relative min-h-screen">

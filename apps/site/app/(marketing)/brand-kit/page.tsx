@@ -8,8 +8,10 @@ import BrandKitHeader from "./_components/BrandKitHeader";
 import LogoSection from "./_components/LogoSection";
 import ColorSection from "./_components/ColorSection";
 import BrandTypographySection from "./_components/BrandTypographySection";
+import SocialSection from "./_components/SocialSection";
 import VoiceSection from "./_components/VoiceSection";
 import BoilerplateSection from "./_components/BoilerplateSection";
+import PressSection from "./_components/PressSection";
 
 const ogImage = `/api/og?title=${encodeURIComponent("Brand Kit")}&description=${encodeURIComponent(
   "Logos, colors, typography, and voice guidelines for VeriWorkly.",
@@ -43,8 +45,10 @@ const BrandKitPage = () => {
         <LogoSection />
         <ColorSection />
         <BrandTypographySection />
+        <SocialSection />
         <VoiceSection />
         <BoilerplateSection />
+        <PressSection />
       </Container>
     </div>
   );

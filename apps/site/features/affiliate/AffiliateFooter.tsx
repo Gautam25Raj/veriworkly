@@ -173,15 +173,21 @@ const AffiliateFooter = () => {
                   LinkedIn
                 </Link>
               </li>
+              {/*
+                Was a hardcoded `discord.gg/veriworkly` invite — the only social URL on the
+                site that bypassed `siteConfig`, referenced nowhere else, and pointing at a
+                server no other page acknowledges. GitHub Discussions is the community
+                channel /contact and /security actually direct people to.
+              */}
               <li>
                 <Link
-                  href="https://discord.gg/veriworkly"
+                  href={`${siteConfig.links.github}/discussions`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-foreground flex items-center gap-2 transition-colors"
                 >
                   <MessageSquare className="h-3.5 w-3.5" />
-                  Discord
+                  Discussions
                 </Link>
               </li>
             </ul>

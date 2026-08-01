@@ -12,7 +12,19 @@ const ChangelogSearch = () => {
   const [value, setValue] = useState(searchParams.get("search") ?? "");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /**
+   * The debounce effect also fires on mount, where `value` is whatever the URL already
+   * says. That scheduled a `router.replace` to the identical URL 350ms into every single
+   * /changelog visit — and because /changelog is server-rendered per request, each one
+   * cost a full RSC round-trip to re-fetch a page the visitor was already looking at.
+   * Nothing about it was visible, which is why it survived. Only user typing should
+   * navigate.
+   */
+  const hasTyped = useRef(false);
+
   useEffect(() => {
+    if (!hasTyped.current) return;
+
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     debounceRef.current = setTimeout(() => {
@@ -37,7 +49,10 @@ const ChangelogSearch = () => {
       <input
         type="search"
         value={value}
-        onChange={(event) => setValue(event.target.value)}
+        onChange={(event) => {
+          hasTyped.current = true;
+          setValue(event.target.value);
+        }}
         placeholder="Search releases…"
         aria-label="Search changelog"
         className="text-foreground placeholder:text-muted/70 w-full min-w-0 bg-transparent font-sans text-xs font-medium outline-none"

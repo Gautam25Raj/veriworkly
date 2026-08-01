@@ -5,7 +5,13 @@ import { ArrowRight, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { siteConfig } from "@/config/site";
 
-const AffiliateHero = () => {
+/**
+ * `programEnabled` mirrors AFFILIATE_PROGRAM_ENABLED. When the program is off the backend
+ * answers 503, so "Join as Partner" led straight into an error page — the same failure the
+ * ambassador flow already guards against. The page still markets the program; only the
+ * action changes.
+ */
+const AffiliateHero = ({ programEnabled }: { programEnabled: boolean }) => {
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -81,13 +87,23 @@ const AffiliateHero = () => {
             variants={itemVariants}
             className="flex w-full flex-col items-center gap-4 pt-4 sm:w-auto sm:flex-row"
           >
-            <Link
-              href={`${siteConfig.links.app}/affiliate`}
-              className="inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-8 py-3.5 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(37,99,235,0.4)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-[0_6px_20px_rgba(37,99,235,0.6)] sm:w-auto dark:bg-blue-500 dark:hover:bg-blue-600"
-            >
-              Join as Partner
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
+            {programEnabled ? (
+              <Link
+                href={`${siteConfig.links.app}/affiliate`}
+                className="inline-flex w-full items-center justify-center rounded-full bg-blue-600 px-8 py-3.5 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(37,99,235,0.4)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-[0_6px_20px_rgba(37,99,235,0.6)] sm:w-auto dark:bg-blue-500 dark:hover:bg-blue-600"
+              >
+                Join as Partner
+                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
+              </Link>
+            ) : (
+              <span
+                role="status"
+                className="border-border/80 bg-card/85 text-muted inline-flex w-full items-center justify-center gap-2 rounded-full border px-8 py-3.5 text-sm font-semibold sm:w-auto dark:border-zinc-800/80 dark:bg-zinc-950/80"
+              >
+                <Sparkles className="h-4 w-4" aria-hidden="true" />
+                Partner signups open soon
+              </span>
+            )}
             <button
               onClick={() => {
                 document

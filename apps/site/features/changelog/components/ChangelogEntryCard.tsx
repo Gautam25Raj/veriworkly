@@ -92,7 +92,9 @@ const ChangelogEntryCard = ({
         <div className="grid gap-5 sm:grid-cols-2">
           {categories.map(({ category, items, label, icon: Icon, text, border }) => (
             <div key={category} className={`space-y-2.5 border-l-2 pl-4 ${border}`}>
-              <div className={`flex items-center gap-1.5 font-mono text-[10px] font-bold tracking-widest uppercase ${text}`}>
+              <div
+                className={`flex items-center gap-1.5 font-mono text-[10px] font-bold tracking-widest uppercase ${text}`}
+              >
                 <Icon className="h-3.5 w-3.5" aria-hidden="true" />
                 {label}
               </div>

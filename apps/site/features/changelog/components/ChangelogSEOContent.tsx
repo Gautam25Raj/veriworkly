@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import SEOContentContainer from "@/components/SEOContentContainer";
 import { siteConfig } from "@/config/site";
 
@@ -17,16 +19,17 @@ const ChangelogSEOContent = () => {
           GitHub repository
         </a>
         &apos;s release history. Each entry groups what changed into Added, Improved, Fixed,
-        Security, and Breaking sections, with links back to the exact pull requests that shipped
-        the work — because VeriWorkly is open-core and free-to-use, you can read the code behind
-        every line here.
+        Security, and Breaking sections, with links back to the exact pull requests that shipped the
+        work — because VeriWorkly is open-core and free-to-use, you can read the code behind every
+        line here.
       </p>
 
       <p className="text-muted text-sm leading-6">
         Looking for what&apos;s planned next instead of what already shipped? Check the{" "}
-        <a href="/roadmap" className="text-accent underline underline-offset-2">
+        {/* Internal route: a bare <a> here forced a full document reload. */}
+        <Link href="/roadmap" className="text-accent underline underline-offset-2">
           public roadmap
-        </a>
+        </Link>
         .
       </p>
     </SEOContentContainer>

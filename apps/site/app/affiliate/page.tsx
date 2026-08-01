@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import dynamic from "next/dynamic";
 import { siteConfig } from "@/config/site";
+import { jsonLdScriptProps } from "@/utils/json-ld";
+import { isAffiliateProgramEnabled } from "@/lib/feature-flags";
 import AffiliateNav from "@/features/affiliate/AffiliateNav";
 import AffiliateFooter from "@/features/affiliate/AffiliateFooter";
 import AffiliateHero from "@/features/affiliate/AffiliateHero";
@@ -54,7 +56,15 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * Unlike /ambassador/apply (which is `force-dynamic` because it reads a session), this
+ * page is pure marketing and stays statically prerendered — so AFFILIATE_PROGRAM_ENABLED
+ * is read at BUILD time, not per request. Set it in the build environment; flipping it on
+ * a running server will not change this page until the next deploy.
+ */
 const AffiliatePage = () => {
+  const programEnabled = isAffiliateProgramEnabled();
+
   const affiliateSchema = {
     "@context": "https://schema.org",
     "@type": "WebPage",
@@ -66,11 +76,10 @@ const AffiliatePage = () => {
 
   return (
     <>
+      {/* Uses the shared helper rather than a hand-rolled copy of the same escaping. */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(affiliateSchema).replace(/</g, "\\u003c"),
-        }}
+        dangerouslySetInnerHTML={jsonLdScriptProps(affiliateSchema)}
       />
 
       <div className="bg-background text-foreground relative flex min-h-screen flex-col justify-between transition-colors duration-300">
@@ -78,7 +87,7 @@ const AffiliatePage = () => {
           <AffiliateNav />
 
           <main>
-            <AffiliateHero />
+            <AffiliateHero programEnabled={programEnabled} />
             <AffiliateTiers />
             <AffiliateCalculator />
             <AffiliateBento />

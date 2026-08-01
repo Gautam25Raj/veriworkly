@@ -47,18 +47,24 @@ export const EffectsSection = () => {
           </p>
 
           <div className="grid gap-6 md:grid-cols-2">
+            {/* Both swatches read from the live tokens rather than baked hexes, so they
+                follow the page into dark mode the way the real surfaces do. */}
             <div className="space-y-3">
               <p className="text-muted text-xs font-semibold tracking-wider uppercase">
                 Page Background (Radial)
               </p>
 
               <div
-                className="h-32 rounded-xl border border-blue-500/10"
+                className="border-accent/10 h-32 rounded-xl border"
                 style={{
                   background:
-                    "radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 28%), radial-gradient(circle at top right, rgba(96, 165, 250, 0.08), transparent 22%), #F5F4EF",
+                    "radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 12%, transparent), transparent 28%), radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 8%, transparent), transparent 22%), var(--background)",
                 }}
               />
+
+              <p className="text-muted font-mono text-[11px] leading-relaxed">
+                Applied to <span className="text-accent">body</span> globally.
+              </p>
             </div>
 
             <div className="space-y-3">
@@ -70,9 +76,13 @@ export const EffectsSection = () => {
                 className="border-border h-32 rounded-xl border"
                 style={{
                   background:
-                    "linear-gradient(145deg, color-mix(in oklab, #ffffff 92%, transparent), color-mix(in oklab, #ffffff 72%, black 4%))",
+                    "linear-gradient(145deg, var(--card), color-mix(in oklab, var(--card) 88%, var(--foreground)))",
                 }}
               />
+
+              <p className="text-muted font-mono text-[11px] leading-relaxed">
+                Card surfaces, 145° from <span className="text-accent">--card</span>.
+              </p>
             </div>
           </div>
         </Card>

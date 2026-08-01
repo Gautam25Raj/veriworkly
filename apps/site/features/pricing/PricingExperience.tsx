@@ -15,7 +15,14 @@ import PricingComparison from "./components/PricingComparison";
 // enforcement point; this only drives the pre-emptive disabled UI.
 import { CurrencyProvider } from "./context/CurrencyContext";
 
-const PricingExperience = ({ paymentsBlocked }: { paymentsBlocked: boolean }) => {
+const PricingExperience = ({
+  paymentsBlocked,
+  inrPerUsd,
+}: {
+  paymentsBlocked: boolean;
+  /** Live USD→INR rate, resolved server-side. Omitted callers get the built-in fallback. */
+  inrPerUsd?: number;
+}) => {
   const [bundleInterval, setBundleInterval] = useState<"monthly" | "annual">("annual");
   const [customPlan, setCustomPlan] = useState<"portfolio_pro" | "ai_credits">("portfolio_pro");
   const [loading, setLoading] = useState("");
@@ -46,7 +53,7 @@ const PricingExperience = ({ paymentsBlocked }: { paymentsBlocked: boolean }) =>
   };
 
   return (
-    <CurrencyProvider>
+    <CurrencyProvider inrPerUsd={inrPerUsd}>
       <div className="bg-background text-foreground overflow-hidden">
         <PricingHero
           bundleInterval={bundleInterval}

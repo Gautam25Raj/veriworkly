@@ -112,7 +112,7 @@ export const LandingFooter = ({
                 alt={`${shortName} Logo`}
                 width={30}
                 height={30}
-                className="h-full w-full object-contain dark:invert"
+                className="h-full w-full object-contain"
               />
             </div>
             <span className="font-mono text-[1.35rem] font-bold tracking-tight text-gray-900 dark:text-white">
@@ -123,15 +123,17 @@ export const LandingFooter = ({
           {/* Pill Navigation */}
           {navLinks.length > 0 && (
             <div className="flex items-center gap-1 rounded-full border border-black/10 bg-white/40 p-1.5 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-black/20">
-              {navLinks.map((link, index) => (
+              {/*
+                These used to hard-code `index === 0` as the selected pill, so "Home" was
+                painted as the current page on every route in the site. A footer is a
+                server component with no pathname, and a live indicator here is not worth
+                making it a client component — so the styling is simply uniform now.
+              */}
+              {navLinks.map((link) => (
                 <Link
                   key={link.name}
                   href={link.href}
-                  className={`rounded-full px-5 py-2 text-sm font-medium transition-all duration-300 ease-out active:scale-95 ${
-                    index === 0
-                      ? "bg-white text-gray-900 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.1)] dark:bg-white/10 dark:text-white"
-                      : "text-gray-600 hover:bg-white/60 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"
-                  }`}
+                  className="rounded-full px-5 py-2 text-sm font-medium text-gray-600 transition-all duration-300 ease-out hover:bg-white/60 hover:text-gray-900 active:scale-95 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"
                 >
                   {link.name}
                 </Link>
@@ -166,8 +168,13 @@ export const LandingFooter = ({
 
         {/* Bottom Section */}
         <div className="relative z-10 flex flex-col items-center justify-between gap-4 pb-16 text-[13px] font-medium text-gray-500 md:flex-row md:pb-24 dark:text-gray-400">
+          {/*
+            Prerendered, so the year is stamped at deploy time rather than per request —
+            the standard trade-off for a static footer, and correct the moment anything
+            ships in January.
+          */}
           <p>
-            © {shortName} by {authorName}
+            © {new Date().getFullYear()} {shortName} by {authorName}
           </p>
           <div className="flex items-center gap-8">
             {legalLinks.map((link) => (

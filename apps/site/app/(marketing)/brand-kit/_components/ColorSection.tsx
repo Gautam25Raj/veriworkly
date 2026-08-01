@@ -1,58 +1,10 @@
+import Link from "next/link";
 import { Palette } from "lucide-react";
 
-import BrandSectionHeader from "./BrandSectionHeader";
-import BrandColorSwatch from "./BrandColorSwatch";
+import { TokenSwatch } from "@/components/brand/TokenSwatch";
+import { coreBrandColors } from "@/config/brand";
 
-const COLORS = [
-  {
-    hex: "#F5F4EF",
-    name: "Background",
-    variable: "--background",
-    description: "Primary page background",
-  },
-  {
-    hex: "#171717",
-    name: "Foreground",
-    variable: "--foreground",
-    description: "Main text color",
-  },
-  {
-    hex: "#2563EB",
-    name: "Accent (Blue)",
-    variable: "--accent",
-    description: "Primary action color — use for links, CTAs, and highlights",
-  },
-  {
-    name: "Card",
-    hex: "#FFFFFF",
-    variable: "--card",
-    description: "Component surfaces",
-  },
-  {
-    name: "Muted",
-    hex: "#5F5C54",
-    variable: "--muted",
-    description: "Secondary text and details",
-  },
-  {
-    name: "Border",
-    variable: "--border",
-    hex: "#1717171F",
-    description: "Subtle dividers (rgba(23,23,23,0.12))",
-  },
-  {
-    name: "Destructive",
-    hex: "#DC2626",
-    variable: "--destructive",
-    description: "Error and danger states",
-  },
-  {
-    name: "Accent FG",
-    hex: "#F8FBFF",
-    variable: "--accent-foreground",
-    description: "Text on accent-colored backgrounds",
-  },
-];
+import BrandSectionHeader from "./BrandSectionHeader";
 
 const ColorSection = () => {
   return (
@@ -60,14 +12,23 @@ const ColorSection = () => {
       <BrandSectionHeader
         icon={Palette}
         title="Colors"
-        description="The full token set lives in the design system. These are the ones you'll reach for most often when referencing the brand externally."
+        description="Every colour ships in two values — one for light mode, one for dark. Each swatch shows both, composited over the background it belongs to. Copy either value directly."
       />
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {COLORS.map((color) => (
-          <BrandColorSwatch key={color.variable} {...color} />
+        {coreBrandColors.map((token) => (
+          <TokenSwatch key={token.variable} {...token} />
         ))}
       </div>
+
+      <p className="text-muted text-sm leading-relaxed">
+        These are the colours you will reach for when writing or designing about VeriWorkly.
+        Semantic status colours and the remaining internal tokens are documented on the{" "}
+        <Link href="/style-guide#colors" className="text-accent font-semibold hover:underline">
+          full design system page
+        </Link>
+        .
+      </p>
     </section>
   );
 };

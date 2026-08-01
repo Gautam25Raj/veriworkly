@@ -63,8 +63,15 @@ const PricingHero = ({
               year. Zero automatic renewal risk.
             </p>
             <div className="text-accent mt-6 flex items-center gap-3 text-xs font-bold uppercase">
-              <ShieldCheck className="size-4" /> Secure checkout by Dodo Payments
+              <ShieldCheck className="size-4" aria-hidden="true" /> Secure checkout by Dodo Payments
             </div>
+
+            {/*
+              The provider auto-selects INR for visitors it detects in India. Without a
+              visible control that choice was one-way: nothing on the page could put them
+              back on the currency they are actually charged in.
+            */}
+            <CurrencyToggle className="mt-6" />
           </div>
         </div>
 

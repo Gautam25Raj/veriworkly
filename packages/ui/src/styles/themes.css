@@ -1,3 +1,15 @@
+/*
+ * VeriWorkly theme tokens — the single source of truth for brand colour.
+ *
+ * Every token defined here is documented on /style-guide and /brand-kit, which read
+ * their swatches from apps/site/config/brand.ts. If you add, remove, or recolour a
+ * token, update that file in the same commit so the published pages stay truthful.
+ *
+ * Semantic status tokens (--success, --warning) are deliberately separate from
+ * --accent: accent means "this is VeriWorkly", status means "this is the state of
+ * your data". Reach for --destructive for errors and --accent for informational
+ * states rather than introducing new hues.
+ */
 :root {
   --background: #f5f4ef;
   --foreground: #171717;
@@ -9,6 +21,10 @@
   --accent-foreground: #f8fbff;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
+  --success: #047857;
+  --success-foreground: #ffffff;
+  --warning: #b45309;
+  --warning-foreground: #ffffff;
   --fd-accent: rgba(96, 165, 250, 0.2);
 }
 
@@ -23,6 +39,10 @@
   --accent-foreground: #0f172a;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
+  --success: #34d399;
+  --success-foreground: #052e1f;
+  --warning: #fbbf24;
+  --warning-foreground: #271a02;
   --fd-accent: rgba(130, 139, 2, 0.8);
 }
 

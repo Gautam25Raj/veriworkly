@@ -52,10 +52,10 @@ Beyond auth and core document CRUD (soft-delete only — hard-delete/restore exi
 - **Sharing** (`/shares`) — password-protected (scrypt), expiring, revocable public links with view analytics.
 - **Billing** (`/billing`) — entitlements and the AI credit wallet as two separate systems, whitelisted checkout, Dodo webhook processing.
 - **Portfolios** (`/portfolios`, `/portfolio-assets`) — publish/unpublish, analytics, R2-backed asset uploads.
-- **Affiliate & Ambassador** (`/affiliates`, `/ambassador`, `/admin/ambassador`) — both gated by a boot-time feature-flag (`config.growth.*Enabled`), returning `503` when off. Affiliate is fully live (3-tier commissions, manual payouts); Ambassador currently only covers application intake (`GET /me`, `POST /apply`) — the rewards/points economy is not built yet.
-- **Roadmap** (`/roadmap`) — admin-managed public roadmap data; votes/bookmarks/comments have a data model and are read-visible but have no write route.
+- **Affiliate & Ambassador** (`/affiliates`, `/ambassador`) — both gated by a boot-time feature-flag (`config.growth.*Enabled`), returning `503` when off. Affiliate is fully live (3-tier commissions, manual payouts); Ambassador covers application intake (`GET /me`, `POST /apply`) plus a full admin review workflow — the rewards/points economy is not built yet.
+- **Roadmap** (`/roadmap`) — public read-only roadmap data; writes live under `/admin/roadmap`. Votes/bookmarks/comments have a data model and are read-visible but have no write route.
 - **Developer API keys** (`/api-keys`) — HMAC-SHA256-hashed, scoped (including `ai:write`), auto-expiring, force-invalidated within 5 minutes of a subscription lapsing.
-- **Admin tools** (`/admin/*`) — usage metrics, GitHub repo stats, the monetization console, roadmap CMS — gated by a real `requireAdminUser()` role check.
+- **Admin tools** (`/admin/*`) — one router covering users, ambassadors, affiliates, portfolios, documents, share links, billing, API keys, the audit log, system/ops, and the roadmap + changelog CMS. `adminAuthMiddleware` is applied once at the router root, so every sub-route is gated by construction, and each mutating endpoint requires an audit reason and writes an `AdminAuditEntry`.
 
 ## ⏰ Cron jobs
 
@@ -66,8 +66,9 @@ Four scheduled jobs (`src/jobs/`), each guarded by a Redis distributed lock: Git
 - `src/`: TypeScript source code.
   - `auth/`: Better-Auth configuration and mailers.
   - `jobs/`: Scheduled background tasks.
-  - `routes/`: Express route definitions (see `src/routes/` for the full list of route groups).
-  - `controllers/` / `services/`: Request handling and business logic layers.
+  - `routes/`: Express route definitions (see `src/routes/` for the full list of route groups). Admin routes live in `routes/admin/`, mounted through a single gated router.
+  - `controllers/` / `services/`: Request handling and business logic layers, each with an `admin/` subdirectory mirroring the admin route groups.
+  - `validators/`: Zod request schemas, with `validators/admin/` covering the admin surface.
   - `middleware/`: Auth, admin gating, rate limiting, feature flags.
 - `prisma/`: Database schema and migrations.
 

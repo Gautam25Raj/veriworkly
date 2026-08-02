@@ -28,7 +28,12 @@ export async function requestWithdrawal(userId: string, amountCents: number) {
 // So payouts here can only be recorded once a human has actually paid the affiliate out of band
 // (bank transfer, PayPal, etc.) and marks the request as reviewed below. Revisit this if Dodo ever
 // ships a payout/transfer API.
-export async function updateWithdrawal(id: string, status: "APPROVED" | "REJECTED" | "PAID", note?: string) {
+export async function updateWithdrawal(
+  id: string,
+  status: "APPROVED" | "REJECTED" | "PAID",
+  note?: string,
+  reviewerId?: string,
+) {
   const result = await prisma.$transaction(async (tx) => {
     const withdrawal = await tx.affiliateWithdrawal.findUnique({ where: { id } });
     if (!withdrawal) throw new ApiError(404, "Withdrawal not found.");
@@ -56,7 +61,10 @@ export async function updateWithdrawal(id: string, status: "APPROVED" | "REJECTE
         status,
         payoutNote: note,
         reviewedAt: new Date(),
-        paidAt: status === "PAID" ? new Date() : null,
+        // Who signed off matters for a money movement that happens out of band; without it
+        // the payout trail stops at "someone with admin access approved this".
+        ...(reviewerId ? { reviewedBy: reviewerId } : {}),
+        paidAt: status === "PAID" ? new Date() : withdrawal.paidAt,
       },
     });
   });

@@ -16,10 +16,20 @@ function ip(req: Request) {
 }
 
 export class AtsController {
+  /**
+   * Consumes quota like every other ATS route. Extraction is the most expensive unauthenticated
+   * operation on the server — it hands an attacker-supplied 5 MB file to a PDF/DOCX parser — so
+   * it must not be the one route that is free to call in a loop.
+   */
   static async extract(req: Request, res: Response, next: NextFunction) {
     try {
       if (!req.file) throw new ApiError(400, "Provide a resume file.");
-      res.json(createSuccessResponse({ text: await AtsResumeExtractService.extract(req.file) }));
+
+      const quota = await AtsQuotaService.consume(req.authUser?.id, ip(req));
+
+      res.json(
+        createSuccessResponse({ text: await AtsResumeExtractService.extract(req.file), quota }),
+      );
     } catch (error) {
       next(error);
     }

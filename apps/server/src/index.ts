@@ -6,9 +6,10 @@ import { app } from "./app.js";
 import { config, isDevelopment } from "#config";
 
 import { logger } from "#lib/logger";
-import { closePrisma } from "#lib/prisma";
+import { closePrisma, poolMax, clusterWorkerCount } from "#lib/prisma";
 import { initRedis, closeRedis } from "#lib/redis";
 
+import { stopExtractPool } from "#services/atsExtractPool";
 import { validateAiRuntimeConfig } from "#services/aiPolicy";
 import { validateAtsAiRuntimeConfig } from "#services/atsAiPolicy";
 import { ensureAdminUserExists, validateAuthRuntimeConfig } from "#auth/runtime";
@@ -58,6 +59,8 @@ async function shutdownWorker(id: number, disconnect: () => void) {
       stopUsageMetricsJob();
       stopPortfolioAccessJob();
     }
+
+    stopExtractPool();
 
     await closeRedis();
     await closePrisma();
@@ -128,6 +131,14 @@ async function startWorker(id: number, disconnect: () => void) {
         trustProxy: config.server.trustProxy,
         authIpAddressHeaders: config.auth.ipAddressHeaders,
       });
+
+      if (id === 1) {
+        logger.info(`Worker ${id}: Database pool sizing`, {
+          poolMaxPerWorker: poolMax,
+          workers: clusterWorkerCount,
+          totalConnections: poolMax * clusterWorkerCount,
+        });
+      }
 
       if (isDevelopment && id === 1) {
         logger.info(`Allowed origins: ${config.allowedOrigins.join(", ")}`);

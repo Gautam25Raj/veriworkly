@@ -28,8 +28,7 @@ import portfolioRoutes from "#routes/portfolios";
 import affiliateRoutes from "#routes/affiliates";
 import ambassadorRoutes from "#routes/ambassador";
 import portfolioAssetRoutes from "#routes/portfolioAssets";
-import adminMonetizationRoutes from "#routes/adminMonetization";
-import adminAmbassadorRoutes from "#routes/adminAmbassador";
+import adminRoutes from "#routes/admin/index";
 import { BillingController } from "#controllers/billingController";
 
 import { getRequestIpDetails } from "#utils/requestIp";
@@ -60,8 +59,12 @@ app.post(
   BillingController.dodoWebhook,
 );
 
+// JSON only, deliberately. `application/x-www-form-urlencoded` is one of the three CORS
+// "simple" content types, so it is the only body format a cross-origin POST can send without
+// triggering a preflight — mounting a parser for it would give away preflight as a structural
+// CSRF barrier for no benefit, since no client sends that format (multipart uploads go through
+// multer on the routes that accept them). SameSite=lax on the session cookie is the other layer.
 app.use(express.json({ limit: "4mb" }));
-app.use(express.urlencoded({ extended: true, limit: "4mb" }));
 
 // Trust proxy (for accurate IP addresses behind reverse proxies)
 app.set("trust proxy", config.server.trustProxy);
@@ -85,8 +88,10 @@ app.use("/api/v1/portfolios", portfolioRoutes);
 app.use("/api/v1/affiliates", affiliateRoutes);
 app.use("/api/v1/ambassador", ambassadorRoutes);
 app.use("/api/v1/portfolio-assets", portfolioAssetRoutes);
-app.use("/api/v1/admin/monetization", adminMonetizationRoutes);
-app.use("/api/v1/admin/ambassador", adminAmbassadorRoutes);
+
+// Single admin surface. Auth is enforced once inside the router, so every sub-route added
+// under `#routes/admin` is gated by construction.
+app.use("/api/v1/admin", adminRoutes);
 
 app.all(["/api/v1/auth", "/api/v1/auth/*"], [
   authRequestDiagnosticsMiddleware,

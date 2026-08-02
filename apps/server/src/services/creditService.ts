@@ -11,6 +11,14 @@ const CREDIT_HISTORY_TTL_SECONDS = 60;
 const CREDIT_HISTORY_LIMIT = 50;
 const CREDIT_RESERVATION_TTL_MS = 5 * 60 * 1000;
 
+/**
+ * Every transaction in this file walks a variable-length list of grants or reservations with one
+ * conditional write per item. Prisma's 5s default is enough for the common single-grant case but
+ * not for an account with many stacked grants under pool contention — and a P2028 abort here
+ * surfaces to the user as a failed AI action they were never charged for but also never got.
+ */
+const CREDIT_TRANSACTION_OPTIONS = { timeout: 15_000, maxWait: 8_000 } as const;
+
 type CreditContext = {
   requestId: string;
   action?: string;
@@ -78,7 +86,7 @@ export class CreditService {
         total += reservation.cost;
       }
       return total;
-    });
+    }, CREDIT_TRANSACTION_OPTIONS);
     if (released) await this.invalidate(userId);
     return released;
   }
@@ -129,7 +137,7 @@ export class CreditService {
         expiredTotal += grant.remaining;
       }
       return expiredTotal;
-    });
+    }, CREDIT_TRANSACTION_OPTIONS);
     if (total) await this.invalidate(userId);
     return total;
   }
@@ -220,7 +228,7 @@ export class CreditService {
           expiresAt: new Date(Date.now() + CREDIT_RESERVATION_TTL_MS),
         },
       });
-    });
+    }, CREDIT_TRANSACTION_OPTIONS);
     await this.invalidate(userId);
     return reservation;
   }
@@ -287,7 +295,7 @@ export class CreditService {
         data: { status: "COMMITTED" },
       });
       return transaction;
-    });
+    }, CREDIT_TRANSACTION_OPTIONS);
     await this.invalidate(userId);
     return result;
   }
@@ -403,7 +411,7 @@ export class CreditService {
         data: allocations.map((item) => ({ transactionId: transaction.id, ...item })),
       });
       return transaction;
-    });
+    }, CREDIT_TRANSACTION_OPTIONS);
     await this.invalidate(userId);
     return result;
   }
@@ -448,7 +456,7 @@ export class CreditService {
           },
         });
         return transaction;
-      });
+      }, CREDIT_TRANSACTION_OPTIONS);
       await this.invalidate(userId);
       return result;
     } catch (error) {

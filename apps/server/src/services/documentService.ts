@@ -11,6 +11,8 @@ import { userProfileCacheKey } from "#lib/cacheKeys";
 
 import { EntitlementService } from "#services/entitlementService";
 
+const MAX_DOCUMENTS_PER_LIST = 500;
+
 export type DocumentCreateInput = {
   id?: string;
   type: DocumentType;
@@ -78,6 +80,10 @@ export class DocumentService {
         deletedAt: null,
       },
       orderBy: { updatedAt: "desc" },
+      // Bounded because the full result is serialized into a single Redis value for 30 minutes;
+      // an account with hundreds of documents would otherwise produce a multi-megabyte cache
+      // entry and response body.
+      take: MAX_DOCUMENTS_PER_LIST,
     });
 
     await cacheSet(cacheKey, documents, 1800);

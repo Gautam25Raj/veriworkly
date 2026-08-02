@@ -1,15 +1,12 @@
 import { Router } from "express";
 
 import { flexibleAuth } from "#middleware/flexibleAuth";
-import { adminAuthMiddleware } from "#middleware/adminAuth";
 import { requireApiKeyScopes } from "#middleware/apiKeyScope";
 
-import {
-  createRoadmapFeatureController,
-  updateRoadmapFeatureController,
-  deleteRoadmapFeatureController,
-} from "#controllers/admin/adminRoadmapController";
 import { RoadmapController } from "#controllers/roadmapController";
+
+// Public, API-key addressable reads only. Roadmap writes moved to `/api/v1/admin/roadmap`
+// so every admin capability sits behind the single admin router.
 
 const router = Router();
 
@@ -33,9 +30,5 @@ router.get(
   requireApiKeyScopes("roadmap:read"),
   RoadmapController.getFeatureById,
 );
-
-router.post("/admin", adminAuthMiddleware, createRoadmapFeatureController);
-router.put("/admin/:id", adminAuthMiddleware, updateRoadmapFeatureController);
-router.delete("/admin/:id", adminAuthMiddleware, deleteRoadmapFeatureController);
 
 export default router;

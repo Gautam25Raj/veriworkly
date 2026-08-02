@@ -21,6 +21,8 @@ const allowedTypes = new Map([
 ]);
 
 const maxBytes = 5 * 1024 * 1024;
+const MAX_PENDING_UPLOADS_PER_USER = 20;
+const PENDING_UPLOAD_WINDOW_MS = 60 * 60 * 1000;
 const releaseLockLuaScript = `
   if redis.call("get", KEYS[1]) == ARGV[1] then
     return redis.call("del", KEYS[1])
@@ -61,6 +63,23 @@ export class PortfolioAssetService {
     if (!extension) throw new ApiError(400, "Upload a JPG, PNG, or WebP image.");
     if (input.sizeBytes <= 0 || input.sizeBytes > maxBytes)
       throw new ApiError(400, "Image must be 5 MB or smaller.");
+
+    // Each call writes a row and mints a live R2 PUT URL, so without a cap a single account can
+    // spam storage and the assets table. Counts only PENDING rows, so normal usage (upload then
+    // complete) never approaches the ceiling — this bounds abandoned/never-completed uploads.
+    const pendingUploads = await prisma.portfolioAsset.count({
+      where: {
+        userId,
+        status: "PENDING",
+        createdAt: { gt: new Date(Date.now() - PENDING_UPLOAD_WINDOW_MS) },
+      },
+    });
+
+    if (pendingUploads >= MAX_PENDING_UPLOADS_PER_USER)
+      throw new ApiError(
+        429,
+        "Too many uploads in progress. Finish or wait for the pending ones to expire.",
+      );
 
     const key = `portfolio/${userId}/${randomUUID()}.${extension}`;
     const asset = await prisma.portfolioAsset.create({ data: { userId, key, ...input } });
@@ -138,6 +157,9 @@ export class PortfolioAssetService {
           status: "PENDING",
           createdAt: { lt: oneDayAgo },
         },
+        // Bounded so one run can't try to issue an unbounded number of sequential R2 deletes;
+        // the job runs on a schedule and drains any remainder on the next tick.
+        take: 500,
       });
 
       if (staleAssets.length === 0) return;

@@ -1,16 +1,12 @@
 import { Router } from "express";
 
 import { flexibleAuth } from "#middleware/flexibleAuth";
-import { adminAuthMiddleware } from "#middleware/adminAuth";
 import { requireApiKeyScopes } from "#middleware/apiKeyScope";
 
-import {
-  createChangelogEntryController,
-  updateChangelogEntryController,
-  deleteChangelogEntryController,
-  syncChangelogReleasesController,
-} from "#controllers/admin/adminChangelogController";
 import { ChangelogController } from "#controllers/changelogController";
+
+// Public, API-key addressable reads only. Changelog writes moved to `/api/v1/admin/changelog`
+// so every admin capability sits behind the single admin router.
 
 const router = Router();
 
@@ -34,10 +30,5 @@ router.get(
   requireApiKeyScopes("changelog:read"),
   ChangelogController.getEntryById,
 );
-
-router.post("/admin", adminAuthMiddleware, createChangelogEntryController);
-router.put("/admin/:id", adminAuthMiddleware, updateChangelogEntryController);
-router.delete("/admin/:id", adminAuthMiddleware, deleteChangelogEntryController);
-router.post("/admin/sync", adminAuthMiddleware, syncChangelogReleasesController);
 
 export default router;

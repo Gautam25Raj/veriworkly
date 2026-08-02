@@ -184,7 +184,9 @@ export class ShareService {
               createdAt: { lt: retentionLimit },
             },
           });
-        });
+          // Batch job with one update per share link plus a retention sweep; the 5s default is
+          // far too short once a flush covers a real backlog of links.
+        }, { timeout: 120_000, maxWait: 15_000 });
       } catch (error) {
         if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) {
           throw error;

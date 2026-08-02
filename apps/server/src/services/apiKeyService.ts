@@ -8,7 +8,10 @@ import { ApiError } from "#lib/errors";
 import { cacheDel, cacheGet, cacheSet, getRedis } from "#lib/redis";
 import { userProfileCacheKey } from "#lib/cacheKeys";
 
-const MAX_API_KEY_RATE_LIMIT = config.apiKeys.defaultRateLimit;
+const MAX_API_KEY_RATE_LIMIT = Math.max(
+  config.apiKeys.maxRateLimit,
+  config.apiKeys.defaultRateLimit,
+);
 
 const DEFAULT_SCOPES = config.apiKeys.defaultScopes;
 const DEFAULT_RATE_LIMIT = config.apiKeys.defaultRateLimit;

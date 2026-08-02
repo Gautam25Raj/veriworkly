@@ -12,13 +12,24 @@ function isPrivateIp(address: string) {
   const normalized = address.replace(/^::ffff:/, "");
   return (
     normalized === "::1" ||
+    normalized === "::" ||
     normalized === "0.0.0.0" ||
+    /^0\./.test(normalized) || // "this network" — 0.x.x.x can route to localhost on some stacks
     /^10\./.test(normalized) ||
     /^127\./.test(normalized) ||
-    /^169\.254\./.test(normalized) ||
+    /^169\.254\./.test(normalized) || // link-local, incl. the 169.254.169.254 cloud metadata IP
     /^192\.168\./.test(normalized) ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(normalized) ||
-    /^(fc|fd|fe80):/i.test(normalized)
+    /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(normalized) || // 100.64/10 CGNAT
+    /^192\.0\.0\./.test(normalized) || // IETF protocol assignments
+    /^192\.0\.2\./.test(normalized) || // TEST-NET-1
+    /^198\.1[89]\./.test(normalized) || // 198.18/15 benchmarking
+    /^198\.51\.100\./.test(normalized) || // TEST-NET-2
+    /^203\.0\.113\./.test(normalized) || // TEST-NET-3
+    /^(22[4-9]|23\d)\./.test(normalized) || // multicast 224/4
+    /^(24\d|25[0-5])\./.test(normalized) || // reserved 240/4 + broadcast
+    /^(fc|fd|fe80|fe[c-f])/i.test(normalized) || // ULA + link-local + site-local
+    /^ff/i.test(normalized) // IPv6 multicast
   );
 }
 

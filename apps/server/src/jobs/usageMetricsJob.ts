@@ -3,11 +3,15 @@ import { v4 as uuidv4 } from "uuid";
 
 import { config } from "#config";
 import { logger } from "#lib/logger";
+import { prisma } from "#lib/prisma";
 import { getRedis } from "#lib/redis";
 
 import { flushUsageMetricsForDate, getPendingUsageMetricDates } from "#services/analyticsService";
 
 let job: ScheduledTask | null = null;
+
+const AUDIT_PRUNE_BATCH_SIZE = 5_000;
+const AUDIT_PRUNE_MAX_BATCHES = 20;
 
 const RELEASE_LOCK_LUA_SCRIPT = `
   if redis.call("get", KEYS[1]) == ARGV[1] then
@@ -25,6 +29,44 @@ const RELEASE_LOCK_LUA_SCRIPT = `
 function getTodayUtcDate() {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+/**
+ * Deletes AuditLog rows past the retention window.
+ *
+ * Batched rather than a single `deleteMany`, because the first run against a table that has never
+ * been pruned could touch millions of rows and hold locks long enough to stall writers. The
+ * per-run ceiling means a large backlog drains over several nights instead of in one long
+ * transaction; steady state clears well inside a single batch.
+ */
+async function pruneAuditLogs() {
+  const retentionDays = config.logging.auditRetentionDays;
+
+  if (!Number.isFinite(retentionDays) || retentionDays <= 0) return;
+
+  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+  let deleted = 0;
+
+  for (let batch = 0; batch < AUDIT_PRUNE_MAX_BATCHES; batch += 1) {
+    // Uses the existing @@index([createdAt]) on AuditLog for both the select and the delete.
+    const stale = await prisma.auditLog.findMany({
+      where: { createdAt: { lt: cutoff } },
+      select: { id: true },
+      take: AUDIT_PRUNE_BATCH_SIZE,
+    });
+
+    if (!stale.length) break;
+
+    const result = await prisma.auditLog.deleteMany({
+      where: { id: { in: stale.map((row) => row.id) } },
+    });
+
+    deleted += result.count;
+
+    if (stale.length < AUDIT_PRUNE_BATCH_SIZE) break;
+  }
+
+  if (deleted > 0) logger.info("Audit log retention prune completed", { deleted, retentionDays });
 }
 
 /**
@@ -52,6 +94,16 @@ async function runFlush(reason: "startup" | "cron") {
     if (!lockAcquired) {
       logger.warn(`Skipping metrics flush (${reason}): lock already held`);
       return;
+    }
+
+    // Runs before the "nothing to flush" early return below, so retention still applies on days
+    // with no pending metrics. Failing to prune must not abort the metrics flush.
+    try {
+      await pruneAuditLogs();
+    } catch (error) {
+      logger.error("Audit log retention prune failed", {
+        error: error instanceof Error ? error.message : error,
+      });
     }
 
     const todayKey = getTodayUtcDate().toISOString().slice(0, 10);

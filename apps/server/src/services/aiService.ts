@@ -35,6 +35,15 @@ function renderTemplate(template: string, input: ReturnType<typeof validateAndNo
   );
 }
 
+// The OpenAI client holds a connection-pooling agent, so building one per request threw away
+// keep-alive and paid a fresh TLS handshake on every generation. Config is read once at startup.
+let aiClient: ReturnType<typeof createAiClient> | null = null;
+
+function getAiClient() {
+  aiClient ??= createAiClient();
+  return aiClient;
+}
+
 export class AiService {
   static actions() {
     return publicAiActionPolicy();
@@ -52,7 +61,7 @@ export class AiService {
     );
 
     try {
-      const completion = await createAiClient().chat.completions.create({
+      const completion = await getAiClient().chat.completions.create({
         ...(modePolicy.providerOptions ?? {}),
         model: modePolicy.model,
         messages: [

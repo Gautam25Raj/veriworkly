@@ -21,6 +21,11 @@ router.get(
   GithubController.getIssues,
 );
 
+/**
+ * Kept on this router because it is part of the published OpenAPI surface. `/admin/system/github/sync`
+ * is the equivalent inside the admin router and additionally records who triggered the sync in the
+ * admin audit log — prefer it for anything driven from the admin dashboard.
+ */
 router.post("/admin/sync", adminAuthMiddleware, GithubController.syncStats);
 
 export default router;

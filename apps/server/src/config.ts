@@ -103,6 +103,10 @@ export const config = {
       10,
     ),
     defaultRateLimit: parseInt(process.env.API_KEY_DEFAULT_RATE_LIMIT || "20", 10),
+    // Must be a separate knob from the default. When the ceiling was defined as the default,
+    // normalizeRateLimit() clamped every requested value back down to it and the per-key
+    // rateLimit column could only ever be lowered, never raised.
+    maxRateLimit: parseInt(process.env.API_KEY_MAX_RATE_LIMIT || "600", 10),
     defaultScopes: (process.env.API_KEY_DEFAULT_SCOPES || "user:read")
       .split(",")
       .map((scope) => scope.trim())
@@ -130,10 +134,19 @@ export const config = {
     maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || "100", 10),
     authWindowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || "60000", 10),
     authMaxRequests: parseInt(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS || "20", 10),
+    // The per-route limits above are keyed by (method, path, ip), so they bound each endpoint
+    // independently and never bound a client's total load — with ~40 endpoints one IP could
+    // legitimately issue 40x the headline number. This coarse bucket is the ceiling underneath
+    // them; it should sit well above any real single-user session.
+    globalWindowMs: parseInt(process.env.GLOBAL_RATE_LIMIT_WINDOW_MS || "900000", 10),
+    globalMaxRequests: parseInt(process.env.GLOBAL_RATE_LIMIT_MAX_REQUESTS || "1000", 10),
   },
 
   logging: {
     level: process.env.LOG_LEVEL || "info",
+    // AuditLog gets a row per 4xx/5xx in production. Without pruning it is the fastest-growing
+    // table in the schema and nothing else ever deletes from it.
+    auditRetentionDays: parseInt(process.env.AUDIT_LOG_RETENTION_DAYS || "90", 10),
   },
 
   ai: {

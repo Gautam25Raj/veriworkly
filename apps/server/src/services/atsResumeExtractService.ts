@@ -1,10 +1,26 @@
-import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
-
 import { ApiError } from "#lib/errors";
+import { logger } from "#lib/logger";
+
+import { extractInChildProcess } from "#services/atsExtractPool";
+import type { AtsExtractFormat } from "#services/atsExtractChild";
 
 const MAX_TEXT_CHARS = 50_000;
-const EXTRACTION_TIMEOUT_MS = 20_000;
+
+function detectFormat(file: Express.Multer.File): AtsExtractFormat {
+  const name = file.originalname.toLowerCase();
+
+  if (file.mimetype === "application/pdf" || name.endsWith(".pdf")) return "pdf";
+
+  if (
+    file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    name.endsWith(".docx")
+  )
+    return "docx";
+
+  if (file.mimetype.startsWith("text/") || /\.(txt|md|json)$/i.test(name)) return "text";
+
+  throw new ApiError(400, "Upload a PDF, DOCX, TXT, Markdown, or JSON resume.");
+}
 
 function normalize(text: string) {
   const value = text
@@ -12,58 +28,39 @@ function normalize(text: string) {
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+
   if (value.length < 50)
     throw new ApiError(400, "Resume file did not contain enough readable text.");
+
   return value.slice(0, MAX_TEXT_CHARS);
 }
 
-/**
- * Bounds how long an unauthenticated caller can tie up the request with a single upload.
- * pdf-parse/mammoth run synchronously on the event loop with no cancellation hook, so this
- * doesn't reclaim CPU already spent on a pathological file — it only stops the request from
- * hanging indefinitely and gives the client a clear error instead of a dropped connection.
- */
-async function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
-  let timer: NodeJS.Timeout;
-
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(
-      () => reject(new ApiError(408, `Resume ${label} took too long to process.`)),
-      EXTRACTION_TIMEOUT_MS,
-    );
-  });
-
-  try {
-    return await Promise.race([promise, timeout]);
-  } finally {
-    clearTimeout(timer!);
-  }
-}
-
 export class AtsResumeExtractService {
+  /**
+   * Parses in a separate process so a pathological file cannot stall the event loop.
+   *
+   * The previous implementation raced the parse against a timer on the main thread: the caller
+   * got a tidy 408, but pdf-parse kept chewing CPU with no way to stop it, so one crafted upload
+   * could stall every concurrent request on the process. The extraction process can actually be
+   * killed, which is what makes the timeout mean something.
+   */
   static async extract(file: Express.Multer.File) {
-    if (file.mimetype === "application/pdf" || file.originalname.toLowerCase().endsWith(".pdf")) {
-      const parser = new PDFParse({ data: file.buffer });
-      try {
-        return normalize((await withTimeout(parser.getText(), "extraction")).text);
-      } finally {
-        await parser.destroy();
-      }
-    }
+    const format = detectFormat(file);
 
-    if (
-      file.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
-      file.originalname.toLowerCase().endsWith(".docx")
-    ) {
-      return normalize(
-        (await withTimeout(mammoth.extractRawText({ buffer: file.buffer }), "extraction")).value,
-      );
-    }
+    // Plain text needs no parser, so it skips the IPC round trip entirely.
+    if (format === "text") return normalize(file.buffer.toString("utf8"));
 
-    if (file.mimetype.startsWith("text/") || /\.(txt|md|json)$/i.test(file.originalname)) {
-      return normalize(file.buffer.toString("utf8"));
-    }
+    try {
+      return normalize(await extractInChildProcess(format, file.buffer));
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
 
-    throw new ApiError(400, "Upload a PDF, DOCX, TXT, Markdown, or JSON resume.");
+      logger.error("Resume extraction failed", {
+        format,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      throw new ApiError(400, "Resume file could not be read.");
+    }
   }
 }

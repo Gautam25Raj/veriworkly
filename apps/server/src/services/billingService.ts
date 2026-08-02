@@ -48,6 +48,14 @@ const WEBHOOK_LOCK_TTL_SECONDS = 30;
 const WEBHOOK_LOCK_WAIT_ATTEMPTS = 10;
 const WEBHOOK_LOCK_WAIT_MS = 300;
 
+/**
+ * Prisma's interactive-transaction defaults (maxWait 2s / timeout 5s) are tuned for single-shot
+ * writes. The entitlement transaction below issues a variable number of sequential upserts, so
+ * under pool contention it can exceed 5s and abort with P2028 *after* the provider already
+ * charged the customer — leaving billing state behind reality until the webhook is retried.
+ */
+const BILLING_TRANSACTION_OPTIONS = { timeout: 20_000, maxWait: 10_000 } as const;
+
 function billingSummaryCacheKey(userId: string) {
   return `billing:summary:${userId}`;
 }
@@ -669,7 +677,7 @@ export class BillingService {
             ? { status: "SUSPENDED", suspensionReason: normalizedStatus, suspendedAt: new Date() }
             : { status: publicationStatus, suspensionReason: null, suspendedAt: null },
       });
-    });
+    }, BILLING_TRANSACTION_OPTIONS);
 
     const publication = await prisma.portfolioPublication.findUnique({
       where: { userId },

@@ -150,9 +150,14 @@ for (const entry of fs.readdirSync(outputDir, { withFileTypes: true })) {
   }
 }
 
+// Run from the app root and reference the schema exactly as `lib/openapi.ts` does. Generated pages
+// record this string in `_openapi.preload`, and the runtime looks documents up by that same key —
+// an absolute path here would not match the `["./openapi.yaml"]` registered at render time.
+process.chdir(appRoot);
+
 await generateFiles({
-  input: createOpenAPI({ input: [bundlePath], proxyUrl: "/api/proxy" }),
-  output: outputDir,
+  input: createOpenAPI({ input: ["./openapi.yaml"], proxyUrl: "/api/proxy" }),
+  output: "./content/api-reference",
   per: "operation",
   groupBy: "tag",
 });

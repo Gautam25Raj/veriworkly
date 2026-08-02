@@ -1,3 +1,4 @@
+import path from "path";
 import type { NextConfig } from "next";
 
 const isProd = process.env.NODE_ENV === "production";
@@ -27,6 +28,11 @@ const cspDirectives = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // `next` is hoisted to the monorepo root, so Turbopack cannot find it from this app directory
+  // and infers the wrong workspace root. Pin it explicitly, as the docs and blog apps do.
+  turbopack: {
+    root: path.resolve(__dirname, "../../"),
+  },
   async headers() {
     return [
       {

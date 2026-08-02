@@ -791,7 +791,9 @@ paths:
         attempts by default. This endpoint returns Better Auth's payload, not the
         `{ success, message, data }` envelope.
 
-        Rate limited to 5 requests per minute per IP.
+        Rate limited to 20 requests per minute per IP — the default for `/api/v1/auth/*`. (A tighter
+        5/minute rule exists in configuration but targets `/email-otp/verify-otp`, a path this Better
+        Auth version does not expose, so it never applies.)
       requestBody:
         required: true
         content:
@@ -830,7 +832,7 @@ paths:
         "400":
           description: The OTP is invalid, expired, or the attempt limit was exceeded.
         "429":
-          description: Too many verification attempts — 5 per minute per IP.
+          description: Too many requests — 20 per minute per IP.
   /api/v1/auth/get-session:
     get:
       tags:

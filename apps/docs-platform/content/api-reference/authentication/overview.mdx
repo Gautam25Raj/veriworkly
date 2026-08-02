@@ -41,7 +41,7 @@ VeriWorkly follows a simple 2-step verification process:
 | **Protocol**     | Passwordless Email OTP. Codes expire after 5 minutes and allow 3 attempts.                                        |
 | **Session Type** | HTTP-only, Secure, SameSite cookies to prevent CSRF and XSS.                                                      |
 | **Provider**     | Powered by **Better Auth** with a Prisma adapter for persistent session storage.                                  |
-| **Rate limits**  | 3 requests/minute per IP for sending a code, 5 requests/minute per IP for signing in. Exceeding either gives `429`. |
+| **Rate limits**  | 3 requests/minute per IP for sending a code; 20/minute for signing in. Exceeding either gives `429`. |
 
 ---
 

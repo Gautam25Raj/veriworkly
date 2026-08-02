@@ -25,8 +25,9 @@ Keys are prefixed `vw_` followed by 64 hex characters.
 
 VeriWorkly never stores the key itself. Only an irreversible **HMAC-SHA256** hash is persisted, using
 a hashing secret (`API_KEY_HASH_SECRET`) that production configuration requires to be distinct from
-the general auth secret. The stored record keeps a short display prefix and suffix so you can
-recognise a key in the list without being able to reconstruct it.
+the general auth secret. The stored record also keeps the key's first and last 8 characters; the
+list endpoint returns only the leading `keyPrefix`, which is enough to tell keys apart without
+being able to reconstruct one.
 
 Each key carries:
 
@@ -44,6 +45,13 @@ Send the key in the `X-API-Key` header:
 curl -H "X-API-Key: YOUR_API_KEY" https://api.veriworkly.com/api/v1/users/me
 ```
 
+An `Authorization` bearer token is accepted as an equivalent alternative, which is often easier
+with HTTP clients that assume standard auth headers:
+
+```bash
+curl -H "Authorization: Bearer YOUR_API_KEY" https://api.veriworkly.com/api/v1/users/me
+```
+
 ## Scopes
 
 A key may only carry scopes the backend recognises. Requesting an unknown scope fails the create or
@@ -58,7 +66,7 @@ rotate call with `400 Unsupported API key scope(s)`.
 | `roadmap:read`   | Read public roadmap items and release-planning data.                   |
 | `changelog:read` | Read changelog entries and changelog statistics.                       |
 | `github:read`    | Read the synced GitHub issue and repository statistics.                |
-| `ai:write`       | Call the AI generation endpoint, spending the account's AI credits.    |
+| `ai:write`       | Call `/ai/generate`, `/ats/analyze`, and `/ats/convert-resume`, spending AI credits. |
 
 <Callout type="info" title="`changelog:read` is API-only today">
   All eight scopes above are accepted by the backend. The Studio scope picker currently surfaces

@@ -53,7 +53,7 @@ Set per application in `apps/{app}/.env`, or shared via the root `.env`.
 | `NODE_ENV`                           | `development`, `production`, or `test`.                                                | `development`                                    |
 | `PORT`                               | Port the API listens on.                                                               | `8080`                                           |
 | `TRUST_PROXY`                        | Express trust-proxy setting. Accepts `true`/`false`, a hop count, or a CIDR/IP string. | `false`                                          |
-| `ALLOWED_ORIGINS`                    | Comma-separated CORS allowlist.                                                        | `http://localhost:3000,3001,3002,3003,3004,8080` |
+| `ALLOWED_ORIGINS`                    | Comma-separated CORS allowlist. Each entry must be a full origin, not a bare port.      | Ports 3000–3004 and 8080 on `http://localhost`   |
 | `LOG_LEVEL`                          | `debug`, `info`, `warn`, or `error`.                                                   | `info`                                           |
 | `CLUSTERING_ENABLED`                 | Run one worker per CPU core via `throng`.                                              | `true` in production, `false` otherwise          |
 | `WEB_CONCURRENCY` / `SERVER_WORKERS` | Explicit worker count, overriding the CPU-core default.                                | CPU count                                        |
@@ -142,7 +142,7 @@ Several routes carry hard-coded limits that ignore these values: share-password 
 | `AI_RATE_LIMIT_MAX_REQUESTS`            | Limit for `/api/v1/ai/*`.                                           | `20`     |
 | `AI_PRIVATE_CONFIG_PATH`                | Path to the private AI policy file (prompts, models, credit costs). | —        |
 | `AI_PRIVATE_CONFIG_JSON`                | The same policy supplied inline as JSON.                            | —        |
-| `AI_STANDARD_MODEL` / `AI_EXPERT_MODEL` | Model aliases resolved by the policy for each mode.                 | —        |
+| `AI_STANDARD_MODEL` / `AI_EXPERT_MODEL` | Model IDs. Read only indirectly — the policy names them as `env:AI_STANDARD_MODEL`. | —        |
 
 <Callout type="info" title="AI policy is private configuration">
   Per-action prompts, model selection, token limits, and **credit costs** all live in the private AI

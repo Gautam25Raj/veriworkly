@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { OpenAPIPageProps_Preloaded } from "fumadocs-openapi/ui";
 
 import {
   DocsBody,
@@ -42,8 +43,9 @@ export default async function Page(props: PageProps) {
   const { preloaded } = await openapi.preloadOpenAPIPage(page);
 
   const components = getMDXComponents({
-    OpenAPIPage: (props: Record<string, unknown>) => (
-      <OpenAPIPage {...(props as never)} preloaded={preloaded} />
+    // The generated MDX supplies `document` and `operations`; `preloaded` is bound here.
+    OpenAPIPage: (props: Omit<OpenAPIPageProps_Preloaded, "preloaded">) => (
+      <OpenAPIPage {...props} preloaded={preloaded} />
     ),
   });
 

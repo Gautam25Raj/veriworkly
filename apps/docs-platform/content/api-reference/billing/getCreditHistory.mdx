@@ -5,7 +5,7 @@ description: Lists recent AI credit reservations/commits/releases for the
 full: true
 _openapi:
   preload:
-    - C:\Users\ashra\Documents\GitHub\veriworkly\apps\docs-platform\openapi.yaml
+    - ./openapi.yaml
   method: GET
   webhook: false
   toc: []
@@ -25,7 +25,7 @@ export default function Layout(props) {
   return (
     <>
       {props.children}
-      <Comp document="C:\\Users\\ashra\\Documents\\GitHub\\veriworkly\\apps\\docs-platform\\openapi.yaml" operations={[{"path":"/api/v1/billing/credits/history","method":"get"}]} />
+      <Comp document="./openapi.yaml" operations={[{"path":"/api/v1/billing/credits/history","method":"get"}]} />
     </>
   );
 }

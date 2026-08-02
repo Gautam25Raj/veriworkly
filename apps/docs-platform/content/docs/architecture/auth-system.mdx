@@ -119,15 +119,25 @@ export const auth = betterAuth({
 
 ### Rate limiting
 
-Better-Auth's own limiter runs on Redis, with tighter custom rules on the OTP endpoints:
+Better-Auth's own limiter runs on Redis, with a tighter custom rule on the send-OTP endpoint:
 
-| Endpoint                           | Limit                                                                                     |
+| Endpoint                           | Effective limit                                                                           |
 | :--------------------------------- | :---------------------------------------------------------------------------------------- |
-| `/email-otp/send-verification-otp` | 3 requests / 60 seconds                                                                   |
-| `/email-otp/verify-otp`            | 5 requests / 60 seconds                                                                   |
+| `/email-otp/send-verification-otp` | 3 requests / 60 seconds (custom rule)                                                     |
+| `/sign-in/email-otp`               | Falls back to the default below — see the caveat                                          |
 | All other auth routes              | `AUTH_RATE_LIMIT_MAX_REQUESTS` (default 20) per `AUTH_RATE_LIMIT_WINDOW_MS` (default 60s) |
 
-The application's own IP-based rate limiter runs in front of this as an additional layer.
+The application's own IP-based rate limiter runs in front of this as an additional layer, also at 20
+requests / 60 seconds for `/api/v1/auth/*`.
+
+<Callout type="warn" title="The OTP-verification custom rule is dead configuration">
+  `auth/index.ts` defines a `customRules` entry for `/email-otp/verify-otp` at 5 requests / 60
+  seconds, but the Better-Auth version in use does not expose that path — the email-OTP plugin
+  provides `/email-otp/send-verification-otp`, `/email-otp/verify-email`,
+  `/email-otp/check-verification-otp`, and `/sign-in/email-otp`. The rule therefore never matches,
+  and OTP submission is limited only by the 20/60s default. Retargeting it at `/sign-in/email-otp`
+  would restore the intended tighter limit.
+</Callout>
 
 ### Session cache invalidation
 

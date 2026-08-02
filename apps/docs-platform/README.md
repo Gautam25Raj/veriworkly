@@ -54,14 +54,27 @@ imported from `fumadocs-ui/components/*`.
 
 ### Regenerating the API reference
 
-`content/api-reference/` is generated. Edit the fragments under `specs/`, then run from the
-repository root:
+`content/api-reference/` is generated — only the hand-written `overview.mdx` pages and `meta.json`
+files in it are authored by us. Edit the fragments under `specs/`; **generation then happens
+automatically**, because `npm run dev` and `npm run build` in this workspace both run
+`generate:api` first (via `predev` / `prebuild`). The bundled `openapi.yaml` and the operation
+pages can never drift from the spec.
+
+To run it on its own — from this workspace, or from the repository root:
 
 ```bash
 npm run generate:api
 ```
 
-This bundles `specs/openapi.yaml` into `openapi.yaml` and regenerates the reference MDX pages.
+That does two things, both in `scripts/generate-api-docs.mjs`:
+
+1. Bundles `specs/openapi.yaml` (plus `specs/paths/*` and `specs/components/*`) into the flat
+   `openapi.yaml`, resolving every `$ref` and failing loudly on a broken one.
+2. Regenerates one MDX page per operation under `content/api-reference/`, after clearing the
+   previously generated pages so a removed or renamed operation cannot leave an orphan behind.
+
+Step 1 replaces `npx @redocly/cli bundle`, which required a network install; the output is
+byte-for-byte equivalent.
 
 ## Accuracy policy
 

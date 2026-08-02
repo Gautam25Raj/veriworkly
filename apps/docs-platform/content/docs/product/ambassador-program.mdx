@@ -60,24 +60,29 @@ application.
 
 ### Admin review
 
-The review workflow is **live** as an API surface:
+The review workflow is **live**, both as an API surface and as a Studio screen:
 
-| Endpoint                             | Purpose                                                                                                                                               |
-| :----------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/v1/admin/ambassador`       | List applications, optionally filtered by `status` (`PENDING`, `APPROVED`, `REJECTED`), newest first, with the applicant's id, email, name, and role. |
-| `PATCH /api/v1/admin/ambassador/:id` | Review an application: `action` is `APPROVE` or `REJECT`, with an optional `reviewNote` up to 500 characters.                                         |
+| Endpoint                                | Purpose                                                                                                                                                    |
+| :-------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/admin/ambassadors`         | List applications as `{ items, total, limit, offset }`, filterable by `status` (`PENDING`, `APPROVED`, `REJECTED`), graduation year, and a free-text query. |
+| `GET /api/v1/admin/ambassadors/summary` | Counts by status, the number of active ambassadors, and applications received in the last 7 days.                                                          |
+| `GET /api/v1/admin/ambassadors/roster`  | Everyone currently holding the `AMBASSADOR` role, with their campus and referral count.                                                                    |
+| `GET /api/v1/admin/ambassadors/:id`     | One application in full, plus who reviewed it and its admin audit history.                                                                                 |
+| `PATCH /api/v1/admin/ambassadors/:id`   | Review an application: `action` is `APPROVE` or `REJECT`, with an optional `reviewNote` up to 500 characters.                                               |
 
-Both require admin authentication. Approving flips the application's status **and** the user's
-`role` to `AMBASSADOR` inside a single transaction; rejecting sets the role back to `USER`. Either
-way, an `AdminAuditEntry` is written recording the actor, the action
+All require admin authentication. Approving flips the application's status **and** the user's
+`role` to `AMBASSADOR` inside a single transaction; rejecting sets the role back to `USER`. Neither
+ever changes a role it does not own, so an admin reviewing their own application keeps `ADMIN`.
+Either way, an `AdminAuditEntry` is written recording the actor, the action
 (`ambassador.application.approve` / `.reject`), the application id, and the review note.
 
 An application that has already been reviewed cannot be reviewed again — a second `PATCH` returns a
 `400`.
 
-<Callout type="info" title="Admin review is API-only for now">
-  There is no dedicated admin review screen in Studio yet, unlike the affiliate moderation panel in
-  `/admin/monetization`. Reviews are performed against the endpoints above.
+<Callout type="info" title="Reviews have a Studio screen">
+  The review queue lives at `/admin/ambassadors` in Studio, with a per-application detail view and
+  an approved-ambassador roster. The singular `/api/v1/admin/ambassador` path still resolves as an
+  alias, but its list response is now paginated rather than a bare array.
 </Callout>
 
 ### Studio's `/ambassador` page

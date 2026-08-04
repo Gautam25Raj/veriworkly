@@ -1,0 +1,5 @@
+{
+  "title": "Changelog",
+  "description": "Published release notes, filtering, and contributor statistics.",
+  "pages": ["overview", "getChangelogEntries", "getChangelogStats", "getChangelogEntryById"]
+}

@@ -1,0 +1,49 @@
+---
+title: Changelog
+description: Published release notes, filtering, and contributor statistics.
+---
+
+## Description
+
+The Changelog module exposes VeriWorkly's published release notes as structured data rather than
+prose. Each entry carries its version, release type, and five separate change buckets — `added`,
+`improved`, `fixed`, `breaking`, and `security` — so a consumer can render or diff them without
+parsing markdown.
+
+Entries originate two ways: authored directly in the admin console, or imported from GitHub
+Releases by the nightly `CHANGELOG_RELEASE_SYNC_CRON` job, which also resolves the pull requests
+referenced in a release body into the `prRefs` array.
+
+<Callout type="info" title="Reads here, writes in the admin router">
+  These are read-only endpoints. Creating, editing, and deleting changelog entries lives under
+  `/api/v1/admin/changelog`, which is not part of this public reference.
+</Callout>
+
+## Authentication
+
+| Method | Access Level   | Requirement                                                                      |
+| :----- | :------------- | :------------------------------------------------------------------------------- |
+| `GET`  | **No session** | An API key with the `changelog:read` scope, or a whitelisted first-party origin. |
+
+<Callout type="warn" title="`changelog:read` has no checkbox in Studio yet">
+  The backend accepts `changelog:read` on any key, but the Studio scope picker does not surface it.
+  Request it through the API-key create or rotate endpoints — see [API Keys](/docs/api-keys#scopes).
+</Callout>
+
+## Caching
+
+Responses are cached in Redis for `CHANGELOG_CACHE_TTL_SECONDS` (default 30 days), keyed by the
+full query — type, tag, search term, and page window. An admin write busts the cache, so a newly
+published release appears immediately rather than at the end of the TTL.
+
+## Pagination
+
+`GET /changelog` uses the same offset pagination as the rest of the API: page size defaults to 20
+and is capped at 50, addressable as either `limit`/`offset` or `page`/`pageSize`. A `limit` above
+50 is rejected with `400`.
+
+## Available Endpoints
+
+- `GET /changelog` — [Get Changelog Entries](./getChangelogEntries)
+- `GET /changelog/stats` — [Get Changelog Stats](./getChangelogStats)
+- `GET /changelog/{id}` — [Get Changelog Entry by ID](./getChangelogEntryById)

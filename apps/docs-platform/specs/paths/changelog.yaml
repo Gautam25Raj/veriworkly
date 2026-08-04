@@ -1,0 +1,248 @@
+getChangelogEntries:
+  get:
+    tags:
+      - Changelog
+    operationId: getChangelogEntries
+    summary: Get Changelog Entries
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    description: |
+      Fetch published changelog entries, newest first, with optional filtering and pagination.
+
+      This endpoint has no user session of its own: call it with an API key holding the
+      `changelog:read` scope, or from a whitelisted first-party origin. A request with neither is
+      rejected with `401`.
+
+      Results are cached per query for `CHANGELOG_CACHE_TTL_SECONDS` (default 30 days) and busted
+      whenever an admin writes an entry.
+    parameters:
+      - name: type
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: [major, minor, patch]
+        description: Filter entries by release type.
+
+      - name: tag
+        in: query
+        required: false
+        schema:
+          type: string
+          minLength: 1
+        description: Return only entries carrying this tag.
+
+      - name: search
+        in: query
+        required: false
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 120
+        description: Case-insensitive substring match against the entry title and summary.
+
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+        description: Items per page. Values above 50 are rejected with `400`.
+
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+        description: Number of items to skip. Redundant with `page` — `page` wins if both are sent.
+
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        description: 1-based page index. An alternative to `offset`.
+
+      - name: pageSize
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+        description: Alternative spelling of `limit`. Takes precedence over `limit` when both are sent.
+
+    responses:
+      "200":
+        description: Changelog entries fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ChangelogListResponse"
+            example:
+              success: true
+              message: "Changelog entries fetched successfully"
+              data:
+                items:
+                  - id: "v3-21-0"
+                    version: "3.22.0"
+                    title: "Portfolio template library refresh"
+                    summary: "Signal picks up a new hero and the editor gains section presets."
+                    type: "minor"
+                    publishedAt: "2026-07-29T10:00:00.000Z"
+                    githubUrl: "https://github.com/VeriWorkly/veriworkly/releases/tag/v3.22.0"
+                    added: ["Section presets in the portfolio editor"]
+                    improved: ["Signal hero spacing on small viewports"]
+                    fixed: ["Duplicate toast on failed publish"]
+                    breaking: []
+                    security: []
+                    tags: ["portfolio", "editor"]
+                    prRefs:
+                      - number: 412
+                        title: "feat(portfolio): section presets"
+                        url: "https://github.com/VeriWorkly/veriworkly/pull/412"
+                        author:
+                          login: "octocat"
+                          avatarUrl: "https://avatars.githubusercontent.com/u/583231"
+                          htmlUrl: "https://github.com/octocat"
+                total: 1
+                limit: 20
+                offset: 0
+                page: 1
+                pageSize: 20
+                totalPages: 1
+                hasMore: false
+                pagination:
+                  mode: "offset"
+                  nextOffset: null
+                  nextCursor: null
+
+      "400":
+        description: Validation error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 400
+              message: "Validation failed"
+              details:
+                - path: "limit"
+                  message: "Number must be less than or equal to 50"
+
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+
+getChangelogStats:
+  get:
+    tags:
+      - Changelog
+    operationId: getChangelogStats
+    summary: Get Changelog Stats
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    description: |
+      Aggregated release counts by type, the latest published release, and contributor totals
+      derived from the pull-request references recorded on each entry.
+
+      Requires the `changelog:read` scope when called with an API key.
+    responses:
+      "200":
+        description: Changelog stats fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ChangelogStatsResponse"
+            example:
+              success: true
+              message: "Changelog stats fetched successfully"
+              data:
+                totalEntries: 42
+                major: 3
+                minor: 18
+                patch: 21
+                latest:
+                  version: "3.22.0"
+                  title: "Portfolio template library refresh"
+                  publishedAt: "2026-07-29T10:00:00.000Z"
+                contributorCount: 17
+                topContributors:
+                  - login: "octocat"
+                    avatarUrl: "https://avatars.githubusercontent.com/u/583231"
+                    htmlUrl: "https://github.com/octocat"
+                    contributions: 9
+
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+
+getChangelogEntryById:
+  get:
+    tags:
+      - Changelog
+    operationId: getChangelogEntryById
+    summary: Get Changelog Entry by ID
+    security:
+      - ApiKeyAuth: []
+      - LocalSession: []
+      - ProdSession: []
+    description: |
+      Fetch a single changelog entry by its id. Requires the `changelog:read` scope when called
+      with an API key.
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The changelog entry id.
+
+    responses:
+      "200":
+        description: Changelog entry fetched successfully
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ChangelogEntryResponse"
+            example:
+              success: true
+              message: "Changelog entry fetched successfully"
+              data:
+                id: "v3-21-0"
+                version: "3.22.0"
+                title: "Portfolio template library refresh"
+                summary: "Signal picks up a new hero and the editor gains section presets."
+                type: "minor"
+                publishedAt: "2026-07-29T10:00:00.000Z"
+                githubUrl: "https://github.com/VeriWorkly/veriworkly/releases/tag/v3.22.0"
+                added: ["Section presets in the portfolio editor"]
+                improved: ["Signal hero spacing on small viewports"]
+                fixed: ["Duplicate toast on failed publish"]
+                breaking: []
+                security: []
+                tags: ["portfolio", "editor"]
+                prRefs: null
+
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+
+      "404":
+        description: Changelog entry not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 404
+              message: "Changelog entry not found"

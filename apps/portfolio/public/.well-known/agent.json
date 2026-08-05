@@ -1,0 +1,80 @@
+{
+  "schema_version": "1.0",
+  "name": "VeriWorkly Portfolio Agent Card",
+  "description": "VeriWorkly Portfolio (portfolio.veriworkly.com) is the web portfolio builder and publishing engine for developers, designers, and creators. Supports responsive templates (Signal, Atelier, Nimbus, Cipher), multi-page portfolios, custom subdomain publishing (*.veriworkly.com), and view analytics.",
+  "contact_email": "info@veriworkly.com",
+  "site_url": "https://portfolio.veriworkly.com",
+  "llms_txt": "https://portfolio.veriworkly.com/llms.txt",
+  "pricing_md": "https://portfolio.veriworkly.com/pricing.md",
+  "openapi_spec": "https://portfolio.veriworkly.com/openapi.json",
+
+  "api": {
+    "type": "openapi",
+    "url": "https://portfolio.veriworkly.com/openapi.json",
+    "has_user_authentication": true,
+    "auth_type": "cookie, bearer",
+    "auth_details": "Web sessions authenticate via Better Auth session cookies. Programmatic access uses API Keys as Bearer tokens ('Authorization: Bearer vw_...').",
+    "base_url": "https://api.veriworkly.com/api/v1"
+  },
+
+  "services": [
+    {
+      "name": "Portfolio Builder Workspace",
+      "url": "https://portfolio.veriworkly.com/editor",
+      "description": "3-pane interactive portfolio builder with section tree, content controls, and real iframe preview."
+    },
+    {
+      "name": "Template Catalog",
+      "url": "https://portfolio.veriworkly.com/templates",
+      "description": "Template gallery featuring Signal (engineering bento), Atelier (editorial design), Nimbus (minimalist tech), and Cipher (interactive terminal)."
+    },
+    {
+      "name": "Subdomain Publishing Engine",
+      "url": "https://portfolio.veriworkly.com/dashboard",
+      "description": "Publish web portfolios to custom subdomains (*.veriworkly.com) with multi-page support."
+    },
+    {
+      "name": "Portfolio Analytics",
+      "url": "https://portfolio.veriworkly.com/analytics",
+      "description": "Subdomain view counters, daily traffic trends, active days, and top referrer breakdown."
+    }
+  ],
+
+  "capabilities": [
+    {
+      "name": "Subdomain Availability Check",
+      "description": "Check whether a requested portfolio subdomain (slug.veriworkly.com) is available.",
+      "endpoints": ["/api/v1/portfolios/check-subdomain"]
+    },
+    {
+      "name": "Portfolio Draft Management",
+      "description": "Create, edit, auto-save, and inspect portfolio drafts.",
+      "endpoints": ["/api/v1/portfolios/me", "/api/v1/portfolios/preview"]
+    },
+    {
+      "name": "Subdomain Publishing & Unpublishing",
+      "description": "Publish portfolio draft to live subdomain or revert site to draft state.",
+      "endpoints": ["/api/v1/portfolios/publish", "/api/v1/portfolios/unpublish"]
+    },
+    {
+      "name": "View Tracking & Analytics",
+      "description": "Record view events and query view analytics for published subdomains.",
+      "endpoints": ["/api/v1/portfolios/views", "/api/v1/portfolios/analytics"]
+    },
+    {
+      "name": "Asset Uploads",
+      "description": "Generate presigned Cloudflare R2 URLs for portfolio avatars, project covers, and social images.",
+      "endpoints": ["/api/v1/portfolios/assets/upload-url"]
+    }
+  ],
+
+  "compliance": {
+    "privacy_policy": "https://veriworkly.com/privacy",
+    "terms_of_service": "https://veriworkly.com/terms"
+  },
+
+  "developer": {
+    "name": "Gautam Raj",
+    "github": "https://github.com/Gautam25Raj"
+  }
+}

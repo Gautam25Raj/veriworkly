@@ -1,0 +1,200 @@
+---
+title: "ATS-Friendly Resume Format: What a Parser Actually Receives"
+description: "Most format advice is folklore because it describes what a resume looks like rather than what comes out of it. Here is what text extraction actually produces, which layout choices genuinely corrupt it, and a two-minute test that beats every rule of thumb."
+author: VeriWorkly Engineering
+date: 2026-08-03
+updated: 2026-08-03
+category: Job Search
+cluster: ats
+pillar: true
+primaryKeyword: ats friendly resume format
+tags:
+  - ats resume format
+  - resume parsing
+  - resume template
+  - applicant tracking system
+  - resume formatting
+faq:
+  - question: What is the best resume format for an ATS?
+    answer: >-
+      Reverse-chronological, single column, standard section headings, dates in a
+      consistent format, contact details in the body rather than a header region,
+      exported as a text-based PDF. Nothing more exotic than that helps, and most
+      additional rules you will read are folklore.
+  - question: Do two-column resumes break ATS parsing?
+    answer: >-
+      Not by rejection, but the extraction order can interleave lines across
+      columns, which scrambles the resulting text. Whether it happens depends on
+      the file, not on the design. Copy the whole document and paste it into a
+      plain text editor to see what your specific file produces.
+  - question: Should I use a PDF or a Word document?
+    answer: >-
+      Either, as long as the PDF contains a real text layer. Format testing in
+      2026 found negligible parsing difference between text-based PDF and DOCX.
+      Submit whatever the application form requests, and verify your text is
+      selectable before you send it.
+  - question: Do ATS systems reject resumes with tables or graphics?
+    answer: >-
+      They do not reject anything on formatting. They extract what they can and
+      leave the rest blank, which is worse in a quieter way. Information that
+      exists only inside a chart, an icon, or a skill rating bar does not survive
+      extraction and effectively is not on your resume.
+  - question: What section headings should I use on my resume?
+    answer: >-
+      Use the plain ones: Experience or Work Experience, Education, Skills,
+      Projects, Certifications. Parsers map headings to fields by matching known
+      labels, so "Where I Have Been" may not map to anything. This is one of the
+      few format rules with a real mechanism behind it.
+---
+
+# ATS-Friendly Resume Format
+
+**A resume parses correctly when its text extracts in reading order, its section headings match labels the parser recognises, and its contact details sit in the document body.** Almost everything else you will read on this topic is folklore, repeated because it sounds cautious rather than because anyone tested it.
+
+We build a resume parser and an ATS scoring engine, so this post is written from the extraction side rather than the design side. That turns out to change most of the advice.
+
+## The only thing a parser sees
+
+Start here, because it dissolves most of the confusion.
+
+An applicant tracking system does not look at your resume. It runs text extraction over the file, receives a single stream of characters, and then tries to work out which parts of that stream are your job titles, your dates, your employers, and your skills.
+
+Everything visual is gone before any of that begins. Font choice, column widths, the horizontal rule under your section headings, your careful use of white space: none of it reaches the parser. What reaches the parser is a string.
+
+So the question "is this template ATS-friendly" is really the question **"does this file produce a clean, correctly ordered string, with the labels the parser is looking for."** That is answerable, and it is answerable about your actual file rather than in the abstract.
+
+## The two-minute test
+
+Before any rule of thumb, run this on the file you are about to send.
+
+1. Open the exported document.
+2. Select all, copy.
+3. Paste into a plain text editor. Notepad, TextEdit in plain mode, or any code editor.
+
+What you are looking at is approximately what the parser receives. Read it.
+
+| What you see                                  | What it means                                                |
+| --------------------------------------------- | ------------------------------------------------------------ |
+| Nothing pastes, or a single image             | Image-based PDF. Parses as blank. Total failure.             |
+| Text, in the order you wrote it               | Fine. Ship it.                                               |
+| Lines interleaved from left and right columns | Extraction order problem. Fix the layout or accept the risk. |
+| Contact details missing                       | They are in a header region the extractor skipped.           |
+| Bullet glyphs as `?` or boxes                 | Font encoding issue. Usually harmless, occasionally not.     |
+| Dates missing or fused to other text          | Date parsing will likely fail.                               |
+
+This test takes less time than reading one listicle about ATS formatting, and unlike the listicle it is about your document.
+
+The blank-page case deserves its own treatment because it is the one total failure in the category, and it has a specific technical cause: [some tools export PDFs by screenshotting the page](/why-some-resume-pdfs-parse-as-blank), producing a file with no text layer at all.
+
+## What genuinely affects extraction
+
+Four things, in rough order of how much they matter.
+
+### Contact details in the document body
+
+This is the one that costs people interviews silently.
+
+Word processors have a header and footer region, structurally separate from the body. Some extractors read those regions, some skip them, and you do not get to know which. If your name, email, and phone live in a header element, there is a real chance the parsed record has no way to contact you attached to it.
+
+Put them in the body, in the first block of text on page one. Our own scoring engine has a rule for exactly this, checking whether contact details appear within an early window of the extracted text rather than merely somewhere in the file, because "present but at the bottom" behaves differently from "present at the top" in enough systems to be worth flagging.
+
+### Reading order
+
+A single-column document extracts in the order you read it. That is the whole reason single column is recommended, and it is a better reason than the one usually given.
+
+Two-column layouts are not rejected. What can happen is that the extractor walks the page by position and produces lines that alternate between the columns, turning "Senior Analyst / Python, SQL / Northwind Corp / AWS" into a record where the parser cannot tell which fragment is a title and which is a skill.
+
+Whether it happens depends on how the file was generated, not on how it looks. Some two-column PDFs extract perfectly. This is exactly why the copy-paste test beats the rule: you can find out in thirty seconds instead of following a prohibition that may not apply to your file.
+
+If your two-column file extracts cleanly, keep it. If it interleaves, the usual fix is moving the sidebar content into a single flow rather than redesigning from scratch.
+
+### Section headings the parser recognises
+
+Parsers map content to fields by matching heading text against a list of known labels. "Experience", "Work Experience", "Professional Experience", "Employment History" are all on every such list. "My Journey", "Where I Have Been", and "What I Have Built" are on none of them.
+
+When a heading does not match, the content under it does not disappear, but it lands in a general text blob rather than in the structured experience field. Recruiters filtering on years of experience or previous employer are querying the structured field.
+
+Use: Experience, Education, Skills, Projects, Certifications, Summary. This is one of the few format rules with an actual mechanism behind it, and it costs nothing to follow.
+
+### Date formats
+
+Dates are parsed with pattern matching, and the patterns are less flexible than you would expect. Consistency matters more than which convention you choose.
+
+Reliable: `Jan 2023 – Mar 2025`, `01/2023 – 03/2025`, `2023 – 2025`.
+
+Riskier: spelled-out months mixed with abbreviated ones, "to" instead of a dash, seasons (`Spring 2023`), and single dates with no range. `Present` and `Current` are both widely recognised.
+
+Pick one format and use it for every role. A resume where three roles use three conventions will usually have at least one that fails to extract, and a role with no parsed end date can be read as still current.
+
+## What does not matter as much as you have been told
+
+**Fonts.** Any embedded font with standard character encoding extracts fine. The "use Arial or Calibri" advice is about legibility for the human reader, which is a real concern with a fake justification attached.
+
+**Colour.** Extraction is colourless. Use it for the human.
+
+**Bullet characters.** Standard bullets, dashes, and most Unicode symbols extract as expected. Exotic dingbats occasionally come through as replacement characters, which is cosmetic noise in the parsed text rather than a failure.
+
+**Two pages.** Page count is not a parser input at all. [Length is a readability question, not a parsing one](/how-long-should-a-resume-be).
+
+**File name.** No parser scores it. Name it `firstname-lastname-resume.pdf` for the human on the other end, who will have forty files in a folder.
+
+**PDF versus DOCX.** Format testing across major platforms in 2026 found [negligible difference between the two](https://www.rezi.ai/posts/ats-myths). Send what the form asks for. The old "always send Word" advice is outdated, and the newer "never send PDF" advice is the same folklore with the sign flipped.
+
+## The failure that looks like success
+
+Tables, text boxes, icons, skill rating bars, and infographic elements do not get your resume rejected. Nothing gets your resume rejected on formatting, because [applicant tracking systems are databases rather than judges](/ats-resume-myths-what-the-evidence-shows).
+
+What happens is quieter. The extractor takes what it can and leaves the rest. A five-dot proficiency rating next to "Python" extracts as the word Python with no rating, which is fine. A skills section rendered entirely as an image extracts as nothing at all, which is not, and nothing in the system tells anyone that a section is missing.
+
+The rule that follows is narrow and worth remembering: **any information that exists only visually is not on your resume.** If the only place your seniority is expressed is the size of a bar chart, it is not in the record. Write it in words as well.
+
+## A format that works
+
+Nothing here is clever. That is the point.
+
+```
+NAME
+City, Region · email · phone · linkedin.com/in/handle · portfolio URL
+
+SUMMARY
+Two or three lines positioning you for this specific role.
+
+EXPERIENCE
+
+Job Title
+Employer, Location · Jan 2023 – Present
+· Bullet with action, scope, and outcome
+· Bullet with action, scope, and outcome
+
+Job Title
+Employer, Location · Mar 2020 – Dec 2022
+· Bullet with action, scope, and outcome
+
+EDUCATION
+Degree, Institution · 2020
+
+SKILLS
+Grouped, comma separated, plain text.
+```
+
+Single column, standard headings, contact in the body, consistent dates, no information locked in graphics. Every visual decision after that — typography, spacing, rules, restrained colour — is for the person reading it, and you should spend real effort there, because a document that clears extraction and then bores a human has only solved half the problem.
+
+## Where format stops being the problem
+
+Format is worth thirty minutes once. After that the returns collapse, and it is worth being honest about where the actual failures are.
+
+Applications fail mostly on relevance and volume. [Roughly 2–3% of cold applications reach an interview](/how-many-jobs-should-you-apply-to), and knockout questions configured by recruiters (work authorisation, required licence, location) filter more candidates than parsing ever will. A perfectly formatted resume that does not match the posting loses to a plainly formatted one that does.
+
+So: run the copy-paste test, fix anything it surfaces, then stop thinking about format and go [rewrite your bullets](/how-to-write-resume-bullet-points-that-get-read).
+
+## How we test this
+
+We maintain an ATS checker that runs a deterministic rules engine over extracted resume text — word count bands, presence of contact details and required sections, where contact details fall in the document, quantified-achievement ratio, buzzword density, and keyword matching against a job description with a synonym map and light stemming so `managed`, `manages`, and `managing` fold together.
+
+Two things we learned building it are worth passing on. Most resumes that score badly do so on content rather than structure, which matches what the parsing literature reports. And the rules that produce the most useful feedback are boring: contact position, missing sections, and unquantified bullets, not anything exotic.
+
+The engine is [open source](https://github.com/VeriWorkly/veriworkly), and the checker is free to run at [VeriWorkly](https://veriworkly.com). [Jobscan](https://www.jobscan.co) is the established option in this category and has a larger keyword database; [Teal](https://www.tealhq.com) bundles a checker into application tracking. Any of them will surface the same structural issues, and so will the copy-paste test, which costs nothing and requires no account.
+
+## The short version
+
+Extraction produces a string, and the only format questions that matter are whether that string comes out complete and in order. Contact details in the body, single column unless your file proves it extracts cleanly, standard section headings, one date format, nothing conveyed only by graphics. Verify by copying your own document into a text editor, then go spend the time on content.

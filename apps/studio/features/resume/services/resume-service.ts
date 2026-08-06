@@ -15,7 +15,15 @@ export {
   type ResumeListItem,
 } from "./resume-core";
 
-export * from "@/features/documents/export";
+/**
+ * Only the lazy dispatcher is re-exported here — never the export barrel.
+ *
+ * `export * from "@/features/documents/export"` used to sit on this line, which meant
+ * importing anything from this module (e.g. `deleteResumeById` on the dashboard) pulled
+ * `@react-pdf/renderer` + `docx` into that route's bundle: ~2.2MB on the document list
+ * and the dashboard overview, neither of which exports anything.
+ */
+export { exportDocumentByType } from "@/features/documents/export/export-dispatcher";
 
 export {
   safeText,

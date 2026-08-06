@@ -1,7 +1,6 @@
 import type {
   ResumeAdditionalItem,
   ResumeAdditionalSectionKind,
-  ResumeCustomSection,
   ResumeEducationItem,
   ResumeExperienceItem,
   ResumeLinkItem,
@@ -69,18 +68,6 @@ export function createSkillGroup(): ResumeSkillGroup {
     id: uniqueId("skills"),
     name: "New Skills",
     keywords: [],
-  };
-}
-
-export function createCustomSection(
-  preset?: Partial<Pick<ResumeCustomSection, "title" | "items">>,
-): ResumeCustomSection {
-  return {
-    id: uniqueId("custom"),
-    kind: "custom",
-    title: preset?.title ?? "New Section",
-    items: preset?.items?.length ? preset.items : [createAdditionalItem("custom")],
-    editableTitle: true,
   };
 }
 

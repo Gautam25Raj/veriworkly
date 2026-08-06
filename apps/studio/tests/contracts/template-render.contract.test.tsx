@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
@@ -6,8 +9,19 @@ import type { TemplateRenderProps } from "@/types/template";
 import { createDefaultCoverLetter } from "@/features/cover-letter/defaults";
 import type { CoverLetterSectionId } from "@/features/cover-letter/types";
 import { defaultResume } from "@/features/resume/constants/default-resume";
+import { templateCatalogByType } from "@/features/documents/core/template-catalog";
 import { loadTemplateComponentById, templateRegistry } from "@/templates";
-import { buildCoverLetterHtml } from "@/templates/cover-letter/web";
+import { pdfTemplateRegistry } from "@/templates/resume/pdf";
+import { CoverLetterPreview, buildCoverLetterHtml } from "@/templates/cover-letter/web";
+
+const SHIPPED_RESUME_TEMPLATE_IDS = [
+  "executive-clarity",
+  "precision-ats",
+  "modern-minimal",
+  "timeline-focus",
+  "corporate-brief",
+  "bold-impact",
+];
 
 describe("template render contract", () => {
   it("registers core templates and keeps ids unique", () => {
@@ -15,7 +29,23 @@ describe("template render contract", () => {
     const uniqueTemplateIds = new Set(templateIds);
 
     expect(uniqueTemplateIds.size).toBe(templateIds.length);
-    expect(templateIds).toEqual(expect.arrayContaining(["executive-clarity", "precision-ats"]));
+    expect(templateIds).toEqual(expect.arrayContaining(SHIPPED_RESUME_TEMPLATE_IDS));
+  });
+
+  it("keeps the web registry, picker catalog and PDF registry in sync", () => {
+    const webIds = [...templateRegistry.map((template) => template.id)].sort();
+    const catalogIds = [...templateCatalogByType.RESUME.map((template) => template.id)].sort();
+    const pdfIds = Object.keys(pdfTemplateRegistry).sort();
+
+    expect(catalogIds).toEqual(webIds);
+    expect(pdfIds).toEqual(webIds);
+  });
+
+  it("ships a preview asset for every resume template", () => {
+    for (const template of templateRegistry) {
+      expect(template.previewImage).not.toBe("");
+      expect(existsSync(join(process.cwd(), "public", template.previewImage))).toBe(true);
+    }
   });
 
   it("renders every registered template for canonical resume data", async () => {
@@ -33,6 +63,49 @@ describe("template render contract", () => {
 
       expect(html.length).toBeGreaterThan(500);
       expect(html).toContain(defaultResume.basics.fullName);
+    }
+  });
+
+  it("prints every user-entered field in every template", async () => {
+    const richResume = {
+      ...defaultResume,
+      customSections: defaultResume.customSections.map((section) =>
+        section.kind === "certifications"
+          ? {
+              ...section,
+              items: [
+                {
+                  id: "cert-1",
+                  name: "AWS Certified Developer",
+                  issuer: "Amazon Web Services",
+                  date: "2024",
+                  link: "https://verify.example.com/aws-cert",
+                  referenceId: "CRED-99182",
+                  description: "Associate level certification.",
+                  details: ["Scored in the top decile."],
+                },
+              ],
+            }
+          : section,
+      ),
+    };
+
+    for (const template of templateRegistry) {
+      const TemplateComponent = loadTemplateComponentById(template.id);
+
+      const html = renderToStaticMarkup(
+        <TemplateComponent resume={{ ...richResume, templateId: template.id }} />,
+      );
+
+      // School name used to be dropped by Precision ATS in both renderers.
+      expect(html, `${template.id} must print the school`).toContain(
+        defaultResume.education[0].school,
+      );
+      // Credential link + id used to be dropped by Executive Clarity's preview.
+      expect(html, `${template.id} must print the credential link`).toContain(
+        "verify.example.com/aws-cert",
+      );
+      expect(html, `${template.id} must print the credential id`).toContain("CRED-99182");
     }
   });
 
@@ -180,6 +253,91 @@ describe("template render contract", () => {
       expect(html).toContain("Built React and TypeScript document workflows");
       expect(html).toContain("P.S.");
     }
+  });
+
+  it("honours the cover-letter appearance colours in every rendered element", () => {
+    const base = createDefaultCoverLetter("cover-letter-appearance").content;
+    const content = {
+      ...base,
+      appearance: {
+        ...base.appearance,
+        textColor: "#1b3a2f",
+        pageColor: "#fffdf7",
+        sidebarColor: "#0b1220",
+        accentColor: "#c2410c",
+      },
+    };
+
+    for (const templateId of ["professional", "veriworkly-special"]) {
+      const html = buildCoverLetterHtml(content, templateId);
+
+      expect(html, `${templateId} must use the chosen text colour`).toContain("#1b3a2f");
+      expect(html, `${templateId} must use the chosen page colour`).toContain("#fffdf7");
+      expect(html, `${templateId} must use the chosen accent colour`).toContain("#c2410c");
+
+      // Literals from the old hardcoded zinc/slate scales must not survive.
+      for (const legacyColor of ["#09090b", "#0f172a", "#334155", "#475569", "#52525b"]) {
+        expect(html.toLowerCase(), `${templateId} must not hardcode ${legacyColor}`).not.toContain(
+          legacyColor,
+        );
+      }
+    }
+  });
+
+  it("honours the cover-letter appearance colours in the live preview", () => {
+    const base = createDefaultCoverLetter("cover-letter-preview-appearance").content;
+    const content = {
+      ...base,
+      appearance: {
+        ...base.appearance,
+        textColor: "#1b3a2f",
+        pageColor: "#fffdf7",
+        accentColor: "#c2410c",
+      },
+    };
+
+    for (const templateId of ["professional", "veriworkly-special"]) {
+      const html = renderToStaticMarkup(
+        <CoverLetterPreview content={content} templateId={templateId} />,
+      );
+
+      expect(html, `${templateId} preview must use the chosen text colour`).toContain("#1b3a2f");
+      expect(html, `${templateId} preview must use the chosen accent colour`).toContain("#c2410c");
+
+      // Tailwind's fixed zinc/slate utilities used to override the setting.
+      for (const legacyClass of [
+        "text-zinc-950",
+        "text-zinc-800",
+        "text-zinc-600",
+        "text-slate-950",
+        "text-slate-700",
+        "text-slate-600",
+        "bg-zinc-50",
+        "bg-white",
+      ]) {
+        expect(html, `${templateId} preview must not hardcode ${legacyClass}`).not.toContain(
+          legacyClass,
+        );
+      }
+    }
+  });
+
+  it("keeps cover-letter sidebar text readable on a dark rail", () => {
+    const base = createDefaultCoverLetter("cover-letter-dark-rail").content;
+    const html = buildCoverLetterHtml(
+      { ...base, appearance: { ...base.appearance, sidebarColor: "#0b1220" } },
+      "veriworkly-special",
+    );
+
+    // A dark rail must flip the rail text to the light contrast colour rather
+    // than keeping the near-black document text.
+    expect(html).toContain("background:#0b1220");
+    expect(html, "rail name uses the light contrast colour").toMatch(
+      /aside h1\{[^}]*color:#f8fafc/,
+    );
+    expect(html, "rail body text is muted against the rail, not the page").toMatch(
+      /\.rail p\{[^}]*color:#a5a9af/,
+    );
   });
 
   it("respects hidden cover-letter sections in HTML export", () => {

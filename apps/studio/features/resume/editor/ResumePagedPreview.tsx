@@ -2,16 +2,31 @@
 
 import type { CSSProperties, ReactNode } from "react";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
   RESUME_PAGE_HEIGHT_PX,
   RESUME_PAGE_WIDTH_PX,
 } from "@/features/resume/constants/resume-layout";
+import { paginateIncremental, type IncrementalPageProbe } from "@/templates/shared/pagination";
 
 interface ResumePreviewPage {
   content: string;
 }
+
+/**
+ * One atomic unit of the paginated flow.
+ *
+ * `block` is an element that never splits (the header, a single-item section).
+ * `item` is one row of a multi-item section, which is what lets a long Experience
+ * list continue onto the next page under a repeated (header-less) section wrapper.
+ */
+type ResumeFlowUnit =
+  | { kind: "block"; element: HTMLElement }
+  | { kind: "item"; sectionIndex: number; section: HTMLElement; item: HTMLElement };
+
+/** Re-measure at most this often while the user types. */
+const MEASURE_DEBOUNCE_MS = 120;
 
 function getSectionItemsContainer(section: HTMLElement): HTMLElement | null {
   let itemsContainer =
@@ -31,36 +46,183 @@ function getSectionItemsContainer(section: HTMLElement): HTMLElement | null {
   return itemsContainer;
 }
 
-function createSectionFragment(
-  section: HTMLElement,
-  items: HTMLElement[],
-  includeHeader: boolean,
-): HTMLElement {
-  const sectionClone = section.cloneNode(true) as HTMLElement;
-  const clonedItemsContainer = getSectionItemsContainer(sectionClone);
+/** An empty clone of `section`, optionally without its heading (continuation pages). */
+function createEmptySectionShell(section: HTMLElement, includeHeader: boolean): HTMLElement {
+  const shell = section.cloneNode(true) as HTMLElement;
+  const itemsContainer = getSectionItemsContainer(shell);
 
-  if (clonedItemsContainer) {
-    clonedItemsContainer.innerHTML = "";
+  if (itemsContainer) itemsContainer.innerHTML = "";
+  if (!includeHeader && shell.children.length > 0) shell.removeChild(shell.children[0]);
 
-    items.forEach((item) => {
-      clonedItemsContainer.appendChild(item.cloneNode(true));
-    });
+  return shell;
+}
+
+/** Flattens the rendered resume into units that can be placed one at a time. */
+function buildFlowUnits(container: HTMLElement): ResumeFlowUnit[] {
+  const units: ResumeFlowUnit[] = [];
+
+  Array.from(container.children).forEach((child, childIndex) => {
+    if (!(child instanceof HTMLElement)) return;
+
+    const isSection = child.tagName.toLowerCase() === "section";
+    const itemsContainer = getSectionItemsContainer(child);
+    const items = itemsContainer
+      ? Array.from(itemsContainer.children).filter(
+          (item): item is HTMLElement => item instanceof HTMLElement,
+        )
+      : [];
+
+    if (!isSection || items.length <= 1) {
+      units.push({ kind: "block", element: child });
+      return;
+    }
+
+    for (const item of items) {
+      units.push({ kind: "item", sectionIndex: childIndex, section: child, item });
+    }
+  });
+
+  return units;
+}
+
+/** Serializes one page's units back to HTML, regrouping items under their section. */
+function renderUnitsToHtml(units: ResumeFlowUnit[], sectionsWithHeader: Set<number>): string {
+  let html = "";
+  let openSectionIndex: number | null = null;
+  let openShell: HTMLElement | null = null;
+  let openItems: HTMLElement | null = null;
+
+  const closeSection = () => {
+    if (openShell) html += openShell.outerHTML;
+    openSectionIndex = null;
+    openShell = null;
+    openItems = null;
+  };
+
+  for (const unit of units) {
+    if (unit.kind === "block") {
+      closeSection();
+      html += unit.element.outerHTML;
+      continue;
+    }
+
+    if (openSectionIndex !== unit.sectionIndex) {
+      closeSection();
+      openSectionIndex = unit.sectionIndex;
+      openShell = createEmptySectionShell(unit.section, sectionsWithHeader.has(unit.sectionIndex));
+      openItems = getSectionItemsContainer(openShell);
+    }
+
+    if (openItems) openItems.appendChild(unit.item.cloneNode(true));
   }
 
-  if (!includeHeader && sectionClone.children.length > 0) {
-    sectionClone.removeChild(sectionClone.children[0]);
-  }
+  closeSection();
 
-  return sectionClone;
+  return html;
+}
+
+/**
+ * Append-only measuring probe over a real off-screen page-sized element.
+ *
+ * Each `append` adds one node and each `fits` reads `scrollHeight` once, so the
+ * pagination pass costs a single forced reflow per unit. Rebuilding `innerHTML` from
+ * the whole candidate page (the previous approach) made that quadratic.
+ */
+function createDomPageProbe(
+  probe: HTMLElement,
+  sectionsWithHeader: Set<number>,
+): IncrementalPageProbe<ResumeFlowUnit> {
+  let openSectionIndex: number | null = null;
+  let openShell: HTMLElement | null = null;
+  let openItems: HTMLElement | null = null;
+  let lastAppend: { type: "block" } | { type: "item"; createdSection: boolean } | null = null;
+
+  return {
+    append(unit) {
+      if (unit.kind === "block") {
+        probe.appendChild(unit.element.cloneNode(true));
+        openSectionIndex = null;
+        openShell = null;
+        openItems = null;
+        lastAppend = { type: "block" };
+        return;
+      }
+
+      let createdSection = false;
+
+      if (openSectionIndex !== unit.sectionIndex) {
+        openSectionIndex = unit.sectionIndex;
+        openShell = createEmptySectionShell(
+          unit.section,
+          sectionsWithHeader.has(unit.sectionIndex),
+        );
+        openItems = getSectionItemsContainer(openShell);
+        probe.appendChild(openShell);
+        createdSection = true;
+      }
+
+      if (openItems) openItems.appendChild(unit.item.cloneNode(true));
+
+      lastAppend = { type: "item", createdSection };
+    },
+
+    fits() {
+      return probe.scrollHeight <= RESUME_PAGE_HEIGHT_PX + 1;
+    },
+
+    undo() {
+      if (!lastAppend) return;
+
+      if (lastAppend.type === "block") {
+        if (probe.lastElementChild) probe.removeChild(probe.lastElementChild);
+      } else if (lastAppend.createdSection) {
+        if (openShell && openShell.parentNode === probe) probe.removeChild(openShell);
+        openSectionIndex = null;
+        openShell = null;
+        openItems = null;
+      } else if (openItems?.lastElementChild) {
+        openItems.removeChild(openItems.lastElementChild);
+      }
+
+      lastAppend = null;
+    },
+
+    reset() {
+      probe.innerHTML = "";
+      openSectionIndex = null;
+      openShell = null;
+      openItems = null;
+      lastAppend = null;
+    },
+  };
 }
 
 export function ResumePagedPreview({ children }: { children: ReactNode }) {
   const measureRef = useRef<HTMLDivElement | null>(null);
   const [pages, setPages] = useState<ResumePreviewPage[]>([]);
   const [pageStyle, setPageStyle] = useState<CSSProperties>({});
+  const [fontsReady, setFontsReady] = useState(() => typeof document === "undefined");
+
+  // Measuring before the document font has loaded fills the probe with fallback
+  // metrics, which produces page breaks the PDF export will not reproduce.
+  useEffect(() => {
+    if (fontsReady) return;
+
+    let cancelled = false;
+
+    document.fonts.ready.then(() => {
+      if (!cancelled) setFontsReady(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fontsReady]);
 
   useLayoutEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
+    // `children` is a fresh element on every editor render, so without this the
+    // whole measuring pass ran on every keystroke.
+    const timer = window.setTimeout(() => {
       const measureRoot = measureRef.current;
       const container = measureRoot?.querySelector("#resume-container") as HTMLElement | null;
 
@@ -78,6 +240,7 @@ export function ResumePagedPreview({ children }: { children: ReactNode }) {
         lineHeight: computed.lineHeight,
         padding: computed.padding,
       } satisfies CSSProperties;
+
       const probe = document.createElement("article");
 
       probe.className = "resume-page-preview mx-auto overflow-hidden bg-white";
@@ -92,115 +255,53 @@ export function ResumePagedPreview({ children }: { children: ReactNode }) {
 
       measureRoot.appendChild(probe);
 
-      const fitsPage = (elements: HTMLElement[]) => {
-        probe.innerHTML = elements.map((element) => element.outerHTML).join("");
+      const units = buildFlowUnits(container);
 
-        return probe.scrollHeight <= RESUME_PAGE_HEIGHT_PX + 1;
-      };
-
-      const nextPages: ResumePreviewPage[] = [];
-      let current: HTMLElement[] = [];
-
-      const commitCurrentPage = () => {
-        if (current.length === 0) {
-          return;
-        }
-
-        nextPages.push({
-          content: current.map((element) => element.outerHTML).join(""),
-        });
-        current = [];
-      };
-
-      const appendBlock = (block: HTMLElement) => {
-        const candidate = [...current, block];
-
-        if (candidate.length === 1 || fitsPage(candidate)) {
-          current = candidate;
-          return;
-        }
-
-        commitCurrentPage();
-        current = [block];
-      };
-
-      Array.from(container.children).forEach((child) => {
-        if (!(child instanceof HTMLElement)) {
-          return;
-        }
-
-        const isSection = child.tagName.toLowerCase() === "section";
-        const itemsContainer = getSectionItemsContainer(child);
-        const items = itemsContainer
-          ? (Array.from(itemsContainer.children).filter(
-              (item): item is HTMLElement => item instanceof HTMLElement,
-            ) as HTMLElement[])
-          : [];
-
-        if (!isSection || items.length <= 1) {
-          appendBlock(child);
-          return;
-        }
-
-        let itemIndex = 0;
-        let includeHeader = true;
-
-        while (itemIndex < items.length) {
-          let acceptedCount = 0;
-
-          for (let count = 1; itemIndex + count <= items.length; count += 1) {
-            const fragment = createSectionFragment(
-              child,
-              items.slice(itemIndex, itemIndex + count),
-              includeHeader,
-            );
-            const candidate = [...current, fragment];
-
-            if (fitsPage(candidate) || (current.length === 0 && count === 1)) {
-              acceptedCount = count;
-            } else {
-              break;
-            }
-          }
-
-          if (acceptedCount === 0) {
-            commitCurrentPage();
-            continue;
-          }
-
-          const acceptedFragment = createSectionFragment(
-            child,
-            items.slice(itemIndex, itemIndex + acceptedCount),
-            includeHeader,
-          );
-          current = [...current, acceptedFragment];
-          itemIndex += acceptedCount;
-          includeHeader = false;
-        }
-      });
-
-      if (current.length > 0) {
-        commitCurrentPage();
+      // A section shows its heading on the first page it appears on and not on
+      // continuation pages. Measuring and rendering must agree on that, so the set is
+      // built once, before either pass, and shared by both.
+      const sectionsWithHeader = new Set<number>();
+      for (const unit of units) {
+        if (unit.kind === "item") sectionsWithHeader.add(unit.sectionIndex);
       }
+
+      const measuredPages = paginateIncremental(
+        units,
+        createDomPageProbe(probe, sectionsWithHeader),
+      );
 
       probe.remove();
 
-      const resolvedPages = nextPages.length > 0 ? nextPages : [{ content: container.innerHTML }];
-      const pageKey = resolvedPages.map((page) => page.content).join("");
+      const seenSections = new Set<number>();
+      const resolvedPages: ResumePreviewPage[] = measuredPages.map((pageUnits) => {
+        const headerSections = new Set<number>();
+
+        for (const unit of pageUnits) {
+          if (unit.kind !== "item") continue;
+          if (!seenSections.has(unit.sectionIndex)) {
+            headerSections.add(unit.sectionIndex);
+            seenSections.add(unit.sectionIndex);
+          }
+        }
+
+        return { content: renderUnitsToHtml(pageUnits, headerSections) };
+      });
+
+      const nextPages =
+        resolvedPages.length > 0 ? resolvedPages : [{ content: container.innerHTML }];
+      const pageKey = nextPages.map((page) => page.content).join("");
       const styleKey = JSON.stringify(nextPageStyle);
 
       setPageStyle((currentStyle) =>
         JSON.stringify(currentStyle) === styleKey ? currentStyle : nextPageStyle,
       );
       setPages((currentPages) =>
-        currentPages.map((page) => page.content).join("") === pageKey
-          ? currentPages
-          : resolvedPages,
+        currentPages.map((page) => page.content).join("") === pageKey ? currentPages : nextPages,
       );
-    });
+    }, MEASURE_DEBOUNCE_MS);
 
-    return () => window.cancelAnimationFrame(frame);
-  }, [children]);
+    return () => window.clearTimeout(timer);
+  }, [children, fontsReady]);
 
   return (
     <div className="relative">

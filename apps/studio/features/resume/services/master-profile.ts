@@ -185,10 +185,6 @@ export function saveMasterProfileToLocalStorage(profile: MasterProfileData) {
   safeSetLocalStorageItem(window.localStorage, MASTER_PROFILE_STORAGE_KEY, JSON.stringify(payload));
 }
 
-export function resetMasterProfileToLocalStorage() {
-  saveMasterProfileToLocalStorage(getDefaultProfile());
-}
-
 export function deriveResumeFromMasterProfile(resumeId: string) {
   const { profile } = loadMasterProfileFromLocalStorage();
 

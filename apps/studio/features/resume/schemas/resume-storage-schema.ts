@@ -199,21 +199,12 @@ const resumeDataSchemaBase = z
   })
   .passthrough();
 
-export const resumeDataSchema: z.ZodType<ResumeData, z.ZodTypeDef, unknown> = resumeDataSchemaBase;
-
 const resumeDataInputSchema = resumeDataSchemaBase.deepPartial();
 
 export interface ResumeCollection {
   version: 1;
   items: Record<string, ResumeData>;
 }
-
-const resumeCollectionInputSchema = z
-  .object({
-    version: z.number().optional(),
-    items: z.record(z.unknown()),
-  })
-  .passthrough();
 
 export function parseResumeDataInput(value: unknown) {
   const result = resumeDataInputSchema.safeParse(value);
@@ -233,32 +224,4 @@ export function parseResumeDataForExport(value: unknown) {
   }
 
   return parsed;
-}
-
-export function parseResumeCollectionInput(value: unknown): ResumeCollection {
-  const parsedCollection = resumeCollectionInputSchema.safeParse(value);
-
-  if (!parsedCollection.success) {
-    return {
-      version: 1,
-      items: {},
-    };
-  }
-
-  const normalizedItems = Object.fromEntries(
-    Object.entries(parsedCollection.data.items).flatMap(([resumeId, resume]) => {
-      const parsedResume = parseResumeDataInput(resume);
-
-      if (!parsedResume) {
-        return [];
-      }
-
-      return [[resumeId, parsedResume]];
-    }),
-  );
-
-  return {
-    version: 1,
-    items: normalizedItems,
-  };
 }

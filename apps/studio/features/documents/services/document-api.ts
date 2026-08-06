@@ -8,7 +8,8 @@ export interface CloudDocument {
   id: string;
   type: DocumentType;
   title: string;
-  content: unknown;
+  /** Absent unless the request asked for it — see DocumentApi.list. */
+  content?: unknown;
   templateId: string;
   visibility: string;
   revision: number;
@@ -17,18 +18,30 @@ export interface CloudDocument {
   createdAt: string;
 }
 
+export interface DocumentListOptions {
+  /** ISO timestamp; returns only documents modified after it. */
+  updatedSince?: string;
+  /** Include document bodies. Off by default — they dominate the payload. */
+  includeContent?: boolean;
+}
+
 export class DocumentApi {
   /**
-   * List documents for the current user
+   * List documents for the current user.
+   *
+   * Bodies are opt-in: a metadata-only list of 50 resumes is a few KB where the
+   * full-content version was ~600KB. Callers that merge content (the sync hydrate
+   * path) must pass `includeContent: true`.
    */
 
-  static async list(type?: DocumentType, updatedSince?: string): Promise<CloudDocument[]> {
+  static async list(type?: DocumentType, options?: DocumentListOptions): Promise<CloudDocument[]> {
     let url = "/documents";
 
     const params = new URLSearchParams();
 
     if (type) params.append("type", type);
-    if (updatedSince) params.append("updatedSince", updatedSince);
+    if (options?.updatedSince) params.append("updatedSince", options.updatedSince);
+    if (options?.includeContent) params.append("includeContent", "true");
 
     if (params.toString()) url += `?${params.toString()}`;
 

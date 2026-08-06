@@ -20,7 +20,10 @@ export function formatDateRange(startDate: string, endDate: string, current: boo
 
 /** Joins only the non-empty parts — never substitutes a placeholder for a blank one. */
 export function joinTruthy(parts: Array<string | undefined | null>, separator: string): string {
-  return parts.map((part) => safeText(part ?? "")).filter(Boolean).join(separator);
+  return parts
+    .map((part) => safeText(part ?? ""))
+    .filter(Boolean)
+    .join(separator);
 }
 
 export function sanitizeFileName(value: string): string {

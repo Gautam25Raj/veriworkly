@@ -1,21 +1,101 @@
 {
   "schema_version": "1.0",
-  "name": "VeriWorkly Resume Studio",
-  "description": "The core interactive application for building and managing resumes within the VeriWorkly ecosystem.",
+  "name": "VeriWorkly Studio Agent Card",
+  "description": "VeriWorkly Studio (app.veriworkly.com) is the core authenticated workspace and local-first editor for ATS-optimized resumes, cover letters, Master Profile data management, AI writing tools, and API key issuance.",
   "contact_email": "info@veriworkly.com",
   "site_url": "https://app.veriworkly.com",
-  "parent_site_url": "https://veriworkly.com",
   "llms_txt": "https://app.veriworkly.com/llms.txt",
+  "pricing_md": "https://app.veriworkly.com/pricing.md",
+  "openapi_spec": "https://app.veriworkly.com/openapi.json",
 
   "api": {
     "type": "openapi",
     "url": "https://app.veriworkly.com/openapi.json",
     "has_user_authentication": true,
     "auth_type": "cookie, bearer",
-    "auth_details": "Web clients authenticate using Better Auth via Email OTP, establishing a session cookie ('better-auth.session_token'). Programmatic agents must use API Keys as Bearer tokens.",
+    "auth_details": "Web sessions authenticate via Better Auth Email OTP cookies ('better-auth.session_token'). Programmatic agents authenticate via hashed Bearer tokens ('Authorization: Bearer vw_...').",
     "base_url": "https://api.veriworkly.com/api/v1"
   },
 
-  "master_llms_txt": "https://veriworkly.com/llms.txt",
-  "master_agent_json": "https://veriworkly.com/.well-known/agent.json"
+  "services": [
+    {
+      "name": "Document Builder & Canvas",
+      "url": "https://app.veriworkly.com/editor",
+      "description": "Interactive, pixel-accurate resume and cover letter builder with live paged PDF preview and template switching."
+    },
+    {
+      "name": "Master Profile Store",
+      "url": "https://app.veriworkly.com/profile/master",
+      "description": "Central canonical JSON profile holding complete career history to seed new documents and web portfolios."
+    },
+    {
+      "name": "ATS Checker Workspace",
+      "url": "https://app.veriworkly.com/ats",
+      "description": "Deterministic ATS readiness scanner and AI-assisted deep analysis against job descriptions."
+    },
+    {
+      "name": "Developer API Key Management",
+      "url": "https://app.veriworkly.com/api-keys",
+      "description": "Self-serve API key creation, scope delegation, secret rotation, and revocation."
+    },
+    {
+      "name": "Credits & Wallet Ledger",
+      "url": "https://app.veriworkly.com/credits",
+      "description": "AI credit wallet balance, FIFO grant allocation details, and complete usage history."
+    },
+    {
+      "name": "Affiliate & Ambassador Dashboards",
+      "url": "https://app.veriworkly.com/affiliate",
+      "description": "Referral tracking, 3-tier commission management, and campus ambassador application tracking."
+    }
+  ],
+
+  "capabilities": [
+    {
+      "name": "Document Management",
+      "description": "Create, edit, list, tags, duplicate, and soft-delete resume and cover letter documents.",
+      "endpoints": ["/api/v1/documents", "/api/v1/documents/{id}"]
+    },
+    {
+      "name": "Master Profile CRUD",
+      "description": "Read and update central Master Profile to auto-populate documents.",
+      "endpoints": ["/api/v1/profiles/master"]
+    },
+    {
+      "name": "ATS Scanning & Analysis",
+      "description": "Run deterministic ATS readiness rules and AI job-description keyword match analysis.",
+      "endpoints": ["/api/v1/ats/scan", "/api/v1/ats/analyze", "/api/v1/ats/quota"]
+    },
+    {
+      "name": "AI Content Generation",
+      "description": "Execute AI-powered resume tailoring, bullet point generation, and cover letter drafting.",
+      "endpoints": ["/api/v1/ai/actions", "/api/v1/ai/generate"]
+    },
+    {
+      "name": "GitHub & LinkedIn Ingestion",
+      "description": "OAuth GitHub import (up to 30 repos) and AI-parsed LinkedIn text extraction.",
+      "endpoints": ["/api/v1/import/github", "/api/v1/import/linkedin"]
+    },
+    {
+      "name": "Document Sharing",
+      "description": "Mint, password-protect, and revoke public document share links.",
+      "endpoints": ["/api/v1/shares", "/api/v1/shares/{token}"]
+    },
+    {
+      "name": "Developer API Keys",
+      "description": "Generate, rotate, and revoke API keys with scope control.",
+      "endpoints": ["/api/v1/api-keys", "/api/v1/api-keys/{id}"]
+    }
+  ],
+
+  "compliance": {
+    "privacy_policy": "https://veriworkly.com/privacy",
+    "terms_of_service": "https://veriworkly.com/terms",
+    "data_storage": "Local-first by default in browser localStorage, optional background cloud sync to PostgreSQL."
+  },
+
+  "developer": {
+    "name": "Gautam Raj",
+    "github": "https://github.com/Gautam25Raj"
+  }
 }

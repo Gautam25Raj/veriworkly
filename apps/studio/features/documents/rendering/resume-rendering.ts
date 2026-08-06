@@ -2,7 +2,6 @@ import type {
   ResumeData,
   ResumeBasics,
   ResumeLinkItem,
-  ResumeLinkType,
   ResumeSectionId,
   ResumeCustomization,
 } from "@/types/resume";
@@ -160,22 +159,6 @@ export function getLinkDisplayText(
   }
 
   return label || urlText || typeLabel;
-}
-
-export function getLinkIconLabel(type: ResumeLinkType): string {
-  const labels: Record<ResumeLinkType, string> = {
-    github: "GH",
-    linkedin: "in",
-    dribbble: "Dr",
-    twitter: "X",
-    portfolio: "Web",
-    behance: "Be",
-    medium: "M",
-    youtube: "YT",
-    custom: "Link",
-  };
-
-  return labels[type] ?? "Link";
 }
 
 export function getEducationTitle(item: ResumeData["education"][number]): string {

@@ -4,16 +4,16 @@ import { useState } from "react";
 
 import type { ResumeData } from "@/types/resume";
 
-import {
-  exportResumeAsPdf,
-  exportResumeAsHtml,
-  exportResumeAsJson,
-  exportResumeAsDocx,
-  exportResumeAsText,
-  exportResumeAsMarkdown,
-} from "@/features/resume/services/resume-service";
 import { trackUsageEvent } from "@/features/analytics/services/usage-metrics";
 
+/**
+ * Every handler resolves its exporter through a dynamic `import()` at click time.
+ *
+ * These modules statically pull in `@react-pdf/renderer` (~1.8MB) and `docx` (~390KB).
+ * Importing them at the top of this file put both into the editor's initial bundle —
+ * and, via the re-export chain through resume-service, into the document list and
+ * dashboard bundles too. Nobody needs a PDF engine until they click Download.
+ */
 export const useToolbarDownloads = (
   resume: ResumeData,
   resumePreviewId: string,
@@ -21,78 +21,61 @@ export const useToolbarDownloads = (
 ) => {
   const [activeDownload, setActiveDownload] = useState<string | null>(null);
 
-  const onDownloadDocx = async () => {
-    setActiveDownload("docx");
+  const runDownload = async (
+    key: string,
+    label: string,
+    run: () => void | Promise<void>,
+  ): Promise<void> => {
+    setActiveDownload(key);
+
     try {
+      await run();
+
+      onMessage(`${label} downloaded successfully`);
+      trackUsageEvent({ event: "resume_exported" });
+    } catch {
+      onMessage(`Could not generate ${label}. Try again.`);
+    } finally {
+      setActiveDownload(null);
+    }
+  };
+
+  const onDownloadDocx = () =>
+    runDownload("docx", "DOCX", async () => {
+      const { exportResumeAsDocx } = await import("@/features/documents/export/export-docx");
       await exportResumeAsDocx(resume);
+    });
 
-      onMessage("DOCX downloaded successfully");
-      trackUsageEvent({ event: "resume_exported" });
-    } catch {
-      onMessage("Could not generate DOCX. Try again.");
-    } finally {
-      setActiveDownload(null);
-    }
-  };
-
-  const onDownloadPdf = async () => {
-    setActiveDownload("pdf");
-
-    try {
+  const onDownloadPdf = () =>
+    runDownload("pdf", "PDF", async () => {
+      const { exportResumeAsPdf } = await import("@/features/documents/export/export-pdf");
       await exportResumeAsPdf(resume);
+    });
 
-      onMessage("PDF downloaded successfully");
-      trackUsageEvent({ event: "resume_exported" });
-    } catch {
-      onMessage("Could not generate PDF. Try again.");
-    } finally {
-      setActiveDownload(null);
-    }
-  };
-
-  const onDownloadMarkdown = () => {
-    try {
+  const onDownloadMarkdown = () =>
+    runDownload("markdown", "Markdown", async () => {
+      const { exportResumeAsMarkdown } =
+        await import("@/features/documents/export/export-markdown");
       exportResumeAsMarkdown(resume);
+    });
 
-      onMessage("Markdown downloaded successfully");
-      trackUsageEvent({ event: "resume_exported" });
-    } catch {
-      onMessage("Could not generate Markdown. Try again.");
-    }
-  };
-
-  const onDownloadHtml = () => {
-    try {
+  const onDownloadHtml = () =>
+    runDownload("html", "HTML", async () => {
+      const { exportResumeAsHtml } = await import("@/features/documents/export/export-html");
       exportResumeAsHtml(resume, resumePreviewId);
+    });
 
-      onMessage("HTML downloaded successfully");
-      trackUsageEvent({ event: "resume_exported" });
-    } catch {
-      onMessage("Could not generate HTML. Try again.");
-    }
-  };
-
-  const onDownloadText = () => {
-    try {
+  const onDownloadText = () =>
+    runDownload("txt", "Plain text", async () => {
+      const { exportResumeAsText } = await import("@/features/documents/export/export-text");
       exportResumeAsText(resume);
+    });
 
-      onMessage("Plain text downloaded successfully");
-      trackUsageEvent({ event: "resume_exported" });
-    } catch {
-      onMessage("Could not generate plain text. Try again.");
-    }
-  };
-
-  const onDownloadJson = () => {
-    try {
+  const onDownloadJson = () =>
+    runDownload("json", "JSON", async () => {
+      const { exportResumeAsJson } = await import("@/features/documents/export/export-json");
       exportResumeAsJson(resume);
-
-      onMessage("JSON downloaded successfully");
-      trackUsageEvent({ event: "resume_exported" });
-    } catch {
-      onMessage("Could not generate JSON. Try again.");
-    }
-  };
+    });
 
   return {
     activeDownload,

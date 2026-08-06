@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 794 1122" width="794" height="1122" role="img" aria-label="Modern Minimal resume template preview">
+  <rect width="794" height="1122" fill="#ffffff"/>
+  <g fill="#0f172a">
+    <rect x="80" y="92" width="300" height="26" rx="4"/>
+  </g>
+  <g fill="#94a3b8">
+    <rect x="80" y="132" width="230" height="12" rx="3"/>
+    <rect x="80" y="164" width="150" height="9" rx="3"/>
+    <rect x="242" y="164" width="120" height="9" rx="3"/>
+    <rect x="374" y="164" width="96" height="9" rx="3"/>
+  </g>
+
+  <g fill="#6366f1">
+    <rect x="80" y="236" width="86" height="9" rx="3"/>
+    <rect x="80" y="360" width="106" height="9" rx="3"/>
+    <rect x="80" y="640" width="94" height="9" rx="3"/>
+    <rect x="80" y="836" width="70" height="9" rx="3"/>
+  </g>
+
+  <g fill="#cbd5e1">
+    <rect x="80" y="266" width="634" height="9" rx="3"/>
+    <rect x="80" y="286" width="596" height="9" rx="3"/>
+    <rect x="80" y="306" width="420" height="9" rx="3"/>
+  </g>
+
+  <g>
+    <rect x="80" y="390" width="250" height="13" rx="3" fill="#0f172a"/>
+    <rect x="600" y="392" width="114" height="9" rx="3" fill="#94a3b8"/>
+    <rect x="80" y="414" width="190" height="9" rx="3" fill="#94a3b8"/>
+    <rect x="98" y="440" width="616" height="9" rx="3" fill="#cbd5e1"/>
+    <rect x="98" y="460" width="580" height="9" rx="3" fill="#cbd5e1"/>
+    <rect x="98" y="480" width="524" height="9" rx="3" fill="#cbd5e1"/>
+
+    <rect x="80" y="520" width="228" height="13" rx="3" fill="#0f172a"/>
+    <rect x="608" y="522" width="106" height="9" rx="3" fill="#94a3b8"/>
+    <rect x="80" y="544" width="176" height="9" rx="3" fill="#94a3b8"/>
+    <rect x="98" y="570" width="616" height="9" rx="3" fill="#cbd5e1"/>
+    <rect x="98" y="590" width="546" height="9" rx="3" fill="#cbd5e1"/>
+
+    <rect x="80" y="670" width="264" height="13" rx="3" fill="#0f172a"/>
+    <rect x="604" y="672" width="110" height="9" rx="3" fill="#94a3b8"/>
+    <rect x="80" y="694" width="200" height="9" rx="3" fill="#94a3b8"/>
+    <rect x="98" y="720" width="600" height="9" rx="3" fill="#cbd5e1"/>
+    <rect x="98" y="740" width="500" height="9" rx="3" fill="#cbd5e1"/>
+
+    <rect x="80" y="866" width="634" height="9" rx="3" fill="#cbd5e1"/>
+    <rect x="80" y="886" width="590" height="9" rx="3" fill="#cbd5e1"/>
+    <rect x="80" y="906" width="430" height="9" rx="3" fill="#cbd5e1"/>
+  </g>
+</svg>

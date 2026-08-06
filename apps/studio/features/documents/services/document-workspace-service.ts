@@ -1,18 +1,21 @@
 "use client";
 
+import type { DocumentIndexEntry } from "@/types/document";
 import type { DocumentType } from "@/features/documents/core/document-types";
 import type { BaseDocument, DocumentMeta } from "@/features/documents/core/types";
 import type { SaveDocumentOptions, SaveDocumentResult } from "./local-storage-service";
 
 import { LocalStorageService } from "./local-storage-service";
 
-import { DOCUMENT_TYPES } from "@/features/documents/core/document-types";
 import { getDocumentDefinition } from "@/features/documents/core/registry";
 import { loadWorkspaceSettingsFromLocalStorage } from "@/features/documents/services/workspace-settings";
+import { DOCUMENT_TYPES } from "@/features/documents/core/document-types";
 import {
   DOCUMENT_ACTIVE_STORAGE_KEY,
   DOCUMENT_STORAGE_UPDATED_EVENT,
-  getDocumentCollectionKey,
+  getDocumentKey,
+  getDocumentKeyPrefix,
+  getLegacyDocumentCollectionKey,
 } from "@/features/documents/services/storage-keys";
 
 const ACTIVE_KEY = DOCUMENT_ACTIVE_STORAGE_KEY;
@@ -24,26 +27,18 @@ function pendingSaveKey(type: DocumentType, id: string) {
 }
 
 function buildId(type: DocumentType): string {
-  return `${type.toLowerCase()}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return `${type.toLowerCase()}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
-function parseCollection(type: DocumentType, input: unknown) {
-  const collection =
-    typeof input === "object" && input !== null
-      ? (input as { version?: unknown; items?: unknown })
-      : {};
-
-  const rawItems =
-    typeof collection.items === "object" && collection.items !== null ? collection.items : {};
-
-  const parseItem = getDocumentDefinition(type).parse;
-  const entries = Object.entries(rawItems).map(([id, value]) => [id, parseItem(value)]);
-
+function toIndexEntry(type: DocumentType, document: BaseDocument): DocumentIndexEntry {
   return {
-    version: typeof collection.version === "number" ? collection.version : 2,
-    items: Object.fromEntries(
-      entries.filter((entry): entry is [string, BaseDocument] => Boolean(entry[1])),
-    ),
+    id: document.id,
+    type,
+    title: document.title,
+    templateId: document.templateId,
+    description: getDocumentDefinition(type).describe(document),
+    updatedAt: document.updatedAt,
+    sync: document.sync,
   };
 }
 
@@ -58,38 +53,20 @@ export function getWorkspaceStorage(type: DocumentType): LocalStorageService<Bas
 
   if (!instance) {
     instance = new LocalStorageService<BaseDocument>({
-      collectionKey: getDocumentCollectionKey(type),
+      scope: type,
+      documentKey: (id) => getDocumentKey(type, id),
+      documentKeyPrefix: getDocumentKeyPrefix(type),
+      legacyCollectionKey: getLegacyDocumentCollectionKey(type),
       activeIdKey: ACTIVE_KEY,
       activeIdScope: type,
       updatedEventName: DOCUMENT_STORAGE_UPDATED_EVENT,
       parseItem: getDocumentDefinition(type).parse,
-      parseCollection: (input) => parseCollection(type, input),
+      toIndexEntry: (document) => toIndexEntry(type, document),
     });
     storageInstances.set(type, instance);
   }
 
   return instance;
-}
-
-function loadCollection(type: DocumentType): Record<string, BaseDocument> {
-  if (typeof window === "undefined") return {};
-
-  return getWorkspaceStorage(type).loadCollection().items;
-}
-
-function saveCollection(
-  type: DocumentType,
-  items: Record<string, BaseDocument>,
-): SaveDocumentResult {
-  if (typeof window === "undefined") return { ok: true, queued: false };
-
-  const result = getWorkspaceStorage(type).saveCollection({ version: 2, items });
-
-  if (!result.ok) return { ok: false, reason: result.reason };
-
-  window.dispatchEvent(new Event("storage"));
-
-  return { ok: true, queued: false };
 }
 
 function clearPendingSave(type: DocumentType, id: string) {
@@ -107,34 +84,46 @@ function clearPendingSave(type: DocumentType, id: string) {
   pendingSaves.delete(key);
 }
 
+/**
+ * Document metadata for list views. Reads the storage index only — it never loads or
+ * validates a document body, so its cost does not grow with document size.
+ */
 export function listDocuments(type?: DocumentType): DocumentMeta[] {
   const selectedTypes: DocumentType[] = type ? [type] : [...DOCUMENT_TYPES];
 
   return selectedTypes
-    .flatMap((t) => Object.values(loadCollection(t)))
-    .map((doc) => ({
-      id: doc.id,
-      type: doc.type,
-      title: doc.title,
-      templateId: doc.templateId,
-      updatedAt: doc.updatedAt,
-      sync: doc.sync,
+    .flatMap((t) => getWorkspaceStorage(t).listIndex())
+    .map((entry) => ({
+      id: entry.id,
+      type: entry.type as DocumentType,
+      title: entry.title,
+      templateId: entry.templateId,
+      updatedAt: entry.updatedAt,
+      sync: entry.sync,
     }))
     .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
 }
 
+/** Index entries including the card description, for the document library. */
+export function listDocumentIndexEntries(type?: DocumentType): DocumentIndexEntry[] {
+  const selectedTypes: DocumentType[] = type ? [type] : [...DOCUMENT_TYPES];
+
+  return selectedTypes
+    .flatMap((t) => getWorkspaceStorage(t).listIndex())
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+}
+
+/** Monotonic storage revision, for cache keys. Cheap — see document-index.ts. */
+export function getWorkspaceRevision(): number {
+  return Math.max(...DOCUMENT_TYPES.map((type) => getWorkspaceStorage(type).getRevision()), 0);
+}
+
 export function loadDocumentById(type: DocumentType, id: string): BaseDocument | null {
-  return loadCollection(type)[id] ?? null;
+  return getWorkspaceStorage(type).loadById(id);
 }
 
 function persistDocument(document: BaseDocument): SaveDocumentResult {
-  const items = loadCollection(document.type);
-  items[document.id] = document;
-  const result = saveCollection(document.type, items);
-
-  if (result.ok) setActiveDocument(document.type, document.id);
-
-  return result;
+  return getWorkspaceStorage(document.type).persist(document);
 }
 
 export function saveDocument(
@@ -191,10 +180,16 @@ export function createDocument(type: DocumentType) {
 export function deleteDocument(type: DocumentType, id: string) {
   clearPendingSave(type, id);
 
-  const items = loadCollection(type);
-  delete items[id];
+  getWorkspaceStorage(type).delete(id);
+}
 
-  saveCollection(type, items);
+/** Removes every document of a type, its index entries, and the active-id pointer. */
+export function clearDocuments(type: DocumentType) {
+  for (const key of [...pendingSaves.keys()]) {
+    if (key.startsWith(`${type}:`)) clearPendingSave(type, key.slice(type.length + 1));
+  }
+
+  getWorkspaceStorage(type).clear();
 }
 
 export function setActiveDocument(type: DocumentType, id: string) {
@@ -203,8 +198,13 @@ export function setActiveDocument(type: DocumentType, id: string) {
   getWorkspaceStorage(type).setActiveId(id);
 }
 
+/**
+ * Every document body of a type. O(library size) — only for callers that genuinely
+ * need content (bulk sync-flag updates, export-all). List views want
+ * {@link listDocumentIndexEntries} instead.
+ */
 export function listFullDocuments(type: DocumentType): BaseDocument[] {
-  return Object.values(loadCollection(type)).sort(
-    (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt),
-  );
+  return getWorkspaceStorage(type)
+    .list()
+    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
 }

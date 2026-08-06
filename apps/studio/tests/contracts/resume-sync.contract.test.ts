@@ -10,8 +10,7 @@ const state = {
   activeId: defaultResume.id,
   lastSaveOptions: undefined as { debounceMs?: number; flush?: boolean } | undefined,
   nextSaveResult: { ok: true, queued: false } as
-    | { ok: true; queued: boolean }
-    | { ok: false; reason: "quota-exceeded" | "unknown" },
+    { ok: true; queued: boolean } | { ok: false; reason: "quota-exceeded" | "unknown" },
 };
 
 function cloneResume(input: ResumeData): ResumeData {
@@ -51,6 +50,22 @@ vi.mock("@/features/documents/services/document-workspace-service", () => {
     listFullDocuments: vi.fn((_type: string) => {
       void _type;
       return Array.from(state.byId.values()).map((doc) => cloneDoc(doc));
+    }),
+    listDocumentIndexEntries: vi.fn((_type?: string) => {
+      void _type;
+      return Array.from(state.byId.values()).map((doc) => ({
+        id: doc.id,
+        type: doc.type,
+        title: doc.title,
+        templateId: doc.templateId,
+        description: (doc.content as ResumeData).basics?.role ?? "",
+        updatedAt: doc.updatedAt,
+        sync: doc.sync,
+      }));
+    }),
+    clearDocuments: vi.fn((_type: string) => {
+      void _type;
+      state.byId.clear();
     }),
     setActiveDocument: vi.fn((_type: string, id: string) => {
       void _type;

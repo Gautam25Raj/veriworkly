@@ -11,17 +11,19 @@ import { loadWorkspaceSettingsFromLocalStorage } from "@/features/documents/serv
 import {
   saveDocument,
   deleteDocument,
+  clearDocuments,
   loadDocumentById,
   setActiveDocument,
+  listDocumentIndexEntries,
   listFullDocuments,
 } from "@/features/documents/services/document-workspace-service";
 
 import { importDocumentFromFile } from "@/features/documents/services/import-service";
 import { parseResumeDataInput } from "@/features/resume/schemas/resume-storage-schema";
+import { DOCUMENT_ACTIVE_STORAGE_KEY } from "@/features/documents/services/storage-keys";
 
 export type SaveResumeResult =
-  | { ok: true; queued: boolean }
-  | { ok: false; reason: "quota-exceeded" | "unknown" };
+  { ok: true; queued: boolean } | { ok: false; reason: "quota-exceeded" | "unknown" };
 
 export type SaveResumeOptions = {
   debounceMs?: number;
@@ -43,7 +45,7 @@ function createId(): string {
 
 export function loadResume(): ResumeData {
   if (typeof window !== "undefined") {
-    const activeVal = window.localStorage.getItem("veriworkly:docs:v2:active");
+    const activeVal = window.localStorage.getItem(DOCUMENT_ACTIVE_STORAGE_KEY);
 
     if (activeVal) {
       const [type, id] = activeVal.split(":");
@@ -55,13 +57,13 @@ export function loadResume(): ResumeData {
     }
   }
 
-  const fullDocs = listFullDocuments("RESUME");
-  if (fullDocs.length > 0) {
-    const firstResume = fullDocs[0].content as ResumeData;
+  // Index lookup then a single body read, rather than loading every resume to take
+  // the first one. This runs on editor mount.
+  const newest = listDocumentIndexEntries("RESUME")[0];
 
-    setActiveDocument("RESUME", firstResume.id);
-
-    return normalizeResumeData(firstResume);
+  if (newest) {
+    const resume = loadResumeById(newest.id);
+    if (resume) return resume;
   }
 
   return normalizeResumeData(defaultResume);
@@ -87,41 +89,31 @@ export function saveResume(resume: ResumeData, options?: SaveResumeOptions): Sav
 }
 
 export function resetResume(): ResumeData {
-  if (typeof window !== "undefined") {
-    window.localStorage.removeItem("veriworkly:docs:v2:resume");
-    window.localStorage.removeItem("veriworkly:docs:v2:active");
-  }
+  clearDocuments("RESUME");
   return defaultResume;
 }
 
+/**
+ * Reads the storage index, so listing saved resumes never loads or validates a
+ * resume body. `role` is the index's `description`, which is exactly what
+ * `DocumentDefinition.describe` produces for a resume.
+ */
 export function listSavedResumes(): ResumeListItem[] {
-  const docs = listFullDocuments("RESUME");
-
-  return docs.map((doc) => {
-    const resume = doc.content as ResumeData;
-    return {
-      id: doc.id,
-      title: doc.title,
-      templateId: doc.templateId,
-      role: resume.basics?.role || "",
-      updatedAt: doc.updatedAt,
-      sync: doc.sync,
-    };
-  });
+  return listDocumentIndexEntries("RESUME").map((entry) => ({
+    id: entry.id,
+    title: entry.title,
+    templateId: entry.templateId,
+    role: entry.description,
+    updatedAt: entry.updatedAt,
+    sync: entry.sync,
+  }));
 }
 
 export function deleteResumeById(resumeId: string): string | null {
   deleteDocument("RESUME", resumeId);
 
-  const remaining = listFullDocuments("RESUME");
-  const nextId = remaining[0]?.id ?? null;
-
-  if (nextId) {
-    setActiveDocument("RESUME", nextId);
-  } else {
-    if (typeof window !== "undefined") window.localStorage.removeItem("veriworkly:docs:v2:active");
-  }
-  return nextId;
+  // `delete` already repoints (or clears) the active-id pointer.
+  return listDocumentIndexEntries("RESUME")[0]?.id ?? null;
 }
 
 export function loadResumeById(resumeId: string): ResumeData | null {

@@ -3,6 +3,10 @@ import type { DocumentType } from "./document-types";
 
 import { precisionAtsMeta } from "@/templates/resume/precision-ats/meta";
 import { executiveClarityMeta } from "@/templates/resume/executive-clarity/meta";
+import { modernMinimalMeta } from "@/templates/resume/modern-minimal/meta";
+import { timelineFocusMeta } from "@/templates/resume/timeline-focus/meta";
+import { boldImpactMeta } from "@/templates/resume/bold-impact/meta";
+import { corporateBriefMeta } from "@/templates/resume/corporate-brief/meta";
 import { veriworklyCoverLetterMeta } from "@/templates/cover-letter/veriworkly/meta";
 import { professionalCoverLetterMeta } from "@/templates/cover-letter/professional/meta";
 
@@ -17,9 +21,14 @@ import { professionalCoverLetterMeta } from "@/templates/cover-letter/profession
  */
 
 export const templateCatalogByType: Record<DocumentType, TemplateMeta[]> = {
-  RESUME: [executiveClarityMeta, precisionAtsMeta],
+  RESUME: [
+    executiveClarityMeta,
+    precisionAtsMeta,
+    modernMinimalMeta,
+    timelineFocusMeta,
+    corporateBriefMeta,
+    boldImpactMeta,
+  ],
 
   COVER_LETTER: [professionalCoverLetterMeta, veriworklyCoverLetterMeta],
 };
-
-export const allTemplates = Object.values(templateCatalogByType).flat();

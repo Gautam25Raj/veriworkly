@@ -1,17 +1,24 @@
 import { Document, Link, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
 import type { CoverLetterContent } from "@/features/cover-letter/types";
-import { FONT_REGISTRY, normalizeFontFamilyId } from "@/features/documents/constants/fonts";
+import type { CoverLetterPalette } from "../shared";
+import type { CoverLetterTokens } from "../tokens";
+
+import { getPdfFontStack } from "@/features/documents/constants/fonts";
+import { pxToPt } from "@/features/resume/constants/resume-layout";
+import { pdfFixedWidth, pdfFlexible } from "@/templates/shared/box";
+import { pdfText } from "@/templates/shared/text-tokens";
+import { BULLET_MARKER } from "@/templates/resume/shared/typography";
+import { COVER_LETTER_SCALE as S, createCoverLetterTokens } from "../tokens";
 
 import {
   buildCoverLetterFlowContent,
   buildVeriworklyFlowItems,
   getCoverLetterFlowSenderName,
+  getCoverLetterPalette,
   getVeriworklyFlowItemWeight,
   keepVeriworklyProofHeadingWithNext,
   paginateWeightedItems,
-  pt,
-  PX_TO_PT,
   getCoverLetterLinks,
   getCoverLetterLinkDisplayMode,
   isCoverLetterSectionVisible,
@@ -24,185 +31,181 @@ import {
 } from "@/features/documents/rendering/resume-rendering";
 import { PdfSocialIcon } from "@/templates/pdf/SocialIcon";
 
-const PDF_PAGE_WIDTH = pt(794);
-const PDF_PAGE_HEIGHT = pt(1123);
+const PAGE_WIDTH_PT = pxToPt(S.pageWidth);
+const PAGE_HEIGHT_PT = pxToPt(S.pageHeight);
 
-const styles = StyleSheet.create({
-  page: {
-    width: PDF_PAGE_WIDTH,
-    height: PDF_PAGE_HEIGHT,
-    minHeight: PDF_PAGE_HEIGHT,
-    padding: 0,
-    fontSize: pt(14.5),
-    lineHeight: 1.55,
-    color: "#111827",
-  },
+/**
+ * Every spatial value goes through `pxToPt` and every text node pins its own
+ * line box, so this file lays out exactly like `./web.tsx`.
+ */
+function createStyles(
+  palette: CoverLetterPalette,
+  tokens: CoverLetterTokens,
+  appearance: CoverLetterContent["appearance"],
+) {
+  /**
+   * Column widths, stated rather than left to flex.
+   *
+   * `@react-pdf/layout` breaks a `Text` into lines once, on Yoga's first
+   * measure pass, and then refuses to redo it (`shouldLayoutText` returns false
+   * as soon as `node.lines` exists). For a `Text` sized by flex that first pass
+   * proposes the *container's* width, so the lines are broken for a column the
+   * text is not in — and the paragraph runs off the right edge of the page,
+   * which is exactly what the preview does not do.
+   */
+  const mainWidth = S.pageWidth - S.railWidth - S.hairline - appearance.pageMargin * 2;
+  const railTextWidth = S.railWidth - S.railPadX * 2;
+  const listWidth = mainWidth - S.listPadX * 2;
+  const recipientWidth = mainWidth - S.metaDateWidth - S.metaColumnGap;
 
-  shell: { flexDirection: "row", height: PDF_PAGE_HEIGHT, minHeight: PDF_PAGE_HEIGHT },
+  const column = (width: number) => ({ width: pxToPt(width), maxWidth: pxToPt(width) });
 
-  sidebar: {
-    width: pt(214),
-    height: PDF_PAGE_HEIGHT,
-    paddingHorizontal: pt(24),
-    paddingVertical: pt(36),
-    backgroundColor: "#111827",
-    color: "#020618",
-    borderRightWidth: 1,
-    borderRightColor: "#e2e8f0",
-  },
+  return StyleSheet.create({
+    page: {
+      backgroundColor: appearance.pageColor,
+      color: palette.text,
+      height: PAGE_HEIGHT_PT,
+      minHeight: PAGE_HEIGHT_PT,
+      padding: 0,
+      width: PAGE_WIDTH_PT,
+    },
+    shell: { flexDirection: "row", height: PAGE_HEIGHT_PT, minHeight: PAGE_HEIGHT_PT },
 
-  main: { flex: 1, height: PDF_PAGE_HEIGHT, padding: pt(44), backgroundColor: "#ffffff" },
+    sidebar: {
+      ...pdfFixedWidth(S.railWidth),
+      backgroundColor: appearance.sidebarColor,
+      borderRightColor: palette.sidebarBorder,
+      borderRightWidth: pxToPt(S.hairline),
+      height: PAGE_HEIGHT_PT,
+      paddingHorizontal: pxToPt(S.railPadX),
+      paddingVertical: pxToPt(S.railPadY),
+    },
+    main: {
+      ...pdfFlexible,
+      backgroundColor: appearance.pageColor,
+      height: PAGE_HEIGHT_PT,
+      padding: pxToPt(appearance.pageMargin),
+    },
 
-  railLabel: {
-    fontSize: pt(10),
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    fontWeight: 700,
-    marginBottom: pt(12),
-  },
+    railLabel: { ...pdfText(tokens.railLabel), ...column(railTextWidth) },
+    railName: { ...pdfText(tokens.railName), ...column(railTextWidth), marginTop: pxToPt(16) },
+    railTitle: { ...pdfText(tokens.railTitle), ...column(railTextWidth), marginTop: pxToPt(8) },
+    railText: { ...pdfText(tokens.railText), ...column(railTextWidth) },
+    railBlock: { marginTop: pxToPt(S.railBlockTop), rowGap: pxToPt(8) },
+    rule: {
+      backgroundColor: palette.accent,
+      height: pxToPt(S.hairline),
+      marginBottom: pxToPt(S.railBlockTop),
+      marginTop: pxToPt(S.railBlockTop),
+      width: pxToPt(S.railRuleWidth),
+    },
+    railDivider: {
+      backgroundColor: palette.accent,
+      height: pxToPt(S.hairline),
+      marginBottom: pxToPt(16),
+      marginTop: pxToPt(16),
+      width: pxToPt(S.railRuleWidth),
+    },
+    railLinkRow: { alignItems: "center", columnGap: pxToPt(4), flexDirection: "row" },
+    railLinkIcon: { ...pdfFixedWidth(14), height: pxToPt(14) },
+    railLink: { ...pdfText(tokens.railText), color: palette.accent, textDecoration: "none" },
 
-  name: { fontSize: pt(26), fontWeight: 600, lineHeight: 1.08, color: "#0f172a" },
+    targetBlock: {
+      borderTopColor: palette.sidebarBorder,
+      borderTopWidth: pxToPt(S.hairline),
+      marginTop: "auto",
+      paddingTop: pxToPt(S.railTargetTop),
+      rowGap: pxToPt(8),
+    },
+    targetTitle: {
+      ...pdfText(tokens.railText),
+      ...column(railTextWidth),
+      color: palette.sidebarText,
+      fontWeight: 700,
+    },
 
-  title: { marginTop: pt(8), fontSize: pt(14), color: "#45556c", lineHeight: 1.5 },
+    meta: {
+      borderBottomColor: palette.border,
+      borderBottomWidth: pxToPt(S.hairline),
+      columnGap: pxToPt(S.metaColumnGap),
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingBottom: pxToPt(S.headerPadBottom),
+    },
+    metaLeft: { ...pdfFlexible, ...column(recipientWidth), rowGap: pxToPt(S.metaRowGap) },
+    metaLine: { ...pdfText(tokens.contact), ...column(recipientWidth) },
+    metaDate: {
+      ...pdfText(tokens.metaDate),
+      ...pdfFixedWidth(S.metaDateWidth),
+      textAlign: "right",
+    },
 
-  rule: { width: pt(48), height: 1, marginTop: pt(32), marginBottom: pt(32) },
+    subject: {
+      ...column(mainWidth),
+      borderLeftColor: palette.accent,
+      borderLeftWidth: pxToPt(S.subjectBarWidth),
+      marginTop: pxToPt(S.subjectTop),
+      paddingLeft: pxToPt(S.subjectPadLeft),
+    },
+    subjectText: {
+      ...pdfText(tokens.railSubject),
+      ...column(mainWidth - S.subjectBarWidth - S.subjectPadLeft),
+      marginTop: pxToPt(S.subjectLabelGap),
+    },
 
-  railBlock: { marginTop: 0 },
+    body: { ...column(mainWidth), marginTop: pxToPt(S.subjectTop) },
+    paragraph: { ...pdfText(tokens.body), ...column(mainWidth) },
+    greeting: { ...pdfText(tokens.strong), ...column(mainWidth) },
+    signature: {
+      ...pdfText(tokens.strong),
+      ...column(mainWidth),
+      fontSize: pxToPt(16),
+      lineHeight: 1.2,
+    },
 
-  railText: { color: "#45556c", marginBottom: pt(8), fontSize: pt(12), lineHeight: 1.5 },
+    list: {
+      ...column(mainWidth),
+      backgroundColor: palette.surface,
+      paddingHorizontal: pxToPt(S.listPadX),
+      paddingVertical: pxToPt(S.listPadY),
+    },
+    bulletRow: { ...column(listWidth), columnGap: pxToPt(S.bulletGap), flexDirection: "row" },
+    bulletMarkerColumn: pdfFixedWidth(S.bulletIndent - S.bulletGap),
+    bulletMarker: { ...pdfText(tokens.body), textAlign: "right" },
+    bulletText: { ...pdfText(tokens.body), ...column(listWidth - S.bulletIndent) },
 
-  contactLinkDivider: {
-    width: pt(48),
-    height: 1,
-    marginTop: pt(16),
-    marginBottom: pt(16),
-  },
+    proofLabel: {
+      ...pdfText(tokens.continued),
+      ...column(mainWidth),
+      borderTopColor: palette.border,
+      borderTopWidth: pxToPt(S.hairline),
+      marginTop: pxToPt(S.subjectTop),
+      paddingTop: pxToPt(S.railTargetTop),
+    },
+    proofItem: {
+      ...column(mainWidth),
+      borderBottomColor: palette.border,
+      borderBottomWidth: pxToPt(S.hairline),
+      columnGap: pxToPt(12),
+      flexDirection: "row",
+      marginTop: pxToPt(S.proofRowGap),
+      paddingBottom: pxToPt(S.proofPadBottom),
+    },
+    proofIndexColumn: pdfFixedWidth(S.proofIndexWidth),
+    proofIndex: pdfText(tokens.proofIndex),
+    proofText: { ...pdfText(tokens.proofText), ...column(mainWidth - S.proofIndexWidth - 12) },
 
-  railLinkRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    fontWeight: 500,
-    marginTop: pt(8),
-    marginBottom: pt(6),
-  },
-
-  railLink: {
-    color: "#0f766e",
-    paddingBottom: pt(2),
-    fontSize: pt(12),
-    lineHeight: 1.6,
-  },
-
-  railLinkIcon: { marginRight: pt(4), width: pt(14), height: pt(14) },
-  railLinkText: { color: "#0f766e", fontSize: pt(12), lineHeight: 1.2 },
-
-  targetBlock: {
-    marginTop: "auto",
-    paddingTop: pt(28),
-    borderTopWidth: 1,
-    borderTopColor: "#e2e8f0",
-  },
-
-  targetLabel: {
-    fontSize: pt(10),
-    letterSpacing: 1.5,
-    textTransform: "uppercase",
-    fontWeight: 700,
-  },
-
-  targetJobTitle: {
-    fontWeight: 600,
-    fontSize: pt(14),
-    lineHeight: 1.25,
-    color: "#0f172a",
-    marginTop: pt(8),
-    marginBottom: pt(4),
-  },
-
-  meta: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e2e8f0",
-    paddingBottom: pt(24),
-    marginBottom: pt(32),
-  },
-
-  metaLeft: { flex: 1, fontSize: pt(14), lineHeight: 1.5, color: "#475569", marginBottom: pt(4) },
-
-  metaDate: {
-    marginLeft: pt(24),
-    fontSize: pt(12),
-    fontWeight: 600,
-    letterSpacing: 1.2,
-    color: "#62748e",
-    textTransform: "uppercase",
-  },
-
-  subject: {
-    borderLeftWidth: 2,
-    paddingLeft: pt(20),
-    paddingVertical: pt(4),
-    marginBottom: pt(32),
-  },
-
-  label: { fontSize: pt(10), letterSpacing: 1.4, fontWeight: 700, textTransform: "uppercase" },
-
-  subjectText: {
-    fontSize: pt(22),
-    fontWeight: 600,
-    color: "#0f172a",
-  },
-
-  body: { fontSize: pt(15), color: "#27272a", marginBottom: pt(24) },
-
-  greeting: { fontWeight: 600, color: "#020618" },
-
-  paragraph: { color: "#314158", marginBottom: pt(16) },
-
-  proofLabel: {
-    fontSize: pt(10),
-    fontweight: 700,
-    color: "#62748e",
-    letterSpacing: 1.5,
-    borderTopWidth: 1,
-    borderTopColor: "#e2e8f0",
-    textTransform: "uppercase",
-    paddingTop: pt(24),
-    marginBottom: pt(8),
-  },
-
-  proofItem: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: "#f1f5f9",
-    paddingBottom: pt(8),
-    marginBottom: pt(8),
-  },
-
-  proofIndex: { width: pt(48), fontSize: pt(12), fontWeight: 700 },
-
-  proofText: { flex: 1, color: "#314158" },
-
-  bullets: { backgroundColor: "#f4f4f5", paddingHorizontal: pt(20), paddingVertical: pt(16) },
-  bulletRow: { flexDirection: "row", marginBottom: pt(8) },
-  bulletDot: { width: pt(14) },
-  bulletText: { flex: 1 },
-
-  closingSection: { marginTop: pt(16) },
-
-  closing: { color: "#314158", marginBottom: pt(4), letterSpacing: 0.4 },
-
-  signature: { paddingTop: pt(4), fontWeight: 600, color: "#020618", fontSize: pt(16) },
-
-  postscript: {
-    marginTop: pt(16),
-    paddingTop: pt(12),
-    borderTopWidth: 1,
-    borderTopColor: "#e4e4e7",
-    color: "#52525c",
-  },
-});
+    signoff: { ...column(mainWidth), marginTop: pxToPt(S.subjectTop), rowGap: pxToPt(8) },
+    postscript: {
+      ...pdfText(tokens.postscript),
+      ...column(mainWidth),
+      borderTopColor: palette.border,
+      borderTopWidth: pxToPt(S.hairline),
+      marginTop: pxToPt(S.postscriptTop),
+      paddingTop: pxToPt(S.postscriptPadTop),
+    },
+  });
+}
 
 function paginateVeriworklyPdfItems(items: VeriworklyFlowItem[]) {
   return paginateWeightedItems(
@@ -215,24 +218,17 @@ function paginateVeriworklyPdfItems(items: VeriworklyFlowItem[]) {
 
 export function VeriworklyCoverLetterPdf({ content }: { content: CoverLetterContent }) {
   const appearance = content.appearance;
+  const palette = getCoverLetterPalette(appearance);
+  const tokens = createCoverLetterTokens(appearance, palette);
+  const styles = createStyles(palette, tokens, appearance);
+
   const showProfile = isCoverLetterSectionVisible(content, "profile");
   const showLinks = isCoverLetterSectionVisible(content, "links");
   const showTarget = isCoverLetterSectionVisible(content, "target");
-  const font = FONT_REGISTRY[normalizeFontFamilyId(appearance.fontFamily)];
-  const bodyFontSize = pt(14.5);
-  const bodyLineHeight = appearance.lineHeight;
-  const paragraphStyle = {
-    fontSize: bodyFontSize,
-    lineHeight: bodyLineHeight,
-    marginBottom: appearance.paragraphSpacing * PX_TO_PT,
-  };
-  const listStyle = {
-    lineHeight: bodyLineHeight,
-    marginTop: appearance.paragraphSpacing * PX_TO_PT,
-    marginBottom: appearance.paragraphSpacing * PX_TO_PT,
-    fontSize: bodyFontSize,
-  };
+
+  const paragraphSpacing = { marginBottom: pxToPt(appearance.paragraphSpacing) };
   const senderName = getCoverLetterFlowSenderName(content);
+
   const contact = showProfile
     ? [
         content.senderEmail,
@@ -241,8 +237,10 @@ export function VeriworklyCoverLetterPdf({ content }: { content: CoverLetterCont
         content.senderWebsite,
       ].filter(Boolean)
     : [];
+
   const links = showLinks ? getCoverLetterLinks(content) : [];
   const linkDisplayMode = getCoverLetterLinkDisplayMode(content);
+
   const recipient = showTarget
     ? [
         content.recipientName,
@@ -251,20 +249,20 @@ export function VeriworklyCoverLetterPdf({ content }: { content: CoverLetterCont
         content.companyLocation,
       ].filter(Boolean)
     : [];
+
   const flowItems = buildVeriworklyFlowItems(buildCoverLetterFlowContent(content), senderName);
   const pages = paginateVeriworklyPdfItems(flowItems);
   const renderPages = pages.length > 0 ? pages : [[]];
 
   function renderSidebar() {
     return (
-      <View style={[styles.sidebar, { backgroundColor: appearance.sidebarColor }]}>
-        <Text style={[styles.railLabel, { color: appearance.accentColor }]}>Candidate</Text>
+      <View style={styles.sidebar}>
+        <Text style={styles.railLabel}>Candidate</Text>
+        <Text style={styles.railName}>{senderName}</Text>
 
-        <Text style={styles.name}>{senderName}</Text>
+        {content.senderTitle ? <Text style={styles.railTitle}>{content.senderTitle}</Text> : null}
 
-        {content.senderTitle ? <Text style={styles.title}>{content.senderTitle}</Text> : null}
-
-        <View style={[styles.rule, { backgroundColor: appearance.accentColor }]} />
+        <View style={styles.rule} />
 
         <View style={styles.railBlock}>
           {contact.map((item) => (
@@ -273,25 +271,18 @@ export function VeriworklyCoverLetterPdf({ content }: { content: CoverLetterCont
             </Text>
           ))}
 
-          {links.length > 0 && (
-            <View
-              style={[styles.contactLinkDivider, { backgroundColor: appearance.accentColor }]}
-            />
-          )}
+          {links.length > 0 && <View style={styles.railDivider} />}
 
           {links.map((link) => (
             <View key={link.id} style={styles.railLinkRow}>
               {linkDisplayMode !== "url" ? (
                 <Link src={normalizeLinkHref(link.url)} style={styles.railLinkIcon}>
-                  <PdfSocialIcon size={pt(14)} type={link.type} color="#000" />
+                  <PdfSocialIcon color={palette.accent} size={pxToPt(14)} type={link.type} />
                 </Link>
               ) : null}
 
               {linkDisplayMode !== "icon" ? (
-                <Link
-                  src={normalizeLinkHref(link.url)}
-                  style={[styles.railLinkText, { color: appearance.accentColor }]}
-                >
+                <Link src={normalizeLinkHref(link.url)} style={styles.railLink}>
                   {getLinkDisplayText(link, linkDisplayMode)}
                 </Link>
               ) : null}
@@ -301,12 +292,10 @@ export function VeriworklyCoverLetterPdf({ content }: { content: CoverLetterCont
 
         {showTarget ? (
           <View style={styles.targetBlock}>
-            <Text style={[styles.targetLabel, { color: appearance.accentColor }]}>Target</Text>
-
-            <Text style={styles.targetJobTitle}>
+            <Text style={styles.railLabel}>Target</Text>
+            <Text style={styles.targetTitle}>
               {content.jobTitle || content.subject || "Open role"}
             </Text>
-
             {content.companyName ? (
               <Text style={styles.railText}>{content.companyName}</Text>
             ) : null}
@@ -319,7 +308,7 @@ export function VeriworklyCoverLetterPdf({ content }: { content: CoverLetterCont
   function renderFlowItem(item: VeriworklyFlowItem) {
     if (item.type === "greeting") {
       return (
-        <Text key={item.id} style={[styles.greeting, paragraphStyle]} wrap={false}>
+        <Text key={item.id} style={[styles.greeting, paragraphSpacing]} wrap={false}>
           {item.text}
         </Text>
       );
@@ -327,7 +316,7 @@ export function VeriworklyCoverLetterPdf({ content }: { content: CoverLetterCont
 
     if (item.type === "paragraph") {
       return (
-        <Text key={item.id} style={[styles.paragraph, paragraphStyle]} wrap={false}>
+        <Text key={item.id} style={[styles.paragraph, paragraphSpacing]} wrap={false}>
           {item.text}
         </Text>
       );
@@ -335,10 +324,18 @@ export function VeriworklyCoverLetterPdf({ content }: { content: CoverLetterCont
 
     if (item.type === "body-list") {
       return (
-        <View key={item.id} style={[styles.bullets, listStyle]} wrap={false}>
-          {item.items.map((listItem) => (
-            <View key={listItem} style={styles.bulletRow}>
-              <Text style={styles.bulletDot}>-</Text>
+        <View key={item.id} style={[styles.list, paragraphSpacing]} wrap={false}>
+          {item.items.map((listItem, index) => (
+            <View
+              key={listItem}
+              style={[
+                styles.bulletRow,
+                index === 0 ? {} : { marginTop: pxToPt(S.bulletRowGap) },
+              ].flat()}
+            >
+              <View style={styles.bulletMarkerColumn}>
+                <Text style={styles.bulletMarker}>{BULLET_MARKER}</Text>
+              </View>
               <Text style={styles.bulletText}>{listItem}</Text>
             </View>
           ))}
@@ -358,16 +355,12 @@ export function VeriworklyCoverLetterPdf({ content }: { content: CoverLetterCont
       return (
         <View
           key={item.id}
-          style={[
-            styles.proofItem,
-            item.index === 0 ? { marginTop: pt(8) } : {},
-            item.isLast ? { borderBottomWidth: 0 } : {},
-          ]}
+          style={[styles.proofItem, item.isLast ? { borderBottomWidth: 0 } : {}].flat()}
           wrap={false}
         >
-          <Text style={[styles.proofIndex, { color: appearance.accentColor }]}>
-            {String(item.index + 1).padStart(2, "0")}
-          </Text>
+          <View style={styles.proofIndexColumn}>
+            <Text style={styles.proofIndex}>{String(item.index + 1).padStart(2, "0")}</Text>
+          </View>
 
           <Text style={styles.proofText}>{item.text}</Text>
         </View>
@@ -376,8 +369,8 @@ export function VeriworklyCoverLetterPdf({ content }: { content: CoverLetterCont
 
     if (item.type === "signoff") {
       return (
-        <View key={item.id} style={styles.closingSection} wrap={false}>
-          {item.closing ? <Text style={styles.closing}>{item.closing}</Text> : null}
+        <View key={item.id} style={styles.signoff} wrap={false}>
+          {item.closing ? <Text style={styles.paragraph}>{item.closing}</Text> : null}
           <Text style={styles.signature}>{item.signature}</Text>
         </View>
       );
@@ -395,27 +388,22 @@ export function VeriworklyCoverLetterPdf({ content }: { content: CoverLetterCont
       {renderPages.map((pageItems, pageIndex) => (
         <Page
           key={pageIndex}
-          size={[PDF_PAGE_WIDTH, PDF_PAGE_HEIGHT]}
+          size={[PAGE_WIDTH_PT, PAGE_HEIGHT_PT]}
+          style={[styles.page, { fontFamily: getPdfFontStack(appearance.fontFamily) }]}
           wrap={false}
-          style={[
-            styles.page,
-            {
-              backgroundColor: appearance.pageColor,
-              color: appearance.textColor,
-              fontFamily: font.primaryFamily,
-            },
-          ]}
         >
           <View style={styles.shell}>
             {renderSidebar()}
 
-            <View style={[styles.main, { padding: appearance.pageMargin * PX_TO_PT }]}>
+            <View style={styles.main}>
               {pageIndex === 0 ? (
                 <>
                   <View style={styles.meta}>
                     <View style={styles.metaLeft}>
                       {recipient.map((line) => (
-                        <Text key={line}>{line}</Text>
+                        <Text key={line} style={styles.metaLine}>
+                          {line}
+                        </Text>
                       ))}
                     </View>
 
@@ -423,11 +411,8 @@ export function VeriworklyCoverLetterPdf({ content }: { content: CoverLetterCont
                   </View>
 
                   {showTarget ? (
-                    <View style={[styles.subject, { borderLeftColor: appearance.accentColor }]}>
-                      <Text style={[styles.label, { color: appearance.accentColor }]}>
-                        Cover Letter
-                      </Text>
-
+                    <View style={styles.subject}>
+                      <Text style={styles.railLabel}>Cover Letter</Text>
                       <Text style={styles.subjectText}>
                         {content.subject || content.jobTitle || "Application"}
                       </Text>
@@ -436,18 +421,7 @@ export function VeriworklyCoverLetterPdf({ content }: { content: CoverLetterCont
                 </>
               ) : null}
 
-              <View
-                style={[
-                  styles.body,
-                  {
-                    fontSize: bodyFontSize,
-                    lineHeight: bodyLineHeight,
-                    marginTop: pageIndex === 0 ? 0 : pt(32),
-                  },
-                ]}
-              >
-                {pageItems.map((item) => renderFlowItem(item))}
-              </View>
+              <View style={styles.body}>{pageItems.map((item) => renderFlowItem(item))}</View>
             </View>
           </View>
         </Page>

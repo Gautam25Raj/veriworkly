@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 794 1122" width="794" height="1122" role="img" aria-label="Corporate Brief resume template preview">
+  <rect width="794" height="1122" fill="#ffffff"/>
+
+  <rect x="72" y="92" width="272" height="24" rx="4" fill="#1d4ed8"/>
+  <rect x="72" y="128" width="196" height="11" rx="3" fill="#94a3b8"/>
+  <g fill="#94a3b8">
+    <rect x="500" y="96" width="222" height="9" rx="3"/>
+    <rect x="546" y="116" width="176" height="9" rx="3"/>
+    <rect x="578" y="136" width="144" height="9" rx="3"/>
+  </g>
+  <rect x="72" y="172" width="650" height="1.5" fill="#e2e8f0"/>
+
+  <g>
+    <rect x="72" y="214" width="4" height="13" fill="#1d4ed8"/>
+    <rect x="86" y="216" width="88" height="9" rx="3" fill="#1d4ed8"/>
+    <rect x="72" y="376" width="4" height="13" fill="#1d4ed8"/>
+    <rect x="86" y="378" width="108" height="9" rx="3" fill="#1d4ed8"/>
+    <rect x="72" y="700" width="4" height="13" fill="#1d4ed8"/>
+    <rect x="86" y="702" width="96" height="9" rx="3" fill="#1d4ed8"/>
+    <rect x="72" y="880" width="4" height="13" fill="#1d4ed8"/>
+    <rect x="86" y="882" width="70" height="9" rx="3" fill="#1d4ed8"/>
+  </g>
+
+  <g fill="#cbd5e1">
+    <rect x="72" y="252" width="650" height="9" rx="3"/>
+    <rect x="72" y="272" width="612" height="9" rx="3"/>
+    <rect x="72" y="292" width="452" height="9" rx="3"/>
+  </g>
+
+  <g>
+    <rect x="72" y="418" width="256" height="13" rx="3" fill="#0f172a"/>
+    <rect x="604" y="420" width="118" height="9" rx="3" fill="#94a3b8"/>
+    <rect x="72" y="442" width="192" height="9" rx="3" fill="#94a3b8"/>
+    <rect x="90" y="468" width="632" height="9" rx="3" fill="#cbd5e1"/>
+    <rect x="90" y="488" width="584" height="9" rx="3" fill="#cbd5e1"/>
+    <rect x="90" y="508" width="506" height="9" rx="3" fill="#cbd5e1"/>
+
+    <rect x="72" y="550" width="232" height="13" rx="3" fill="#0f172a"/>
+    <rect x="610" y="552" width="112" height="9" rx="3" fill="#94a3b8"/>
+    <rect x="72" y="574" width="168" height="9" rx="3" fill="#94a3b8"/>
+    <rect x="90" y="600" width="632" height="9" rx="3" fill="#cbd5e1"/>
+    <rect x="90" y="620" width="540" height="9" rx="3" fill="#cbd5e1"/>
+
+    <rect x="72" y="744" width="268" height="13" rx="3" fill="#0f172a"/>
+    <rect x="606" y="746" width="116" height="9" rx="3" fill="#94a3b8"/>
+    <rect x="72" y="768" width="198" height="9" rx="3" fill="#94a3b8"/>
+    <rect x="90" y="794" width="618" height="9" rx="3" fill="#cbd5e1"/>
+    <rect x="90" y="814" width="492" height="9" rx="3" fill="#cbd5e1"/>
+
+    <rect x="72" y="918" width="650" height="9" rx="3" fill="#cbd5e1"/>
+    <rect x="72" y="938" width="566" height="9" rx="3" fill="#cbd5e1"/>
+  </g>
+</svg>

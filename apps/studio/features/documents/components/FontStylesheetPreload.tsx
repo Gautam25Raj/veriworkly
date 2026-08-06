@@ -1,12 +1,19 @@
-import { EDITOR_FONT_STYLESHEET_HREFS } from "@/features/documents/constants/fonts";
+/**
+ * Document fonts live in `app/globals.css` as local `@font-face` rules that
+ * point at the same files the PDF embeds, so there is nothing to fetch from
+ * Google Fonts. Preloading the default family keeps the first measurement of
+ * the paged preview from running against a fallback face.
+ */
+const DOCUMENT_FONT_FILES = [
+  "/fonts/geist/Geist-Regular.ttf",
+  "/fonts/geist/Geist-Bold.ttf",
+] as const;
 
 export function FontStylesheetPreload() {
   return (
     <>
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-      {EDITOR_FONT_STYLESHEET_HREFS.map((href) => (
-        <link key={href} rel="stylesheet" href={href} />
+      {DOCUMENT_FONT_FILES.map((href) => (
+        <link as="font" crossOrigin="" href={href} key={href} rel="preload" type="font/ttf" />
       ))}
     </>
   );

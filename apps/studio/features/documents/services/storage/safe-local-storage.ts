@@ -1,6 +1,5 @@
 export type LocalStorageWriteResult =
-  | { ok: true }
-  | { ok: false; reason: "quota-exceeded" | "unknown" };
+  { ok: true } | { ok: false; reason: "quota-exceeded" | "unknown" };
 
 function isQuotaExceededError(error: unknown) {
   if (!(error instanceof DOMException)) {

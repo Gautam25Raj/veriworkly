@@ -5,6 +5,7 @@ import type {
   CoverLetterTemplateId,
 } from "@/features/cover-letter/types";
 import { normalizeFontFamilyId } from "@/features/documents/constants/fonts";
+import { createCoverLetterTokens } from "./tokens";
 
 import {
   normalizeLinkHref,
@@ -41,21 +42,130 @@ type ContactLink = {
   url: string;
 };
 
-export const COVER_LETTER_PROFESSIONAL_ID = "professional" satisfies CoverLetterTemplateId;
 export const COVER_LETTER_VERIWORKLY_ID = "veriworkly-special" satisfies CoverLetterTemplateId;
 
 export const PX_TO_PT = 0.75;
 export const pt = (value: number) => value * PX_TO_PT;
+
+// ---------------------------------------------------------------------------
+// Appearance-derived palette
+//
+// Every cover-letter renderer (preview, HTML export, PDF) reads its colours
+// from here. Before this existed each renderer hardcoded its own zinc/slate
+// values, so the user-facing "Text color" control only moved some of the text.
+// ---------------------------------------------------------------------------
+
+export interface CoverLetterPalette {
+  /** Full-strength text: headings, greeting, signature. */
+  strong: string;
+  /** Body copy. */
+  text: string;
+  /** Secondary lines: contact details, recipient block, captions. */
+  muted: string;
+  /** Tertiary lines: dates, "continued" markers, small labels. */
+  soft: string;
+  /** Hairlines and dividers. */
+  border: string;
+  /** Tinted blocks such as bullet-list backgrounds. */
+  surface: string;
+  accent: string;
+  /** Sidebar colours, contrast-matched to the chosen sidebar background. */
+  sidebarText: string;
+  sidebarMuted: string;
+  sidebarBorder: string;
+}
+
+type Rgb = [number, number, number];
+
+function parseHexColor(value: string): Rgb | null {
+  const hex = value.trim().replace(/^#/, "");
+
+  if (hex.length === 3) {
+    const [r, g, b] = hex.split("");
+    return [parseInt(r + r, 16), parseInt(g + g, 16), parseInt(b + b, 16)];
+  }
+
+  if (hex.length === 6) {
+    return [
+      parseInt(hex.slice(0, 2), 16),
+      parseInt(hex.slice(2, 4), 16),
+      parseInt(hex.slice(4, 6), 16),
+    ];
+  }
+
+  return null;
+}
+
+function toHexColor([r, g, b]: Rgb): string {
+  return `#${[r, g, b].map((channel) => Math.round(channel).toString(16).padStart(2, "0")).join("")}`;
+}
+
+/**
+ * Blend `from` towards `to` by `amount` (0–1). Non-hex inputs (named colours,
+ * `rgb()`, gradients) are returned untouched rather than throwing, so a custom
+ * value the parser does not understand degrades to "no tint" instead of black.
+ */
+export function mixColors(from: string, to: string, amount: number): string {
+  const start = parseHexColor(from);
+  const end = parseHexColor(to);
+
+  if (!start || !end) return from;
+
+  const ratio = Math.min(1, Math.max(0, amount));
+
+  return toHexColor([
+    start[0] + (end[0] - start[0]) * ratio,
+    start[1] + (end[1] - start[1]) * ratio,
+    start[2] + (end[2] - start[2]) * ratio,
+  ]);
+}
+
+/** WCAG relative luminance, used to decide sidebar text contrast. */
+function getRelativeLuminance(color: string): number {
+  const rgb = parseHexColor(color);
+
+  if (!rgb) return 1;
+
+  const [r, g, b] = rgb.map((channel) => {
+    const normalized = channel / 255;
+    return normalized <= 0.03928 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+  });
+
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+export function getCoverLetterPalette(appearance: {
+  accentColor: string;
+  pageColor: string;
+  sidebarColor: string;
+  textColor: string;
+}): CoverLetterPalette {
+  const { accentColor, pageColor, sidebarColor, textColor } = appearance;
+
+  // A dark sidebar needs light text; the document text colour is only safe to
+  // reuse when the rail is light enough to carry it.
+  const sidebarIsLight = getRelativeLuminance(sidebarColor) > 0.45;
+  const sidebarText = sidebarIsLight ? textColor : "#f8fafc";
+
+  return {
+    strong: textColor,
+    text: textColor,
+    muted: mixColors(textColor, pageColor, 0.3),
+    soft: mixColors(textColor, pageColor, 0.5),
+    border: mixColors(textColor, pageColor, 0.86),
+    surface: mixColors(textColor, pageColor, 0.955),
+    accent: accentColor,
+    sidebarText,
+    sidebarMuted: mixColors(sidebarText, sidebarColor, 0.35),
+    sidebarBorder: mixColors(sidebarText, sidebarColor, 0.82),
+  };
+}
 
 export function isCoverLetterSectionVisible(
   content: CoverLetterContent,
   sectionId: CoverLetterSectionId,
 ) {
   return !content.appearance?.hiddenSections?.includes(sectionId);
-}
-
-export function getCoverLetterExportLineHeight(lineHeight: number): number {
-  return Math.max(1.15, lineHeight - 0.3);
 }
 
 export function splitParagraphs(value: string): string[] {
@@ -420,7 +530,7 @@ export function getCoverLetterState(
     pageColor: "#ffffff",
     textColor: "#18181b",
     accentColor: "#2563eb",
-    sidebarColor: "#111827",
+    sidebarColor: "#f8fafc",
     hiddenSections: [],
   };
 
@@ -468,8 +578,12 @@ export function getCoverLetterState(
 
   const pages = paginateBlocks(bodyBlocks, limits.firstPage, limits.nextPage);
 
+  const palette = getCoverLetterPalette(normalizedAppearance);
+
   return {
     appearance: normalizedAppearance,
+    palette,
+    tokens: createCoverLetterTokens(normalizedAppearance, palette),
     senderName,
     senderTitle,
     contact,

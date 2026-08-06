@@ -20,16 +20,10 @@ interface CoverLetterPreviewProps {
   templateId: string;
 }
 
-export function renderCoverLetterWeb(content: CoverLetterContent) {
-  return buildCoverLetterText(content);
-}
-
 export function CoverLetterPreview({ content, templateId }: CoverLetterPreviewProps) {
-  const fontFamily = content.appearance?.fontFamily;
-
   return (
     <>
-      <DocumentFontLoader fontFamily={fontFamily} />
+      <DocumentFontLoader />
       {templateId === COVER_LETTER_VERIWORKLY_ID ? (
         <VeriworklyCoverLetterPreview content={content} />
       ) : (

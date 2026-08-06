@@ -166,23 +166,9 @@ export async function revokeShareLink(documentId: string, shareLinkId: string) {
   if (!response.ok) await throwApiError(response, "Failed to revoke share link");
 }
 
-export async function fetchShareLink<T = unknown>(token: string) {
-  return fetchApiData<ShareLinkPayload<T>>(`/shares/${token}`, {
-    errorMessage: "Shared document not found",
-  });
-}
-
 export async function fetchShareLinkByUsernameAndSlug<T = unknown>(username: string, slug: string) {
   return fetchApiData<ShareLinkPayload<T>>(`/shares/public/${username}/${slug}`, {
     errorMessage: "Shared document not found",
-  });
-}
-
-export async function verifyShareLink<T = unknown>(token: string, password: string) {
-  return fetchApiData<ShareLinkPayload<T>>(`/shares/${token}/verify`, {
-    method: "POST",
-    body: JSON.stringify({ password }),
-    errorMessage: "Invalid password",
   });
 }
 

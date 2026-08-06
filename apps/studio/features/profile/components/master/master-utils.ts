@@ -68,10 +68,6 @@ export function joinLines(values: string[]) {
   return values.join("\n");
 }
 
-export function toUrl(value: string) {
-  return value.trim();
-}
-
 export function isValidEmail(value: string) {
   if (!value) return false;
 

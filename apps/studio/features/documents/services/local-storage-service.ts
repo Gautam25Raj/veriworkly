@@ -4,7 +4,19 @@ import {
   safeSetLocalStorageItem,
   type LocalStorageWriteResult,
 } from "./storage/safe-local-storage";
-import { BaseDocumentData, DocumentCollection } from "@/types/document";
+import {
+  DOCUMENT_INDEX_STORAGE_KEY,
+  type DocumentIndexRevisionListener,
+  readDocumentIndex,
+  subscribeToDocumentIndexRevision,
+  writeDocumentIndex,
+} from "./document-index";
+import {
+  BaseDocumentData,
+  DocumentCollection,
+  DocumentIndex,
+  DocumentIndexEntry,
+} from "@/types/document";
 
 export interface SaveDocumentOptions {
   debounceMs?: number;
@@ -12,21 +24,41 @@ export interface SaveDocumentOptions {
 }
 
 export type SaveDocumentResult =
-  | { ok: true; queued: boolean }
-  | { ok: false; reason: "quota-exceeded" | "unknown" };
+  { ok: true; queued: boolean } | { ok: false; reason: "quota-exceeded" | "unknown" };
 
 export interface LocalStorageConfig<T extends BaseDocumentData> {
-  collectionKey: string;
+  /** Namespace within the shared index, and the `<TYPE>` segment of document keys. */
+  scope: string;
+  documentKey: (id: string) => string;
+  documentKeyPrefix: string;
+  /** Pre-v3 single-blob key, read once to migrate then deleted. */
+  legacyCollectionKey: string;
   activeIdKey: string;
   activeIdScope?: string;
   updatedEventName: string;
   parseItem: (input: unknown) => T | null;
-  parseCollection: (input: unknown) => DocumentCollection<T>;
+  /** Projects a document down to what list views need. See DocumentIndexEntry. */
+  toIndexEntry: (item: T) => DocumentIndexEntry;
 }
 
+export { DOCUMENT_INDEX_STORAGE_KEY };
+export type { DocumentIndexEntry, DocumentIndexRevisionListener };
+export { subscribeToDocumentIndexRevision };
+
+/**
+ * Per-document localStorage store with a shared metadata index.
+ *
+ * The important property: `persist`, `loadById`, and `patchSync` touch exactly one
+ * document key plus the (small, body-free) index. None of them scale with how many
+ * documents the user has. See storage-keys.ts for why v2's single-blob layout had to go.
+ *
+ * `loadCollection`/`saveCollection` still exist for the few callers that genuinely need
+ * every body at once, but they are the slow path — prefer `listIndex()` when metadata suffices.
+ */
 export class LocalStorageService<T extends BaseDocumentData> {
   private pendingItem: T | null = null;
   private pendingSaveTimer: number | null = null;
+  private migrated = false;
 
   constructor(private config: LocalStorageConfig<T>) {}
 
@@ -43,6 +75,10 @@ export class LocalStorageService<T extends BaseDocumentData> {
     if (this.pendingSaveTimer === null || !this.isBrowser()) return;
     window.clearTimeout(this.pendingSaveTimer);
     this.pendingSaveTimer = null;
+  }
+
+  private indexKeyFor(id: string) {
+    return `${this.config.scope}:${id}`;
   }
 
   private toComparablePayload(item: T | null | undefined) {
@@ -86,11 +122,103 @@ export class LocalStorageService<T extends BaseDocumentData> {
     return value.startsWith(prefix) ? value.slice(prefix.length) : null;
   }
 
-  private writeCollection(collection: DocumentCollection<T>): LocalStorageWriteResult {
+  /**
+   * Splits a pre-v3 single-blob collection into per-document keys, once.
+   *
+   * Runs lazily on first storage access rather than at import time so it cannot
+   * throw during module evaluation or run on the server. The legacy key is removed
+   * only after every document has been written, so an interrupted migration
+   * (quota, crash) retries cleanly on next load instead of losing documents.
+   */
+  private migrateLegacyCollectionIfNeeded() {
+    if (this.migrated || !this.isBrowser()) return;
+    this.migrated = true;
+
+    const raw = window.localStorage.getItem(this.config.legacyCollectionKey);
+    if (!raw) return;
+
+    let legacyItems: Record<string, unknown> = {};
+
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      const items =
+        typeof parsed === "object" && parsed !== null
+          ? (parsed as { items?: unknown }).items
+          : undefined;
+
+      if (typeof items === "object" && items !== null) {
+        legacyItems = items as Record<string, unknown>;
+      }
+    } catch {
+      // Corrupted legacy blob: nothing recoverable inside it, so drop it rather
+      // than leaving it to be re-parsed (and re-failed) on every future load.
+      window.localStorage.removeItem(this.config.legacyCollectionKey);
+      return;
+    }
+
+    const index = readDocumentIndex();
+    let wroteEverything = true;
+
+    for (const value of Object.values(legacyItems)) {
+      const item = this.config.parseItem(value);
+      if (!item) continue;
+
+      const write = safeSetLocalStorageItem(
+        window.localStorage,
+        this.config.documentKey(item.id),
+        JSON.stringify(item),
+      );
+
+      if (!write.ok) {
+        wroteEverything = false;
+        continue;
+      }
+
+      index.items[this.indexKeyFor(item.id)] = this.config.toIndexEntry(item);
+    }
+
+    if (!writeDocumentIndex(index).ok) return;
+    if (wroteEverything) window.localStorage.removeItem(this.config.legacyCollectionKey);
+  }
+
+  private readIndex(): DocumentIndex {
+    this.migrateLegacyCollectionIfNeeded();
+    return readDocumentIndex();
+  }
+
+  private readDocument(id: string): T | null {
+    if (!this.isBrowser()) return null;
+
+    const raw = window.localStorage.getItem(this.config.documentKey(id));
+    if (!raw) return null;
+
+    try {
+      return this.config.parseItem(JSON.parse(raw));
+    } catch {
+      window.localStorage.removeItem(this.config.documentKey(id));
+      return null;
+    }
+  }
+
+  /**
+   * Writes one document and its index entry. The document body is written first so a
+   * quota failure cannot leave the index advertising a document that isn't there.
+   */
+  private writeDocument(item: T, index?: DocumentIndex): LocalStorageWriteResult {
     if (!this.isBrowser()) return { ok: true };
 
-    const payload = JSON.stringify(collection);
-    return safeSetLocalStorageItem(window.localStorage, this.config.collectionKey, payload);
+    const write = safeSetLocalStorageItem(
+      window.localStorage,
+      this.config.documentKey(item.id),
+      JSON.stringify(item),
+    );
+
+    if (!write.ok) return write;
+
+    const nextIndex = index ?? this.readIndex();
+    nextIndex.items[this.indexKeyFor(item.id)] = this.config.toIndexEntry(item);
+
+    return writeDocumentIndex(nextIndex);
   }
 
   getActiveId(): string | null {
@@ -103,45 +231,94 @@ export class LocalStorageService<T extends BaseDocumentData> {
     safeSetLocalStorageItem(window.localStorage, this.config.activeIdKey, this.formatActiveId(id));
   }
 
+  /**
+   * Metadata for every document in this scope, newest first. O(1) in document size —
+   * this reads the index only and never touches a document body.
+   */
+  listIndex(): DocumentIndexEntry[] {
+    const index = this.readIndex();
+
+    return Object.values(index.items)
+      .filter((entry) => entry.type === this.config.scope)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  /** Monotonic counter for cache keys; changes whenever anything in storage changes. */
+  getRevision(): number {
+    return this.readIndex().revision;
+  }
+
+  /**
+   * Loads every document body in this scope. The slow path — O(library size).
+   * Only for callers that truly need all content; use {@link listIndex} otherwise.
+   */
   loadCollection(): DocumentCollection<T> {
-    if (!this.isBrowser()) return this.config.parseCollection({});
+    const items: Record<string, T> = {};
 
-    const raw = window.localStorage.getItem(this.config.collectionKey);
-    if (!raw) return this.config.parseCollection({});
-
-    try {
-      return this.config.parseCollection(JSON.parse(raw));
-    } catch {
-      window.localStorage.removeItem(this.config.collectionKey);
-      return this.config.parseCollection({});
+    for (const entry of this.listIndex()) {
+      const item = this.readDocument(entry.id);
+      if (item) items[entry.id] = item;
     }
+
+    return { version: 3, items };
   }
 
   saveCollection(collection: DocumentCollection<T>): LocalStorageWriteResult {
-    if (!this.isBrowser()) return { ok: true };
-    const result = this.writeCollection(collection);
+    return this.persistMany(Object.values(collection.items));
+  }
+
+  /**
+   * Writes several documents against a single index read/write, so merging a cloud
+   * hydration of N documents costs one index round trip rather than N.
+   */
+  persistMany(items: T[]): LocalStorageWriteResult {
+    if (!this.isBrowser() || items.length === 0) return { ok: true };
+
+    const index = this.readIndex();
+
+    for (const item of items) {
+      const write = safeSetLocalStorageItem(
+        window.localStorage,
+        this.config.documentKey(item.id),
+        JSON.stringify(item),
+      );
+
+      if (!write.ok) return write;
+
+      index.items[this.indexKeyFor(item.id)] = this.config.toIndexEntry(item);
+    }
+
+    const result = writeDocumentIndex(index);
     if (result.ok) this.emitUpdatedEvent();
+
     return result;
   }
 
   loadActive(): T | null {
-    const collection = this.loadCollection();
     const activeId = this.getActiveId();
-    if (activeId && collection.items[activeId]) return collection.items[activeId];
+    if (activeId) {
+      const active = this.readDocument(activeId);
+      if (active) return active;
+    }
 
-    const first = Object.values(collection.items)[0] ?? null;
-    if (first) this.setActiveId(first.id);
-    return first;
+    const first = this.listIndex()[0];
+    if (!first) return null;
+
+    const item = this.readDocument(first.id);
+    if (item) this.setActiveId(item.id);
+
+    return item;
   }
 
   loadById(id: string): T | null {
-    const collection = this.loadCollection();
-    return collection.items[id] ?? null;
+    this.migrateLegacyCollectionIfNeeded();
+    return this.readDocument(id);
   }
 
   list(): T[] {
-    const collection = this.loadCollection();
-    return Object.values(collection.items).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return this.listIndex()
+      .map((entry) => this.readDocument(entry.id))
+      .filter((item): item is T => Boolean(item));
   }
 
   /**
@@ -154,8 +331,7 @@ export class LocalStorageService<T extends BaseDocumentData> {
   patchSync(id: string, syncPatch: Partial<T["sync"]>): SaveDocumentResult {
     if (!this.isBrowser()) return { ok: true, queued: false };
 
-    const collection = this.loadCollection();
-    const existing = collection.items[id];
+    const existing = this.loadById(id);
     if (!existing) return { ok: false, reason: "unknown" };
 
     const toPersist: T = {
@@ -163,9 +339,10 @@ export class LocalStorageService<T extends BaseDocumentData> {
       sync: { ...existing.sync, ...syncPatch },
     };
 
-    collection.items[id] = toPersist;
-    const saveResult = this.saveCollection(collection);
+    const saveResult = this.writeDocument(toPersist);
     if (!saveResult.ok) return { ok: false, reason: saveResult.reason };
+
+    this.emitUpdatedEvent();
 
     return { ok: true, queued: false };
   }
@@ -176,8 +353,7 @@ export class LocalStorageService<T extends BaseDocumentData> {
     const normalized = this.config.parseItem(item);
     if (!normalized) return { ok: false, reason: "unknown" };
 
-    const collection = this.loadCollection();
-    const existing = collection.items[normalized.id];
+    const existing = this.readDocument(normalized.id);
     const shouldMarkPending =
       normalized.sync.enabled && this.hasPayloadChanged(existing, normalized);
 
@@ -192,11 +368,11 @@ export class LocalStorageService<T extends BaseDocumentData> {
         }
       : normalized;
 
-    collection.items[toPersist.id] = toPersist;
-    const saveResult = this.saveCollection(collection);
+    const saveResult = this.writeDocument(toPersist);
 
     if (!saveResult.ok) return { ok: false, reason: saveResult.reason };
 
+    this.emitUpdatedEvent();
     this.setActiveId(toPersist.id);
 
     return { ok: true, queued: false };
@@ -237,17 +413,19 @@ export class LocalStorageService<T extends BaseDocumentData> {
   delete(id: string): string | null {
     if (!this.isBrowser()) return null;
 
-    const collection = this.loadCollection();
-    if (!collection.items[id]) return this.getActiveId();
+    const index = this.readIndex();
+    const indexKey = this.indexKeyFor(id);
 
-    delete collection.items[id];
-    const saveResult = this.saveCollection(collection);
-    if (!saveResult.ok) return this.getActiveId();
+    if (!index.items[indexKey]) return this.getActiveId();
+
+    delete index.items[indexKey];
+    window.localStorage.removeItem(this.config.documentKey(id));
+
+    if (!writeDocumentIndex(index).ok) return this.getActiveId();
 
     this.emitUpdatedEvent();
 
-    const remainingIds = Object.keys(collection.items);
-    const nextId = remainingIds[0] ?? null;
+    const nextId = this.listIndex()[0]?.id ?? null;
 
     if (nextId) {
       this.setActiveId(nextId);
@@ -263,7 +441,16 @@ export class LocalStorageService<T extends BaseDocumentData> {
     this.pendingItem = null;
     this.clearPendingSaveTimer();
 
-    window.localStorage.removeItem(this.config.collectionKey);
+    const index = this.readIndex();
+
+    for (const entry of Object.values(index.items)) {
+      if (entry.type !== this.config.scope) continue;
+      window.localStorage.removeItem(this.config.documentKey(entry.id));
+      delete index.items[this.indexKeyFor(entry.id)];
+    }
+
+    writeDocumentIndex(index);
+    window.localStorage.removeItem(this.config.legacyCollectionKey);
     window.localStorage.removeItem(this.config.activeIdKey);
 
     this.emitUpdatedEvent();

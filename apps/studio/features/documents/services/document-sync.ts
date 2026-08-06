@@ -14,10 +14,7 @@ import {
   DocumentSyncService,
 } from "./document-sync-service";
 import { SyncEngine, type OutboxItem, type SyncTelemetry } from "./sync-engine";
-import {
-  DOCUMENT_STORAGE_UPDATED_EVENT,
-  DOCUMENT_SYNC_OUTBOX_UPDATED_EVENT,
-} from "./storage-keys";
+import { DOCUMENT_STORAGE_UPDATED_EVENT, DOCUMENT_SYNC_OUTBOX_UPDATED_EVENT } from "./storage-keys";
 
 export type { SyncResult, SyncTelemetry, SyncWorkerOptions };
 export { DOCUMENT_STORAGE_UPDATED_EVENT, DOCUMENT_SYNC_OUTBOX_UPDATED_EVENT };
@@ -112,16 +109,6 @@ export async function hydrateCloudDocumentByIdToLocalStorage(
   force?: boolean,
 ) {
   return getService(type).hydrateById(id, force);
-}
-
-export async function hydrateCloudDocumentsToLocalStorage(
-  type: DocumentType,
-  options?: {
-    force?: boolean;
-    minIntervalMs?: number;
-  },
-) {
-  return getService(type).hydrate(options);
 }
 
 export function getDocumentSyncTelemetry(type: DocumentType, id: string): SyncTelemetry {

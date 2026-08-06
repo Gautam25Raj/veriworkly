@@ -14,6 +14,20 @@ export interface FontRegistryEntry {
   label: string;
   primaryFamily: string;
   fallbackStack: string;
+  /**
+   * Embedded families the PDF tries, in order, for a character the primary
+   * family cannot draw.
+   *
+   * The browser does this on its own through the CSS stack; react-pdf only
+   * substitutes among the families it is handed, and falls through to
+   * Helvetica, which draws nothing. Geist has no glyphs for Vietnamese tone
+   * marks or Greek, so `Nguyễn Thị Hương` previewed correctly and exported with
+   * seven characters missing until this list existed.
+   *
+   * The first entry here must match the first real family in `fallbackStack`,
+   * or the two renderers substitute different shapes.
+   */
+  pdfFallbackIds: FontFamilyId[];
   stylesheetHref: string;
   scope: FontScope;
   pdfFonts: PdfFontFace[];
@@ -24,7 +38,9 @@ const fontDefinitions: FontRegistryEntry[] = [
     id: "geist",
     label: "Geist Sans",
     primaryFamily: "Geist",
-    fallbackStack: "Inter, 'Segoe UI', Arial, sans-serif",
+    // Manrope before Inter: it covers the same gaps at a fifth of the weight.
+    fallbackStack: "Manrope, Inter, 'Segoe UI', Arial, sans-serif",
+    pdfFallbackIds: ["modern"],
     // Only 400/700 are requested — matches the two weights registered in pdfFonts
     // below. Requesting extra web weights the PDF renderer can't reproduce creates a
     // WYSIWYG mismatch between the live preview and the downloaded PDF.
@@ -40,6 +56,7 @@ const fontDefinitions: FontRegistryEntry[] = [
     label: "Manrope Grotesk",
     primaryFamily: "Manrope",
     fallbackStack: "'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
+    pdfFallbackIds: [],
     stylesheetHref: "https://fonts.googleapis.com/css2?family=Manrope:wght@400;700&display=swap",
     scope: "editor",
     pdfFonts: [
@@ -52,6 +69,7 @@ const fontDefinitions: FontRegistryEntry[] = [
     label: "Inter",
     primaryFamily: "Inter",
     fallbackStack: "'Segoe UI', Arial, sans-serif",
+    pdfFallbackIds: [],
     stylesheetHref: "https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap",
     scope: "editor",
     pdfFonts: [
@@ -111,6 +129,27 @@ export function getFontStylesheetHref(fontFamily: string | null | undefined) {
   return FONT_REGISTRY[normalized].stylesheetHref;
 }
 
-export const EDITOR_FONT_STYLESHEET_HREFS = fontDefinitions
-  .filter((font) => font.scope === "editor")
-  .map((font) => font.stylesheetHref);
+/**
+ * Every family the PDF may draw a document in, chosen family first.
+ *
+ * react-pdf accepts an array for `fontFamily` and picks, per glyph, the first
+ * family that can draw it — the same job the CSS font stack does for the
+ * preview. Passing a bare family name instead leaves the export falling through
+ * to Helvetica, which draws `.notdef`: zero width, no ink, silently missing
+ * characters in a document the preview rendered perfectly.
+ *
+ * The families named here must be registered before layout; see
+ * `templates/pdf/fonts.ts`.
+ */
+export function getPdfFontStack(fontFamily: string | null | undefined): string[] {
+  const font = FONT_REGISTRY[normalizeFontFamilyId(fontFamily)];
+
+  return [font.primaryFamily, ...font.pdfFallbackIds.map((id) => FONT_REGISTRY[id].primaryFamily)];
+}
+
+/** The registry entries a document needs loaded: the chosen family and its fallbacks. */
+export function getPdfFontEntries(fontFamily: string | null | undefined): FontRegistryEntry[] {
+  const font = FONT_REGISTRY[normalizeFontFamilyId(fontFamily)];
+
+  return [font, ...font.pdfFallbackIds.map((id) => FONT_REGISTRY[id])];
+}

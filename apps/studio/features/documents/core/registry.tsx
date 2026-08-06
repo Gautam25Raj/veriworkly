@@ -1,8 +1,11 @@
 import dynamic from "next/dynamic";
 
-import type { BaseDocument } from "./types";
+import type { ResumeData } from "@/types/resume";
+import type { CoverLetterContent } from "@/features/cover-letter/types";
+
+import type { BaseDocument, ExportFormat } from "./types";
 import type { DocumentType } from "./document-types";
-import type { DocumentDefinition } from "./definition";
+import type { DocumentDefinition, DocumentExporter } from "./definition";
 
 import { templateCatalogByType } from "./template-catalog";
 
@@ -75,6 +78,37 @@ function parseResumeDocument(input: unknown): BaseDocument | null {
   };
 }
 
+function describeResume(document: BaseDocument): string {
+  const resume = document.content as ResumeData;
+  return resume.basics?.role || "Role not set";
+}
+
+function describeCoverLetter(document: BaseDocument): string {
+  const content = document.content as Partial<CoverLetterContent>;
+
+  return (
+    [content.jobTitle, content.companyName].filter(Boolean).join(" at ") ||
+    content.subject ||
+    "Cover letter"
+  );
+}
+
+/**
+ * Both loaders are `import()`ed, not statically imported. That boundary is what keeps
+ * `@react-pdf/renderer` and `docx` out of the list/editor route bundles — see
+ * export-dispatcher.tsx. Do not "simplify" these into top-level imports.
+ */
+async function loadResumeExporter(format: ExportFormat): Promise<DocumentExporter> {
+  const { exportResumeDocument } = await import("@/features/documents/export/resume-exporters");
+  return (document) => exportResumeDocument(document, format);
+}
+
+async function loadCoverLetterExporter(format: ExportFormat): Promise<DocumentExporter> {
+  const { exportCoverLetterDocument } =
+    await import("@/features/documents/export/cover-letter-exporters");
+  return (document) => exportCoverLetterDocument(document, format);
+}
+
 export const documentRegistry: Record<DocumentType, DocumentDefinition> = {
   RESUME: {
     type: "RESUME",
@@ -85,7 +119,9 @@ export const documentRegistry: Record<DocumentType, DocumentDefinition> = {
     templates: templateCatalogByType.RESUME,
     createDefault: wrapResumeDocument,
     parse: parseResumeDocument,
+    describe: describeResume,
     Editor: ResumeEditor,
+    loadExporter: loadResumeExporter,
   },
 
   COVER_LETTER: {
@@ -97,7 +133,9 @@ export const documentRegistry: Record<DocumentType, DocumentDefinition> = {
     templates: templateCatalogByType.COVER_LETTER,
     createDefault: createDefaultCoverLetter,
     parse: parseCoverLetterDocument,
+    describe: describeCoverLetter,
     Editor: CoverLetterEditor,
+    loadExporter: loadCoverLetterExporter,
   },
 };
 

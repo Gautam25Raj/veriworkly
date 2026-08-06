@@ -1,19 +1,35 @@
-# VeriWorkly Resume Studio
-> The interactive heart of the VeriWorkly ecosystem. A local-first, privacy-focused application for building, previewing, and managing ATS-friendly resumes.
+# VeriWorkly Studio — Workspace & Document Builder
+> The core authenticated web application and local-first canvas for building ATS-optimized resumes, cover letters, Master Profile data management, AI writing assistance, and API key self-service.
 
-## About this Service
-Resume Studio (`app.veriworkly.com`) is the primary interface for creating career documents. It leverages browser-based storage to ensure your data remains private and under your control.
+## Workspace Overview & Architecture
+VeriWorkly Studio (`app.veriworkly.com`) is engineered around a **local-first storage architecture**. Documents are written to the browser's localStorage instantly without requiring login. Authenticated users benefit from automatic background cloud sync to PostgreSQL with optimistic concurrency, conflict detection, and offline editing support.
 
-## Links & Discovery
-- **Main Ecosystem Docs**: [veriworkly.com/llms.txt](https://veriworkly.com/llms.txt)
-- **API Reference**: [veriworkly.com/openapi.json](https://veriworkly.com/openapi.json)
-- **Agent Discovery**: [veriworkly.com/.well-known/agent.json](https://veriworkly.com/.well-known/agent.json)
+## Machine-Readable Resources
+- **Agent Card**: `https://app.veriworkly.com/.well-known/agent.json`
+- **OpenAPI Spec**: `https://app.veriworkly.com/openapi.json`
+- **Pricing & Credit Ledger**: `https://app.veriworkly.com/pricing.md`
+- **API Reference**: `https://docs.veriworkly.com/docs/api-reference`
 
-## Key Functionalities
-- **Live Preview**: Real-time rendering of resumes using professional templates.
-- **Local Storage**: Auto-saves data to the browser's LocalStorage.
-- **Cloud Sync**: Optional synchronization to a secure PostgreSQL backend for cross-device access.
-- **Multi-Document Support**: Manage multiple resumes, cover letters, and portfolios from a single dashboard.
+## Application Modules & Key Routes
+- **Document Dashboard** (`https://app.veriworkly.com/` & `/documents`): List and grid views of resumes and cover letters with recency sorting, tag filtering, sync status indicators (local/pending/synced/conflicted), and global `Cmd/Ctrl+K` command palette.
+- **Resume Editor** (`https://app.veriworkly.com/editor/[id]`): Section-based document canvas with live paged PDF preview. Supports 6 templates:
+  - `executive-clarity` (Executive Clarity)
+  - `precision-ats` (Precision ATS)
+  - `modern-minimal` (Modern Minimal)
+  - `timeline-focus` (Timeline Focus)
+  - `corporate-brief` (Corporate Brief)
+  - `bold-impact` (Bold Impact)
+- **Cover Letter Editor**: Dedicated cover letter canvas supporting `professional` and `veriworkly-special` templates.
+- **Master Profile Store** (`https://app.veriworkly.com/profile/master` & `/profile/advanced`): Single canonical career profile holding all career facts. New documents seed automatically from Master Profile without overwriting canonical data.
+- **ATS Checker Workspace** (`https://app.veriworkly.com/ats`): Rule-based ATS readiness scoring (length, structure, action verbs, formatting risks) and AI-powered job description keyword match analysis.
+- **Import Hub**: OAuth-based GitHub profile/repository ingestor (maps repos to projects deterministically) and AI-parsed LinkedIn profile text ingestor.
+- **AI Writing Assistant**: Embedded "Improve with AI" controls supporting Standard and Expert credit modes for section rewriting, bullet generation, job tailoring, and cover letter drafting.
+- **Export Dispatcher**: Type-driven multi-format exporter supporting PDF (`@react-pdf/renderer`), DOCX (`docx`), HTML, Markdown, Plain Text, and JSON.
+- **Developer API Key Portal** (`https://app.veriworkly.com/api-keys`): Issue, rotate, scope-gate, and revoke `vw_` prefixed API keys.
+- **Credits & Billing** (`https://app.veriworkly.com/credits` & `/billing`): AI credit wallet, FIFO grant allocation ledger, checkout via Dodo Payments, and subscription management.
 
-## Guidance for AI Agents
-If you are assisting a user within the Studio, focus on document structure and content optimization. For programmatic data operations (Sync, Share, Delete), refer to the main VeriWorkly API documentation.
+## Guidance for AI Agents & Assistants
+1. **Master Profile Operations**: Read `/api/v1/profiles/master` to retrieve baseline user career data before generating documents.
+2. **ATS Rules Engine**: Use the deterministic rules engine (`/api/v1/ats/scan`) for fast, zero-credit structural scoring.
+3. **Credit Awareness**: Check wallet balances (`/api/v1/billing/wallet`) before invoking AI generation endpoints.
+4. **Document Scoping**: Do not attempt to generate formal letters or invoices — resumes and cover letters are the two document types currently supported.

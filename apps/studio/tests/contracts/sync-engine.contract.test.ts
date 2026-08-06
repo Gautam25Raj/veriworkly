@@ -77,15 +77,23 @@ describe("sync engine contract", () => {
     });
 
     const storage = new LocalStorageService<BaseDocument>({
-      collectionKey: "veriworkly:docs:v2:resume",
+      scope: "RESUME",
+      documentKey: (id) => `veriworkly:docs:v3:doc:resume:${id}`,
+      documentKeyPrefix: "veriworkly:docs:v3:doc:resume:",
+      legacyCollectionKey: "veriworkly:docs:v2:resume",
       activeIdKey: "veriworkly:docs:v2:active",
       activeIdScope: "RESUME",
       updatedEventName: "veriworkly:docs-storage-updated",
-      parseItem: (input) => input as BaseDocument,
-      parseCollection: (input) => {
-        const raw = input as { items?: Record<string, BaseDocument> };
-        return { version: 2, items: raw.items ?? {} };
-      },
+      parseItem: (input: unknown) => input as BaseDocument,
+      toIndexEntry: (item) => ({
+        id: item.id,
+        type: "RESUME",
+        title: item.title,
+        templateId: item.templateId,
+        description: "",
+        updatedAt: item.updatedAt,
+        sync: item.sync,
+      }),
     });
 
     storage.setActiveId("shared-id");

@@ -5,6 +5,13 @@ import { SyncEngine, type SyncStatus } from "./sync-engine";
 import { DocumentApi, type CloudDocument, type DocumentType } from "./document-api";
 import { LocalStorageService, type SaveDocumentResult } from "./local-storage-service";
 
+/**
+ * Max concurrent document syncs. Browsers allow ~6 connections per host, so going
+ * wider just queues requests until they time out while holding every document in the
+ * "syncing" state.
+ */
+const SYNC_CONCURRENCY = 4;
+
 export type SyncResult = {
   ok: boolean;
   message: string;
@@ -140,22 +147,26 @@ export class DocumentSyncService<T extends BaseDocumentData> {
     this.listenersAttached = true;
   }
 
+  /**
+   * Ids of documents waiting to sync.
+   *
+   * Reads the storage index, not document bodies: `sync.enabled`/`sync.status` are both
+   * mirrored there. This runs on every storage-updated event (i.e. on every autosave),
+   * so loading and re-validating the whole library here was a per-keystroke cost.
+   */
+  private listPendingIds(): string[] {
+    return this.config.localStorage
+      .listIndex()
+      .filter((entry) => entry.sync.enabled && entry.sync.status === "pending")
+      .map((entry) => entry.id);
+  }
+
   private queuePendingForSync(forceImmediate = false) {
-    const collection = this.config.localStorage.loadCollection();
-
-    const pending = Object.values(collection.items).filter(
-      (item) => item.sync.enabled && item.sync.status === "pending",
-    );
-
-    for (const item of pending) {
+    for (const id of this.listPendingIds()) {
       if (forceImmediate) {
-        SyncEngine.upsertOutboxItem(
-          item.id,
-          { nextAttemptAt: Date.now() },
-          this.config.documentType,
-        );
+        SyncEngine.upsertOutboxItem(id, { nextAttemptAt: Date.now() }, this.config.documentType);
       } else {
-        SyncEngine.upsertOutboxItem(item.id, {}, this.config.documentType);
+        SyncEngine.upsertOutboxItem(id, {}, this.config.documentType);
       }
     }
   }
@@ -172,42 +183,59 @@ export class DocumentSyncService<T extends BaseDocumentData> {
     }
   }
 
+  /**
+   * Syncs every pending document, at most {@link SYNC_CONCURRENCY} in flight.
+   *
+   * Previously a bare `Promise.all` over all pending ids. With a large library that
+   * fired one request per document at once — well past the browser's ~6-per-host limit,
+   * so the tail queued until it timed out — and each `syncNow` also writes to storage,
+   * so the unbounded version produced a matching storm of storage events.
+   */
   async syncAllPending() {
-    const collection = this.config.localStorage.loadCollection();
+    const pendingIds = this.listPendingIds();
+    const results: SyncResult[] = [];
+    let cursor = 0;
 
-    const pending = Object.values(collection.items).filter(
-      (item) => item.sync.enabled && item.sync.status === "pending",
+    const worker = async () => {
+      while (cursor < pendingIds.length) {
+        const index = cursor;
+        cursor += 1;
+        results.push(await this.syncNow(pendingIds[index]));
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(SYNC_CONCURRENCY, pendingIds.length) }, worker),
     );
-
-    const results = await Promise.all(pending.map((item) => this.syncNow(item.id)));
 
     return results;
   }
 
   setAllSyncEnabled(enabled: boolean): SaveDocumentResult {
-    const collection = this.config.localStorage.loadCollection();
-    const items = Object.values(collection.items);
+    const items = this.config.localStorage.list();
 
     if (items.length === 0) {
       return { ok: true, queued: false };
     }
 
-    let lastResult: SaveDocumentResult = { ok: true, queued: false };
+    // One index write for the whole batch rather than one per document.
+    const updated = items.map(
+      (item) =>
+        ({
+          ...item,
+          sync: {
+            ...item.sync,
+            enabled,
+            status: enabled ? "pending" : "local-only",
+          },
+        }) as T,
+    );
 
-    for (const item of items) {
-      lastResult = this.config.localStorage.persist({
-        ...item,
-        sync: {
-          ...item.sync,
-          enabled,
-          status: enabled ? "pending" : "local-only",
-        },
-      } as T);
+    const result = this.config.localStorage.persistMany(updated);
 
-      if (!lastResult.ok) return lastResult;
-    }
+    if (!result.ok) return { ok: false, reason: result.reason };
 
-    return lastResult;
+    return { ok: true, queued: false };
   }
 
   async syncNow(id: string): Promise<SyncResult> {
@@ -332,12 +360,22 @@ export class DocumentSyncService<T extends BaseDocumentData> {
     }
 
     try {
-      const records = await DocumentApi.list(this.config.documentType);
+      const meta = this.getHydrateMeta();
+
+      // Only pull what changed since the last successful hydrate. `includeContent` is
+      // required here (unlike list views) because merging needs the document bodies.
+      // A forced hydrate re-pulls everything so it can repair divergence.
+      const records = await DocumentApi.list(this.config.documentType, {
+        includeContent: true,
+        updatedSince: options?.force ? undefined : meta.lastServerCursor,
+      });
+
+      const requestedAt = new Date().toISOString();
       const merged = this.mergeCloudDocumentsIntoLocalStorage(records);
 
       this.setLastHydrateMeta({
         lastHydratedAt: Date.now(),
-        lastServerCursor: new Date().toISOString(),
+        lastServerCursor: requestedAt,
       });
 
       return merged.ok
@@ -349,31 +387,34 @@ export class DocumentSyncService<T extends BaseDocumentData> {
   }
 
   private mergeCloudDocumentsIntoLocalStorage(records: CloudDocument[], force = false) {
-    let mergedCount = 0;
+    // Compare against the index (which mirrors updatedAt) rather than loading every
+    // local body, then write only the documents that actually won the comparison.
+    const localUpdatedAtById = new Map(
+      this.config.localStorage.listIndex().map((entry) => [entry.id, entry.updatedAt]),
+    );
 
-    const collection = this.config.localStorage.loadCollection();
+    const toPersist: T[] = [];
 
     for (const record of records) {
       const cloudItem = this.config.parseItem(record.content);
 
       if (!cloudItem) continue;
 
-      const localItem = collection.items[cloudItem.id];
-      const localUpdatedAt = this.toTimestamp(localItem?.updatedAt);
+      const hasLocal = localUpdatedAtById.has(cloudItem.id);
+      const localUpdatedAt = this.toTimestamp(localUpdatedAtById.get(cloudItem.id));
       const cloudUpdatedAt = this.toTimestamp(record.updatedAt);
 
-      if (force || !localItem || cloudUpdatedAt > localUpdatedAt) {
-        collection.items[cloudItem.id] = this.applyCloudSyncMetadata(cloudItem, record);
-        mergedCount += 1;
+      if (force || !hasLocal || cloudUpdatedAt > localUpdatedAt) {
+        toPersist.push(this.applyCloudSyncMetadata(cloudItem, record));
       }
     }
 
-    if (mergedCount > 0) {
-      this.config.localStorage.saveCollection(collection);
-      if (this.isBrowser()) window.dispatchEvent(new Event("storage"));
+    if (toPersist.length > 0) {
+      const result = this.config.localStorage.persistMany(toPersist);
+      if (!result.ok) return { ok: false, mergedCount: 0 };
     }
 
-    return { ok: true, mergedCount };
+    return { ok: true, mergedCount: toPersist.length };
   }
 
   keepLocalOnly(id: string): SyncResult {

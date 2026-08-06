@@ -2,8 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSafeAuthCallback } from "@/lib/auth-redirect";
 
+/**
+ * Every `/_next/` path is excluded, not just `static` and `image`.
+ *
+ * The framework's own endpoints live under that prefix too — in development
+ * that includes the HMR socket, and answering its upgrade request with a normal
+ * `NextResponse.next()` (carrying a `Set-Cookie`) fails the handshake. The dev
+ * client then retries instead of bootstrapping, and the page never hydrates.
+ * Auth redirects have no business on those routes in any case.
+ */
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/|favicon.ico).*)"],
 };
 
 const PROTECTED_PATH_PREFIXES = ["/admin", "/profile/master", "/profile/advanced"];

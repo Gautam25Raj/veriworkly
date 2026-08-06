@@ -229,6 +229,20 @@ export const faqs = [
       "Yes. The ATS Checker runs a free, rules-based core scan (word count, contact details, required sections, action verbs, quantified achievements, and formatting risks like tables or headers that confuse parsers) and gives a readiness score plus a keyword-match score against a pasted job description. Anonymous visitors get 1 scan every 48 hours, and free logged-in accounts get 2 scans every 24 hours. A deeper AI-powered analysis layer — with missing-evidence detection and prioritized recommendations — is available on paid plans.",
   },
   {
+    id: "ats-two-scores-explained",
+    category: "developer",
+    question: "Why are there two scores, and why doesn't the readiness score change much?",
+    answer:
+      'The readiness score measures parsing and formatting only — contact details, section labels, action verbs, quantified evidence, length, and table/header risks. It has nothing to do with any specific job, so two well-formatted resumes will land in a similar range even if their content is very different. The job match score is the one that changes with the role: it compares your resume against the pasted job description using synonym- and phrase-aware keyword matching, weighted toward terms in a "Requirements" section over a "Nice to have" one. If you want the match score to move, add a job description — the readiness score alone won\'t.',
+  },
+  {
+    id: "ats-scoring-transparency",
+    category: "developer",
+    question: "Can I see exactly how the ATS Checker calculates its score?",
+    answer:
+      "The scanning categories are public — parsing, contact details, structure, evidence, and format risk, described above and on the checker page itself. The exact rule weights, regex patterns, and the synonym/phrase dictionary behind keyword matching are kept private, the same way the rest of VeriWorkly's AI prompts are: publishing the literal answer key would let anyone reverse-engineer a resume that scores well without actually being easier to parse or a better match for the role.",
+  },
+  {
     id: "github-import",
     category: "developer",
     question: "Can I import my GitHub profile into a resume?",

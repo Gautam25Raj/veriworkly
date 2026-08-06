@@ -126,7 +126,7 @@ export default async function AdminApiKeysPage({
   const [summary, data] = await Promise.all([fetchAdminApiKeySummary(), fetchAdminApiKeys(params)]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="Platform"
         title="API keys"

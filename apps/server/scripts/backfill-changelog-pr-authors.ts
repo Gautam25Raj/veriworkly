@@ -60,7 +60,10 @@ async function run() {
 
       if (!summaryCache.has(ref.number)) {
         try {
-          summaryCache.set(ref.number, await fetchPullRequestSummary(owner, repo, ref.number, token));
+          summaryCache.set(
+            ref.number,
+            await fetchPullRequestSummary(owner, repo, ref.number, token),
+          );
         } catch (error) {
           logger.error(`Failed to fetch PR #${ref.number} from GitHub`, error);
           summaryCache.set(ref.number, null);

@@ -1,5 +1,12 @@
 {
   "title": "Users",
   "description": "Operations related to authenticated users.",
-  "pages": ["overview", "getCurrentUser", "updateUserName"]
+  "pages": [
+    "overview",
+    "getCurrentUser",
+    "updateUserName",
+    "setUsername",
+    "checkUsernameAvailability",
+    "updateAutoSync"
+  ]
 }

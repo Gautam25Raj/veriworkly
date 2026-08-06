@@ -5,6 +5,7 @@ import { useSyncExternalStore } from "react";
 function subscribe(query: string, callback: () => void) {
   const mql = window.matchMedia(query);
   mql.addEventListener("change", callback);
+
   return () => mql.removeEventListener("change", callback);
 }
 

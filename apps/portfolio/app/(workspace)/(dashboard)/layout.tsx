@@ -1,22 +1,33 @@
 import type { CloudPortfolioDraft } from "@/lib/portfolio";
-import type { PortfolioWorkspaceBootstrap } from "@/store/portfolio-store";
 
-import { fetchServerApiData } from "@/lib/server-api";
+import { portfolioWorkspaceUrl } from "@/config/site";
+import { isPortfolioPubliclyVisible } from "@/lib/portfolio-status";
+import { loadWorkspaceBootstrap } from "@/lib/workspace-bootstrap";
 
+import { WorkspaceProvider } from "@/components/WorkspaceProvider";
 import { PortfolioAppShell } from "@/components/dashboard/sidebar/PortfolioAppShell";
 
 const DashboardLayout = async ({ children }: { children: React.ReactNode }) => {
-  const [user, workspace] = await Promise.all([
-    fetchServerApiData<PortfolioWorkspaceBootstrap["user"]>("/users/me"),
-    fetchServerApiData<PortfolioWorkspaceBootstrap["workspace"]>("/portfolios/me"),
-  ]);
+  // Analytics is fetched here rather than one level up so it stays on the routes
+  // that actually render it (overview + analytics) instead of the editor's path.
+  const bootstrap = await loadWorkspaceBootstrap({ includeAnalytics: true });
 
-  const draft = workspace?.draft as CloudPortfolioDraft | undefined;
+  const draft = bootstrap.workspace?.draft as CloudPortfolioDraft | undefined;
+
+  // Resolved here rather than in the shell so the "View site" button is only rendered
+  // when the public site actually resolves, and points at the address this account has
+  // (subdomain on Creator Pro, platform path otherwise).
+  const publicUrl =
+    draft?.slug && isPortfolioPubliclyVisible(bootstrap.workspace?.publication?.status)
+      ? portfolioWorkspaceUrl(draft.slug, Boolean(bootstrap.workspace?.billing?.canPublish)).href
+      : undefined;
 
   return (
-    <PortfolioAppShell user={user} draftSlug={draft?.slug}>
-      {children}
-    </PortfolioAppShell>
+    <WorkspaceProvider initialData={bootstrap}>
+      <PortfolioAppShell user={bootstrap.user} publicUrl={publicUrl}>
+        {children}
+      </PortfolioAppShell>
+    </WorkspaceProvider>
   );
 };
 

@@ -4,12 +4,22 @@ import { humanizeKey } from "@/features/admin/utils/admin-format";
 
 type Tone = "neutral" | "success" | "warning" | "danger" | "info";
 
+/**
+ * Status tones are built from the theme's semantic tokens (`--success`, `--warning`,
+ * `--destructive`, `--accent`), not from raw Tailwind palette steps.
+ *
+ * The previous version hardcoded `emerald-700 / amber-700 / red-700 / sky-700`, which meant the
+ * admin ran a second, parallel colour language next to the one `themes.css` defines: retuning
+ * the brand's success green left every admin badge on the old hue. Going through the tokens
+ * means a theme change reaches here for free, and light/dark are handled by the token
+ * definitions rather than by a `dark:` variant on every line.
+ */
 const toneStyles: Record<Tone, string> = {
-  neutral: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-300 ring-zinc-500/20",
-  success: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 ring-emerald-500/20",
-  warning: "bg-amber-500/10 text-amber-700 dark:text-amber-400 ring-amber-500/20",
-  danger: "bg-red-500/10 text-red-700 dark:text-red-400 ring-red-500/20",
-  info: "bg-sky-500/10 text-sky-700 dark:text-sky-400 ring-sky-500/20",
+  neutral: "bg-muted/10 text-muted ring-muted/20",
+  success: "bg-success/10 text-success ring-success/25",
+  warning: "bg-warning/10 text-warning ring-warning/25",
+  danger: "bg-destructive/10 text-destructive ring-destructive/25",
+  info: "bg-accent/10 text-accent ring-accent/25",
 };
 
 /**
@@ -69,10 +79,12 @@ interface AdminStatusBadgeProps {
   status: string | null | undefined;
   /** Overrides the lookup when a status word means something different in context. */
   tone?: Tone;
+  /** Adds a filled dot before the label, for badges read at a glance in a dense table. */
+  dot?: boolean;
   className?: string;
 }
 
-const AdminStatusBadge = ({ status, tone, className }: AdminStatusBadgeProps) => {
+const AdminStatusBadge = ({ status, tone, dot, className }: AdminStatusBadgeProps) => {
   if (!status) return <span className="text-muted text-xs">—</span>;
 
   const resolvedTone = tone ?? STATUS_TONES[status] ?? "neutral";
@@ -80,11 +92,12 @@ const AdminStatusBadge = ({ status, tone, className }: AdminStatusBadgeProps) =>
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ring-1 ring-inset",
+        "inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-medium whitespace-nowrap ring-1 ring-inset",
         toneStyles[resolvedTone],
         className,
       )}
     >
+      {dot ? <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" /> : null}
       {humanizeKey(status)}
     </span>
   );

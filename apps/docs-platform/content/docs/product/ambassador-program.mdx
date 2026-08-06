@@ -11,7 +11,7 @@ program went through: application intake and review first, the rewards loop next
 <Callout type="warn" title="This page describes a program mid-rollout">
   Application intake and admin review are live. The points economy previewed on the public marketing
   page is direction, not yet shipped. If you are building against this, verify against
-  `apps/server/src/routes/ambassador.ts` and `apps/server/src/routes/adminAmbassador.ts`.
+  `apps/server/src/routes/ambassador.ts` and `apps/server/src/routes/admin/ambassadors.ts`.
 </Callout>
 
 ## Feature-flag gated
@@ -62,12 +62,12 @@ application.
 
 The review workflow is **live**, both as an API surface and as a Studio screen:
 
-| Endpoint                                | Purpose                                                                                                                                                    |
-| :-------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Endpoint                                | Purpose                                                                                                                                                     |
+| :-------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /api/v1/admin/ambassadors`         | List applications as `{ items, total, limit, offset }`, filterable by `status` (`PENDING`, `APPROVED`, `REJECTED`), graduation year, and a free-text query. |
-| `GET /api/v1/admin/ambassadors/summary` | Counts by status, the number of active ambassadors, and applications received in the last 7 days.                                                          |
-| `GET /api/v1/admin/ambassadors/roster`  | Everyone currently holding the `AMBASSADOR` role, with their campus and referral count.                                                                    |
-| `GET /api/v1/admin/ambassadors/:id`     | One application in full, plus who reviewed it and its admin audit history.                                                                                 |
+| `GET /api/v1/admin/ambassadors/summary` | Counts by status, the number of active ambassadors, and applications received in the last 7 days.                                                           |
+| `GET /api/v1/admin/ambassadors/roster`  | Everyone currently holding the `AMBASSADOR` role, with their campus and referral count.                                                                     |
+| `GET /api/v1/admin/ambassadors/:id`     | One application in full, plus who reviewed it and its admin audit history.                                                                                  |
 | `PATCH /api/v1/admin/ambassadors/:id`   | Review an application: `action` is `APPROVE` or `REJECT`, with an optional `reviewNote` up to 500 characters.                                               |
 
 All require admin authentication. Approving flips the application's status **and** the user's
@@ -143,7 +143,7 @@ page's numbers as a preview of intent, not as a live earning schedule.
 
 ## API
 
-See the [Ambassador API reference](/api-reference/ambassador) for full request and response shapes.
+See the [Ambassador API reference](/api-reference/ambassador/overview) for full request and response shapes.
 
 ## Related
 

@@ -58,7 +58,10 @@ const getChangelogEntries = async (query: ChangelogQuery = {}): Promise<Changelo
   const where: {
     type?: ChangelogType;
     tags?: { has: string };
-    OR?: Array<{ title?: { contains: string; mode: "insensitive" }; summary?: { contains: string; mode: "insensitive" } }>;
+    OR?: Array<{
+      title?: { contains: string; mode: "insensitive" };
+      summary?: { contains: string; mode: "insensitive" };
+    }>;
   } = {};
 
   if (type) where.type = type;
@@ -170,7 +173,11 @@ async function computeContributorStats(): Promise<{
       if (!author || typeof author !== "object") continue;
 
       const { login, avatarUrl, htmlUrl } = author as Record<string, unknown>;
-      if (typeof login !== "string" || typeof avatarUrl !== "string" || typeof htmlUrl !== "string") {
+      if (
+        typeof login !== "string" ||
+        typeof avatarUrl !== "string" ||
+        typeof htmlUrl !== "string"
+      ) {
         continue;
       }
 

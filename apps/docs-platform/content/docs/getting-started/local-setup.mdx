@@ -163,8 +163,14 @@ the platform.
     # Backend test suite (Vitest)
     npm test -w @veriworkly/server
 
-    # Studio contract tests (Vitest)
+    # Frontend contract and unit suites (Vitest)
     npm run test:contracts -w @veriworkly/studio
+    npm run test:contracts -w @veriworkly/site
+    npm test -w @veriworkly/portfolio
+
+    # Preview/PDF parity — boots the app and a real Chromium, takes minutes.
+    # Run it when you have touched a resume or cover letter template.
+    npm run test:parity -w @veriworkly/studio
 
     # Verify every workspace builds
     npm run build
@@ -200,11 +206,11 @@ cache connections work. See [Service Status](/docs/operations/service-status).
 
 ## Useful workspace scripts
 
-| Command                                        | Effect                                                                                     |
-| :--------------------------------------------- | :----------------------------------------------------------------------------------------- |
-| `npm run db:migrate`                           | Create and apply a Prisma migration.                                                       |
-| `npm run db:studio`                            | Open Prisma Studio against your database.                                                  |
+| Command                                        | Effect                                                                                                                                                                           |
+| :--------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run db:migrate`                           | Create and apply a Prisma migration.                                                                                                                                             |
+| `npm run db:studio`                            | Open Prisma Studio against your database.                                                                                                                                        |
 | `npm run generate:api`                         | Bundle `apps/docs-platform/specs/openapi.yaml` and regenerate the API reference MDX pages. Runs automatically before the docs `dev` and `build`, so you rarely need it directly. |
-| `npm run sync:github -w @veriworkly/server`    | Run the GitHub statistics sync once, outside the cron schedule.                            |
-| `npm run seed:roadmap -w @veriworkly/server`   | Seed public roadmap data.                                                                  |
-| `npm run seed:changelog -w @veriworkly/server` | Seed changelog entries.                                                                    |
+| `npm run sync:github -w @veriworkly/server`    | Run the GitHub statistics sync once, outside the cron schedule.                                                                                                                  |
+| `npm run seed:roadmap -w @veriworkly/server`   | Seed public roadmap data.                                                                                                                                                        |
+| `npm run seed:changelog -w @veriworkly/server` | Seed changelog entries.                                                                                                                                                          |

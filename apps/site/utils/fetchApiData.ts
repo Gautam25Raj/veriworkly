@@ -26,6 +26,7 @@ export class ApiRequestError extends Error {
  * connection *refused* fails fast, but a connection that hangs does not. Callers that
  * legitimately need longer can pass their own `signal`.
  */
+
 export const DEFAULT_API_TIMEOUT_MS = 8_000;
 
 const NEXT_PUBLIC_BACKEND_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/+$/, "") || "";
@@ -40,17 +41,14 @@ export const BACKEND_BASE_URL =
 export function backendApiUrl(path: string) {
   const trimmedPath = path.trim();
 
-  if (/^https?:\/\//i.test(trimmedPath)) {
-    return trimmedPath;
-  }
+  if (/^https?:\/\//i.test(trimmedPath)) return trimmedPath;
 
   const normalizedPath = trimmedPath.startsWith("/") ? trimmedPath : `/${trimmedPath}`;
 
-  if (!BACKEND_BASE_URL) {
+  if (!BACKEND_BASE_URL)
     throw new Error(
       "Backend base URL is not configured. Set NEXT_PUBLIC_BACKEND_URL and optionally BACKEND_INTERNAL_URL for server-side runtime.",
     );
-  }
 
   return `${BACKEND_BASE_URL}${normalizedPath}`;
 }
@@ -122,9 +120,8 @@ export async function fetchApiData<T>(
 
   const payload = await response.json().catch(() => null);
 
-  if (!payload || typeof payload !== "object") {
+  if (!payload || typeof payload !== "object")
     throw new ApiRequestError(errorMessage || "Backend returned a malformed response.", 502);
-  }
 
   return (payload as ApiSuccessResponse<T>).data;
 }

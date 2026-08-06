@@ -104,6 +104,10 @@ model Document {
 
 - **`revision`** is the optimistic-concurrency guard. A sync write that carries a stale revision is
   rejected rather than applied, which is what surfaces as a `conflicted` sync state in Studio.
+- **`templateId`'s `"modern"` default is a historical artefact** — no template ships with that id.
+  Studio's `loadTemplateComponentById` falls back to the first registry entry for any unrecognised
+  id, so such a document renders as Executive Clarity. Every document created through the UI carries
+  a real id.
 - **`deletedAt`** is a soft delete. Restore and hard-delete methods exist in the service layer, but
   no route currently exposes them — only soft delete is reachable through the API today.
 - **Payload cap** — document `content` is limited to roughly 1 MB per document, enforced server-side.
@@ -294,9 +298,17 @@ entries from GitHub Releases.
 | `AuditLog`                                 | A generic HTTP request/error audit table.                                                                     |
 
 <Callout type="info" title="Two different audit tables">
-  `AdminAuditEntry` is the live admin action log. `AuditLog` is a separate, generic HTTP audit table
-  that is modelled but currently has no writer anywhere in the server source — it is effectively
-  unused today.
+  `AdminAuditEntry` is the live admin action log, written by the monetization console. `AuditLog` is
+  separate and generic: the logging middleware writes one row per `4xx`/`5xx` response — **in
+  production only**, and excluding `401`, `404`, and `429`, which are high-volume expected failures
+  (auth probes, missing routes, rate-limit noise). Each row records method, path, status, IP, user
+  agent, and the error message.
+</Callout>
+
+<Callout type="warn" title="`AuditLog` is the fastest-growing table in the schema">
+  Nothing else deletes from it. The daily usage-metrics job is the only pruner, dropping rows older
+  than `AUDIT_LOG_RETENTION_DAYS` (default 90) — so that variable, not any external retention
+  policy, is what bounds the table.
 </Callout>
 
 Usage metrics are **aggregate-only product telemetry** — counts of events like resumes created,

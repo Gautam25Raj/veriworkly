@@ -93,7 +93,7 @@ export default async function AdminAmbassadorRosterPage({
   const data = await fetchAdminAmbassadorRoster(params);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="People"
         title="Ambassador roster"

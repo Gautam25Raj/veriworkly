@@ -107,7 +107,7 @@ export default async function AdminAuditPage({
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="Platform"
         title="Admin audit log"

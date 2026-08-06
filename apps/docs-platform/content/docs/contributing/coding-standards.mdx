@@ -94,15 +94,33 @@ a welcome contribution.
 - **Unit tests** for pure utilities and service-layer business logic, with **Vitest**.
 - **Integration tests** for critical paths — auth middleware, billing webhooks, quota enforcement,
   and view counting — also with Vitest.
-- **Contract tests** in Studio and Portfolio verify that the shared content models stay in sync
-  between the frontend types and the backend validators.
-
-There is **no** Playwright or browser-driven end-to-end suite in the repository today.
+- **Contract tests** in Studio and the marketing site verify that shared content models and template
+  catalogs stay in sync between the frontend types and the backend validators. Portfolio has its own
+  suite under `npm test -w @veriworkly/portfolio`.
+- **Parity tests** in Studio drive a real Chromium via Playwright to lay a document out in both
+  renderers and diff the two box trees. This is the only suite that proves the live preview and the
+  exported PDF actually agree — the contract tests can only prove the PDF is internally consistent
+  against the shared scale.
 
 ```bash
-npm test -w @veriworkly/server              # backend suite
-npm run test:contracts -w @veriworkly/studio # studio contract tests
+npm test -w @veriworkly/server               # backend suite
+npm run test:contracts -w @veriworkly/studio # studio contract tests (fast)
+npm run test:contracts -w @veriworkly/site   # marketing-site contract tests
+npm test -w @veriworkly/portfolio            # portfolio suite
+npm run test:parity -w @veriworkly/studio    # preview/PDF parity (boots a browser, minutes)
 ```
+
+`blog-platform` and `docs-platform` define no test scripts — they are content-only.
+
+<Callout type="info" title="The parity suite needs a real Chromium">
+  It is deliberately separate from `vitest.config.ts` because it boots the app and takes minutes.
+  `tests/parity/browser.ts` tries an installed Chrome, then Edge, then Playwright's bundled Chromium
+  — the bundled build is an unsigned download that Windows Application Control blocks on some
+  machines. Install Google Chrome, or run `npx playwright install chromium`.
+</Callout>
+
+There is no full browser-driven **end-to-end** suite — the parity harness is a rendering-measurement
+tool, not a user-journey runner.
 
 ---
 
@@ -113,12 +131,16 @@ npm run lint
 npm run format:write
 npm test -w @veriworkly/server
 npm run test:contracts -w @veriworkly/studio
+npm run test:contracts -w @veriworkly/site
+npm test -w @veriworkly/portfolio
 npm run build
 ```
+
+Add `npm run test:parity -w @veriworkly/studio` if you touched a resume or cover letter template.
 
 <Callout type="warn" title="There is no root `npm test`">
   The repository root defines no `test` script. Run the workspace-scoped commands above.
 </Callout>
 
-See the [Contributing Guide](/docs/contributing/index) for issue claiming, branch naming, and pull
+See the [Contributing Guide](/docs/contributing) for issue claiming, branch naming, and pull
 request conventions.

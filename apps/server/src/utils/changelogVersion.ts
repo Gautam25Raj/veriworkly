@@ -1,7 +1,10 @@
 export type ChangelogType = "major" | "minor" | "patch";
 
 export function slugifyVersion(version: string): string {
-  return `v${version.trim().replace(/[^\w.]+/g, "-").replace(/\./g, "-")}`;
+  return `v${version
+    .trim()
+    .replace(/[^\w.]+/g, "-")
+    .replace(/\./g, "-")}`;
 }
 
 /**

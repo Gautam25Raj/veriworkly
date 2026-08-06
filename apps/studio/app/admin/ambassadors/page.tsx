@@ -126,7 +126,7 @@ export default async function AdminAmbassadorsPage({
   ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="People"
         title="Campus ambassadors"

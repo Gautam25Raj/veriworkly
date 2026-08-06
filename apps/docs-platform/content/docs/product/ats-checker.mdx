@@ -24,11 +24,22 @@ Layers an LLM's explanation, missing-evidence detection, prioritized recommendat
 
 ## Quotas
 
-| Tier              | Quota                                                      |
-| ----------------- | ---------------------------------------------------------- |
-| Anonymous visitor | 1 scan / 48 hours, keyed to a salted hash of the client IP |
-| Free, logged in   | 2 scans / 24 hours                                         |
-| Subscriber        | 300 scans / billing period                                 |
+There are **two** independent budgets: scans (`/ats/check` and `/ats/analyze` together) and file
+uploads (`/ats/extract`). Both reset on the same window.
+
+| Tier              | Scans                                                 | Uploads |
+| ----------------- | ----------------------------------------------------- | ------- |
+| Anonymous visitor | 1 / 48 hours, keyed to a salted hash of the client IP | 3       |
+| Free, logged in   | 2 / 24 hours                                          | 6       |
+| Subscriber        | 300 / billing period                                  | 300     |
+
+<Callout type="info" title="Uploading a file no longer costs you a scan">
+  Extraction used to share the scan counter, which meant an anonymous visitor — with a single scan
+  per 48 hours — could spend it just by uploading their resume, and the check that followed always
+  came back `429`. Extraction now has its own, more generous allowance; it is still bounded
+  separately by IP, file size, and file type. `GET /ats/quota` reports both budgets, with the upload
+  one under `extract`.
+</Callout>
 
 <Callout type="info" title="What counts as a subscriber here">
   The paid tier is determined by the **`ai_credits` entitlement** specifically — held by the AI
@@ -55,7 +66,7 @@ Quota consumption is atomic (a Lua script on Redis), so concurrent scans cannot 
 
 ## API
 
-See the [ATS API reference](/api-reference/ats) for the scan, extract, and analyze endpoints and
+See the [ATS API reference](/api-reference/ats/overview) for the scan, extract, and analyze endpoints and
 their request/response shapes.
 
 ## Related

@@ -60,6 +60,23 @@ vi.mock("#auth/index", () => ({
   }),
 }));
 
+/**
+ * `adminAuthMiddleware` re-reads the account from the database to confirm the configured admin
+ * email is verified, so the fixture has to return a matching row — otherwise the middleware
+ * correctly refuses with a 403 and never reaches the `next()` call these tests are about.
+ */
+vi.mock("#lib/prisma", () => ({
+  prisma: {
+    user: {
+      findUnique: vi.fn().mockResolvedValue({
+        emailVerified: true,
+        email: "admin@veriworkly.com",
+        role: "ADMIN",
+      }),
+    },
+  },
+}));
+
 vi.mock("#services/apiKeyService", () => ({
   ApiKeyService: {
     validateKey: vi.fn().mockResolvedValue({

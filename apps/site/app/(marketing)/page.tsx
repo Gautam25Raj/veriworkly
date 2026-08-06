@@ -79,86 +79,6 @@ export const metadata: Metadata = {
   },
 };
 
-const softwareApplicationSchema = {
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  name: "VeriWorkly",
-  applicationCategory: "BusinessApplication",
-  operatingSystem: "Web",
-  description:
-    "Free-to-use privacy-first career workspace with AI resume builder, AI cover letter writer, and AI portfolio builder.",
-  url: siteConfig.url,
-  offers: [
-    {
-      "@type": "Offer",
-      name: "Free",
-      price: "0",
-      priceCurrency: "USD",
-      description: "Unlimited local resumes, cover letters, and PDF exports without login.",
-    },
-    {
-      "@type": "Offer",
-      name: "3-Day Sprint Pass",
-      price: "2.99",
-      priceCurrency: "USD",
-      description: "3 days of Creator Pro hosting + 150 AI writing credits.",
-    },
-    {
-      "@type": "Offer",
-      name: "7-Day Hunt Pass",
-      price: "5.99",
-      priceCurrency: "USD",
-      description: "7 days of Creator Pro hosting + 400 AI writing credits.",
-    },
-    {
-      "@type": "Offer",
-      name: "AI Standalone",
-      price: "5.99",
-      priceCurrency: "USD",
-      description: "Standalone AI credits package for document tailoring.",
-    },
-    {
-      "@type": "Offer",
-      name: "Creator Pro",
-      price: "9.99",
-      priceCurrency: "USD",
-      description: "Public portfolio hosting with custom subdomain, analytics, and SEO controls.",
-    },
-    {
-      "@type": "Offer",
-      name: "Job Hunter Bundle (monthly)",
-      price: "14.99",
-      priceCurrency: "USD",
-      description: "Full access bundle on monthly billing.",
-    },
-    {
-      "@type": "Offer",
-      name: "Job Hunter Bundle (annual, per month)",
-      price: "11.99",
-      priceCurrency: "USD",
-      description: "Full access bundle on annual billing.",
-    },
-  ],
-  creator: {
-    "@type": "Organization",
-    name: "VeriWorkly",
-    url: siteConfig.url,
-    founder: {
-      "@type": "Person",
-      name: "Gautam Raj",
-    },
-  },
-  featureList: [
-    "ATS-friendly AI resume builder & tailoring",
-    "AI cover letter generator",
-    "Live web portfolio publisher with custom subdomains",
-    "No login required & local-first storage",
-    "Open-core platform",
-    "GitHub & LinkedIn data imports",
-    "Master Profile dynamic synchronization",
-  ],
-};
-
 const faqPageSchema = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
@@ -212,11 +132,6 @@ const howToSchema = {
 const Home = () => {
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={jsonLdScriptProps(softwareApplicationSchema)}
-      />
-
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={jsonLdScriptProps(faqPageSchema)}

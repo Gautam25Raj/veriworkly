@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { ArrowRight, ExternalLink, Mail, MapPin, UserRound } from "lucide-react";
 import { veriworklyProductLinks } from "@/config/site";
@@ -14,7 +15,7 @@ const secondaryAction =
 export default function ProfilePage() {
   const { user, workspace } = useWorkspace();
   const draft = workspace?.draft as CloudPortfolioDraft | undefined;
-  const content = draft ? parsePortfolioContent(draft.content) : null;
+  const content = useMemo(() => (draft ? parsePortfolioContent(draft.content) : null), [draft]);
 
   return (
     <main className="mx-auto max-w-[1200px] px-4 py-7 sm:px-6 sm:py-9 xl:px-10">

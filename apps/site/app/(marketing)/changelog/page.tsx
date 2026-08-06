@@ -111,7 +111,7 @@ const ChangelogPage = async ({ searchParams }: ChangelogPageProps) => {
         "@type": "ListItem",
         position: index + 1,
         name: `v${entry.version} — ${entry.title}`,
-        url: `${pageUrl}#${entry.id}`,
+        url: `${pageUrl}/${entry.id}`,
       })),
     },
   };

@@ -17,11 +17,11 @@ import { WorkspaceThemeControl } from "./WorkspaceThemeControl";
 export function PortfolioAppShell({
   children,
   user,
-  draftSlug,
+  publicUrl,
 }: {
   children: React.ReactNode;
   user: PortfolioWorkspaceBootstrap["user"];
-  draftSlug?: string;
+  publicUrl?: string;
 }) {
   const [collapsed, setCollapsed] = useState(
     () =>
@@ -97,7 +97,7 @@ export function PortfolioAppShell({
       </aside>
 
       <div className="min-w-0">
-        <Header draftSlug={draftSlug} />
+        <Header publicUrl={publicUrl} />
         <div className="min-h-[calc(100dvh-4.25rem)]">{children}</div>
       </div>
     </div>

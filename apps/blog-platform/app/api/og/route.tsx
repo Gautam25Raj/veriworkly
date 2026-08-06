@@ -174,6 +174,13 @@ export async function GET(request: Request) {
       {
         width: 1200,
         height: 630,
+        headers: {
+          // Cards are a pure function of the query string, so every crawler and
+          // social unfurler re-rendering one from scratch is wasted compute. Edge
+          // runtime opts this route out of static generation, which makes an
+          // explicit cache header the only thing preventing that.
+          "Cache-Control": "public, immutable, no-transform, max-age=31536000",
+        },
       },
     );
   } catch {

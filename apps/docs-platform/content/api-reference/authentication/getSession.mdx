@@ -39,7 +39,10 @@ export default function Layout(props) {
   return (
     <>
       {props.children}
-      <Comp document="./openapi.yaml" operations={[{"path":"/api/v1/auth/get-session","method":"get"}]} />
+      <Comp
+        document="./openapi.yaml"
+        operations={[{ path: "/api/v1/auth/get-session", method: "get" }]}
+      />
     </>
   );
 }

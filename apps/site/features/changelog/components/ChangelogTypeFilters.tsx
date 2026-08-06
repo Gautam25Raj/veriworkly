@@ -21,7 +21,7 @@ const ChangelogTypeFilters = ({
   ];
 
   return (
-    <div className="bg-muted/10 border-border/20 inline-flex rounded-full border p-0.5">
+    <div className="bg-muted/10 border-border/20 flex flex-wrap gap-0.5 rounded-2xl border p-0.5 sm:rounded-full">
       {types.map(({ label, value }) => {
         const isActive = activeType === value;
 

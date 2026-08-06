@@ -15,20 +15,20 @@ import {
   type PortfolioSectionType,
   type PortfolioPage,
 } from "@/lib/portfolio";
+import { sectionLabels, sectionSubtitleDefaults } from "@/lib/section-fields";
 import { loadPortfolioCache, savePortfolioCache } from "@/lib/portfolio-storage";
 
 export type SaveStatus =
-  | "Saving"
-  | "Saved"
-  | "Offline"
-  | "Conflict"
-  | "Publish pending"
-  | "Unsaved changes";
+  "Saving" | "Saved" | "Offline" | "Conflict" | "Publish pending" | "Unsaved changes";
 export type WorkspaceState = "loading" | "ready" | "error";
 export type Publication = { subdomain: string; status: "LIVE" | "GRACE" | "SUSPENDED" } | null;
 export type Billing = { canPublish: boolean; status: string; graceEndsAt?: string | null };
 export type EditorPanel = "profile" | "sections" | "style" | "sharing";
 export type PortfolioAnalyticsData = {
+  // Set by the server when the account lacks the Creator Pro entitlement. The payload
+  // then carries no real figures at all, so the dashboard must render a locked state
+  // rather than the zeros — showing "0 views" to a paying-eligible user would be a lie.
+  locked: boolean;
   totalViews: number;
   daily: Array<{ date: string; count: number }>;
   referrers: Array<{ host: string; count: number }>;
@@ -213,11 +213,14 @@ export const usePortfolioStore = create<PortfolioStoreState>()(
 
     addSection: (type) =>
       set((state) => {
-        const label = type[0].toUpperCase() + type.slice(1);
         const newSection: PortfolioSection = {
           id: createId("section"),
           type,
-          title: label,
+          // `sectionInfo` carries the human label ("Test Scores"); the old
+          // `type[0].toUpperCase() + slice(1)` produced "TestScores" for
+          // camelCase types and rendered that straight into the heading.
+          title: sectionLabels[type],
+          subtitle: sectionSubtitleDefaults[type],
           visible: true,
           items: [],
         };

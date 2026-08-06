@@ -15,12 +15,27 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: page.data.pillar ? 0.9 : 0.7,
   }));
 
+  // Derived rather than `new Date()` for the same reason: the index and archive only
+  // genuinely change when a post does.
+  const lastPublished = blogPages.reduce<Date>(
+    (latest, page) => (page.lastModified > latest ? page.lastModified : latest),
+    new Date(0),
+  );
+
   return [
     {
       url: siteConfig.url,
-      lastModified: new Date(),
+      lastModified: lastPublished,
       changeFrequency: "weekly" as const,
       priority: 1,
+    },
+    {
+      // Lists every post and sets its own canonical, so it is a real indexable page.
+      // It was previously absent from the sitemap entirely.
+      url: `${siteConfig.url}/archive`,
+      lastModified: lastPublished,
+      changeFrequency: "weekly" as const,
+      priority: 0.6,
     },
     ...blogPages,
   ];

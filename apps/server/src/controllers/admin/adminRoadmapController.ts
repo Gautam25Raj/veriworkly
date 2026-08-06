@@ -10,6 +10,9 @@ import { type RoadmapStatus } from "#services/roadmapService";
 
 import { roadmapAdminCreateSchema, roadmapAdminUpdateSchema } from "#validators/roadmapValidator";
 
+import { ADMIN_AUDIT_ACTIONS, recordAdminAudit } from "#services/admin/adminAuditService";
+import { requireAuthUser } from "#middleware/auth";
+
 import { createSuccessResponse, handleValidationError } from "#lib/errors";
 
 /**
@@ -49,6 +52,14 @@ export async function createRoadmapFeatureController(
       completedAt: payload.completedAt ? new Date(payload.completedAt) : undefined,
       completedQuarter: payload.completedQuarter,
       details: payload.details,
+    });
+
+    await recordAdminAudit({
+      actorId: requireAuthUser(req).id,
+      action: ADMIN_AUDIT_ACTIONS.roadmapCreate,
+      targetType: "RoadmapFeature",
+      targetId: created.id,
+      metadata: { title: created.title, status: created.status },
     });
 
     res.json(createSuccessResponse(created, "Roadmap feature created successfully"));
@@ -105,6 +116,16 @@ export async function updateRoadmapFeatureController(
       details: payload.details,
     });
 
+    await recordAdminAudit({
+      actorId: requireAuthUser(req).id,
+      action: ADMIN_AUDIT_ACTIONS.roadmapUpdate,
+      targetType: "RoadmapFeature",
+      targetId: id,
+      // Records which fields were touched, not their values: a roadmap body can be several
+      // kilobytes of prose and the audit table is not a revision history.
+      metadata: { fields: Object.keys(payload) },
+    });
+
     res.json(createSuccessResponse(updated, "Roadmap feature updated successfully"));
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -137,6 +158,13 @@ export async function deleteRoadmapFeatureController(
     const { id } = req.params;
 
     const deleted = await deleteRoadmapFeature(id);
+
+    await recordAdminAudit({
+      actorId: requireAuthUser(req).id,
+      action: ADMIN_AUDIT_ACTIONS.roadmapDelete,
+      targetType: "RoadmapFeature",
+      targetId: id,
+    });
 
     res.json(createSuccessResponse(deleted, "Roadmap feature deleted successfully"));
   } catch (error) {

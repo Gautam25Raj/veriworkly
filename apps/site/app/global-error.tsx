@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect } from "react";
 
 /**
@@ -12,13 +13,14 @@ import { useEffect } from "react";
  * normally have set. `app/error.tsx` handles the ordinary case and keeps full branding;
  * this only runs when that boundary itself could not mount.
  */
-export default function GlobalError({
+
+const GlobalError = ({
   error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
-}) {
+}) => {
   useEffect(() => {
     console.error("Global error boundary caught error:", error);
   }, [error]);
@@ -126,7 +128,7 @@ export default function GlobalError({
               Try again
             </button>
 
-            <a
+            <Link
               href="/"
               className="vw-ge-link"
               style={{
@@ -139,10 +141,12 @@ export default function GlobalError({
               }}
             >
               Back to home
-            </a>
+            </Link>
           </div>
         </main>
       </body>
     </html>
   );
-}
+};
+
+export default GlobalError;

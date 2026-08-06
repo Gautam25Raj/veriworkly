@@ -50,16 +50,14 @@ function parseLinks(value: unknown): CoverLetterContent["links"] {
   const items = Array.isArray(value.items)
     ? value.items
         .filter(isRecord)
-        .map(
-          (item, index): ResumeLinkItem => ({
-            id: asText(item.id) || `cover-letter-link-${index + 1}`,
-            type: LINK_TYPES.includes(item.type as ResumeLinkType)
-              ? (item.type as ResumeLinkType)
-              : "custom",
-            label: asText(item.label),
-            url: asText(item.url),
-          }),
-        )
+        .map((item, index): ResumeLinkItem => ({
+          id: asText(item.id) || `cover-letter-link-${index + 1}`,
+          type: LINK_TYPES.includes(item.type as ResumeLinkType)
+            ? (item.type as ResumeLinkType)
+            : "custom",
+          label: asText(item.label),
+          url: asText(item.url),
+        }))
         .filter((item) => item.url)
     : [];
 
@@ -109,7 +107,10 @@ export function parseCoverLetterContent(input: unknown): CoverLetterContent {
       paragraphSpacing: asNumber(appearanceRaw.paragraphSpacing, 12),
       lineHeight: asNumber(appearanceRaw.lineHeight, 1.55),
       accentColor: asText(appearanceRaw.accentColor) || "#2563eb",
-      sidebarColor: asText(appearanceRaw.sidebarColor) || "#111827",
+      // Must match createDefaultCoverLetter(): a dark fallback here produced a
+      // near-black rail behind rail text for any document saved before the
+      // field existed.
+      sidebarColor: asText(appearanceRaw.sidebarColor) || "#f8fafc",
       pageColor: asText(appearanceRaw.pageColor) || "#ffffff",
       textColor: asText(appearanceRaw.textColor) || "#18181b",
       hiddenSections: parseHiddenSections(appearanceRaw.hiddenSections),

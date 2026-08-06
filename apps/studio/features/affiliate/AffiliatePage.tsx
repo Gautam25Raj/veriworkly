@@ -50,8 +50,8 @@ export function AffiliatePage({ dashboard }: { dashboard: AffiliateDashboard | n
               </span>
             </div>
           ) : isSuspended ? (
-            <div className="flex items-center gap-2 rounded-2xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-destructive">
-              <div className="h-2 w-2 rounded-full bg-destructive" />
+            <div className="border-destructive/20 bg-destructive/10 text-destructive flex items-center gap-2 rounded-2xl border px-4 py-3">
+              <div className="bg-destructive h-2 w-2 rounded-full" />
               <span className="text-xs font-bold tracking-wider uppercase">Account Suspended</span>
             </div>
           ) : (
@@ -74,11 +74,7 @@ export function AffiliatePage({ dashboard }: { dashboard: AffiliateDashboard | n
       </header>
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Metric icon={MousePointerClick} label="Link clicks" value={String(dashboard.clicks)} />
-        <Metric
-          icon={UserPlus}
-          label="Referred signups"
-          value={String(dashboard.totalReferrals)}
-        />
+        <Metric icon={UserPlus} label="Referred signups" value={String(dashboard.totalReferrals)} />
         <Metric icon={Trophy} label="Paid conversions" value={String(dashboard.conversions)} />
         <Metric
           icon={DollarSign}

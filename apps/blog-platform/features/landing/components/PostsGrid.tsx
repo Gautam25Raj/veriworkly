@@ -48,8 +48,8 @@ export const PostsGrid = ({ posts }: PostsGridProps) => {
             <Link key={post.url} href={post.url} className="group">
               <Card className="border-border/50 hover:border-accent/40 h-full transition-all duration-500 group-hover:-translate-y-2 hover:shadow-2xl hover:shadow-blue-500/5">
                 <div className="flex h-full flex-col p-8">
-                  <div className="mb-6 flex items-center gap-3 text-[10px] font-bold tracking-widest text-zinc-400 uppercase">
-                    <span className="text-zinc-500">
+                  <div className="text-muted-foreground mb-6 flex items-center gap-3 text-[10px] font-bold tracking-widest uppercase">
+                    <span className="text-muted-foreground">
                       {new Date(meta.date).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
@@ -57,7 +57,7 @@ export const PostsGrid = ({ posts }: PostsGridProps) => {
                       })}
                     </span>
 
-                    <span className="size-1 rounded-full bg-zinc-200" />
+                    <span className="bg-border size-1 rounded-full" />
 
                     <span className="flex items-center gap-1">
                       <Clock className="size-3" /> {getReadingTime(meta.info.path)}
@@ -72,7 +72,7 @@ export const PostsGrid = ({ posts }: PostsGridProps) => {
                     {meta.description}
                   </p>
 
-                  <div className="mt-auto flex items-center gap-2 text-xs font-bold tracking-wider text-blue-600 uppercase transition-colors group-hover:text-blue-500">
+                  <div className="text-accent mt-auto flex items-center gap-2 text-xs font-bold tracking-wider uppercase transition-colors">
                     Read More{" "}
                     <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
                   </div>

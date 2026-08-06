@@ -131,12 +131,12 @@ retries, an auth failure prompts a re-login, a conflict prompts resolution.
 - **Keep local only** — a per-document opt-out that pins a document to `local-only` and never
   uploads it.
 
-<Callout type="warn" title="Known issue: stale-snapshot race during in-flight sync">
-  The sync service captures a snapshot of the document when an upload starts. If you keep typing
-  while that network call is in flight, the completion handler can write the pre-sync snapshot back
-  over the newer local edits, losing the interim keystrokes. This is tracked in Studio's internal
-  audit and is not yet resolved — if you are editing heavily, prefer manual **Sync Now** over
-  auto-sync during the session.
+<Callout type="info" title="Editing during an in-flight sync is safe">
+  The sync service captures a snapshot of the document when an upload starts, and by the time the
+  server responds the user may have typed further and autosaved. The completion handler therefore
+  never writes that snapshot back wholesale: `document-sync-service.ts` re-patches **only** the
+  `sync` sub-object onto whatever is currently in storage, via `localStorage.patchSync(id, …)`.
+  Interim keystrokes survive the round trip.
 </Callout>
 
 ---

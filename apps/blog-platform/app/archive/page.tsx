@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, Clock, FileText, Calendar } from "lucide-react";
 
 import { blog } from "@/lib/source";
-import { siteConfig } from "@/config/site";
+import { feedAlternates, siteConfig } from "@/config/site";
 import { getReadingTime } from "@/lib/read-time";
 
 import { Container } from "@veriworkly/ui";
@@ -15,27 +15,17 @@ export const metadata: Metadata = {
     "Browse the complete history of articles, tech logs, and career engineering advice from the VeriWorkly team.",
   alternates: {
     canonical: `${siteConfig.url}/archive`,
+    types: feedAlternates,
   },
 };
 
 const BlogArchive = () => {
-  const toBlogMeta = (data: unknown) =>
-    data as {
-      title: string;
-      description: string;
-      author: string;
-      date: string;
-      info: {
-        path: string;
-      };
-    };
-
+  // `blog.getPages()` is already typed as `BlogPostPage` via `lib/source.ts`. The
+  // previous `as unknown` cast re-declared a narrower shape by hand, which silently
+  // opted this page out of the frontmatter schema.
   const allPosts = blog
     .getPages()
-    .sort(
-      (a, b) =>
-        new Date(toBlogMeta(b.data).date).getTime() - new Date(toBlogMeta(a.data).date).getTime(),
-    );
+    .sort((a, b) => new Date(b.data.date).getTime() - new Date(a.data.date).getTime());
 
   return (
     <div className="min-h-screen py-14 md:py-24">
@@ -50,7 +40,7 @@ const BlogArchive = () => {
                 <ArrowLeft className="size-4" /> Back to Home
               </Link>
 
-              <div className="space-y-4 border-l-2 border-blue-500/20 pl-4">
+              <div className="border-accent/30 space-y-4 border-l-2 pl-4">
                 <h1 className="text-foreground text-4xl leading-tight font-bold tracking-tight md:text-5xl">
                   The Archive.
                 </h1>
@@ -103,29 +93,32 @@ const BlogArchive = () => {
             </div>
           </aside>
 
-          <main className="space-y-10 lg:col-span-2">
+          {/* MainLayout supplies the page's single `main` landmark. */}
+          <div className="space-y-10 lg:col-span-2">
             {allPosts.map((post) => {
-              const meta = toBlogMeta(post.data);
+              const meta = post.data;
 
               return (
                 <article
                   key={post.url}
                   className="group border-border/40 relative space-y-4 border-b pb-10 last:border-0 last:pb-0"
                 >
-                  <div className="flex items-center gap-4 text-xs font-bold tracking-widest text-zinc-400 uppercase">
+                  <div className="text-muted-foreground flex items-center gap-4 text-xs font-bold tracking-widest uppercase">
                     <span className="flex items-center gap-1.5">
-                      <Calendar className="size-3.5 text-zinc-400" />
-                      {new Date(meta.date).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
+                      <Calendar aria-hidden="true" className="size-3.5" />
+                      <time dateTime={new Date(meta.date).toISOString()}>
+                        {new Date(meta.date).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </time>
                     </span>
 
-                    <span className="size-1 rounded-full bg-zinc-300" />
+                    <span aria-hidden="true" className="bg-border size-1 rounded-full" />
 
                     <span className="flex items-center gap-1.5">
-                      <Clock className="size-3.5 text-zinc-400" />
+                      <Clock aria-hidden="true" className="size-3.5" />
                       {getReadingTime(meta.info.path)}
                     </span>
                   </div>
@@ -141,10 +134,11 @@ const BlogArchive = () => {
                   <div className="pt-2">
                     <Link
                       href={post.url}
-                      className="inline-flex items-center gap-2 text-xs font-bold tracking-widest text-blue-600 uppercase transition-all duration-300 group-hover:gap-3 group-hover:text-blue-500"
+                      aria-label={`Read ${meta.title}`}
+                      className="text-accent inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase transition-all duration-300 group-hover:gap-3"
                     >
                       Read Article
-                      <ArrowRight className="size-4" />
+                      <ArrowRight aria-hidden="true" className="size-4" />
                     </Link>
                   </div>
                 </article>
@@ -158,7 +152,7 @@ const BlogArchive = () => {
                 <p className="text-muted text-lg font-medium">No articles published yet.</p>
               </div>
             )}
-          </main>
+          </div>
         </div>
       </Container>
     </div>

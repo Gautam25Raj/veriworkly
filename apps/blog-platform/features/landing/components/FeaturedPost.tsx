@@ -62,7 +62,7 @@ export const FeaturedPost = ({ post }: FeaturedPostProps) => {
             </div>
 
             <div className="flex flex-col justify-center space-y-6 p-8 md:p-12">
-              <div className="flex items-center gap-4 text-xs font-bold tracking-widest text-zinc-400 uppercase">
+              <div className="text-muted-foreground flex items-center gap-4 text-xs font-bold tracking-widest uppercase">
                 <span>
                   {new Date(meta.date).toLocaleDateString("en-US", {
                     month: "long",
@@ -71,7 +71,7 @@ export const FeaturedPost = ({ post }: FeaturedPostProps) => {
                   })}
                 </span>
 
-                <span className="size-1 rounded-full bg-zinc-300" />
+                <span className="bg-border size-1 rounded-full" />
 
                 <span className="flex items-center gap-1">
                   <Clock className="size-3" /> {getReadingTime(meta.info.path)}
@@ -87,7 +87,7 @@ export const FeaturedPost = ({ post }: FeaturedPostProps) => {
               </p>
 
               <div className="pt-4">
-                <span className="inline-flex items-center gap-2 text-sm font-bold tracking-wider text-blue-600 uppercase">
+                <span className="text-accent inline-flex items-center gap-2 text-sm font-bold tracking-wider uppercase">
                   Read full article
                   <ArrowRight className="size-4 transition-transform group-hover:translate-x-2" />
                 </span>

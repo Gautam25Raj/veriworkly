@@ -29,9 +29,7 @@ vi.mock("#auth/index", () => ({
   },
 }));
 
-const { revokeAllSessionsForUser, revokeAllSessionsForUserSafely } = await import(
-  "#auth/sessions"
-);
+const { revokeAllSessionsForUser, revokeAllSessionsForUserSafely } = await import("#auth/sessions");
 
 /**
  * Regression cover for the bug where admin "revoke sessions" deleted only the Postgres row.

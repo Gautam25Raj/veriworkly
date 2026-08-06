@@ -3,6 +3,13 @@
 
 @source "../../../packages/ui/src";
 
+/* The portfolio templates are a git submodule. Declaring it explicitly keeps
+   their Tailwind utility classes in this one global build — `signal/styles.css`
+   used to carry its own `@import "tailwindcss"`, which emitted a second full
+   copy of preflight + utilities into a separate chunk (~120 KB duplicated on
+   every published Signal portfolio). */
+@source "../template-library";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

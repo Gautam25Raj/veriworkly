@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { Button, Card, Input, Select } from "@veriworkly/ui";
+import { Button, Input, Select } from "@veriworkly/ui";
 
 import AdminActionDialog from "@/components/admin/AdminActionDialog";
+import Panel from "@/components/admin/Panel";
 import {
   adjustAdminCredits,
   deleteAdminUser,
@@ -43,7 +44,7 @@ const UserAdminActions = ({ detail }: { detail: AdminUserDetail }) => {
   const isProtectedAdmin = user.role === "ADMIN";
 
   return (
-    <Card className="space-y-5 rounded-3xl p-6">
+    <Panel className="space-y-5 rounded-xl p-4">
       <div>
         <h3 className="text-foreground font-semibold tracking-tight">Admin actions</h3>
         <p className="text-muted mt-1 text-xs leading-5">
@@ -51,7 +52,7 @@ const UserAdminActions = ({ detail }: { detail: AdminUserDetail }) => {
         </p>
       </div>
 
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
       <div className="space-y-2">
         <label htmlFor="admin-user-role" className="text-muted text-xs font-medium">
@@ -173,7 +174,7 @@ const UserAdminActions = ({ detail }: { detail: AdminUserDetail }) => {
         <AdminActionDialog
           trigger="Delete account"
           triggerVariant="secondary"
-          triggerClassName="text-red-600"
+          triggerClassName="text-destructive"
           disabled={isProtectedAdmin}
           title="Permanently delete this account"
           description="This cannot be undone. Documents, portfolios, share links, wallets, and API keys are all deleted with the account."
@@ -185,7 +186,7 @@ const UserAdminActions = ({ detail }: { detail: AdminUserDetail }) => {
             router.push("/admin/users");
           }}
         >
-          <p className="text-xs text-red-600">
+          <p className="text-destructive text-xs">
             {isProtectedAdmin
               ? "Admin accounts cannot be deleted from this panel."
               : "There is no restore path for a deleted account."}
@@ -203,7 +204,7 @@ const UserAdminActions = ({ detail }: { detail: AdminUserDetail }) => {
           Refresh
         </Button>
       </div>
-    </Card>
+    </Panel>
   );
 };
 

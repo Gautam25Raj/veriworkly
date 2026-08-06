@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Card } from "@veriworkly/ui";
-
 import AdminFilterBar from "@/components/admin/AdminFilterBar";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import AdminPagination from "@/components/admin/AdminPagination";
 import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
 import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
+import Panel from "@/components/admin/Panel";
 import { SubscriptionActions } from "@/app/admin/billing/BillingActions";
 
 import {
@@ -102,7 +101,7 @@ const columns: Array<AdminTableColumn<AdminSubscriptionRow>> = [
       <div className="space-y-1">
         <AdminStatusBadge status={row.status} />
         {row.cancelAtPeriodEnd ? (
-          <p className="text-xs text-amber-600">cancels at period end</p>
+          <p className="text-warning text-xs">cancels at period end</p>
         ) : null}
       </div>
     ),
@@ -149,7 +148,7 @@ export default async function AdminBillingPage({
   ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="Revenue"
         title="Billing"
@@ -195,7 +194,7 @@ export default async function AdminBillingPage({
         />
       </section>
 
-      <Card className="space-y-3 rounded-3xl p-6">
+      <Panel className="space-y-3 rounded-xl p-4">
         <h3 className="text-foreground font-semibold tracking-tight">Subscriptions by product</h3>
 
         <div className="grid gap-2 text-sm sm:grid-cols-2">
@@ -210,7 +209,7 @@ export default async function AdminBillingPage({
             ))
           )}
         </div>
-      </Card>
+      </Panel>
 
       <AdminFilterBar
         basePath="/admin/billing"

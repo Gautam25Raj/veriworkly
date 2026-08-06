@@ -4,6 +4,7 @@ import type { z } from "zod";
 import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
 import { cacheDel, cacheDelByPrefix } from "#lib/redis";
+import { documentListCachePrefix } from "#lib/cacheKeys";
 
 import type {
   AdminDocumentListQuery,
@@ -154,8 +155,7 @@ async function invalidateOwnerDocumentCaches(
 ) {
   await Promise.all([
     cacheDel(`document:${userId}:${documentId}`),
-    cacheDel(`documents:list:${userId}:all`),
-    cacheDel(`documents:list:${userId}:${type}`),
+    cacheDelByPrefix(documentListCachePrefix(userId)),
     cacheDelByPrefix(`share:shared-document-ids:${userId}:`),
     ...(username
       ? shareSlugs.map((slug) => cacheDel(`share:public-readable:${username}:${slug}`))

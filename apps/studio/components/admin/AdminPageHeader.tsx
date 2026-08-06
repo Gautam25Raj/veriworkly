@@ -1,7 +1,5 @@
 import type { ReactNode } from "react";
 
-import { Badge, Card } from "@veriworkly/ui";
-
 interface AdminPageHeaderProps {
   eyebrow?: string;
   title: string;
@@ -9,28 +7,29 @@ interface AdminPageHeaderProps {
   actions?: ReactNode;
 }
 
+/**
+ * The title block at the top of every admin page.
+ *
+ * Plain markup rather than a card. The previous version wrapped this in a `rounded-4xl` panel
+ * with a blurred accent orb behind it, which cost roughly 130px of vertical space above the
+ * fold on every page before a single row of data appeared. On an operations tool the first
+ * screenful should be the work, not the chrome — the breadcrumb in the topbar already says
+ * where you are, so this only needs to name the page and hold its actions.
+ */
 const AdminPageHeader = ({ eyebrow, title, description, actions }: AdminPageHeaderProps) => (
-  <Card className="border-border bg-card relative overflow-hidden rounded-4xl px-6 py-7 md:px-8">
-    <div className="bg-accent/12 pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full blur-3xl" />
+  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+    <div className="min-w-0">
+      {eyebrow ? <p className="admin-label text-muted mb-1">{eyebrow}</p> : null}
 
-    <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-      <div className="space-y-3">
-        {eyebrow ? <Badge className="bg-background/70">{eyebrow}</Badge> : null}
+      <h1 className="text-foreground text-xl font-semibold tracking-tight">{title}</h1>
 
-        <div>
-          <h1 className="text-foreground text-2xl font-semibold tracking-tight md:text-3xl">
-            {title}
-          </h1>
-
-          {description ? (
-            <p className="text-muted mt-2 max-w-2xl text-sm leading-6">{description}</p>
-          ) : null}
-        </div>
-      </div>
-
-      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+      {description ? (
+        <p className="text-muted mt-1 max-w-2xl text-sm leading-6">{description}</p>
+      ) : null}
     </div>
-  </Card>
+
+    {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+  </div>
 );
 
 export default AdminPageHeader;

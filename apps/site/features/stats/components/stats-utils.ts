@@ -21,12 +21,6 @@ export const kindOptions: Array<{ value: GitHubFilterKind; label: string }> = [
   { value: "pull-request", label: "Pull requests" },
 ];
 
-export const statusBadgeClass: Record<string, string> = {
-  todo: "bg-blue-500/10 text-blue-700 dark:text-blue-300",
-  "in-progress": "bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  done: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-};
-
 export function parseStatus(raw: string | undefined): GitHubFilterStatus {
   if (raw === "todo" || raw === "in-progress" || raw === "done") {
     return raw;

@@ -203,7 +203,7 @@ const ShareDocumentClient = ({
 
   return (
     <main className="bg-background surface-grid selection:bg-accent/20 relative min-h-screen">
-      <DocumentFontLoader fontFamily={resume.customization.fontFamily} />
+      <DocumentFontLoader />
 
       <ShareHeaderBar
         title={dataState.payload.documentTitle}

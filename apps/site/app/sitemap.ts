@@ -5,20 +5,23 @@ import { COMPETITORS } from "@/config/compare";
 import { documentTypeSummaries, templateSummaries } from "@/config/templates";
 
 import { fetchRoadmapSitemapEntries } from "@/features/roadmap/services/roadmap-backend";
-import { fetchLatestChangelogPublishedAt } from "@/features/changelog/services/changelog-backend";
+import {
+  fetchChangelogIndex,
+  fetchLatestChangelogPublishedAt,
+} from "@/features/changelog/services/changelog-backend";
 
 /**
  * Almost all of this sitemap is compiled from local config and genuinely cannot change
  * until the next deploy — a deploy rebuilds the route, so a long window costs nothing.
- * The one exception is `/roadmap/[id]`: those are real, crawlable URLs created in the
- * backend without a redeploy, so a build-only sitemap would leave new roadmap pages
+ * The exceptions are `/roadmap/[id]` and `/changelog/[id]`: those are real, crawlable URLs
+ * created in the backend without a redeploy, so a build-only sitemap would leave new pages
  * undiscoverable. A weekly refresh covers that without pointless churn.
  *
- * For this to actually hold, the two reads below must be cached for at least this long.
+ * For this to actually hold, every backend read below must be cached for at least this long.
  * Next collapses a route's revalidate to the minimum of the segment value and every
- * fetch inside it, so calling the page-facing helpers (cached for 300s) would silently
- * pin this route to 5 minutes regardless of what is declared here. Both helpers used
- * below are sitemap-specific and cached on this same 7-day schedule.
+ * fetch inside it, so calling a helper cached for 300s would silently pin this route to
+ * 5 minutes regardless of what is declared here. All three helpers used below are on this
+ * same 7-day schedule.
  */
 export const revalidate = 604800; // 7 days
 
@@ -49,6 +52,20 @@ const publicRoutes = [
     url: `${siteConfig.url}/pricing`,
     changeFrequency: "monthly" as const,
     priority: 0.85,
+  },
+
+  {
+    url: `${siteConfig.url}/ats-checker`,
+    changeFrequency: "monthly" as const,
+    priority: 0.9,
+  },
+
+  // The tool itself, not just the page describing it. It is a static route with its own
+  // metadata and heading, and it is the URL people actually link to and land on.
+  {
+    url: `${siteConfig.url}/ats-checker/scan`,
+    changeFrequency: "monthly" as const,
+    priority: 0.8,
   },
 
   {
@@ -166,8 +183,8 @@ const publicRoutes = [
   },
 
   { url: siteConfig.links.app, changeFrequency: "weekly", priority: 0.8 },
-  { url: siteConfig.links.blog, changeFrequency: "weekly", priority: 0.7 },
   { url: siteConfig.links.docs, changeFrequency: "weekly", priority: 0.7 },
+  { url: siteConfig.links.blog, changeFrequency: "weekly", priority: 0.7 },
 ] satisfies MetadataRoute.Sitemap;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -190,9 +207,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Both helpers swallow their own failures and return empty/null. A backend blip must
   // degrade the sitemap to its static routes, never fail the route — an erroring
   // sitemap.xml is worse for crawlers than a temporarily shorter one.
-  const [roadmapEntries, changelogLastModified] = await Promise.all([
+  const [roadmapEntries, changelogLastModified, changelogEntries] = await Promise.all([
     fetchRoadmapSitemapEntries(),
     fetchLatestChangelogPublishedAt(),
+    fetchChangelogIndex(),
   ]);
 
   const roadmapItemRoutes = roadmapEntries.map((entry) => {
@@ -208,10 +226,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   });
 
   /**
-   * Changelog entries are anchors on /changelog, not routes of their own. A fragment is
-   * not a distinct URL, so `#id` entries are discarded by crawlers — the newest publish
-   * date is surfaced on the /changelog row below instead of emitting dead rows.
+   * Each release now has its own `/changelog/[id]` page, so these are real crawlable URLs
+   * rather than the `#id` fragments they used to be — fragments are not distinct URLs and
+   * were discarded by crawlers. `lastModified` is the publish date: a shipped release is
+   * immutable, so it never legitimately changes after the fact.
    */
+  const changelogItemRoutes = changelogEntries.map((entry) => {
+    const publishedAt = new Date(entry.publishedAt);
+
+    return {
+      url: `${siteConfig.url}/changelog/${entry.id}`,
+      changeFrequency: "yearly" as const,
+      priority: 0.6,
+      lastModified: Number.isNaN(publishedAt.getTime()) ? lastModified : publishedAt,
+    };
+  });
+
   const compareRoutes = COMPETITORS.map((competitor) => ({
     url: `${siteConfig.url}/compare/${competitor.id}`,
     changeFrequency: "monthly" as const,
@@ -230,6 +260,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...templateRoutes.map((route) => ({ ...route, lastModified })),
     ...templateDetailRoutes.map((route) => ({ ...route, lastModified })),
     ...roadmapItemRoutes,
+    ...changelogItemRoutes,
     ...compareRoutes,
   ];
 }

@@ -11,15 +11,17 @@ import { siteConfig } from "@/config/site";
  * every one of those misses served the homepage's title and description under a 404
  * status, and declared itself indexable while doing it.
  */
+
 export const metadata: Metadata = {
   title: `Page Not Found | ${siteConfig.shortName}`,
   description: "This page moved or never existed. Head back home or browse the template gallery.",
+
   robots: { index: false, follow: true },
 };
 
 const NotFound = () => {
   return (
-    <main className="surface-grid border-border/50 relative mx-auto mt-28 mb-20 flex min-h-[80vh] max-w-7xl items-center justify-center overflow-hidden rounded-3xl border lg:mt-36">
+    <main className="surface-grid border-border/50 relative mx-auto flex h-screen items-center justify-center overflow-hidden border">
       <div className="from-background/0 via-background/20 to-background/80 pointer-events-none absolute inset-0 bg-linear-to-b" />
 
       <Container className="relative flex flex-col items-center py-20 text-center">

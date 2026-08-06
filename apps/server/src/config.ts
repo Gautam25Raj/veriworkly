@@ -156,8 +156,17 @@ export const config = {
     rateLimitWindowMs: parseInt(process.env.AI_RATE_LIMIT_WINDOW_MS || "60000", 10),
     rateLimitMaxRequests: parseInt(process.env.AI_RATE_LIMIT_MAX_REQUESTS || "20", 10),
     siteUrl: process.env.SITE_URL || "",
-    privateConfigPath: process.env.AI_PRIVATE_CONFIG_PATH || "",
-    privateConfigJson: process.env.AI_PRIVATE_CONFIG_JSON || "",
+
+    // Each private policy is its own file/secret so it's obvious which one governs which
+    // feature — general AI writing actions, ATS AI-analysis prompts, and the deterministic
+    // ATS scoring engine's rules/weights/keyword dictionary are unrelated concerns that used
+    // to live in one combined JSON blob.
+    actionsPolicyPath: process.env.AI_ACTIONS_POLICY_PATH || "",
+    actionsPolicyJson: process.env.AI_ACTIONS_POLICY_JSON || "",
+    atsAiPolicyPath: process.env.ATS_AI_POLICY_PATH || "",
+    atsAiPolicyJson: process.env.ATS_AI_POLICY_JSON || "",
+    atsEnginePolicyPath: process.env.ATS_ENGINE_POLICY_PATH || "",
+    atsEnginePolicyJson: process.env.ATS_ENGINE_POLICY_JSON || "",
   },
 
   cache: {
@@ -189,6 +198,12 @@ export const config = {
     enabled: parseBoolean(process.env.CHANGELOG_RELEASE_SYNC_ENABLED, true),
     cron: process.env.CHANGELOG_RELEASE_SYNC_CRON || "0 6 * * *",
     timezone: process.env.CHANGELOG_RELEASE_SYNC_TIMEZONE || "UTC",
+    // Floor between two startup syncs. Releases ship on a human cadence, so re-scanning
+    // GitHub on every boot (and, under `tsx watch`, on every file save) buys nothing.
+    minIntervalSeconds: parseInt(
+      process.env.CHANGELOG_RELEASE_SYNC_MIN_INTERVAL_SECONDS || "21600",
+      10,
+    ),
   },
 
   portfolio: {
@@ -201,8 +216,7 @@ export const config = {
     apiKey: process.env.DODO_PAYMENTS_API_KEY || "",
     webhookSecret: process.env.DODO_PAYMENTS_WEBHOOK_SECRET || "",
     environment: (process.env.DODO_PAYMENTS_ENVIRONMENT || "test_mode") as
-      | "test_mode"
-      | "live_mode",
+      "test_mode" | "live_mode",
     portfolioProSevenDayProductId:
       process.env.DODO_PAYMENTS_PORTFOLIO_PRO_SEVEN_DAY_PRODUCT_ID || "",
     bundleOneDayProductId: process.env.DODO_PAYMENTS_BUNDLE_ONE_DAY_PRODUCT_ID || "",

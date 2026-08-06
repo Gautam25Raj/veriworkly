@@ -70,7 +70,7 @@ const DocumentModerationActions = ({
 
       <AdminActionDialog
         trigger="Delete"
-        triggerClassName="text-red-600"
+        triggerClassName="text-destructive"
         title="Delete this document"
         description={`"${title}" is soft-deleted — it disappears from the owner's workspace but can be restored from this page.`}
         confirmLabel="Delete document"

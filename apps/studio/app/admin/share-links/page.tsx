@@ -109,7 +109,7 @@ export default async function AdminShareLinksPage({
   const data = await fetchAdminShareLinks(params);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="Content"
         title="Share links"

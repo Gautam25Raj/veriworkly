@@ -488,6 +488,241 @@ export const templateSummaries: TemplateSummary[] = [
   },
 
   {
+    id: "resume-modern-minimal",
+    editorTemplateId: "modern-minimal",
+    name: "Modern Minimal",
+    documentType: "resume",
+    documentTypeLabel: "Resume",
+    description:
+      "A quiet, rule-free resume with generous whitespace and small uppercase section labels, so the writing carries the page instead of the styling.",
+    shortDescription: "Whitespace-led minimalism for resumes that let the writing lead.",
+    accentColor: "#6366f1",
+    previewImage: "/templates/resume/modern-minimal.svg",
+    tags: ["One column", "ATS-friendly", "Minimal", "Whitespace"],
+    family: "Modern Core",
+    layout: "One column",
+    audience: ["Designers", "Writers", "Researchers", "Early-career professionals"],
+    bestFor: [
+      "Shorter histories where empty space reads as confidence rather than absence.",
+      "Roles judged on craft and clarity of thought.",
+      "Candidates who dislike heavy borders, boxes, and dividers.",
+    ],
+    designVision:
+      "Modern Minimal removes every rule and container it can, then spends the recovered space on breathing room between sections so the eye is guided by rhythm instead of lines.",
+    typography: [
+      "Understated name block with tightened letterspacing.",
+      "Small uppercase accent labels that mark sections without dividing the page.",
+      "Comfortable body measure tuned for narrative bullets.",
+    ],
+    structure: [
+      {
+        title: "Quiet Masthead",
+        description:
+          "Name, headline, and contact sit flush left with no rule underneath, opening the page calmly.",
+        items: ["Flush-left identity", "Single contact line", "No header borders"],
+      },
+      {
+        title: "Label-Led Sections",
+        description:
+          "Each section is announced by a small accent label, keeping the vertical flow uninterrupted.",
+        items: ["Uppercase micro-labels", "Wide section spacing", "No dividers"],
+      },
+      {
+        title: "Open Body",
+        description:
+          "Items rely on spacing rather than boxes, which keeps the export text clean for parsers.",
+        items: ["Airy item gaps", "Plain-text bullets", "Parser-safe structure"],
+      },
+    ],
+    proofPoints: [
+      "Best when the resume is short enough that whitespace becomes an asset.",
+      "Keeps the page free of graphical elements that confuse applicant tracking systems.",
+      "Pairs well with the Professional cover letter for a restrained application set.",
+    ],
+    seo: {
+      title: "Modern Minimal AI Resume Template | Clean Minimalist Resume",
+      description:
+        "Use the Modern Minimal resume template and AI tailoring to build a clean, whitespace-led resume that stays ATS-friendly.",
+    },
+  },
+
+  {
+    id: "resume-timeline-focus",
+    editorTemplateId: "timeline-focus",
+    name: "Timeline Focus",
+    documentType: "resume",
+    documentTypeLabel: "Resume",
+    description:
+      "Dates sit in a fixed left column so a recruiter can scan an entire career chronology in one pass, with the narrative kept in a clean right-hand measure.",
+    shortDescription: "A date-gutter layout built for scanning career chronology fast.",
+    accentColor: "#0f766e",
+    previewImage: "/templates/resume/timeline-focus.svg",
+    tags: ["One column", "ATS-friendly", "Date gutter", "Chronological"],
+    family: "Structured Core",
+    layout: "One column with date gutter",
+    audience: ["Long-tenure professionals", "Operators", "Public sector", "Academics"],
+    bestFor: [
+      "Careers where continuity and tenure length are part of the argument.",
+      "Applications reviewed by humans who scan dates before titles.",
+      "Histories with many roles inside the same organisation.",
+    ],
+    designVision:
+      "Timeline Focus separates when from what: a narrow left gutter carries every date range, leaving the right column free to hold titles, context, and outcomes at a consistent measure.",
+    typography: [
+      "Dates set quietly in the gutter so they never compete with role titles.",
+      "Section labels paired with a trailing hairline for a steady horizon.",
+      "Consistent right-column measure across every section.",
+    ],
+    structure: [
+      {
+        title: "Anchored Header",
+        description:
+          "Identity and contact details sit above an accent rule that sets the page's baseline.",
+        items: ["Name-led identity", "Inline contact row", "Accent baseline rule"],
+      },
+      {
+        title: "Date Gutter",
+        description:
+          "Every dated item repeats the same left column, making the chronology readable top to bottom.",
+        items: ["Fixed date column", "Aligned role titles", "Uniform item rhythm"],
+      },
+      {
+        title: "Narrative Column",
+        description:
+          "Context, summaries, and bullets stay in one measure so long histories remain comfortable to read.",
+        items: ["Single reading measure", "Plain-text bullets", "Predictable export order"],
+      },
+    ],
+    proofPoints: [
+      "Best when a reviewer needs to verify continuity quickly.",
+      "Keeps dates and titles visually separated without using a sidebar.",
+      "Strong fit for resumes that run to two pages or more.",
+    ],
+    seo: {
+      title: "Timeline Focus AI Resume Template | Chronological Resume Layout",
+      description:
+        "Use the Timeline Focus resume template with AI tailoring to present a scannable, date-anchored career chronology that stays ATS-safe.",
+    },
+  },
+
+  {
+    id: "resume-corporate-brief",
+    editorTemplateId: "corporate-brief",
+    name: "Corporate Brief",
+    documentType: "resume",
+    documentTypeLabel: "Resume",
+    description:
+      "A split letterhead puts identity on the left and contact details on the right, with accent-barred section headings that read like an internal business brief.",
+    shortDescription: "A letterhead-style resume with split header and barred headings.",
+    accentColor: "#1d4ed8",
+    previewImage: "/templates/resume/corporate-brief.svg",
+    tags: ["One column", "ATS-friendly", "Letterhead", "Corporate"],
+    family: "Business Core",
+    layout: "One column with split header",
+    audience: ["Finance", "Consulting", "Legal", "Corporate functions"],
+    bestFor: [
+      "Conservative industries where a document should look institutional.",
+      "Applications submitted alongside formal letters and briefs.",
+      "Candidates who want structure without a decorative or trendy feel.",
+    ],
+    designVision:
+      "Corporate Brief borrows the letterhead convention: identity anchors the left, contact details settle to the right, and short accent bars mark each section like a well-formatted internal memo.",
+    typography: [
+      "Compact masthead that leaves more of page one for content.",
+      "Right-aligned contact stack for a formal letterhead balance.",
+      "Accent-bar section markers with restrained letterspacing.",
+    ],
+    structure: [
+      {
+        title: "Split Letterhead",
+        description:
+          "Name and title sit left, contact details right, closed by a single hairline rule.",
+        items: ["Two-part header", "Right-aligned contact stack", "Hairline close"],
+      },
+      {
+        title: "Barred Sections",
+        description:
+          "A short accent bar precedes every section label, giving the page a documentary structure.",
+        items: ["Accent bar markers", "Uppercase labels", "Consistent heading gap"],
+      },
+      {
+        title: "Business Body",
+        description:
+          "Items keep a steady rhythm so experience, education, and credentials read as one register.",
+        items: ["Even item spacing", "Credential-friendly rows", "Parser-safe text"],
+      },
+    ],
+    proofPoints: [
+      "Best when the reviewing culture expects formality over personality.",
+      "Uses the header space efficiently so more evidence fits on page one.",
+      "Pairs naturally with the Professional cover letter template.",
+    ],
+    seo: {
+      title: "Corporate Brief AI Resume Template | Formal Business Resume",
+      description:
+        "Use the Corporate Brief resume template and AI tailoring to build a formal, letterhead-style resume for finance, consulting, and corporate roles.",
+    },
+  },
+
+  {
+    id: "resume-bold-impact",
+    editorTemplateId: "bold-impact",
+    name: "Bold Impact",
+    documentType: "resume",
+    documentTypeLabel: "Resume",
+    description:
+      "A centered, high-contrast masthead with accent-underlined section headings, for applications where the first impression has to carry weight.",
+    shortDescription: "A centered, high-contrast resume built for presence.",
+    accentColor: "#b91c1c",
+    previewImage: "/templates/resume/bold-impact.svg",
+    tags: ["One column", "ATS-friendly", "Centered header", "High contrast"],
+    family: "Statement Core",
+    layout: "One column with centered header",
+    audience: ["Career changers", "Sales and GTM", "Founders", "Senior candidates"],
+    bestFor: [
+      "Pitches where the name and headline need to land before anything else.",
+      "Competitive shortlists where a plain page risks blending in.",
+      "Candidates whose positioning statement is the strongest asset.",
+    ],
+    designVision:
+      "Bold Impact spends its contrast budget in one place: a centered, uppercase masthead over a thick accent rule, then returns to a conservative single column so the rest of the page stays easy to parse.",
+    typography: [
+      "Uppercase, letterspaced name set at the largest scale in the library.",
+      "Centered headline and contact row for a symmetrical opening.",
+      "Short accent underlines that mark sections without boxing them.",
+    ],
+    structure: [
+      {
+        title: "Statement Masthead",
+        description: "Name, headline, and contact details are centered above a heavy accent rule.",
+        items: ["Uppercase name", "Centered contact row", "Thick accent rule"],
+      },
+      {
+        title: "Underlined Sections",
+        description:
+          "Each heading carries a short accent underline that keeps structure visible while scrolling.",
+        items: ["Accent underline", "Uppercase labels", "Left-aligned body"],
+      },
+      {
+        title: "Conservative Body",
+        description:
+          "Below the masthead the layout stays single column and text-only, protecting parse accuracy.",
+        items: ["Single column flow", "Plain-text bullets", "No graphical meters"],
+      },
+    ],
+    proofPoints: [
+      "Best when you need the top third of the page to do persuasive work.",
+      "Keeps all the visual weight in text, so nothing is lost when the PDF is parsed.",
+      "Pairs well with the VeriWorkly Special cover letter for a confident application set.",
+    ],
+    seo: {
+      title: "Bold Impact AI Resume Template | High-Contrast Modern Resume",
+      description:
+        "Use the Bold Impact resume template with AI tailoring for a centered, high-contrast resume that stands out while staying ATS-friendly.",
+    },
+  },
+
+  {
     id: "cover-letter-professional",
     editorTemplateId: "professional",
     name: "Professional",

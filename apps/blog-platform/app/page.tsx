@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { blog } from "@/lib/source";
-import { siteConfig } from "@/config/site";
+import { feedAlternates, siteConfig } from "@/config/site";
 
 import { Container } from "@veriworkly/ui";
 
@@ -11,6 +11,7 @@ export const metadata: Metadata = {
     "Explore developer insights, ATS optimization strategies, and privacy-first resume architecture notes.",
   alternates: {
     canonical: siteConfig.url,
+    types: feedAlternates,
   },
 };
 

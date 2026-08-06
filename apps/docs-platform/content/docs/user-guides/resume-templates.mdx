@@ -1,6 +1,6 @@
 ---
 title: Resume Templates
-description: The document template system — the four built-in templates, the dual-engine model, and how to add your own.
+description: The document template system — the eight built-in templates, the dual-engine model, and how to add your own.
 ---
 
 import { LayoutTemplate, Mail } from "lucide-react";
@@ -15,22 +15,42 @@ library to compare layouts.
 
 ## Resume templates
 
-Both are free. There is no template lock on resumes or cover letters.
+All six are free. There is no template lock on resumes or cover letters.
 
 <Cards>
-  <Card title="Precision ATS" icon={<LayoutTemplate />}>
-    A dense, recruiter-friendly single-column layout for longer resumes, built for parsing accuracy
-    above all else. Tagged: one column, ATS-friendly, compact, simple. Default accent `#10b981`.
-  </Card>
-
   <Card title="Executive Clarity" icon={<LayoutTemplate />}>
     A polished single-column layout with refined spacing, strong section rhythm, and ATS-safe
     structure. Tagged: one column, ATS-friendly, modern, professional. Default accent `#0ea5e9`.
   </Card>
+
+<Card title="Precision ATS" icon={<LayoutTemplate />}>
+  A dense, recruiter-friendly single-column layout for longer resumes, built for parsing accuracy
+  above all else. Tagged: one column, ATS-friendly, compact, simple. Default accent `#10b981`.
+</Card>
+
+<Card title="Modern Minimal" icon={<LayoutTemplate />}>
+  A rule-free layout with generous whitespace and small uppercase section labels, for resumes where
+  the writing should carry the page. Default accent `#6366f1`.
+</Card>
+
+<Card title="Timeline Focus" icon={<LayoutTemplate />}>
+  Dates sit in a fixed left gutter so a reviewer can scan an entire chronology in one pass. Best for
+  long tenures and multi-page histories. Default accent `#0f766e`.
+</Card>
+
+<Card title="Corporate Brief" icon={<LayoutTemplate />}>
+  A split letterhead — identity left, contact right — with accent-barred section headings that read
+  like an internal business brief. Default accent `#1d4ed8`.
+</Card>
+
+  <Card title="Bold Impact" icon={<LayoutTemplate />}>
+    A centered, uppercase masthead over a heavy accent rule, with accent-underlined section headings.
+    For applications where the first impression has to carry weight. Default accent `#b91c1c`.
+  </Card>
 </Cards>
 
-Both are single-column and ATS-safe by design — the difference is density versus typographic
-breathing room, not parseability.
+Every resume template is single-column and ATS-safe by design — they differ in density, header
+treatment, and typographic breathing room, not in parseability.
 
 ## Cover letter templates
 
@@ -75,6 +95,10 @@ visually aligned. See [Export Pipeline](/docs/architecture/pdf-generation).
 | :------------------------------------ | :---------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------- |
 | **Precision ATS**                     | [web.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/precision-ats/web.tsx)      | [pdf.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/precision-ats/pdf.tsx)      |
 | **Executive Clarity**                 | [web.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/executive-clarity/web.tsx)  | [pdf.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/executive-clarity/pdf.tsx)  |
+| **Modern Minimal**                    | [web.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/modern-minimal/web.tsx)     | [pdf.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/modern-minimal/pdf.tsx)     |
+| **Timeline Focus**                    | [web.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/timeline-focus/web.tsx)     | [pdf.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/timeline-focus/pdf.tsx)     |
+| **Corporate Brief**                   | [web.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/corporate-brief/web.tsx)    | [pdf.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/corporate-brief/pdf.tsx)    |
+| **Bold Impact**                       | [web.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/bold-impact/web.tsx)        | [pdf.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/resume/bold-impact/pdf.tsx)        |
 | **Professional** (cover letter)       | [web.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/cover-letter/professional/web.tsx) | [pdf.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/cover-letter/professional/pdf.tsx) |
 | **VeriWorkly Special** (cover letter) | [web.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/cover-letter/veriworkly/web.tsx)   | [pdf.tsx](https://github.com/VeriWorkly/veriworkly/blob/master/apps/studio/templates/cover-letter/veriworkly/pdf.tsx)   |
 
@@ -118,11 +142,40 @@ See [Resume Schema](/docs/architecture/resume-schema#customization) for the full
 
 ## Adding a template
 
-1. Create `apps/studio/templates/resume/{your-template}/` containing `meta.ts`, `web.tsx`, and
-   `pdf.tsx`.
+1. Create `apps/studio/templates/resume/{your-template}/` containing `meta.ts`, `skin.ts`,
+   `web.tsx`, and `pdf.tsx`. Every template is built with `createResumeWebTemplate` /
+   `createResumePdfTemplate` from `apps/studio/templates/resume/shared/`, which handle section
+   ordering, item content, spacing, and pagination — a skin only supplies a type scale, a header,
+   and a section heading.
+
+   Put **every** number in `skin.ts` (the type scale plus a `geometry` object) and read it from
+   both `web.tsx` and `pdf.tsx`. Sizes must never be written twice.
+
 2. Register the metadata and web renderer in `apps/studio/templates/index.ts`.
 3. Register the PDF component in `apps/studio/templates/resume/pdf/index.ts`.
-4. Verify against `/pdf-debug/resume/{your-template}`, the internal PDF rendering debugger.
+4. Add the metadata to `apps/studio/features/documents/core/template-catalog.ts` (the picker) and a
+   preview asset at `apps/studio/public/templates/resume/{your-template}.(svg|png)`.
+5. Verify against `/pdf-debug/resume/{your-template}`, the internal PDF rendering debugger.
+
+`tests/contracts/template-render.contract.test.tsx` fails if steps 2–4 fall out of sync, so a
+half-registered template cannot ship, and `template-geometry.contract.test.tsx` lays the PDF out
+and checks its real boxes against the scale.
+
+<Callout type="warn" title="A bare number in a react-pdf style means points">
+  `@react-pdf/stylesheet` returns unitless values untouched, and even the string `"3px"` is
+  converted with a default DPI of 72 — so both mean 3pt, which is 4 CSS pixels. Every spatial value
+  in a `pdf.tsx` must go through `pxToPt`. Three more differences the shared engine already
+  neutralises: react-pdf inherits a *computed* line height (CSS re-multiplies the unitless factor),
+  `align-items: baseline` resolves to bottom alignment, and Yoga shrinks a `flexShrink: 0` box when
+  a sibling's minimum content width does not fit.
+</Callout>
+
+<Callout type="warn" title="Keep the DOM contract">
+  The live preview paginates by walking the direct children of `#resume-container`, expecting each
+  `<section>` to be exactly `[heading, itemsContainer]`. A template that wraps sections in extra
+  containers — or introduces a full-height sidebar — will not split across pages correctly. The
+  shared engine enforces this shape automatically.
+</Callout>
 
 New templates are welcome contributions — see the
-[Contributing Guide](/docs/contributing/index).
+[Contributing Guide](/docs/contributing).

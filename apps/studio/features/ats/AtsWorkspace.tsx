@@ -67,6 +67,7 @@ export function AtsWorkspace() {
   const pricing = quota?.pricing;
   const hasResume = Boolean(resume.trim());
   const hasTarget = Boolean(jobDescription.trim() || (useJobUrl && jobUrl.trim()));
+  const urlOnlyTarget = useJobUrl && Boolean(jobUrl.trim()) && !jobDescription.trim();
 
   async function run(withAi: boolean) {
     if (!isLoggedIn) {
@@ -171,7 +172,13 @@ export function AtsWorkspace() {
       </header>
 
       <section className="relative grid gap-8 xl:grid-cols-[minmax(0,1.05fr)_minmax(380px,0.95fr)]">
+        {/*
+          `pointer-events-none` only stops the mouse. Without `inert` the whole locked form stays
+          in the tab order and in the accessibility tree, so a keyboard or screen-reader user
+          walked through inputs they cannot use and never reached the login prompt sitting on top.
+        */}
         <div
+          inert={!isLoggedIn}
           className={cn("space-y-6", !isLoggedIn && "pointer-events-none opacity-40 blur-[3px]")}
         >
           <StepSection number="1" title="Choose the resume to review" complete={hasResume}>
@@ -281,9 +288,13 @@ export function AtsWorkspace() {
               <ActionChoice
                 title="Run core ATS scan"
                 description="Fast rule-based scoring with prioritized fixes. No AI credits."
-                detail="Best for a quick readiness check"
+                detail={
+                  urlOnlyTarget
+                    ? "Paste the job description for a job match score"
+                    : "Best for a quick readiness check"
+                }
                 icon={ScanSearch}
-                disabled={!hasResume || Boolean(busy)}
+                disabled={!hasResume || Boolean(busy) || urlOnlyTarget}
                 busy={busy === "check"}
                 onClick={() => void run(false)}
               />
@@ -306,6 +317,13 @@ export function AtsWorkspace() {
                 onClick={() => void run(true)}
               />
             </div>
+            {urlOnlyTarget ? (
+              <p className="text-muted mt-4 flex items-start gap-2 text-xs leading-5">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> A job URL is only read
+                when you add AI interpretation — the core scan never fetches pages. Paste the
+                description instead if you want a job match score without AI.
+              </p>
+            ) : null}
             {error ? (
               <p
                 role="alert"
@@ -353,6 +371,7 @@ export function AtsWorkspace() {
         </div>
 
         <aside
+          inert={!isLoggedIn}
           className={cn(
             "space-y-5 xl:sticky xl:top-6 xl:self-start",
             !isLoggedIn && "pointer-events-none opacity-40 blur-[3px]",
@@ -369,13 +388,17 @@ export function AtsWorkspace() {
 
         {!isLoggedIn ? (
           <div className="border-border bg-card/45 absolute inset-0 z-20 flex flex-col items-center justify-center rounded-2xl border p-6 text-center backdrop-blur-sm">
-            <div className="bg-accent-soft text-accent flex h-12 w-12 items-center justify-center rounded-full">
+            {/*
+              `bg-accent-soft` and `text-muted-foreground` were both dead classes here: neither
+              `--color-accent-soft` nor `--color-muted-foreground` is mapped in any app's
+              `@theme` block, so the icon well rendered transparent and the help text inherited
+              whatever colour happened to be in scope.
+            */}
+            <div className="bg-accent/10 text-accent flex h-12 w-12 items-center justify-center rounded-full">
               <LockKeyhole size={20} />
             </div>
-            <h2 className="text-foreground mt-4 text-base font-extrabold">
-              Log in to scan resumes
-            </h2>
-            <p className="text-muted-foreground mt-1.5 max-w-sm text-xs leading-5">
+            <h2 className="text-foreground mt-4 text-base font-black">Log in to scan resumes</h2>
+            <p className="text-muted mt-1.5 max-w-sm text-xs leading-5">
               ATS scanning, resume conversions, and gap analysis require a VeriWorkly account.
             </p>
             <button
@@ -569,6 +592,103 @@ function EmptyResults() {
   );
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  parse: "Parsing",
+  contact: "Contact & links",
+  structure: "Structure",
+  content: "Evidence",
+  format: "Format risk",
+};
+
+const CATEGORY_ORDER = ["parse", "contact", "structure", "content", "format"];
+
+function CategoryRollup({ categories }: { categories: AtsResult["report"]["categories"] }) {
+  if (!categories?.length) return null;
+
+  const ordered = [...categories].sort(
+    (a, b) =>
+      (CATEGORY_ORDER.indexOf(a.category) + 1 || 99) -
+      (CATEGORY_ORDER.indexOf(b.category) + 1 || 99),
+  );
+
+  return (
+    <section className="bg-card ring-border rounded-xl p-5 ring-1">
+      <h2 className="text-sm font-black">Where the score went</h2>
+      <ul className="mt-4 space-y-3.5">
+        {ordered.map((entry) => (
+          <li key={entry.category}>
+            <div className="flex items-baseline justify-between gap-3 text-xs">
+              <span className="font-semibold">
+                {CATEGORY_LABELS[entry.category] ?? entry.category}
+              </span>
+              <span className="text-muted tabular-nums">
+                {entry.passed}/{entry.total} · {entry.score}%
+              </span>
+            </div>
+            <div
+              className="bg-background mt-1.5 h-1.5 w-full overflow-hidden rounded-full"
+              role="meter"
+              aria-valuenow={entry.score}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`${CATEGORY_LABELS[entry.category] ?? entry.category}: ${entry.score} percent`}
+            >
+              <div
+                className={cn(
+                  "h-full rounded-full",
+                  entry.score >= 80
+                    ? "bg-emerald-500"
+                    : entry.score >= 55
+                      ? "bg-amber-500"
+                      : "bg-red-500",
+                )}
+                style={{ width: `${Math.max(entry.score, 2)}%` }}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * The engine already ranks failures by the points each one recovers, and Studio was throwing
+ * that away by rendering `prioritizedFixes` as a flat string list. Showing the evidence and the
+ * recoverable points beside each fix turns the list into an order of operations.
+ */
+function RankedFixes({ failedChecks }: { failedChecks: AtsResult["report"]["failedChecks"] }) {
+  if (!failedChecks.length) return null;
+  const ranked = [...failedChecks].sort((a, b) => b.scoreImpact - a.scoreImpact);
+
+  return (
+    <section className="bg-card ring-border rounded-xl p-5 ring-1">
+      <h2 className="text-sm font-black">Fix these first</h2>
+      <ol className="mt-4 space-y-4">
+        {ranked.map((rule, index) => (
+          <li
+            key={rule.id}
+            className="border-border flex gap-3 border-t pt-4 first:border-t-0 first:pt-0"
+          >
+            <span className="bg-accent/10 text-accent mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-mono text-[10px] font-semibold tabular-nums">
+              {index + 1}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm leading-5 font-medium">{rule.fix}</p>
+              <p className="text-muted mt-1 text-xs leading-5">{rule.evidence}</p>
+              {rule.scoreImpact > 0 ? (
+                <span className="bg-background mt-2 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums">
+                  +{Math.round(rule.scoreImpact)} pts if fixed
+                </span>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 function ResultsPanel({ result }: { result: AtsResult }) {
   return (
     <div className="space-y-4">
@@ -586,8 +706,26 @@ function ResultsPanel({ result }: { result: AtsResult }) {
             </strong>
           </p>
         </div>
+        {/*
+          Studio and the API deploy separately, so a server one version behind omits these
+          fields entirely. Rendering the line only when the counts are present beats printing
+          "undefined of undefined checks passed".
+        */}
+        {result.report.checksTotal ? (
+          <p className="text-background/65 mt-3 text-xs">
+            {result.report.checksPassed} of {result.report.checksTotal} checks passed
+            {result.report.wordCount ? ` · ${result.report.wordCount.toLocaleString()} words` : ""}
+          </p>
+        ) : null}
       </div>
-      <ReportList title="Fix these first" items={result.report.prioritizedFixes} warning />
+      <CategoryRollup categories={result.report.categories} />
+      <RankedFixes failedChecks={result.report.failedChecks} />
+      {result.report.jobMatchScore !== null ? (
+        <>
+          <ReportList title="Matched keywords" items={result.report.matchedKeywords} />
+          <ReportList title="Missing keywords" items={result.report.missingKeywords} warning />
+        </>
+      ) : null}
       {result.ai ? (
         <>
           <section className="bg-card ring-border rounded-xl p-5 ring-1">

@@ -12,6 +12,23 @@ import { documentCreateSchema, documentUpdateSchema } from "#validators/document
 
 const listQuerySchema = z.object({
   type: z.nativeEnum(DocumentType).optional(),
+  /**
+   * Incremental hydrate cursor. The client has always sent this; it used to be
+   * dropped silently here, so every hydrate re-downloaded the whole library.
+   */
+  updatedSince: z
+    .string()
+    .datetime()
+    .optional()
+    .transform((value) => (value ? new Date(value) : undefined)),
+  /**
+   * Document bodies are omitted by default — the client library renders from
+   * metadata. Only sync, which needs to merge content, asks for them.
+   */
+  includeContent: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
 });
 
 export class DocumentController {
@@ -28,9 +45,12 @@ export class DocumentController {
     try {
       const user = requireAuthUser(req);
 
-      const { type } = listQuerySchema.parse(req.query);
+      const { type, updatedSince, includeContent } = listQuerySchema.parse(req.query);
 
-      const documents = await DocumentService.listDocuments(user.id, type);
+      const documents = await DocumentService.listDocuments(user.id, type, {
+        updatedSince,
+        includeContent,
+      });
 
       res.json(createSuccessResponse(documents, "Documents fetched successfully"));
     } catch (error) {

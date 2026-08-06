@@ -1,7 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
 import { useWorkspace } from "@/components/WorkspaceProvider";
-import { usePortfolioStore } from "@/store/portfolio-store";
 import { siteConfig } from "@/config/site";
 import { Lock } from "lucide-react";
 import Link from "next/link";
@@ -11,27 +11,48 @@ import { AnalyticsTrend } from "./AnalyticsTrend";
 import { AnalyticsReferrers } from "./AnalyticsReferrers";
 
 export type PortfolioAnalytics = {
+  locked: boolean;
   totalViews: number;
   daily: Array<{ date: string; count: number }>;
   referrers: Array<{ host: string; count: number }>;
 };
 
 export function PortfolioAnalyticsWorkspace() {
-  const { analytics } = useWorkspace() as { analytics: PortfolioAnalytics | null };
-  const { billing, user } = usePortfolioStore();
-  const isPremium = billing?.canPublish;
+  // Everything comes from the workspace context rather than the store: the context is
+  // already correct during server rendering, so this page ships its real numbers in the
+  // initial HTML instead of rendering a locked shell and then swapping after hydration.
+  const { analytics: rawAnalytics, user, workspace } = useWorkspace();
+  const analytics = rawAnalytics as PortfolioAnalytics | null;
 
-  const daily = analytics?.daily.slice().reverse() ?? [];
-  const recentViews = daily.reduce((total, item) => total + item.count, 0);
-  const activeDays = daily.filter((item) => item.count > 0).length;
+  // The server decides this — a locked payload carries no figures to render. Falling back
+  // to the local entitlement only covers the case where analytics never loaded at all
+  // (guest mode, or a failed request), where there is likewise nothing to show.
+  const locked = analytics?.locked ?? !workspace?.billing?.canPublish;
+
+  const { daily, recentViews, activeDays } = useMemo(() => {
+    const series = analytics?.daily.slice().reverse() ?? [];
+
+    return {
+      daily: series,
+      recentViews: series.reduce((total, item) => total + item.count, 0),
+      activeDays: series.filter((item) => item.count > 0).length,
+    };
+  }, [analytics]);
 
   return (
     <main className="surface-grid relative min-h-[calc(100dvh-4.25rem)] px-4 py-8 sm:px-6 sm:py-10 xl:px-10">
       <div className="mx-auto max-w-7xl">
         <AnalyticsHeader />
 
-        <div className={`relative mt-5 ${!isPremium ? "select-none" : ""}`}>
-          <div className={!isPremium ? "pointer-events-none opacity-40 blur-[3px]" : ""}>
+        <div className={`relative mt-5 ${locked ? "select-none" : ""}`}>
+          {/* `inert` + `aria-hidden` matter here: the blur is purely visual, so without them
+              a screen reader still announced the whole placeholder grid underneath the
+              upgrade prompt, and its controls stayed in the tab order. */}
+          <div
+            inert={locked || undefined}
+            aria-hidden={locked || undefined}
+            className={locked ? "pointer-events-none opacity-40 blur-[3px]" : ""}
+          >
             <AnalyticsMetrics
               totalViews={analytics?.totalViews ?? 0}
               recentViews={recentViews}
@@ -45,7 +66,7 @@ export function PortfolioAnalyticsWorkspace() {
             </section>
           </div>
 
-          {!isPremium ? (
+          {locked ? (
             <div className="border-line bg-card/45 absolute inset-0 z-20 flex flex-col items-center justify-center rounded-2xl border p-6 text-center backdrop-blur-sm">
               <div className="bg-accent-soft text-accent flex h-12 w-12 items-center justify-center rounded-full">
                 <Lock size={20} />

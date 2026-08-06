@@ -133,7 +133,7 @@ export default async function AdminPortfoliosPage({
   const summary = overview.portfolios;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="Content"
         title="Published portfolios"

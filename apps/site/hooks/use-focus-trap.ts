@@ -40,6 +40,7 @@ export const useFocusTrap = <T extends HTMLElement>(
 
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const previousOverflow = document.body.style.overflow;
+
     if (lockScroll) document.body.style.overflow = "hidden";
 
     const getFocusable = () =>
@@ -50,23 +51,23 @@ export const useFocusTrap = <T extends HTMLElement>(
     // Defer so the element is mounted (and any entrance animation has started).
     const focusFrame = requestAnimationFrame(() => {
       const [first] = getFocusable();
-      if (first) {
-        first.focus();
-      } else {
-        containerRef.current?.focus();
-      }
+
+      if (first) first.focus();
+      else containerRef.current?.focus();
     });
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.stopPropagation();
         escapeRef.current?.();
+
         return;
       }
 
       if (event.key !== "Tab") return;
 
       const focusable = getFocusable();
+
       if (focusable.length === 0) {
         event.preventDefault();
         return;
@@ -74,6 +75,7 @@ export const useFocusTrap = <T extends HTMLElement>(
 
       const first = focusable[0]!;
       const last = focusable[focusable.length - 1]!;
+
       const activeEl = document.activeElement;
 
       if (event.shiftKey && (activeEl === first || !containerRef.current?.contains(activeEl))) {
@@ -90,7 +92,9 @@ export const useFocusTrap = <T extends HTMLElement>(
     return () => {
       cancelAnimationFrame(focusFrame);
       document.removeEventListener("keydown", handleKeyDown);
+
       if (lockScroll) document.body.style.overflow = previousOverflow;
+
       previouslyFocused?.focus?.();
     };
   }, [active, containerRef, lockScroll]);

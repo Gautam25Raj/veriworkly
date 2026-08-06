@@ -2,14 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Card } from "@veriworkly/ui";
-
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
+import Panel from "@/components/admin/Panel";
 import UserAdminActions from "@/app/admin/users/[id]/UserAdminActions";
 
-import { fetchAdminUserDetail } from "@/features/admin/services/admin-server";
+import { fetchAdminUserDetail, loadAdminDetail } from "@/features/admin/services/admin-server";
 import {
   formatCents,
   formatDate,
@@ -28,13 +27,13 @@ export const metadata: Metadata = {
 export default async function AdminUserDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const detail = await fetchAdminUserDetail(id).catch(() => null);
+  const detail = await loadAdminDetail(fetchAdminUserDetail(id));
   if (!detail) notFound();
 
   const { user } = detail;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="User"
         title={user.name || user.email}
@@ -62,9 +61,9 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
         />
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
+      <div className="grid gap-3 lg:grid-cols-[1fr_20rem]">
         <div className="space-y-4">
-          <Card className="space-y-3 rounded-3xl p-6">
+          <Panel className="space-y-3 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">Account</h3>
 
             <dl className="grid gap-2 text-sm sm:grid-cols-2">
@@ -97,9 +96,9 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
                 <dd className="text-foreground">{formatRelativeTime(user.lastGithubImportAt)}</dd>
               </div>
             </dl>
-          </Card>
+          </Panel>
 
-          <Card className="space-y-3 rounded-3xl p-6">
+          <Panel className="space-y-3 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">Subscriptions</h3>
 
             {detail.subscriptions.length === 0 ? (
@@ -129,9 +128,9 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
                 ))}
               </div>
             )}
-          </Card>
+          </Panel>
 
-          <Card className="space-y-3 rounded-3xl p-6">
+          <Panel className="space-y-3 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">Entitlements</h3>
 
             {detail.entitlements.length === 0 ? (
@@ -152,9 +151,9 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
                 ))}
               </div>
             )}
-          </Card>
+          </Panel>
 
-          <Card className="space-y-3 rounded-3xl p-6">
+          <Panel className="space-y-3 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">Documents</h3>
 
             {detail.documents.length === 0 ? (
@@ -187,9 +186,9 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
                 ))}
               </div>
             )}
-          </Card>
+          </Panel>
 
-          <Card className="space-y-3 rounded-3xl p-6">
+          <Panel className="space-y-3 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">Credit transactions</h3>
 
             {detail.credits.transactions.length === 0 ? (
@@ -215,8 +214,8 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
                       <p
                         className={
                           transaction.amount >= 0
-                            ? "font-medium text-emerald-600"
-                            : "font-medium text-red-600"
+                            ? "text-success font-medium"
+                            : "text-destructive font-medium"
                         }
                       >
                         {transaction.amount >= 0 ? "+" : ""}
@@ -230,9 +229,9 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
                 ))}
               </div>
             )}
-          </Card>
+          </Panel>
 
-          <Card className="space-y-3 rounded-3xl p-6">
+          <Panel className="space-y-3 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">Admin history</h3>
 
             {detail.auditEntries.length === 0 ? (
@@ -250,14 +249,14 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
                 ))}
               </div>
             )}
-          </Card>
+          </Panel>
         </div>
 
         <div className="space-y-4">
           <UserAdminActions detail={detail} />
 
           {detail.publication ? (
-            <Card className="space-y-2 rounded-3xl p-6">
+            <Panel className="space-y-2 rounded-xl p-4">
               <h3 className="text-foreground font-semibold tracking-tight">Portfolio</h3>
 
               <Link
@@ -272,11 +271,11 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
               {detail.publication.suspensionReason ? (
                 <p className="text-muted text-xs">{detail.publication.suspensionReason}</p>
               ) : null}
-            </Card>
+            </Panel>
           ) : null}
 
           {detail.ambassadorApplication ? (
-            <Card className="space-y-2 rounded-3xl p-6">
+            <Panel className="space-y-2 rounded-xl p-4">
               <h3 className="text-foreground font-semibold tracking-tight">Ambassador</h3>
 
               <Link
@@ -287,10 +286,10 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
               </Link>
 
               <AdminStatusBadge status={detail.ambassadorApplication.status} />
-            </Card>
+            </Panel>
           ) : null}
 
-          <Card className="space-y-3 rounded-3xl p-6">
+          <Panel className="space-y-3 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">API keys</h3>
 
             {detail.apiKeys.length === 0 ? (
@@ -312,9 +311,9 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
                 ))}
               </div>
             )}
-          </Card>
+          </Panel>
 
-          <Card className="space-y-3 rounded-3xl p-6">
+          <Panel className="space-y-3 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">Sessions</h3>
 
             {detail.sessions.length === 0 ? (
@@ -330,7 +329,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
                 ))}
               </div>
             )}
-          </Card>
+          </Panel>
         </div>
       </div>
     </div>

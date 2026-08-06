@@ -12,6 +12,7 @@ import { ApiRequestError, fetchApiData } from "@/utils/fetchApiData";
  * and treating the second as the first bounces a signed-in user into a login redirect
  * loop.
  */
+
 export type ServerApiFailure =
   /** No session cookie on the request at all — the visitor is browsing anonymously. */
   | "no-session"
@@ -27,6 +28,7 @@ export type ServerApiResult<T> =
 // forwards a first-party Origin header when called server-side; the one thing it can't do on its
 // own is see the browser's cookies, since Node's fetch has no ambient cookie jar — so we read
 // them explicitly from the incoming request via next/headers and forward them along.
+
 export const fetchServerApiResult = cache(async function fetchServerApiResult<T>(
   path: string,
 ): Promise<ServerApiResult<T>> {
@@ -63,6 +65,7 @@ export const fetchServerApiResult = cache(async function fetchServerApiResult<T>
  * Nullable convenience wrapper for callers that genuinely do not care *why* the read
  * failed. Prefer `fetchServerApiResult` on any page that gates or redirects.
  */
+
 export async function fetchServerApiData<T>(path: string): Promise<T | null> {
   const result = await fetchServerApiResult<T>(path);
 

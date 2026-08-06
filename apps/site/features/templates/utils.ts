@@ -7,22 +7,8 @@ const portfolioBaseUrl =
     ? "http://portfolio.localhost:3004"
     : "https://portfolio.veriworkly.com");
 
-export const getSingleParam = (value: string | string[] | undefined, fallback: string) => {
-  if (!value) return fallback;
-  return Array.isArray(value) ? (value[0] ?? fallback) : value;
-};
-
 export const getTemplateHref = (template: Pick<TemplateSummary, "documentType" | "id">) => {
   return `/templates/${template.documentType}/${template.id}`;
-};
-
-export const hrefWithFilters = (docType: string, family: string, layout: string) => {
-  const params = new URLSearchParams();
-
-  if (family !== "All") params.set("family", family);
-  if (layout !== "All") params.set("layout", layout);
-
-  return params.toString() ? `/templates/${docType}?${params.toString()}` : `/templates/${docType}`;
 };
 
 export const buildEditorUrl = (
@@ -45,11 +31,4 @@ export const buildPreviewUrl = (
   }
 
   return null;
-};
-
-export const toTitle = (value: string) => {
-  return value
-    .split("-")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
 };

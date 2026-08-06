@@ -31,7 +31,12 @@ export default function Layout(props) {
   return (
     <>
       {props.children}
-      <Comp document="./openapi.yaml" operations={[{"path":"/api/v1/shares/documents/{documentId}/links/{shareLinkId}","method":"delete"}]} />
+      <Comp
+        document="./openapi.yaml"
+        operations={[
+          { path: "/api/v1/shares/documents/{documentId}/links/{shareLinkId}", method: "delete" },
+        ]}
+      />
     </>
   );
 }

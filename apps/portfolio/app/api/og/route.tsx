@@ -7,10 +7,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
 
-    const title = clampOgText(
-      searchParams.get("title") ?? "Create and Publish Your Portfolio",
-      80,
-    );
+    const title = clampOgText(searchParams.get("title") ?? "Create and Publish Your Portfolio", 80);
     const description = clampOgText(
       searchParams.get("description") ??
         "Choose a premium template, edit details, and launch your live portfolio in minutes.",

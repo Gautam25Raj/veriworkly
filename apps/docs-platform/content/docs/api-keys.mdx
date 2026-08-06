@@ -57,21 +57,22 @@ curl -H "Authorization: Bearer YOUR_API_KEY" https://api.veriworkly.com/api/v1/u
 A key may only carry scopes the backend recognises. Requesting an unknown scope fails the create or
 rotate call with `400 Unsupported API key scope(s)`.
 
-| Scope            | Grants                                                                 |
-| :--------------- | :--------------------------------------------------------------------- |
-| `user:read`      | Read your account profile and identity details.                        |
-| `user:write`     | Update user-facing profile fields (name, username, auto-sync setting). |
-| `resume:read`    | Read resume-backed document content and metadata.                      |
-| `resume:write`   | Create, edit, delete, sync, and share resume-backed documents.         |
-| `roadmap:read`   | Read public roadmap items and release-planning data.                   |
-| `changelog:read` | Read changelog entries and changelog statistics.                       |
-| `github:read`    | Read the synced GitHub issue and repository statistics.                |
+| Scope            | Grants                                                                               |
+| :--------------- | :----------------------------------------------------------------------------------- |
+| `user:read`      | Read your account profile and identity details.                                      |
+| `user:write`     | Update user-facing profile fields (name, username, auto-sync setting).               |
+| `resume:read`    | Read resume-backed document content and metadata.                                    |
+| `resume:write`   | Create, edit, delete, sync, and share resume-backed documents.                       |
+| `roadmap:read`   | Read public roadmap items and release-planning data.                                 |
+| `changelog:read` | Read changelog entries and changelog statistics.                                     |
+| `github:read`    | Read the synced GitHub issue and repository statistics.                              |
 | `ai:write`       | Call `/ai/generate`, `/ats/analyze`, and `/ats/convert-resume`, spending AI credits. |
 
 <Callout type="info" title="`changelog:read` is API-only today">
   All eight scopes above are accepted by the backend. The Studio scope picker currently surfaces
   seven of them — `changelog:read` can be requested through the API-key create/rotate endpoints, but
-  has no checkbox in the UI yet.
+  has no checkbox in the UI yet. The endpoints it unlocks are documented under
+  [Changelog](/api-reference/changelog/overview).
 </Callout>
 
 <Callout type="warn" title="There is no write scope for roadmap or GitHub">
@@ -81,9 +82,13 @@ rotate call with `400 Unsupported API key scope(s)`.
 
 ## Rate limits
 
-| Limit type          | Rate                       |
-| :------------------ | :------------------------- |
-| **Per-key default** | 20 requests per 15 minutes |
+| Limit type          | Rate                                                   |
+| :------------------ | :----------------------------------------------------- |
+| **Per-key default** | 20 requests per 15 minutes                             |
+| **Per-key maximum** | 600 requests per 15 minutes (`API_KEY_MAX_RATE_LIMIT`) |
+
+A key's rate limit is set at creation and can be raised on rotation, up to the server-side maximum.
+A requested value above the maximum is clamped down to it rather than rejected.
 
 Exceeding the limit returns `429 Too Many Requests` with headers indicating when to retry:
 

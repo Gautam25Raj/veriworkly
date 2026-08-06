@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import { adminAuthMiddleware } from "#middleware/adminAuth";
+import { invalidateAdminCacheOnWrite } from "#middleware/adminCacheInvalidation";
 
 import overviewRoutes from "#routes/admin/overview";
 import userRoutes from "#routes/admin/users";
@@ -29,6 +30,13 @@ import monetizationRoutes from "#routes/admin/monetization";
 const router = Router();
 
 router.use(adminAuthMiddleware);
+
+/**
+ * Applied here for the same reason as the gate above: the cached overview reads must be dropped
+ * after any admin mutation, and doing that once at the mount means a route file added later
+ * cannot forget it. Registered after the gate so rejected requests never invalidate anything.
+ */
+router.use(invalidateAdminCacheOnWrite);
 
 router.use("/overview", overviewRoutes);
 router.use("/users", userRoutes);

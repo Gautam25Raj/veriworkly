@@ -12,16 +12,16 @@ exposes a read-only settlements API today, not an outbound transfer API.
 
 <Callout type="warn" title="Off by default in production">
   The entire group is gated behind a feature flag (`config.growth.affiliateProgramEnabled`), which
-  defaults **off** in production until explicitly enabled. Every route in this group — including
-  the public ones — returns `503` while the flag is off.
+  defaults **off** in production until explicitly enabled. Every route in this group — including the
+  public ones — returns `503` while the flag is off.
 </Callout>
 
 ## Authentication
 
-| Method | Access Level      | Requirement            |
-| :----- | :----------------- | :----------------------- |
-| `POST /affiliates/click`, `GET /affiliates/leaderboard` | **Public** | None. |
-| All other routes | **Authenticated** | Session cookie only — no API key support. |
+| Method                                                  | Access Level      | Requirement                               |
+| :------------------------------------------------------ | :---------------- | :---------------------------------------- |
+| `POST /affiliates/click`, `GET /affiliates/leaderboard` | **Public**        | None.                                     |
+| All other routes                                        | **Authenticated** | Session cookie only — no API key support. |
 
 ## Available Endpoints
 

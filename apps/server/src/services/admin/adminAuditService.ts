@@ -44,6 +44,18 @@ export const ADMIN_AUDIT_ACTIONS = {
 
   githubSync: "system.github.sync",
   cacheFlush: "system.cache.flush",
+
+  // Roadmap and changelog writes publish directly to pages users read. They were the only
+  // admin mutations that wrote no audit entry at all, which meant a public-facing edit was the
+  // one action the log could not attribute.
+  roadmapCreate: "roadmap.feature.create",
+  roadmapUpdate: "roadmap.feature.update",
+  roadmapDelete: "roadmap.feature.delete",
+
+  changelogCreate: "changelog.entry.create",
+  changelogUpdate: "changelog.entry.update",
+  changelogDelete: "changelog.entry.delete",
+  changelogSync: "changelog.sync",
 } as const;
 
 export type AdminAuditAction = (typeof ADMIN_AUDIT_ACTIONS)[keyof typeof ADMIN_AUDIT_ACTIONS];

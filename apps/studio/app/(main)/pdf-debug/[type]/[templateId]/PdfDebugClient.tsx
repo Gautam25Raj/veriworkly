@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo } from "react";
+import { createElement, useEffect, useMemo } from "react";
 
 const PDFViewer = dynamic(() => import("@react-pdf/renderer").then((mod) => mod.PDFViewer), {
   ssr: false,
@@ -15,10 +15,9 @@ import { registerPdfFont, registerPdfFontById } from "@/templates/pdf/fonts";
 import { CoverLetterPdf } from "@/templates/cover-letter/pdf";
 import { createDefaultCoverLetter } from "@/features/cover-letter/defaults";
 
-import { CompactAtsPdf } from "@/templates/resume/precision-ats/pdf";
 import { loadResumeById } from "@/features/resume/services/resume-service";
 import { defaultResume } from "@/features/resume/constants/default-resume";
-import { CleanProfessionalPdf } from "@/templates/resume/executive-clarity/pdf";
+import { loadTemplatePdfComponentById } from "@/templates/resume/pdf";
 
 import { loadDocumentById } from "@/features/documents/services/document-workspace-service";
 
@@ -49,18 +48,12 @@ function createDebugCoverLetter(templateId: string) {
   };
 }
 
-function ResumePdfDebugDocument({
-  resume,
-  templateId,
-}: {
-  resume: ResumeData;
-  templateId: string;
-}) {
-  if (templateId === "precision-ats") {
-    return <CompactAtsPdf resume={resume} />;
-  }
-
-  return <CleanProfessionalPdf resume={resume} />;
+/**
+ * Not a component: the PDF template is looked up by id, so it is instantiated
+ * through `createElement` to keep the registry the single source of truth.
+ */
+function renderResumePdfDebugDocument(resume: ResumeData, templateId: string) {
+  return createElement(loadTemplatePdfComponentById(templateId), { resume });
 }
 
 export function PdfDebugClient({ documentId, templateId, type }: PdfDebugClientProps) {
@@ -91,7 +84,7 @@ export function PdfDebugClient({ documentId, templateId, type }: PdfDebugClientP
     (type === "resume" ? "Resume" : "Cover Letter");
 
   const documentElement = resume ? (
-    <ResumePdfDebugDocument resume={resume} templateId={templateId} />
+    renderResumePdfDebugDocument(resume, templateId)
   ) : coverLetter ? (
     <CoverLetterPdf content={coverLetter.content as CoverLetterContent} templateId={templateId} />
   ) : null;

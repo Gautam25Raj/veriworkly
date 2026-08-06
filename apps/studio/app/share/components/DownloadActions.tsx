@@ -17,20 +17,15 @@ import { Button, Menu, MenuItem } from "@veriworkly/ui";
 
 import type { ResumeData } from "@/types/resume";
 
-import {
-  exportResumeAsPdf,
-  exportResumeAsHtml,
-  exportResumeAsJson,
-  exportResumeAsDocx,
-  exportResumeAsText,
-  exportResumeAsMarkdown,
-} from "@/features/resume/services/resume-service";
-
 interface DownloadActionsProps {
   resume: ResumeData;
   sharePreviewId: string;
 }
 
+/**
+ * Exporters are `import()`ed at click time, not at module scope. This is a public
+ * share page — the PDF/DOCX engines (~2.2MB) must not be in its first paint.
+ */
 export const DownloadActions = ({ resume, sharePreviewId }: DownloadActionsProps) => {
   const [activeDownload, setActiveDownload] = useState<"pdf" | "docx" | null>(null);
 
@@ -38,6 +33,7 @@ export const DownloadActions = ({ resume, sharePreviewId }: DownloadActionsProps
     setActiveDownload("pdf");
 
     try {
+      const { exportResumeAsPdf } = await import("@/features/documents/export/export-pdf");
       await exportResumeAsPdf(resume);
       toast.success("PDF downloaded successfully");
     } catch {
@@ -51,6 +47,7 @@ export const DownloadActions = ({ resume, sharePreviewId }: DownloadActionsProps
     setActiveDownload("docx");
 
     try {
+      const { exportResumeAsDocx } = await import("@/features/documents/export/export-docx");
       await exportResumeAsDocx(resume);
       toast.success("DOCX downloaded successfully");
     } catch {
@@ -60,22 +57,26 @@ export const DownloadActions = ({ resume, sharePreviewId }: DownloadActionsProps
     }
   }
 
-  function downloadMarkdown() {
+  async function downloadMarkdown() {
+    const { exportResumeAsMarkdown } = await import("@/features/documents/export/export-markdown");
     exportResumeAsMarkdown(resume);
     toast.success("Markdown downloaded successfully");
   }
 
-  function downloadHtml() {
+  async function downloadHtml() {
+    const { exportResumeAsHtml } = await import("@/features/documents/export/export-html");
     exportResumeAsHtml(resume, sharePreviewId);
     toast.success("HTML downloaded successfully");
   }
 
-  function downloadText() {
+  async function downloadText() {
+    const { exportResumeAsText } = await import("@/features/documents/export/export-text");
     exportResumeAsText(resume);
     toast.success("Plain text downloaded successfully");
   }
 
-  function downloadJson() {
+  async function downloadJson() {
+    const { exportResumeAsJson } = await import("@/features/documents/export/export-json");
     exportResumeAsJson(resume);
     toast.success("JSON downloaded successfully");
   }
@@ -127,9 +128,9 @@ export const DownloadActions = ({ resume, sharePreviewId }: DownloadActionsProps
 
           <MenuItem
             disabled={Boolean(activeDownload)}
-            onClick={() => {
+            onClick={async () => {
               close();
-              downloadMarkdown();
+              await downloadMarkdown();
             }}
           >
             <FileCode2 className="h-4 w-4" />
@@ -138,9 +139,9 @@ export const DownloadActions = ({ resume, sharePreviewId }: DownloadActionsProps
 
           <MenuItem
             disabled={Boolean(activeDownload)}
-            onClick={() => {
+            onClick={async () => {
               close();
-              downloadHtml();
+              await downloadHtml();
             }}
           >
             <Code2 className="h-4 w-4" />
@@ -149,9 +150,9 @@ export const DownloadActions = ({ resume, sharePreviewId }: DownloadActionsProps
 
           <MenuItem
             disabled={Boolean(activeDownload)}
-            onClick={() => {
+            onClick={async () => {
               close();
-              downloadText();
+              await downloadText();
             }}
           >
             <FileText className="h-4 w-4" />
@@ -160,9 +161,9 @@ export const DownloadActions = ({ resume, sharePreviewId }: DownloadActionsProps
 
           <MenuItem
             disabled={Boolean(activeDownload)}
-            onClick={() => {
+            onClick={async () => {
               close();
-              downloadJson();
+              await downloadJson();
             }}
           >
             <FileJson className="h-4 w-4" />

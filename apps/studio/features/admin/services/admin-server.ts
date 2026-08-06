@@ -9,6 +9,7 @@ import { fetchCurrentUser } from "@/features/auth/services/current-user";
 import type { RoadmapFeature } from "@/features/roadmap/services/roadmap-backend";
 
 import type {
+  AdminActionQueue,
   AdminAffiliateRow,
   AdminAffiliateSummary,
   AdminAmbassadorRosterRow,
@@ -34,6 +35,7 @@ import type {
   AdminShareLinkRow,
   AdminSubscriptionRow,
   AdminSystemHealth,
+  AdminTimeSeries,
   AdminUsageMetrics,
   AdminUserDetail,
   AdminUserRef,
@@ -129,6 +131,24 @@ export function buildAdminQuery(params: Record<string, string | number | boolean
 }
 
 /**
+ * Carries the upstream HTTP status alongside the message.
+ *
+ * Callers need to tell "this record does not exist" (404) apart from "the API is broken"
+ * (401/403/500/network), because those want opposite UI: a not-found page versus an error
+ * boundary the operator can retry from. Before this, the status was only readable by
+ * substring-matching the message, so no caller did it.
+ */
+export class AdminApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "AdminApiError";
+    this.status = status;
+  }
+}
+
+/**
  * Every admin page reads through here.
  *
  * A failed admin fetch throws rather than returning a partial shape: an ops dashboard that
@@ -141,12 +161,31 @@ async function fetchAdmin<T>(path: string, options?: RequestInit): Promise<T> {
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { message?: string } | null;
 
-    throw new Error(
+    throw new AdminApiError(
+      response.status,
       `Admin request failed (${response.status}): ${body?.message ?? response.statusText}`,
     );
   }
 
   return ((await response.json()) as ApiSuccessResponse<T>).data;
+}
+
+/**
+ * Detail-page loader: resolves to `null` only when the record genuinely does not exist, and
+ * rethrows everything else so the route's `error.tsx` can explain it.
+ *
+ * The detail pages used to write `fetchX(id).catch(() => null)` and then `notFound()`, which
+ * turned *every* failure — a 500, an expired session, an unreachable API — into "this record
+ * does not exist". That sent an operator looking for a user that was plainly there off to
+ * check the id, and it made each `[id]/error.tsx` unreachable dead code.
+ */
+export async function loadAdminDetail<T>(request: Promise<T>): Promise<T | null> {
+  try {
+    return await request;
+  } catch (error) {
+    if (error instanceof AdminApiError && error.status === 404) return null;
+    throw error;
+  }
 }
 
 /* ── Overview ─────────────────────────────────────────────────────────────────────── */
@@ -157,6 +196,34 @@ export function fetchAdminOverview(days = 30) {
 
 export function fetchAdminRecentActivity() {
   return fetchAdmin<AdminRecentActivity>("/overview/activity");
+}
+
+export function fetchAdminTimeSeries(days = 30) {
+  return fetchAdmin<AdminTimeSeries>(`/overview/series${buildAdminQuery({ days })}`);
+}
+
+/**
+ * The shell renders queue badges on every admin page, so this runs on every navigation. It
+ * intentionally hits the cheap standalone endpoint rather than reading `actionQueue` off the
+ * full overview payload, which would run every domain summary aggregate to display six counts.
+ *
+ * Unlike every other reader here it swallows failures and returns zeros: the badges are an
+ * affordance, and a transient counting error must not take down the navigation of a page whose
+ * own data loaded fine.
+ */
+export async function fetchAdminActionQueue(): Promise<AdminActionQueue> {
+  try {
+    return await fetchAdmin<AdminActionQueue>("/overview/queue");
+  } catch {
+    return {
+      pendingAmbassadorApplications: 0,
+      pendingWithdrawals: 0,
+      pendingCommissions: 0,
+      failedWebhooks: 0,
+      suspendedPortfolios: 0,
+      pendingPortfolioAssets: 0,
+    };
+  }
 }
 
 /* ── Users ────────────────────────────────────────────────────────────────────────── */
@@ -379,48 +446,4 @@ export async function fetchAdminRoadmapFeatureServer(id: string) {
 
   const payload = (await response.json()) as ApiSuccessResponse<RoadmapFeature>;
   return payload.data;
-}
-
-/**
- * The legacy `/stats/admin/dashboard` payload (GitHub counters + Redis usage metrics), still
- * used by the overview page's platform-signals section.
- */
-interface AdminDashboardStats {
-  githubStats: {
-    projectName: string;
-    projectUrl: string;
-    stats: {
-      totalItems: number;
-      issues: number;
-      pullRequests: number;
-      todo: number;
-      inProgress: number;
-      done: number;
-      completionRate: string;
-    };
-    syncedAt: string;
-    nextSyncAt?: string | null;
-  } | null;
-
-  usageMetrics: {
-    generatedAt: string;
-    today: Record<string, unknown>;
-    totals: Record<string, number>;
-  };
-}
-
-export async function fetchAdminDashboardStatsServer() {
-  const response = await fetchWithSession("/stats/admin/dashboard", { method: "GET" });
-
-  if (!response.ok) {
-    throw new Error(`Admin stats request failed (${response.status})`);
-  }
-
-  const payload = (await response.json()) as ApiSuccessResponse<AdminDashboardStats>;
-  return payload.data;
-}
-
-/** Retained for the compatibility monetization view. */
-export async function fetchAdminMonetizationServer<T>() {
-  return fetchAdmin<T>("/monetization");
 }

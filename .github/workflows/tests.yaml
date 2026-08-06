@@ -38,6 +38,25 @@ jobs:
       - name: Run Backend Tests
         run: npm run test -w @veriworkly/server --if-present
 
+  test-site:
+    name: Test Site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install Dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run Site Tests
+        run: npm run test:contracts -w @veriworkly/site --if-present
+
   test-studio:
     name: Test Studio
     runs-on: ubuntu-latest

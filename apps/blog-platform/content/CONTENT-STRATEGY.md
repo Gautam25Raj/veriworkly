@@ -47,6 +47,35 @@ repeated statistic has no source behind it.
 Correcting well-sourced errors is the strongest differentiation available in a
 category this saturated with recycled advice.
 
+**Source hierarchy.** Prefer, in order:
+
+1. Peer-reviewed or working-paper research (CESifo, NBER, journal articles)
+2. Platform operators publishing their own operational data (Greenhouse on ghost
+   jobs, LinkedIn's Recruiter product documentation)
+3. Named studies with a published methodology, even vendor-run (ResumeGo's paired
+   resume experiment, Clarify Capital's scrape)
+4. Vendor aggregation pages — usable only when labelled as such in the text
+
+Never cite a competitor's statistics roundup as a bare authority. If a figure only
+exists on pages like that, either label it (`the aggregation above is published by a
+resume company, and the underlying methodology is not disclosed`) or leave it out.
+
+**The fabricated-stat beat.** This category now generates plausible-sounding
+citations at volume, and several of the most repeated ones do not survive a check.
+Each of these is documented in a live post, and finding the next one is a standing
+content assignment:
+
+| Claim                                                                            | Status                                                |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| "ATS rejects 75% of resumes"                                                     | Vendor marketing, no primary source                   |
+| "_Career Development International_ 2024, two-page resumes get 2.5x callbacks"   | No such paper locatable                               |
+| "Complete LinkedIn profiles are 40x more likely to be found"                     | No published LinkedIn source                          |
+| "Stack Overflow Developer Survey 2024: 73% of hiring managers prefer portfolios" | Survey samples developers, never asked this           |
+| "1 in 3 job listings is fake"                                                    | Misreads an employer survey as a listings measurement |
+
+Checking one before repeating it costs ten minutes and is the only differentiation in
+this category that competitors cannot copy by writing faster.
+
 ### 4. Depth over frequency
 
 Pillar posts run 1,800–2,800 words and cover a topic completely enough that a reader
@@ -65,18 +94,38 @@ AI systems extract passages, not pages:
 
 ## Topic clusters
 
-| Cluster | Covers | Status |
-| --- | --- | --- |
-| `ats` | Screening software, parsing, knockout questions | Pillar live |
-| `resume-craft` | Bullets, tailoring, quantifying, formatting, length | 2 pillars live |
-| `ai-job-search` | AI on both sides of the table | Pillar live |
-| `tools` | Comparisons, honest reviews | Pillar live |
-| `job-strategy` | Volume math, referrals, follow-up, negotiation | **Gap** |
-| `career-assets` | Portfolio, LinkedIn, GitHub as hiring signals | **Gap** |
-| `product` / `engineering` | Feature and architecture notes | Existing, deprioritised |
+| Cluster                   | Covers                                                      | Status                  |
+| ------------------------- | ----------------------------------------------------------- | ----------------------- |
+| `ats`                     | Screening software, parsing, formatting, knockout questions | 2 pillars live          |
+| `resume-craft`            | Bullets, tailoring, quantifying, length                     | 3 pillars live          |
+| `ai-job-search`           | AI on both sides of the table                               | 2 pillars live          |
+| `cover-letters`           | Whether, when, structure, AI's effect on them               | 1 pillar live           |
+| `job-strategy`            | Volume math, ghost jobs, referrals, follow-up               | 1 pillar live           |
+| `career-assets`           | Portfolio, LinkedIn, GitHub as hiring signals               | 2 pillars live          |
+| `tools`                   | Comparisons, honest reviews                                 | Pillar live             |
+| `product` / `engineering` | Feature and architecture notes                              | Existing, deprioritised |
 
 Clusters matter because Google's AI features fan a single query out into several
 related ones. Covering a topic completely beats targeting one keyword per page.
+
+### Named gaps, in priority order
+
+1. **Comparison content.** Comparisons are the single most-cited format in AI
+   answers and we have exactly one. Candidates: ATS checkers compared, Teal vs
+   Huntr, resume builder alternatives pages.
+2. **Original data.** Nothing here is currently sourced from our own systems, and
+   it is the one thing competitors cannot copy. We run a parser and a scoring
+   engine over real documents — an aggregate analysis of what actually fails
+   would be the most citable thing on the blog.
+3. **Interview and negotiation.** `job-strategy` covers getting seen, nothing past
+   it. Salary negotiation and interview preparation are both high-volume and
+   entirely uncovered.
+4. **Situational resume guidance.** Career changers, employment gaps, and
+   returning to work are high-intent evergreen queries with no coverage.
+5. **Named `Person` authors.** Every post is authored by an organisation. Author
+   identity and demonstrated expertise are explicit E-E-A-T inputs and a
+   documented AI-citation factor, and the frontmatter schema does not yet support
+   a person, a bio, or credentials.
 
 ## Frontmatter
 
@@ -90,7 +139,7 @@ clustering:
 - `cluster` — one of the table above.
 - `tags` — becomes `keywords` metadata and OG article tags.
 - `primaryKeyword` — the question this post answers. If you cannot fill it, reconsider.
-- `faq` — rendered as an accordion *and* emitted as `FAQPage` JSON-LD from one source,
+- `faq` — rendered as an accordion _and_ emitted as `FAQPage` JSON-LD from one source,
   so the visible and structured answers cannot drift.
 - `pillar` — cornerstone posts. Gets higher sitemap priority and a monthly change
   frequency; review these quarterly.

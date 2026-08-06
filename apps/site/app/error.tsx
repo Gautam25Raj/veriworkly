@@ -1,21 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
 import Link from "next/link";
+import { useEffect } from "react";
 import { OctagonAlert } from "lucide-react";
 
 import { Button, Container } from "@veriworkly/ui";
 
-export default function Error({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
+const Error = ({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) => {
   useEffect(() => {
     console.error("Root error boundary caught error:", error);
   }, [error]);
+
   return (
     <main className="surface-grid border-border/50 relative mx-auto mt-28 mb-20 flex min-h-[80vh] max-w-7xl items-center justify-center overflow-hidden rounded-3xl border lg:mt-36">
       <p className="sr-only" role="alert">
@@ -54,4 +49,6 @@ export default function Error({
       </Container>
     </main>
   );
-}
+};
+
+export default Error;

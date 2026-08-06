@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { isPremiumTemplate } from "@/lib/portfolio";
+import { portfolioWorkspaceUrl } from "@/config/site";
 import { usePortfolioStore } from "@/store/portfolio-store";
 import { useWorkspace } from "@/components/WorkspaceProvider";
 import { SettingsHeader } from "./SettingsHeader";
@@ -12,18 +13,18 @@ import { SettingsPreviews } from "./SettingsPreviews";
 const isProd = process.env.NODE_ENV === "production";
 
 export function PortfolioSettingsWorkspace() {
-  const {
-    content,
-    slug,
-    updateSlug,
-    updateContent,
-    saveDraft,
-    publish,
-    publication,
-    status,
-    billing,
-    user,
-  } = usePortfolioStore();
+  // Selected field by field: a bare `usePortfolioStore()` subscribes to the whole store,
+  // so editing one settings field re-rendered this tree on unrelated state changes too.
+  const content = usePortfolioStore((state) => state.content);
+  const slug = usePortfolioStore((state) => state.slug);
+  const status = usePortfolioStore((state) => state.status);
+  const billing = usePortfolioStore((state) => state.billing);
+  const publication = usePortfolioStore((state) => state.publication);
+  const user = usePortfolioStore((state) => state.user);
+  const updateSlug = usePortfolioStore((state) => state.updateSlug);
+  const updateContent = usePortfolioStore((state) => state.updateContent);
+  const saveDraft = usePortfolioStore((state) => state.saveDraft);
+  const publish = usePortfolioStore((state) => state.publish);
   const { isAdmin } = useWorkspace();
   const [uploading, setUploading] = useState(false);
 
@@ -105,7 +106,7 @@ export function PortfolioSettingsWorkspace() {
 
   const title = content.seo.title || `${content.identity.name} | Portfolio`;
   const description = content.seo.description || content.identity.bio;
-  const url = isPremium ? `${slug}.veriworkly.com` : `portfolio.veriworkly.com/portfolio/${slug}`;
+  const url = portfolioWorkspaceUrl(slug, isPremium).display;
 
   return (
     <main className="mx-auto max-w-[1500px] px-4 py-7 sm:px-6 sm:py-9 xl:px-10">

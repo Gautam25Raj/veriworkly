@@ -4,7 +4,7 @@ vi.mock("#lib/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
-const { AtsJobFetchService } = await import("#services/atsJobFetchService");
+const { AtsJobFetchService } = await import("#services/ats/jobFetch");
 
 /**
  * The job-URL fetcher takes a user-supplied URL, so it is the server's one deliberate SSRF

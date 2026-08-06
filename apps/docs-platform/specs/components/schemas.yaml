@@ -222,6 +222,31 @@ UserResponse:
     data:
       $ref: "#/UserObject"
 
+UsernameAvailability:
+  type: object
+  required: [available, normalizedUsername]
+  properties:
+    available:
+      type: boolean
+    normalizedUsername:
+      type: string
+      description: The value that would actually be stored, after server-side normalisation.
+    reason:
+      type: string
+      enum: [too_short, too_long, invalid_characters, reserved, taken]
+      description: Present only when `available` is `false`.
+
+UsernameAvailabilityResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/UsernameAvailability"
+
 ##################################################
 # MASTER PROFILE SCHEMA
 ##################################################
@@ -1026,6 +1051,175 @@ RoadmapFeatureResponse:
       $ref: "#/RoadmapFeatureDetail"
 
 ##################################################
+# CHANGELOG SCHEMA
+##################################################
+
+ChangelogPrRef:
+  type: object
+  description: A pull request referenced by a changelog entry, resolved from the GitHub release body.
+  required: [number, title]
+  properties:
+    number:
+      type: integer
+    title:
+      type: string
+    url:
+      type: string
+      format: uri
+    author:
+      type: object
+      nullable: true
+      properties:
+        login:
+          type: string
+        avatarUrl:
+          type: string
+          format: uri
+        htmlUrl:
+          type: string
+          format: uri
+
+ChangelogEntry:
+  type: object
+  required: [id, version, title, type, publishedAt]
+  properties:
+    id:
+      type: string
+    version:
+      type: string
+      description: Semantic version string, unique across entries.
+    title:
+      type: string
+    summary:
+      type: string
+      nullable: true
+    type:
+      type: string
+      enum: [major, minor, patch]
+    publishedAt:
+      type: string
+      format: date-time
+    githubUrl:
+      type: string
+      format: uri
+      nullable: true
+    added:
+      type: array
+      items:
+        type: string
+    improved:
+      type: array
+      items:
+        type: string
+    fixed:
+      type: array
+      items:
+        type: string
+    breaking:
+      type: array
+      items:
+        type: string
+    security:
+      type: array
+      items:
+        type: string
+    tags:
+      type: array
+      items:
+        type: string
+    prRefs:
+      type: array
+      nullable: true
+      items:
+        $ref: "#/ChangelogPrRef"
+
+ChangelogListData:
+  allOf:
+    - type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/ChangelogEntry"
+    - $ref: "#/OffsetPaginationMeta"
+
+ChangelogListResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/ChangelogListData"
+
+ChangelogEntryResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/ChangelogEntry"
+
+ChangelogStats:
+  type: object
+  properties:
+    totalEntries:
+      type: integer
+    major:
+      type: integer
+    minor:
+      type: integer
+    patch:
+      type: integer
+    latest:
+      type: object
+      nullable: true
+      description: The most recently published entry, or `null` when the changelog is empty.
+      properties:
+        version:
+          type: string
+        title:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+    contributorCount:
+      type: integer
+      description: Distinct pull-request authors across every entry.
+    topContributors:
+      type: array
+      items:
+        type: object
+        properties:
+          login:
+            type: string
+          avatarUrl:
+            type: string
+            format: uri
+          htmlUrl:
+            type: string
+            format: uri
+          contributions:
+            type: integer
+
+ChangelogStatsResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/ChangelogStats"
+
+##################################################
 # GITHUB SCHEMA
 ##################################################
 
@@ -1299,6 +1493,75 @@ ApiKeyCreateResponse:
     data:
       $ref: "#/ApiKeySecret"
 
+ApiKeyDetail:
+  type: object
+  description: |
+    The full metadata record for a single key, returned by `GET /api-keys/{id}`. Identical to
+    `ApiKeySecret` minus `key` — the secret itself is unrecoverable after creation.
+  required:
+    - id
+    - keyPrefix
+    - keySuffix
+    - name
+    - userId
+    - isActive
+    - rateLimit
+    - scopes
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+    keyPrefix:
+      type: string
+      description: First 8 characters of the key.
+    keySuffix:
+      type: string
+      description: Last 8 characters of the key. Not enough to reconstruct the secret.
+    name:
+      type: string
+    userId:
+      type: string
+    isActive:
+      type: boolean
+    rateLimit:
+      type: integer
+      description: Requests allowed per 15-minute window for this key.
+    scopes:
+      type: array
+      items:
+        $ref: "#/ApiKeyScope"
+    expiresAt:
+      type: string
+      format: date-time
+      nullable: true
+    revokedAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+    lastUsed:
+      type: string
+      format: date-time
+      nullable: true
+      description: Written at most once every 5 minutes per key, so it lags real usage slightly.
+
+ApiKeyDetailResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/ApiKeyDetail"
+
 ##################################################
 # DOCUMENT SCHEMA
 ##################################################
@@ -1465,6 +1728,9 @@ AtsRuleResult:
   properties:
     id:
       type: string
+    category:
+      type: string
+      description: "One of: parse, contact, structure, content, format."
     severity:
       type: string
       enum: [info, warning, error]
@@ -1478,17 +1744,41 @@ AtsRuleResult:
       type: string
 
 AtsReport:
+  description: |
+    Deterministic, rule-based ATS report. Computed entirely server-side without calling any AI
+    provider. Shape depends on the caller's auth state: anonymous requests to `/ats/check` get
+    `AtsRestrictedReport` (score + verdict only); any authenticated user (free or subscriber)
+    gets `AtsFullReport`. `/ats/analyze` requires auth and always returns `AtsFullReport`.
+  oneOf:
+    - $ref: "#/AtsFullReport"
+    - $ref: "#/AtsRestrictedReport"
+
+AtsFullReport:
   type: object
-  description: Deterministic, rule-based ATS report. Computed entirely server-side without calling any AI provider.
+  description: Full deterministic report — every rule's evidence, all matched/missing keywords, all prioritized fixes. Requires an authenticated caller.
   properties:
     version:
       type: string
-      enum: [ats-v1]
+      enum: [ats-v2]
+    restricted:
+      type: boolean
+      enum: [false]
+    verdict:
+      type: string
+      enum: [strong, needs-work, weak]
     readinessScore:
       type: integer
     jobMatchScore:
       type: integer
       nullable: true
+    matchedKeywords:
+      type: array
+      items:
+        type: string
+    missingKeywords:
+      type: array
+      items:
+        type: string
     parsingWarnings:
       type: array
       items:
@@ -1509,6 +1799,84 @@ AtsReport:
       type: array
       items:
         $ref: "#/AtsRuleResult"
+    categories:
+      type: array
+      items:
+        $ref: "#/AtsCategoryScore"
+    checksPassed:
+      type: integer
+      description: Number of deterministic rules the resume passed.
+    checksTotal:
+      type: integer
+      description: Total number of deterministic rules evaluated.
+    wordCount:
+      type: integer
+      description: Words counted in the extracted resume text.
+
+AtsCategoryScore:
+  type: object
+  description: |
+    Per-area rollup of the deterministic rules. Returned to authenticated and anonymous callers
+    alike: it is an aggregate of per-rule impacts, so it says which part of the resume is losing
+    points without revealing which rule fired or what that rule weighs.
+  properties:
+    category:
+      type: string
+      description: Rule category key, e.g. `parse`, `contact`, `structure`, `content`, `format`.
+    score:
+      type: integer
+      description: Percentage of this category's own weight the resume kept (0-100).
+    passed:
+      type: integer
+      description: Rules in this category that passed.
+    total:
+      type: integer
+      description: Rules evaluated in this category.
+    lost:
+      type: integer
+      description: Points this category actually cost.
+    possible:
+      type: integer
+      description: Worst-case points this category could have cost.
+
+AtsRestrictedReport:
+  type: object
+  description: |
+    Returned instead of AtsFullReport when /ats/check is called anonymously — scores, a verdict,
+    and the per-area rollup, but no rule evidence, no keyword lists, and only the single
+    highest-impact fix.
+  properties:
+    version:
+      type: string
+      enum: [ats-v2]
+    restricted:
+      type: boolean
+      enum: [true]
+    readinessScore:
+      type: integer
+    jobMatchScore:
+      type: integer
+      nullable: true
+    verdict:
+      type: string
+      enum: [strong, needs-work, weak]
+    topFix:
+      type: string
+      nullable: true
+    categories:
+      type: array
+      items:
+        $ref: "#/AtsCategoryScore"
+    checksPassed:
+      type: integer
+    checksTotal:
+      type: integer
+    matchedKeywordCount:
+      type: integer
+      description: How many job-description terms the resume covers. The terms themselves require auth.
+    missingKeywordCount:
+      type: integer
+      description: How many job-description terms the resume is missing. The terms themselves require auth.
 
 AtsAiInsights:
   type: object
@@ -1571,6 +1939,16 @@ AtsQuotaSummary:
             max:
               type: integer
         resumeConversionCredits:
+          type: integer
+    extract:
+      type: object
+      description: Separate budget for resume file uploads (POST /ats/extract) — does not share the scan quota above.
+      properties:
+        limit:
+          type: integer
+        used:
+          type: integer
+        remaining:
           type: integer
 
 AtsQuotaResponse:

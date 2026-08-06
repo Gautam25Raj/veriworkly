@@ -1,7 +1,8 @@
+import Panel from "@/components/admin/Panel";
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Card, Badge, Button } from "@veriworkly/ui";
+import { Badge, Button } from "@veriworkly/ui";
 
 import RoadmapFeatureForm from "@/app/admin/roadmap/components/RoadmapFeatureForm";
 
@@ -13,8 +14,8 @@ export const metadata: Metadata = {
 
 const AdminRoadmapCreatePage = () => {
   return (
-    <div className="space-y-6">
-      <Card className="rounded-4xl p-6 md:p-8">
+    <div className="space-y-5">
+      <Panel className="rounded-xl p-4 md:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-2">
             <Badge className="bg-background/70">Roadmap Create</Badge>
@@ -32,7 +33,7 @@ const AdminRoadmapCreatePage = () => {
             <Link href="/admin/roadmap">Back to Roadmap</Link>
           </Button>
         </div>
-      </Card>
+      </Panel>
 
       <RoadmapFeatureForm mode="create" />
     </div>

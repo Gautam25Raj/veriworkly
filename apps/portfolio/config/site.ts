@@ -52,3 +52,20 @@ export const veriworklyProductLinks = {
 export function portfolioPublicUrl(subdomain: string) {
   return isDev ? `http://${subdomain}.localhost:3004` : `https://${subdomain}.veriworkly.com`;
 }
+
+/**
+ * The address to show the *owner* for their own portfolio.
+ *
+ * A dedicated subdomain is the Creator Pro perk; free portfolios live on the
+ * platform host under `/portfolio/{slug}`. Both forms resolve (the proxy rewrites
+ * either to the same route), but the workspace has to advertise the one the user
+ * actually has — the dashboard used to hand every free account a subdomain URL
+ * while the editor showed them the path form, for the same portfolio.
+ */
+export function portfolioWorkspaceUrl(slug: string, canPublish: boolean) {
+  const href = canPublish
+    ? portfolioPublicUrl(slug)
+    : `${siteConfig.links.portfolio}/portfolio/${slug}`;
+
+  return { href, display: href.replace(/^https?:\/\//, "") };
+}

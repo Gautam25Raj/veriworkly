@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Card } from "@veriworkly/ui";
-
 import AdminFilterBar from "@/components/admin/AdminFilterBar";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import AdminPagination from "@/components/admin/AdminPagination";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
 import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
+import Panel from "@/components/admin/Panel";
 import { CommissionActions, CommissionCreateForm } from "@/app/admin/affiliates/AffiliateActions";
 
 import { fetchAdminCommissions } from "@/features/admin/services/admin-server";
@@ -100,7 +99,7 @@ export default async function AdminCommissionsPage({
   const data = await fetchAdminCommissions(params);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="Revenue"
         title="Affiliate commissions"
@@ -112,7 +111,7 @@ export default async function AdminCommissionsPage({
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
+      <div className="grid gap-3 lg:grid-cols-[1fr_20rem]">
         <div className="space-y-4">
           <AdminFilterBar basePath="/admin/affiliates/commissions" selects={FILTERS} />
 
@@ -133,7 +132,7 @@ export default async function AdminCommissionsPage({
           />
         </div>
 
-        <Card className="h-fit space-y-4 rounded-3xl p-6">
+        <Panel className="h-fit space-y-4 rounded-xl p-4">
           <div>
             <h3 className="text-foreground font-semibold tracking-tight">Manual commission</h3>
             <p className="text-muted mt-1 text-xs leading-5">
@@ -143,7 +142,7 @@ export default async function AdminCommissionsPage({
           </div>
 
           <CommissionCreateForm />
-        </Card>
+        </Panel>
       </div>
     </div>
   );

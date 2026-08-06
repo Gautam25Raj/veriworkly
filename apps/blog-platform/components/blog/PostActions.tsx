@@ -118,8 +118,10 @@ const PostActions = ({ title, url, path }: PostActionsProps) => {
               <MenuItem
                 onClick={() => {
                   close();
+                  // `/blob/` is the file view; `/tree/` is the directory view and
+                  // only resolves here because GitHub redirects it.
                   window.open(
-                    `${siteConfig.links.github}/tree/master/apps/blog-platform/content/blog/${path}`,
+                    `${siteConfig.links.github}/blob/master/apps/blog-platform/content/blog/${path}`,
                     "_blank",
                     "noopener,noreferrer",
                   );

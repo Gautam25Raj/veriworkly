@@ -106,13 +106,39 @@ export interface AdminOverview {
   health: AdminSystemHealth;
   recentActivity: AdminAuditEntry[];
 
-  actionQueue: {
-    pendingAmbassadorApplications: number;
-    pendingWithdrawals: number;
-    pendingCommissions: number;
-    failedWebhooks: number;
-    suspendedPortfolios: number;
-    pendingPortfolioAssets: number;
+  actionQueue: AdminActionQueue;
+}
+
+/**
+ * The six queues an operator drains. Served both inside `AdminOverview` and standalone from
+ * `/admin/overview/queue`, which the shell uses for its nav badges — the two must stay
+ * identical, so `AdminOverview["actionQueue"]` is defined as this type rather than repeating it.
+ */
+export interface AdminActionQueue {
+  pendingAmbassadorApplications: number;
+  pendingWithdrawals: number;
+  pendingCommissions: number;
+  failedWebhooks: number;
+  suspendedPortfolios: number;
+  pendingPortfolioAssets: number;
+}
+
+export type AdminActionQueueKey = keyof AdminActionQueue;
+
+/** Daily buckets for the dashboard charts. Every array is aligned to `buckets` by index. */
+export interface AdminTimeSeries {
+  generatedAt: string;
+  days: number;
+  /** `YYYY-MM-DD`, oldest first, one entry per day with no gaps. */
+  buckets: string[];
+  series: {
+    signups: number[];
+    subscriptions: number[];
+    publications: number[];
+    documents: number[];
+    portfolioViews: number[];
+    creditsSpent: number[];
+    commissionCents: number[];
   };
 }
 

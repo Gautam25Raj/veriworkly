@@ -328,6 +328,67 @@ apiKeyRevoke:
               message: "API key not found"
 
 apiKeyItem:
+  get:
+    tags:
+      - API Keys
+    operationId: getApiKey
+    summary: Get API Key
+    description: |
+      Returns the full metadata record for one of the caller's keys — name, scopes, rate limit,
+      expiry, revocation state, and last-used timestamp.
+
+      **The secret is not returned**, and cannot be: only an HMAC-SHA256 hash of it is stored. If
+      you have lost a key's value, rotate it. `keyPrefix` and `keySuffix` are the only fragments
+      kept, and neither is enough to reconstruct the key.
+
+      Session-authenticated only — an API key cannot be used to manage API keys.
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: The ID of the API key to fetch.
+    responses:
+      "200":
+        description: API key fetched successfully.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ApiKeyDetailResponse"
+            example:
+              success: true
+              message: "API key fetched successfully"
+              data:
+                id: "cmnu7bxq2000163lk4d1zqp8n"
+                keyPrefix: "vw_a1b2c"
+                keySuffix: "9f8e7d6"
+                name: "CI pipeline"
+                userId: "cmnu7awv4000063lk18zpon2m"
+                isActive: true
+                rateLimit: 20
+                scopes: ["user:read", "resume:read"]
+                expiresAt: "2027-04-11T10:37:35.584Z"
+                revokedAt: null
+                createdAt: "2026-04-11T10:37:35.584Z"
+                updatedAt: "2026-04-11T10:37:35.584Z"
+                lastUsed: "2026-07-29T09:55:00.000Z"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "404":
+        description: No key with this ID belongs to the caller.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 404
+              message: "API key not found"
+
   delete:
     tags:
       - API Keys

@@ -67,14 +67,20 @@ specific role — trim what is irrelevant without deleting anything.
 
 ## 4. Choose a template
 
-Two resume templates, both free with no plan-based lock:
+Six resume templates, all free with no plan-based lock. Every one is single-column and ATS-safe by
+design — they differ in density, header treatment, and typographic breathing room, not in
+parseability.
 
-- **Precision ATS** — a high-density single-column layout optimised for reliable machine parsing.
-  A good default for technical and corporate applications.
-- **Executive Clarity** — a balanced layout with clearer section segmentation and more generous
-  typography.
+| Template              | Best for                                                                          |
+| :-------------------- | :-------------------------------------------------------------------------------- |
+| **Executive Clarity** | The default. Balanced spacing and clear section segmentation.                     |
+| **Precision ATS**     | Longer resumes. High density, tuned for reliable machine parsing.                 |
+| **Modern Minimal**    | Letting the writing carry the page — no rules, generous whitespace.               |
+| **Timeline Focus**    | Long tenures. Dates sit in a fixed left gutter so a chronology scans in one pass. |
+| **Corporate Brief**   | Corporate applications. Split letterhead with accent-barred section headings.     |
+| **Bold Impact**       | Career changes and senior pitches. Centred masthead over a heavy accent rule.     |
 
-Switching templates never changes your data, so you can compare both freely. See
+Switching templates never changes your data, so you can cycle through all six freely. See
 [Resume Templates](/docs/user-guides/resume-templates).
 
 ---
@@ -105,10 +111,11 @@ The export menu offers six formats, all generated in your browser:
 | **Plain text** | ATS forms that ask you to paste your resume as text.              |
 | **JSON**       | Backup, or re-importing into VeriWorkly later.                    |
 
-<Callout type="warn" title="Fill in or hide empty fields before exporting">
-  Blank date, role, and company fields currently export as the literal placeholder strings `"Start -
-  End"`, `"Role"`, and `"Company"` rather than being omitted — and this affects the real downloaded
-  file, not just the preview. Complete or hide any partially-filled entry first.
+<Callout type="info" title="Blank fields are omitted, but blank titles fall back">
+  Empty dates, company names, and locations are dropped from the export rather than printed as
+  placeholders. The one exception is an entry's **title**: an experience with no role renders as
+  `"Role"`, and the same applies to education (`"Education"`), projects (`"Project"`), and custom
+  items (`"Item"`). Give every entry a title, or hide the section.
 </Callout>
 
 ---

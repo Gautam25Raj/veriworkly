@@ -1,6 +1,6 @@
 {
   "name": "veriworkly",
-  "version": "3.21.0",
+  "version": "3.22.0",
   "private": true,
   "packageManager": "npm@11.16.0",
   "engines": {
@@ -42,7 +42,8 @@
     "db:push": "npm run db:push -w @veriworkly/server",
     "db:migrate": "npm run db:migrate -w @veriworkly/server",
     "db:generate": "npm run db:generate -w @veriworkly/server",
-    "db:studio": "npm run db:studio -w @veriworkly/server"
+    "db:studio": "npm run db:studio -w @veriworkly/server",
+    "db:redis": "npm run db:redis -w @veriworkly/server"
   },
   "devDependencies": {
     "@types/node": "^25",

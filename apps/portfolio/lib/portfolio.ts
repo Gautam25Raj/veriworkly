@@ -1,3 +1,4 @@
+import { sectionSubtitleDefaults } from "@/lib/section-fields";
 import { type TemplateId, isTemplateId } from "@/templates/catalog/templates";
 
 export { templates, isPremiumTemplate } from "@/templates/catalog/templates";
@@ -59,6 +60,16 @@ export interface PortfolioSection {
   id: string;
   type: PortfolioSectionType;
   title: string;
+  /**
+   * Editable copy shown under the section heading.
+   *
+   * Templates used to hardcode this text (Signal carried 16 baked-in
+   * subtitles written for a graphics engineer), so it could not be changed
+   * from the editor and made no sense for most people's portfolios. It is
+   * seeded with a neutral default on parse so nobody starts with a bare page,
+   * and an explicit empty string hides the subtitle entirely.
+   */
+  subtitle?: string;
   visible: boolean;
   items: Array<Record<string, unknown>>;
   settings?: Record<string, unknown>;
@@ -869,9 +880,7 @@ export function parsePortfolioContent(input: unknown, fallback = demoPortfolio):
     },
     socialLinks: Array.isArray(value.socialLinks)
       ? value.socialLinks
-          .filter(
-            (link): link is Record<string, unknown> => !!link && typeof link === "object",
-          )
+          .filter((link): link is Record<string, unknown> => !!link && typeof link === "object")
           .slice(0, 12)
           .map((link) => ({
             id: text(link.id, createId("link"), 64),
@@ -880,13 +889,23 @@ export function parsePortfolioContent(input: unknown, fallback = demoPortfolio):
           }))
       : [],
     sections: (value.sections as unknown[])
-      .filter((section): section is Record<string, unknown> => !!section && typeof section === "object")
+      .filter(
+        (section): section is Record<string, unknown> => !!section && typeof section === "object",
+      )
       .slice(0, 24)
       .filter((section) => isPortfolioSectionType(section.type))
       .map((section) => ({
         id: text(section.id, createId("section"), 128),
         type: section.type as PortfolioSectionType,
         title: text(section.title, "Section", 120),
+        // Seeded from the neutral defaults when the key is absent entirely, so
+        // portfolios saved before subtitles existed keep a sensible line
+        // instead of losing one. An explicit "" is preserved as "hidden" —
+        // that is a deliberate clear by the user, not a missing value.
+        subtitle:
+          typeof section.subtitle === "string"
+            ? section.subtitle.slice(0, 240)
+            : sectionSubtitleDefaults[section.type as PortfolioSectionType],
         visible: section.visible !== false,
         items: Array.isArray(section.items)
           ? (section.items as unknown[])

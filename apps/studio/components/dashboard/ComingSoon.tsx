@@ -2,13 +2,7 @@ import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { Button } from "@veriworkly/ui";
 
-export function ComingSoon({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
+export function ComingSoon({ title, description }: { title: string; description: string }) {
   return (
     <main className="flex min-h-[60vh] items-center justify-center">
       <section className="border-border bg-card mx-auto max-w-lg rounded-2xl border p-8 text-center">

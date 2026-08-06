@@ -1,21 +1,74 @@
 {
   "schema_version": "1.0",
-  "name": "VeriWorkly Documentation",
-  "description": "The technical knowledge base and API reference hub for the VeriWorkly ecosystem.",
+  "name": "VeriWorkly Technical Documentation Agent Card",
+  "description": "VeriWorkly Technical Documentation (docs.veriworkly.com) is the official documentation platform and interactive API reference for developers and AI agents integrating with VeriWorkly.",
   "contact_email": "info@veriworkly.com",
   "site_url": "https://docs.veriworkly.com",
-  "parent_site_url": "https://veriworkly.com",
   "llms_txt": "https://docs.veriworkly.com/llms.txt",
+  "pricing_md": "https://docs.veriworkly.com/pricing.md",
+  "openapi_spec": "https://docs.veriworkly.com/openapi.json",
 
   "api": {
     "type": "openapi",
     "url": "https://docs.veriworkly.com/openapi.json",
     "has_user_authentication": true,
-    "auth_type": "cookie, bearer",
-    "auth_details": "Web clients authenticate using Better Auth via Email OTP, establishing a session cookie ('better-auth.session_token'). Programmatic agents must use API Keys as Bearer tokens.",
+    "auth_type": "bearer, cookie",
+    "auth_details": "API key sent as 'Authorization: Bearer vw_...' or 'X-API-Key: vw_...', or a Better Auth session cookie for whitelisted first-party origins. Only GET /health and GET /health/ready are open to unauthenticated callers.",
     "base_url": "https://api.veriworkly.com/api/v1"
   },
 
-  "master_llms_txt": "https://veriworkly.com/llms.txt",
-  "master_agent_json": "https://veriworkly.com/.well-known/agent.json"
+  "services": [
+    {
+      "name": "Documentation Portal",
+      "url": "https://docs.veriworkly.com/docs",
+      "description": "Product guides, architecture deep-dives, operations runbooks, and contribution standards."
+    },
+    {
+      "name": "Interactive API Reference",
+      "url": "https://docs.veriworkly.com/api-reference",
+      "description": "Fumadocs-powered interactive API explorer covering all 72 operations across 18 domain tags."
+    },
+    {
+      "name": "OpenAPI Specification",
+      "url": "https://docs.veriworkly.com/openapi.json",
+      "description": "Full single-file OpenAPI 3.1 JSON specification with 152 component schemas."
+    }
+  ],
+
+  "capabilities": [
+    {
+      "name": "API Reference Indexing",
+      "description": "Explore endpoint paths, request parameters, request payloads, and response envelopes for all 72 operations.",
+      "endpoints": [
+        "/api/v1/health",
+        "/api/v1/documents",
+        "/api/v1/profiles/master",
+        "/api/v1/ats/check",
+        "/api/v1/ai/generate",
+        "/api/v1/portfolios/me",
+        "/api/v1/api-keys"
+      ]
+    },
+    {
+      "name": "Architecture & Integration Guides",
+      "description": "Index technical guides on the local-first sync engine, the Master Profile data model, the client-side export pipeline, and scoped API keys.",
+      "endpoints": [
+        "/docs/overview",
+        "/docs/architecture/state-management",
+        "/docs/architecture/resume-schema",
+        "/docs/architecture/pdf-generation",
+        "/docs/api-keys"
+      ]
+    }
+  ],
+
+  "compliance": {
+    "privacy_policy": "https://veriworkly.com/privacy",
+    "terms_of_service": "https://veriworkly.com/terms"
+  },
+
+  "developer": {
+    "name": "Gautam Raj",
+    "github": "https://github.com/Gautam25Raj"
+  }
 }

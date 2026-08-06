@@ -7,16 +7,19 @@ import { DocsBody } from "fumadocs-ui/layouts/notebook/page";
 import { ArrowLeft, Clock, Calendar, ArrowRight, RefreshCw } from "lucide-react";
 
 import { blog } from "@/lib/source";
-import { siteConfig } from "@/config/site";
-import { getReadingTime } from "@/lib/read-time";
+import { feedAlternates, siteConfig } from "@/config/site";
+import { getPostStats } from "@/lib/read-time";
+import { getRelatedPosts } from "@/lib/related";
 
 import PostActions from "@/components/blog/PostActions";
 import PostFaq from "@/components/blog/PostFaq";
+import PostToc from "@/components/blog/PostToc";
+import RelatedPosts from "@/components/blog/RelatedPosts";
 
 import { getMDXComponents } from "@/components/mdx";
 
 import { Container } from "@/components/layout/Container";
-import { buildPostSchema } from "@/lib/structured-data";
+import { buildPostSchema, serializeSchema } from "@/lib/structured-data";
 import { cn } from "@/lib/utils";
 
 type PageProps = {
@@ -47,7 +50,10 @@ export default async function BlogPostPage(props: PageProps) {
 
   const MDX = page.data.body;
   const postUrl = `${siteConfig.url}/${params.slug}`;
-  const { faq, tags, category, updated, date, title, description, author } = page.data;
+  const { faq, tags, category, cluster, updated, date, title, description, author } = page.data;
+
+  const stats = getPostStats(page.data.info.path);
+  const related = getRelatedPosts({ url: page.url, cluster, tags });
 
   const schema = buildPostSchema({
     title,
@@ -55,22 +61,26 @@ export default async function BlogPostPage(props: PageProps) {
     author,
     date,
     updated,
+    category,
     tags,
     faq,
     url: postUrl,
     imageUrl: ogImageFor(title, description),
+    wordCount: stats.words,
   });
 
   return (
     <div className="min-h-screen py-12 md:py-20">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+        dangerouslySetInnerHTML={{ __html: serializeSchema(schema) }}
       />
 
       <Container>
         <div className="grid gap-12 lg:grid-cols-4 lg:gap-16">
-          <main className="space-y-10 lg:col-span-3">
+          {/* `article`, not `main` — MainLayout already provides the page's single
+              main landmark, and two of them is invalid and confuses screen readers. */}
+          <article className="space-y-10 lg:col-span-3">
             <header className="space-y-6">
               <Link
                 href="/"
@@ -85,11 +95,11 @@ export default async function BlogPostPage(props: PageProps) {
                   {category}
                 </div>
 
-                <h1 className="text-foreground text-3xl font-extrabold leading-[1.14] tracking-tight sm:text-4xl md:text-5xl lg:text-6xl">
+                <h1 className="text-foreground text-3xl leading-[1.14] font-extrabold tracking-tight sm:text-4xl md:text-5xl lg:text-6xl">
                   {title}
                 </h1>
 
-                <p className="text-muted-foreground max-w-3xl text-lg font-normal leading-relaxed md:text-xl">
+                <p className="text-muted-foreground max-w-3xl text-lg leading-relaxed font-normal md:text-xl">
                   {description}
                 </p>
               </div>
@@ -100,34 +110,34 @@ export default async function BlogPostPage(props: PageProps) {
             <div className="prose prose-zinc dark:prose-invert max-w-none">
               <DocsBody
                 className={cn(
-                  "max-w-none font-normal leading-relaxed text-foreground/90",
+                  "text-foreground/90 max-w-none leading-relaxed font-normal",
                   // Headings - bold, crisp, properly spaced, with subtle top border on h2
-                  "[&_h1]:mt-12 [&_h1]:mb-4 [&_h1]:text-3xl [&_h1]:font-extrabold [&_h1]:tracking-tight [&_h1]:text-foreground [&_h1]:md:text-4xl",
-                  "[&_h2]:mt-14 [&_h2]:mb-5 [&_h2]:pt-6 [&_h2]:border-t [&_h2]:border-border/40 [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:tracking-tight [&_h2]:text-foreground [&_h2]:md:text-3xl [&_h2]:leading-snug",
-                  "[&_h3]:mt-10 [&_h3]:mb-3 [&_h3]:text-xl [&_h3]:font-bold [&_h3]:tracking-tight [&_h3]:text-foreground [&_h3]:md:text-2xl [&_h3]:leading-snug",
-                  "[&_h4]:mt-8 [&_h4]:mb-2 [&_h4]:text-lg [&_h4]:font-bold [&_h4]:text-foreground",
+                  "[&_h1]:text-foreground [&_h1]:mt-12 [&_h1]:mb-4 [&_h1]:text-3xl [&_h1]:font-extrabold [&_h1]:tracking-tight [&_h1]:md:text-4xl",
+                  "[&_h2]:border-border/40 [&_h2]:text-foreground [&_h2]:mt-14 [&_h2]:mb-5 [&_h2]:border-t [&_h2]:pt-6 [&_h2]:text-2xl [&_h2]:leading-snug [&_h2]:font-bold [&_h2]:tracking-tight [&_h2]:md:text-3xl",
+                  "[&_h3]:text-foreground [&_h3]:mt-10 [&_h3]:mb-3 [&_h3]:text-xl [&_h3]:leading-snug [&_h3]:font-bold [&_h3]:tracking-tight [&_h3]:md:text-2xl",
+                  "[&_h4]:text-foreground [&_h4]:mt-8 [&_h4]:mb-2 [&_h4]:text-lg [&_h4]:font-bold",
                   // Heading Anchors - prevent heading text or icon links from turning blue or underlined
-                  "[&_h1_a]:text-foreground [&_h1_a]:no-underline [&_h1_a]:font-bold",
-                  "[&_h2_a]:text-foreground [&_h2_a]:no-underline [&_h2_a]:font-bold hover:[&_h2_a]:text-foreground",
-                  "[&_h3_a]:text-foreground [&_h3_a]:no-underline [&_h3_a]:font-bold hover:[&_h3_a]:text-foreground",
-                  "[&_h4_a]:text-foreground [&_h4_a]:no-underline [&_h4_a]:font-bold hover:[&_h4_a]:text-foreground",
-                  "[&_a.subheading-anchor]:text-muted-foreground/30 [&_a.subheading-anchor]:no-underline hover:[&_a.subheading-anchor]:text-foreground [&_a.subheading-anchor]:font-normal",
+                  "[&_h1_a]:text-foreground [&_h1_a]:font-bold [&_h1_a]:no-underline",
+                  "[&_h2_a]:text-foreground hover:[&_h2_a]:text-foreground [&_h2_a]:font-bold [&_h2_a]:no-underline",
+                  "[&_h3_a]:text-foreground hover:[&_h3_a]:text-foreground [&_h3_a]:font-bold [&_h3_a]:no-underline",
+                  "[&_h4_a]:text-foreground hover:[&_h4_a]:text-foreground [&_h4_a]:font-bold [&_h4_a]:no-underline",
+                  "[&_a.subheading-anchor]:text-muted-foreground/30 hover:[&_a.subheading-anchor]:text-foreground [&_a.subheading-anchor]:font-normal [&_a.subheading-anchor]:no-underline",
                   // Body Links - sleek, professional underline, high contrast in light & dark mode, zero electric blue!
-                  "[&_a]:font-medium [&_a]:text-foreground [&_a]:underline [&_a]:underline-offset-[4px] [&_a]:decoration-foreground/30 hover:[&_a]:decoration-foreground hover:[&_a]:text-foreground [&_a]:transition-colors",
+                  "[&_a]:text-foreground [&_a]:decoration-foreground/30 hover:[&_a]:decoration-foreground hover:[&_a]:text-foreground [&_a]:font-medium [&_a]:underline [&_a]:underline-offset-[4px] [&_a]:transition-colors",
                   // Paragraphs & Text Formatting
-                  "[&_p]:my-6 [&_p]:text-base [&_p]:leading-relaxed md:[&_p]:text-lg md:[&_p]:leading-8 [&_p]:text-foreground/90",
-                  "[&_strong]:font-semibold [&_strong]:text-foreground",
+                  "[&_p]:text-foreground/90 [&_p]:my-6 [&_p]:text-base [&_p]:leading-relaxed md:[&_p]:text-lg md:[&_p]:leading-8",
+                  "[&_strong]:text-foreground [&_strong]:font-semibold",
                   // Lists
-                  "[&_ul]:my-6 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-6 [&_ol]:list-decimal [&_ol]:pl-6",
-                  "[&_li]:my-2 [&_li]:leading-relaxed [&_li]:text-foreground/90",
+                  "[&_ol]:my-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_ul]:my-6 [&_ul]:list-disc [&_ul]:pl-6",
+                  "[&_li]:text-foreground/90 [&_li]:my-2 [&_li]:leading-relaxed",
                   // Blockquotes - subtle accent bar & elegant editorial styling
-                  "[&_blockquote]:my-8 [&_blockquote]:border-l-2 [&_blockquote]:border-foreground/30 [&_blockquote]:bg-muted/20 [&_blockquote]:px-6 [&_blockquote]:py-3 [&_blockquote]:rounded-r-lg [&_blockquote]:italic [&_blockquote]:text-foreground/85 [&_blockquote]:font-normal",
+                  "[&_blockquote]:border-foreground/30 [&_blockquote]:bg-muted/20 [&_blockquote]:text-foreground/85 [&_blockquote]:my-8 [&_blockquote]:rounded-r-lg [&_blockquote]:border-l-2 [&_blockquote]:px-6 [&_blockquote]:py-3 [&_blockquote]:font-normal [&_blockquote]:italic",
                   // Code & Pre
-                  "[&_code]:rounded-md [&_code]:bg-muted/50 [&_code]:border [&_code]:border-border/40 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.875em] [&_code]:text-foreground",
+                  "[&_code]:bg-muted/50 [&_code]:border-border/40 [&_code]:text-foreground [&_code]:rounded-md [&_code]:border [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.875em]",
                   // Tables
-                  "[&_table]:my-8 [&_table]:w-full [&_table]:border-collapse [&_table]:text-sm [&_table]:rounded-lg [&_table]:overflow-hidden [&_table]:border [&_table]:border-border/40",
-                  "[&_td]:border-t [&_td]:border-border/30 [&_td]:px-4 [&_td]:py-3 [&_td]:align-top [&_td]:text-foreground/90",
-                  "[&_th]:border-b [&_th]:border-border/50 [&_th]:px-4 [&_th]:py-3 [&_th]:text-left [&_th]:font-semibold [&_th]:text-foreground [&_thead]:bg-muted/40",
+                  "[&_table]:border-border/40 [&_table]:my-8 [&_table]:w-full [&_table]:border-collapse [&_table]:overflow-hidden [&_table]:rounded-lg [&_table]:border [&_table]:text-sm",
+                  "[&_td]:border-border/30 [&_td]:text-foreground/90 [&_td]:border-t [&_td]:px-4 [&_td]:py-3 [&_td]:align-top",
+                  "[&_th]:border-border/50 [&_th]:text-foreground [&_thead]:bg-muted/40 [&_th]:border-b [&_th]:px-4 [&_th]:py-3 [&_th]:text-left [&_th]:font-semibold",
                 )}
               >
                 <MDX components={getMDXComponents()} />
@@ -135,7 +145,9 @@ export default async function BlogPostPage(props: PageProps) {
             </div>
 
             <PostFaq items={faq} />
-          </main>
+
+            <RelatedPosts posts={related} />
+          </article>
 
           {/* Sticky Metadata & Project Callout Sidebar */}
           <aside className="border-border/40 h-fit space-y-8 border-t pt-8 lg:sticky lg:top-24 lg:col-span-1 lg:border-t-0 lg:pt-0">
@@ -155,7 +167,7 @@ export default async function BlogPostPage(props: PageProps) {
                   />
                 </div>
                 <div>
-                  <p className="text-foreground text-sm font-bold leading-none">{author}</p>
+                  <p className="text-foreground text-sm leading-none font-bold">{author}</p>
                   <p className="text-muted-foreground mt-1 text-xs">Career &amp; hiring research</p>
                 </div>
               </div>
@@ -183,10 +195,14 @@ export default async function BlogPostPage(props: PageProps) {
 
                 <div className="flex items-center gap-2.5">
                   <Clock className="size-4 opacity-70" />
-                  <span>{getReadingTime(page.data.info.path)}</span>
+                  <span>{stats.label}</span>
                 </div>
               </div>
             </div>
+
+            <div className="bg-border/40 h-px" />
+
+            <PostToc toc={page.data.toc} />
 
             <div className="bg-border/40 h-px" />
 
@@ -252,6 +268,7 @@ export async function generateMetadata(props: PageProps): Promise<Metadata> {
 
     alternates: {
       canonical: postUrl,
+      types: feedAlternates,
     },
 
     openGraph: {

@@ -84,7 +84,9 @@ async function run() {
   try {
     await Promise.race([
       initRedis(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Redis connect timeout")), 5000)),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Redis connect timeout")), 5000),
+      ),
     ]);
     await cacheDelByPrefix("changelog:");
     logger.info("Flushed changelog:* Redis cache prefix");

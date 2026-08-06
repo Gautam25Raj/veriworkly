@@ -127,9 +127,7 @@ describe("portfolio content contract", () => {
       ...content,
       socialLinks: [null, "not-a-link", { id: "gh", label: "GitHub", url: "https://github.com" }],
     });
-    expect(parsed.socialLinks).toEqual([
-      { id: "gh", label: "GitHub", url: "https://github.com" },
-    ]);
+    expect(parsed.socialLinks).toEqual([{ id: "gh", label: "GitHub", url: "https://github.com" }]);
   });
 
   it("ships a complete template gallery demo", () => {

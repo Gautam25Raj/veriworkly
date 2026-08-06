@@ -1,21 +1,26 @@
-import type { Metadata } from "next";
 import dynamic from "next/dynamic";
+
+import type { Metadata } from "next";
+
+import "./affiliate.css";
+
 import { siteConfig } from "@/config/site";
 import { jsonLdScriptProps } from "@/utils/json-ld";
 import { isAffiliateProgramEnabled } from "@/lib/feature-flags";
+
 import AffiliateNav from "@/features/affiliate/AffiliateNav";
-import AffiliateFooter from "@/features/affiliate/AffiliateFooter";
+import AffiliateFAQ from "@/features/affiliate/AffiliateFAQ";
 import AffiliateHero from "@/features/affiliate/AffiliateHero";
 import AffiliateTiers from "@/features/affiliate/AffiliateTiers";
 import AffiliateBento from "@/features/affiliate/AffiliateBento";
-import AffiliateComparison from "@/features/affiliate/AffiliateComparison";
+import AffiliateFooter from "@/features/affiliate/AffiliateFooter";
 import AffiliateResources from "@/features/affiliate/AffiliateResources";
-import AffiliateFAQ from "@/features/affiliate/AffiliateFAQ";
-import "./affiliate.css";
+import AffiliateComparison from "@/features/affiliate/AffiliateComparison";
 
 const AffiliateCalculator = dynamic(() => import("@/features/affiliate/AffiliateCalculator"));
 
 const pageUrl = `${siteConfig.url}/affiliate`;
+
 const pageOgImage = `${siteConfig.url}/api/og?title=${encodeURIComponent(
   "Partner Affiliate Program",
 )}&description=${encodeURIComponent(
@@ -26,12 +31,7 @@ export const metadata: Metadata = {
   title: "Partner Affiliate Program | VeriWorkly",
   description:
     "Join the VeriWorkly Affiliate Program. Help professionals build private portfolios and earn recurring commissions of 2%, 3%, or 5%.",
-  alternates: {
-    canonical: pageUrl,
-    languages: {
-      "en-US": pageUrl,
-    },
-  },
+
   openGraph: {
     title: "Partner Affiliate Program | VeriWorkly",
     description:
@@ -48,20 +48,22 @@ export const metadata: Metadata = {
       },
     ],
   },
+
   twitter: {
     card: "summary_large_image",
     title: "Partner Affiliate Program | VeriWorkly",
     description: "Earn recurring commissions by promoting user sovereignty in career documents.",
     images: [pageOgImage],
   },
+
+  alternates: {
+    canonical: pageUrl,
+    languages: {
+      "en-US": pageUrl,
+    },
+  },
 };
 
-/**
- * Unlike /ambassador/apply (which is `force-dynamic` because it reads a session), this
- * page is pure marketing and stays statically prerendered — so AFFILIATE_PROGRAM_ENABLED
- * is read at BUILD time, not per request. Set it in the build environment; flipping it on
- * a running server will not change this page until the next deploy.
- */
 const AffiliatePage = () => {
   const programEnabled = isAffiliateProgramEnabled();
 
@@ -76,7 +78,6 @@ const AffiliatePage = () => {
 
   return (
     <>
-      {/* Uses the shared helper rather than a hand-rolled copy of the same escaping. */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={jsonLdScriptProps(affiliateSchema)}

@@ -78,8 +78,12 @@ services:
       # AI
       AI_API_KEY: ${AI_API_KEY}
       AI_BASE_URL: ${AI_BASE_URL}
-      AI_PRIVATE_CONFIG_PATH: ${AI_PRIVATE_CONFIG_PATH}
-      AI_PRIVATE_CONFIG_JSON: ${AI_PRIVATE_CONFIG_JSON}
+      AI_ACTIONS_POLICY_PATH: ${AI_ACTIONS_POLICY_PATH}
+      AI_ACTIONS_POLICY_JSON: ${AI_ACTIONS_POLICY_JSON}
+      ATS_AI_POLICY_PATH: ${ATS_AI_POLICY_PATH}
+      ATS_AI_POLICY_JSON: ${ATS_AI_POLICY_JSON}
+      ATS_ENGINE_POLICY_PATH: ${ATS_ENGINE_POLICY_PATH}
+      ATS_ENGINE_POLICY_JSON: ${ATS_ENGINE_POLICY_JSON}
       AI_STANDARD_MODEL: ${AI_STANDARD_MODEL}
       AI_EXPERT_MODEL: ${AI_EXPERT_MODEL}
 
@@ -140,6 +144,14 @@ services:
       interval: 20s
       timeout: 5s
       retries: 3
+    restart: unless-stopped
+
+  redisinsight:
+    image: redis/redisinsight:latest
+    ports:
+      - "5540:5540"
+    depends_on:
+      - redis
     restart: unless-stopped
 
 volumes:

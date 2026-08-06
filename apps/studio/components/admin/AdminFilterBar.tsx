@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { Search, X } from "lucide-react";
 
-import { Button, Card, Input, Select } from "@veriworkly/ui";
+import { Button, Select } from "@veriworkly/ui";
 
 export interface AdminFilterOption {
   label: string;
@@ -51,76 +52,76 @@ const AdminFilterBar = ({
     router.push(search ? `${basePath}?${search}` : basePath);
   };
 
-  const hasFilters = [...searchParams.keys()].some((key) => key !== "offset");
+  const activeFilters = [...searchParams.keys()].filter((key) => key !== "offset");
 
   return (
-    <Card className="rounded-3xl p-4">
-      <form
-        className="flex flex-wrap items-end gap-3"
-        onSubmit={(event) => {
-          event.preventDefault();
+    <form
+      className="border-border bg-card flex flex-wrap items-center gap-2 rounded-xl border p-2 shadow-[0_1px_2px_rgba(0,0,0,0.03)]"
+      onSubmit={(event) => {
+        event.preventDefault();
 
-          const submitted = new FormData(event.currentTarget).get("query");
-          applyParam("query", typeof submitted === "string" ? submitted.trim() : "");
-        }}
-      >
-        <div className="min-w-56 flex-1 space-y-1.5">
-          <label htmlFor="admin-filter-query" className="text-muted text-xs font-medium">
-            Search
-          </label>
+        const submitted = new FormData(event.currentTarget).get("query");
+        applyParam("query", typeof submitted === "string" ? submitted.trim() : "");
+      }}
+    >
+      <div className="relative min-w-56 flex-1">
+        <Search
+          className="text-muted pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2"
+          aria-hidden="true"
+        />
 
-          {/*
-            Uncontrolled, keyed on the URL value. The URL is the source of truth for filters, so
-            keying here remounts the input with the right default whenever the URL changes (back
-            button, Reset) without an effect that writes state on every render.
-          */}
-          <Input
-            key={currentQuery}
-            id="admin-filter-query"
-            name="query"
-            inputSize="sm"
-            defaultValue={currentQuery}
-            placeholder={searchPlaceholder}
-          />
-        </div>
+        {/*
+          Uncontrolled, keyed on the URL value. The URL is the source of truth for filters, so
+          keying here remounts the input with the right default whenever the URL changes (back
+          button, Reset) without an effect that writes state on every render.
+        */}
+        <input
+          key={currentQuery}
+          id="admin-filter-query"
+          name="query"
+          defaultValue={currentQuery}
+          placeholder={searchPlaceholder}
+          aria-label="Search"
+          className="border-border bg-background text-foreground placeholder:text-muted focus:border-accent focus:ring-accent/25 h-9 w-full rounded-lg border pr-3 pl-8 text-sm transition outline-none focus:ring-2"
+        />
+      </div>
 
-        {selects.map((select) => (
-          <div key={select.name} className="min-w-40 space-y-1.5">
-            <label
-              htmlFor={`admin-filter-${select.name}`}
-              className="text-muted text-xs font-medium"
-            >
-              {select.label}
-            </label>
+      {selects.map((select) => (
+        <Select
+          key={select.name}
+          id={`admin-filter-${select.name}`}
+          aria-label={select.label}
+          className="h-9 min-w-32 rounded-lg text-xs"
+          value={searchParams.get(select.name) ?? ""}
+          onChange={(event) => applyParam(select.name, event.target.value)}
+        >
+          {select.options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {/* The label is on the control, not above it, so it has to carry into the
+                  placeholder option or an unset filter reads as a bare "Any". */}
+              {option.value === "" ? `${select.label}: ${option.label}` : option.label}
+            </option>
+          ))}
+        </Select>
+      ))}
 
-            <Select
-              id={`admin-filter-${select.name}`}
-              className="h-9 text-xs"
-              value={searchParams.get(select.name) ?? ""}
-              onChange={(event) => applyParam(select.name, event.target.value)}
-            >
-              {select.options.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-        ))}
+      <Button type="submit" size="sm" className="h-9 rounded-lg">
+        Apply
+      </Button>
 
-        <div className="flex items-center gap-2">
-          <Button type="submit" size="sm">
-            Apply
-          </Button>
-
-          {hasFilters ? (
-            <Button type="button" size="sm" variant="ghost" onClick={() => router.push(basePath)}>
-              Reset
-            </Button>
-          ) : null}
-        </div>
-      </form>
-    </Card>
+      {activeFilters.length > 0 ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-9 rounded-lg"
+          onClick={() => router.push(basePath)}
+        >
+          <X className="mr-1 h-3.5 w-3.5" aria-hidden="true" />
+          Clear {activeFilters.length}
+        </Button>
+      ) : null}
+    </form>
   );
 };
 

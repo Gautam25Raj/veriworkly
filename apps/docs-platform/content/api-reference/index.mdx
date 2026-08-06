@@ -20,6 +20,7 @@ import {
   Link2,
   Handshake,
   GraduationCap,
+  ScrollText,
 } from "lucide-react";
 
 # VeriWorkly API Reference
@@ -73,7 +74,7 @@ Authorization: Bearer vw_...
 ```
 
 Keys are `vw_` followed by 64 hexadecimal characters, are scope-gated, and default to 20 requests
-per 15 minutes. See [API Keys](/api-reference/api-keys) for scopes and lifecycle.
+per 15 minutes. See [API Keys](/api-reference/api-keys/overview) for scopes and lifecycle.
 
 ### 2. Session cookies — for the VeriWorkly dashboard
 
@@ -107,11 +108,11 @@ per 15 minutes. See [API Keys](/api-reference/api-keys) for scopes and lifecycle
 To prevent data loss when editing across browser tabs or devices, VeriWorkly implements
 **Optimistic Concurrency Control** — but the token you send differs by resource:
 
-| Resource                             | Field you send        | Type       | Source                                    |
-| :----------------------------------- | :--------------------- | :--------- | :---------------------------------------- |
-| Master Profile (`PUT /profiles/master`) | `expectedUpdatedAt` | timestamp  | The `updatedAt` you last read.            |
-| Documents (`PATCH /documents/{id}`)  | `revision`             | integer    | The document's current `revision`.        |
-| Portfolio drafts (`PUT /portfolios/draft`) | `revision`       | integer    | The draft's current `revision`.           |
+| Resource                                   | Field you send      | Type      | Source                             |
+| :----------------------------------------- | :------------------ | :-------- | :--------------------------------- |
+| Master Profile (`PUT /profiles/master`)    | `expectedUpdatedAt` | timestamp | The `updatedAt` you last read.     |
+| Documents (`PATCH /documents/{id}`)        | `revision`          | integer   | The document's current `revision`. |
+| Portfolio drafts (`PUT /portfolios/draft`) | `revision`          | integer   | The draft's current `revision`.    |
 
 If your value matches the server's, the write succeeds — and for documents and drafts, `revision`
 is incremented by 1. If it doesn't, the API rejects the request with `409 Conflict`; re-read the
@@ -194,18 +195,30 @@ Failed requests return `success: false`. When the failure is a validation error,
 Limits are enforced per IP, and additionally per key for API-key traffic. Rate limiting is disabled
 entirely in development.
 
-| Scope                                | Limit                    |
-| :----------------------------------- | :----------------------- |
-| Default (per IP)                     | 100 requests / 15 min    |
-| Per API key                          | 20 requests / 15 min     |
-| `/api/v1/auth/*`                     | 20 requests / min        |
-| `/api/v1/ai/*`                       | 20 requests / min        |
-| `/api/v1/contact`                    | 5 requests / hour        |
-| `/api/v1/stats/events`               | 15 requests / min        |
-| Share-link password verification     | 3 requests / 5 min       |
+| Scope                            | Limit                  |
+| :------------------------------- | :--------------------- |
+| Default (per route, per IP)      | 100 requests / 15 min  |
+| Global ceiling (per IP)          | 1000 requests / 15 min |
+| Per API key                      | 20 requests / 15 min   |
+| `/api/v1/auth/*`                 | 20 requests / min      |
+| `/api/v1/ai/*`                   | 20 requests / min      |
+| `/api/v1/contact`                | 5 requests / hour      |
+| `/api/v1/stats/events`           | 15 requests / min      |
+| Share-link password verification | 3 requests / 5 min     |
+
+The default limit is keyed by (method, path, IP), so it bounds each endpoint independently rather
+than a client's total load. The global ceiling sits underneath every per-route bucket. The Dodo
+billing webhook is exempt from IP rate limiting — it is authenticated by HMAC signature, and
+throttling a provider retry storm would diverge payment state from reality.
 
 A `429` response carries `Retry-After`. API-key traffic also gets `X-RateLimit-Limit`,
 `X-RateLimit-Remaining`, and `X-RateLimit-Reset`.
+
+<Callout type="info" title="Two rate-limited routes are not in this reference">
+  `/api/v1/contact` (the marketing site's contact form) and `/api/v1/stats/events` (usage-metric
+  ingestion) are internal first-party surfaces, listed above only because you may see their limits.
+  So is everything under `/api/v1/admin/*`. None of them are part of the supported public API.
+</Callout>
 
 ## Pagination
 
@@ -245,75 +258,93 @@ keep the envelope stable.
 Dive into the specific modules to see precise schemas, request bodies, and live examples powered by our OpenAPI integration.
 
 <Cards>
-  <Card title="Health & Diagnostics" icon={<Activity />} href="/api-reference/health">
+  <Card title="Health & Diagnostics" icon={<Activity />} href="/api-reference/health/overview">
     A cheap liveness probe for uptime monitoring, plus a deeper readiness probe that verifies
     PostgreSQL and Redis.
   </Card>
 
-<Card title="Authentication" icon={<Key />} href="/api-reference/authentication">
+<Card title="Authentication" icon={<Key />} href="/api-reference/authentication/overview">
   Passwordless email-OTP sign-in, session retrieval, and sign-out, powered by Better Auth.
 </Card>
 
-<Card title="API Keys" icon={<Shield />} href="/api-reference/api-keys">
+<Card title="API Keys" icon={<Shield />} href="/api-reference/api-keys/overview">
   Create, rotate, revoke, and scope the keys used for programmatic access.
 </Card>
 
-<Card title="Users Module" icon={<Lock />} href="/api-reference/users">
+<Card title="Users Module" icon={<Lock />} href="/api-reference/users/overview">
   Protected operations for authenticated users. Fetch profile metadata and manage account
   configurations.
 </Card>
 
-<Card title="Roadmap Tracker" icon={<Map />} href="/api-reference/roadmap">
+<Card title="Roadmap Tracker" icon={<Map />} href="/api-reference/roadmap/overview">
   Query public roadmap features, filter by development status, and aggregate completion statistics.
 </Card>
 
-  <Card title="GitHub Integrations" icon={<img width={24} height={24} src="/icons/socials/github.svg" alt="GitHub Icon" className="w-5 h-5" />} href="/api-reference/github">
-    Fetch live repository statistics, paginated issues, and pull requests directly from the VeriWorkly repo.
-  </Card>
+<Card title="Changelog" icon={<ScrollText />} href="/api-reference/changelog/overview">
+  Read published release notes as structured change buckets, filter by version type or tag, and
+  aggregate contributor statistics.
+</Card>
 
-<Card title="Master Profile" icon={<UserCircle />} href="/api-reference/profile">
+<Card
+  title="GitHub Integrations"
+  icon={
+    <img
+      width={24}
+      height={24}
+      src="/icons/socials/github.svg"
+      alt="GitHub Icon"
+      className="h-5 w-5"
+    />
+  }
+  href="/api-reference/github/overview"
+>
+  Fetch live repository statistics, paginated issues, and pull requests directly from the VeriWorkly
+  repo.
+</Card>
+
+<Card title="Master Profile" icon={<UserCircle />} href="/api-reference/profile/overview">
   Read and update the canonical profile that new resumes, cover letters, and portfolios are seeded
   from.
 </Card>
 
-<Card title="Profile Import" icon={<Import />} href="/api-reference/profile-import">
+<Card title="Profile Import" icon={<Import />} href="/api-reference/profile-import/overview">
   Import a profile from a real GitHub OAuth connection or an AI-parsed LinkedIn text/PDF paste.
 </Card>
 
-<Card title="Documents" icon={<FileText />} href="/api-reference/documents">
+<Card title="Documents" icon={<FileText />} href="/api-reference/documents/overview">
   Create, update, and soft-delete resumes, cover letters, portfolios, and link-in-bio pages.
 </Card>
 
-<Card title="ATS Scanning" icon={<ScanSearch />} href="/api-reference/ats">
+<Card title="ATS Scanning" icon={<ScanSearch />} href="/api-reference/ats/overview">
   Run a deterministic ATS readiness scan or a deeper AI-powered analysis against a job description.
 </Card>
 
-<Card title="AI Generation" icon={<Sparkles />} href="/api-reference/ai">
+<Card title="AI Generation" icon={<Sparkles />} href="/api-reference/ai/overview">
   List available AI writing actions and their credit costs, then generate content with a
   reserve-then-commit credit flow.
 </Card>
 
-<Card title="Portfolios" icon={<LayoutTemplate />} href="/api-reference/portfolios">
+<Card title="Portfolios" icon={<LayoutTemplate />} href="/api-reference/portfolios/overview">
   Save drafts, publish to a subdomain, and view analytics for a public portfolio page.
 </Card>
 
-<Card title="Portfolio Assets" icon={<Image />} href="/api-reference/portfolio-assets">
+<Card title="Portfolio Assets" icon={<Image />} href="/api-reference/portfolio-assets/overview">
   Presigned image uploads for portfolio avatars, project covers, and social share images.
 </Card>
 
-<Card title="Billing" icon={<CreditCard />} href="/api-reference/billing">
+<Card title="Billing" icon={<CreditCard />} href="/api-reference/billing/overview">
   Manage subscriptions, the AI credit wallet, and Dodo Payments checkout/portal sessions.
 </Card>
 
-<Card title="Shares" icon={<Link2 />} href="/api-reference/shares">
+<Card title="Shares" icon={<Link2 />} href="/api-reference/shares/overview">
   Create public, optionally password-protected share links for any document.
 </Card>
 
-<Card title="Affiliates" icon={<Handshake />} href="/api-reference/affiliates">
+<Card title="Affiliates" icon={<Handshake />} href="/api-reference/affiliates/overview">
   Enroll as an affiliate, track referrals and commissions, and request withdrawals.
 </Card>
 
-  <Card title="Ambassador Program" icon={<GraduationCap />} href="/api-reference/ambassador">
+  <Card title="Ambassador Program" icon={<GraduationCap />} href="/api-reference/ambassador/overview">
     Apply to the campus ambassador program and check your application status.
   </Card>
 </Cards>

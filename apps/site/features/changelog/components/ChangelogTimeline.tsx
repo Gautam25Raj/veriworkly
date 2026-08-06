@@ -1,7 +1,18 @@
 import { type ChangelogEntry } from "@/features/changelog/services/changelog-backend";
 import ChangelogEntryCard from "./ChangelogEntryCard";
 
-const ChangelogTimeline = ({ entries }: { entries: ChangelogEntry[] }) => {
+/**
+ * `latestVersion` comes from the stats endpoint rather than being inferred from the first row:
+ * on page 2, or under a type filter, the top card is not the newest release, and marking it
+ * "Latest" was wrong.
+ */
+const ChangelogTimeline = ({
+  entries,
+  latestVersion,
+}: {
+  entries: ChangelogEntry[];
+  latestVersion?: string;
+}) => {
   if (entries.length === 0) {
     return (
       <div className="border-border/40 bg-card/30 rounded-3xl border border-dashed p-12 text-center">
@@ -12,14 +23,10 @@ const ChangelogTimeline = ({ entries }: { entries: ChangelogEntry[] }) => {
   }
 
   return (
-    <ol className="relative space-y-6">
-      {entries.map((entry, index) => (
+    <ol className="relative space-y-4">
+      {entries.map((entry) => (
         <li key={entry.id}>
-          <ChangelogEntryCard
-            entry={entry}
-            isLatest={index === 0}
-            previousVersion={entries[index + 1]?.version}
-          />
+          <ChangelogEntryCard entry={entry} isLatest={entry.version === latestVersion} />
         </li>
       ))}
     </ol>

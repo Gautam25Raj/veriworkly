@@ -50,8 +50,9 @@ Some features are inherently server-side and require an account:
 
 ## Client-Side Export Pipeline
 
-All six export formats are produced in the browser. No headless browser, Playwright, or Puppeteer
-exists anywhere in the repository.
+All six export formats are produced in the browser. Nothing in the export path shells out to a
+headless browser — there is no Puppeteer anywhere, and the one Playwright dependency in the
+repository belongs to Studio's dev-only preview/PDF parity test harness, not to any runtime code.
 
 1. **Normalisation** — the current document state is read from its Zustand store and normalised
    (dates, rich-text fragments, hidden sections).

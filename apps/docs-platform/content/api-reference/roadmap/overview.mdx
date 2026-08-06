@@ -3,8 +3,6 @@ title: Roadmap Tracker
 description: Query public features, development status, and completion statistics.
 ---
 
-import { Map, BarChart, Target } from "lucide-react";
-
 ---
 
 ## Description
@@ -27,8 +25,8 @@ Because the roadmap will grow indefinitely over the lifecycle of the project, th
 
 ## Authentication
 
-| Method | Access Level   | Requirement                                                                 |
-| :----- | :------------- | :---------------------------------------------------------------------------- |
+| Method | Access Level   | Requirement                                                                    |
+| :----- | :------------- | :----------------------------------------------------------------------------- |
 | `GET`  | **No session** | An API key with the `roadmap:read` scope, or a whitelisted first-party origin. |
 
 <Callout type="info">
@@ -41,57 +39,6 @@ Because the roadmap will grow indefinitely over the lifecycle of the project, th
 
 ## Available Endpoints
 
-<div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-6">
-  <a href="./roadmap/getRoadmap" className="block no-underline group border rounded-lg p-4 bg-card hover:bg-muted/5 transition-all duration-200 shadow-sm">
-    <div className="flex items-start justify-between gap-4">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 uppercase">Get</span>
-          <span className="text-[10px] font-mono text-muted-foreground truncate">/roadmap</span>
-        </div>
-        <h4 className="font-bold text-sm mb-1 group-hover:text-primary transition-colors">List Roadmap Features</h4>
-        <div className="text-xs text-muted-foreground leading-normal">Fetch a paginated, filterable list of features.</div>
-      </div>
-      <Map className="w-4 h-4 text-muted-foreground/50 mt-1 shrink-0" />
-    </div>
-  </a>
-
-<a
-  href="./roadmap/getRoadmapStats"
-  className="group bg-card hover:bg-muted/5 block rounded-lg border p-4 no-underline shadow-sm transition-all duration-200"
->
-  <div className="flex items-start justify-between gap-4">
-    <div className="min-w-0 flex-1">
-      <div className="mb-2 flex items-center gap-2">
-        <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-700 uppercase dark:bg-blue-900/30 dark:text-blue-400">
-          Get
-        </span>
-        <span className="text-muted-foreground truncate font-mono text-[10px]">/roadmap/stats</span>
-      </div>
-      <h4 className="group-hover:text-primary mb-1 text-sm font-bold transition-colors">
-        Fetch Roadmap Stats
-      </h4>
-      <div className="text-muted-foreground text-xs leading-normal">
-        Retrieve metadata and completion rates.
-      </div>
-    </div>
-    <BarChart className="text-muted-foreground/50 mt-1 h-4 w-4 shrink-0" />
-  </div>
-</a>
-
-  <a href="./roadmap/getRoadmapFeatureById" className="block no-underline group border rounded-lg p-4 bg-card hover:bg-muted/5 transition-all duration-200 shadow-sm">
-    <div className="flex items-start justify-between gap-4">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 uppercase">Get</span>
-          <span className="text-[10px] font-mono text-muted-foreground truncate">/roadmap/&#123;id&#125;</span>
-        </div>
-        <h4 className="font-bold text-sm mb-1 group-hover:text-primary transition-colors">Get Feature Details</h4>
-        <div className="text-xs text-muted-foreground leading-normal">Fetch deep details for a specific item.</div>
-      </div>
-      <Target className="w-4 h-4 text-muted-foreground/50 mt-1 shrink-0" />
-    </div>
-  </a>
-</div>
-
----
+- `GET /roadmap` — [List Roadmap Features](./getRoadmap)
+- `GET /roadmap/stats` — [Fetch Roadmap Stats](./getRoadmapStats)
+- `GET /roadmap/{id}` — [Get Feature Details](./getRoadmapFeatureById)

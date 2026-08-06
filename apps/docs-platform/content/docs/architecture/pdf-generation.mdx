@@ -6,8 +6,14 @@ description: The dual-engine template model and the six client-side export forma
 # Export Pipeline
 
 Every VeriWorkly export — PDF, DOCX, HTML, Markdown, plain text, and JSON — is generated **inside the
-user's browser**. There is no server-side rendering step, and no headless browser: no Playwright or
-Puppeteer dependency exists anywhere in the repository.
+user's browser**. There is no server-side rendering step and no headless browser in the export path.
+
+<Callout type="info" title="The one Playwright dependency is a test tool">
+  Studio depends on Playwright for `npm run test:parity`, which lays the same document out in
+  Chromium and in `@react-pdf/renderer` and diffs the two box trees. It is a dev-only harness for
+  proving the preview and the export agree — it is not part of the export pipeline, and no
+  production code path launches a browser. There is no Puppeteer anywhere in the repository.
+</Callout>
 
 ---
 
@@ -119,22 +125,26 @@ never leaves the device during export.
 
 ---
 
-## Known export issue
+## Empty-field handling
 
-<Callout type="warn" title="Blank fields can render as placeholder text">
-  Empty date, role, and company fields currently export as the literal placeholder strings `"Start -
-  End"`, `"Role"`, and `"Company"` rather than being omitted. This affects real PDF, DOCX, HTML, and
-  Markdown downloads, not just the on-screen preview. Fill in or hide any section you do not intend
-  to include before exporting.
+`formatDateRange` and `joinTruthy` in `features/documents/utils/formatters.ts` drop blank parts
+rather than substituting placeholder text, so an entry missing its dates, company, or location
+exports with those pieces simply absent.
+
+<Callout type="info" title="Titles are the one place a fallback still prints">
+  An item with no title falls back to a generic label — `"Role"` for experience, `"Education"`,
+  `"Project"`, and `"Item"` for custom sections. These come from `getExperienceRenderItems` and its
+  siblings in `templates/resume/shared/model.ts` and are deliberate: a headingless entry would
+  otherwise render as a floating block of bullets.
 </Callout>
 
 ---
 
 ## Adding a template
 
-1. Create `apps/studio/templates/resume/{your-template}/` with `meta.ts`, `web.tsx`, and `pdf.tsx`.
-2. Register the metadata and the web renderer in `apps/studio/templates/index.ts`.
-3. Register the PDF component in `apps/studio/templates/resume/pdf/index.ts`.
+The full procedure, including the `skin.ts` geometry contract and the contract tests that enforce
+it, is documented once in
+[Resume Templates → Adding a template](/docs/user-guides/resume-templates#adding-a-template).
 
 `/pdf-debug/[type]/[templateId]` is an internal PDF-rendering debugger useful while iterating. Its
 navigation link is hidden in production builds, though the route itself has no server-side gate.

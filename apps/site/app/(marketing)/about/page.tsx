@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { siteConfig } from "@/config/site";
 import { buildPageMetadata } from "@/utils/metadata";
-import { jsonLdScriptProps } from "@/utils/json-ld";
 import AboutHero from "@/features/about/AboutHero";
 import AboutPrinciples from "@/features/about/AboutPrinciples";
 import AboutProductScope from "@/features/about/AboutProductScope";
@@ -33,36 +32,14 @@ export const metadata: Metadata = buildPageMetadata({
   ],
 });
 
+/**
+ * No page-level Organization schema here — the root layout already declares the sitewide
+ * Organization node (name, url, logo, founder, knowsAbout, sameAs). A second Organization
+ * node describing the same entity on this page would be duplicate structured data.
+ */
 const AboutPage = () => {
-  const organizationSchema = {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    name: siteConfig.name,
-    url: siteConfig.url,
-    description: siteConfig.description,
-    email: siteConfig.email,
-    sameAs: [siteConfig.links.github, siteConfig.links.twitter, siteConfig.links.linkedin],
-    founder: {
-      "@type": "Person",
-      name: siteConfig.creator,
-      url: siteConfig.links.github,
-    },
-    knowsAbout: [
-      "AI resume writing",
-      "ATS resume optimization",
-      "Cover letter generation",
-      "Portfolio website publishing",
-      "Privacy-first data storage",
-    ],
-  };
-
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={jsonLdScriptProps(organizationSchema)}
-      />
-
       <AboutHero />
       <AboutPrinciples />
       <AboutProductScope />

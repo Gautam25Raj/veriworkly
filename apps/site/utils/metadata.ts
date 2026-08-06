@@ -64,11 +64,13 @@ interface BuildPageMetadataOptions {
  * audience context, so they should read as distinct, purpose-written copy rather than
  * the same string echoed three times.
  */
+
 export function buildPageMetadata(options: BuildPageMetadataOptions): Metadata {
   const canonicalQuery = new URLSearchParams();
-  for (const [key, value] of Object.entries(options.canonicalParams ?? {})) {
+
+  for (const [key, value] of Object.entries(options.canonicalParams ?? {}))
     if (value !== undefined && value !== "") canonicalQuery.set(key, String(value));
-  }
+
   const queryString = canonicalQuery.toString();
 
   const basePath = options.path === "/" ? siteConfig.url : `${siteConfig.url}${options.path}`;

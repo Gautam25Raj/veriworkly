@@ -52,3 +52,7 @@ next-env.d.ts
 /app/test
 /app/og-generator
 /api-index
+
+# parity harness output
+tests/parity/.report.log
+tests/parity/shots/

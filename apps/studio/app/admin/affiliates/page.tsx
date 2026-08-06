@@ -147,7 +147,7 @@ export default async function AdminAffiliatesPage({
   const pendingCommissions = summary.commissionsByStatus.PENDING;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="Revenue"
         title="Affiliate program"

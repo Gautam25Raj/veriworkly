@@ -4,13 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "npm run check:design && npm run build:brand-kit",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "build:brand-kit": "tsx scripts/build-brand-kit.mts",
-    "check:design": "tsx scripts/check-design-tokens.mts"
+    "check:design": "tsx scripts/check-design-tokens.mts",
+    "test:contracts": "vitest run"
   },
   "dependencies": {
     "@veriworkly/ui": "*",
@@ -21,8 +23,7 @@
     "next": "16.2.12",
     "next-themes": "^0.4.6",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "tailwind-merge": "^3.6.0"
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -34,6 +35,7 @@
     "postcss": "8.5.25",
     "prettier": "^3.9.6",
     "tailwindcss": "^4",
-    "typescript": "^6"
+    "typescript": "^6",
+    "vitest": "^4.1.10"
   }
 }

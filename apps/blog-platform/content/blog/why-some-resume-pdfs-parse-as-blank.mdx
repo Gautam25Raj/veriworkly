@@ -3,7 +3,7 @@ title: "Why Some Resume PDFs Parse as Blank Pages"
 description: "A PDF can look perfect on screen and contain zero readable text. The cause is how the file was generated — and it is the one formatting failure that genuinely zeroes out an application."
 author: VeriWorkly Engineering
 date: 2026-07-29
-updated: 2026-07-29
+updated: 2026-08-03
 category: Engineering
 cluster: engineering
 primaryKeyword: resume pdf not parsing
@@ -111,7 +111,7 @@ Worth being precise, because this topic attracts overstatement.
 
 This is **not** a general argument that PDFs are risky. Text-based PDFs parse reliably, and format testing across major platforms in 2026 found [negligible difference between PDF and DOCX](https://www.rezi.ai/posts/ats-myths). The old "always send .docx" advice is outdated.
 
-This is **not** an argument that visual design breaks parsing. Two-column layouts, color, and reasonable styling are handled fine by current systems. The narrower genuine risks are text rendered as image, information conveyed only through graphics, and contact details placed in a header region.
+This is **not** an argument that visual design breaks parsing. Colour and reasonable styling are handled fine by current systems, and two-column layouts frequently extract cleanly, though not always — the risk there is line ordering rather than rejection, and it varies by file rather than by design. [Which layout choices genuinely affect extraction](/ats-friendly-resume-format) is a narrower list than the folklore suggests: text rendered as image, information conveyed only through graphics, contact details placed in a header region, and inconsistent date formats.
 
 And it is **not** the main reason applications fail. Volume math and knockout questions cost far more candidates than parsing does — we covered that in [what applicant tracking systems actually do](/ats-resume-myths-what-the-evidence-shows). Image-based PDFs are simply the one failure that is total rather than probabilistic: not a weaker application, an empty one.
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Settings } from "lucide-react";
+import type { PortfolioReadinessCheck } from "@/lib/portfolio-status";
 import { HealthRow } from "./HealthRow";
 
 const primaryAction =
@@ -12,9 +13,7 @@ export interface DashboardStatusProps {
   isLive: boolean;
   headline: string;
   readiness: number;
-  completedIdentity: number;
-  visibleSections: number;
-  hasSeo: boolean;
+  checks: PortfolioReadinessCheck[];
 }
 
 export function DashboardStatus({
@@ -22,10 +21,10 @@ export function DashboardStatus({
   isLive,
   headline,
   readiness,
-  completedIdentity,
-  visibleSections,
-  hasSeo,
+  checks,
 }: DashboardStatusProps) {
+  const completed = checks.filter((check) => check.complete).length;
+
   return (
     <article className="border-line bg-panel overflow-hidden rounded-[2rem] border shadow-[0_30px_90px_-50px_rgba(0,0,0,0.45)]">
       <div className="grid min-h-[22rem] md:grid-cols-[minmax(0,1fr)_18rem]">
@@ -57,15 +56,17 @@ export function DashboardStatus({
             <p className="text-accent-ink/60 font-[family-name:var(--font-mono)] text-[10px] tracking-[.12em] uppercase">
               Portfolio health
             </p>
-            <p className="mt-5 text-7xl font-bold tracking-[-.04em] tabular-nums">
+            <p
+              className="mt-5 text-7xl font-bold tracking-[-.04em] tabular-nums"
+              aria-label={`Portfolio health ${readiness} percent, ${completed} of ${checks.length} steps complete`}
+            >
               {readiness}
               <span className="text-accent-ink/45 text-2xl">%</span>
             </p>
             <div className="mt-auto space-y-3 pt-8 text-xs font-bold">
-              <HealthRow complete={completedIdentity === 4} label="Profile details" />
-              <HealthRow complete={visibleSections >= 2} label="Portfolio sections" />
-              <HealthRow complete={hasSeo} label="Search metadata" />
-              <HealthRow complete={isLive} label="Public publishing" />
+              {checks.map((check) => (
+                <HealthRow key={check.id} complete={check.complete} label={check.label} />
+              ))}
             </div>
           </div>
         </div>

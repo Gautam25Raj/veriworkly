@@ -58,6 +58,8 @@ tags:
     description: Operations related to authenticated users.
   - name: Roadmap
     description: Operations related to roadmap.
+  - name: Changelog
+    description: Published release notes, filtering, and contributor statistics.
   - name: GitHub
     description: GitHub issues, pull requests, and repository statistics.
   - name: Authentication
@@ -288,6 +290,242 @@ paths:
                         message: Name is too long
         "401":
           $ref: "#/components/responses/UnauthorizedError"
+  /api/v1/users/me/username:
+    put:
+      tags:
+        - Users
+      operationId: setUsername
+      security:
+        - ApiKeyAuth: []
+        - LocalSession: []
+        - ProdSession: []
+      summary: Set Username
+      description: |
+        Claims the authenticated user's username. Requires the `user:write` scope when called with an
+        API key.
+
+        The username is the public identifier in share-link URLs (`/share/{username}/{slug}`) and, for
+        accounts holding `custom_subdomain`, the published-portfolio subdomain — so a user cannot
+        create a share link until one is set.
+
+        **A username can only be set once.** Once the account has one, this endpoint rejects any
+        different value with `409 Username is locked and cannot be changed`. Re-sending the value the
+        account already holds is a no-op and returns `200`, so the call is safe to retry.
+
+        The submitted value is **normalised before validation**: lowercased, non-`[a-z0-9_-]`
+        characters folded to hyphens, leading/trailing hyphens stripped, and truncated to 32
+        characters. `Jane.Doe` and `jane-doe` therefore claim the same username. It must survive
+        normalisation as 3–32 characters and must not be a reserved word (`admin`, `api`, `app`,
+        `docs`, and similar platform-owned names). Check with
+        `GET /users/{username}/availability` before committing.
+
+        A successful claim invalidates the caller's cached session so the new username is visible
+        immediately rather than at the end of the session-cache TTL.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+              properties:
+                username:
+                  type: string
+                  description: Normalised server-side before the validity check runs.
+            example:
+              username: veriworkly-user
+      responses:
+        "200":
+          description: Username updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+              example:
+                success: true
+                message: Username updated successfully
+                data:
+                  id: cmnu7awv4000063lk18zpon2m
+                  name: VeriWorkly User
+                  username: veriworkly-user
+                  email: info@veriworkly.com
+                  emailVerified: true
+                  autoSyncEnabled: false
+                  createdAt: 2026-04-11T10:37:35.584Z
+                  updatedAt: 2026-04-26T02:00:00.000Z
+                  _count:
+                    apiKeys: 2
+                    shareLinks: 4
+                    resumes: 4
+        "400":
+          description: The username failed validation after normalisation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                statusCode: 400
+                message: Validation failed
+                details:
+                  - path: username
+                    message: invalid_username
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "409":
+          description: The username is taken, or this account already has one.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                taken:
+                  summary: Claimed by another account
+                  value:
+                    success: false
+                    statusCode: 409
+                    message: Username is already taken
+                locked:
+                  summary: This account already has a username
+                  value:
+                    success: false
+                    statusCode: 409
+                    message: Username is locked and cannot be changed
+  /api/v1/users/me/sync:
+    put:
+      tags:
+        - Users
+      operationId: updateAutoSync
+      security:
+        - ApiKeyAuth: []
+        - LocalSession: []
+        - ProdSession: []
+      summary: Update Auto-Sync Preference
+      description: |
+        Turns the account-level background document sync on or off. Requires the `user:write` scope
+        when called with an API key.
+
+        This is the account-wide switch. It does not override a document's own `keepLocalOnly` flag —
+        a document opted out individually stays local even with auto-sync on. Turning auto-sync off
+        does not delete anything already synced; it only stops new local edits from being pushed.
+
+        Defaults to `true` on a new account. A successful change invalidates the caller's cached
+        session.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - enabled
+              properties:
+                enabled:
+                  type: boolean
+            example:
+              enabled: true
+      responses:
+        "200":
+          description: Auto sync preference updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+              example:
+                success: true
+                message: Auto sync preference updated successfully
+                data:
+                  id: cmnu7awv4000063lk18zpon2m
+                  name: VeriWorkly User
+                  username: veriworkly-user
+                  email: info@veriworkly.com
+                  emailVerified: true
+                  autoSyncEnabled: true
+                  createdAt: 2026-04-11T10:37:35.584Z
+                  updatedAt: 2026-04-26T02:00:00.000Z
+                  _count:
+                    apiKeys: 2
+                    shareLinks: 4
+                    resumes: 4
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                statusCode: 400
+                message: Validation failed
+                details:
+                  - path: enabled
+                    message: Expected boolean, received string
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+  /api/v1/users/{username}/availability:
+    get:
+      tags:
+        - Users
+      operationId: checkUsernameAvailability
+      security:
+        - ApiKeyAuth: []
+        - LocalSession: []
+        - ProdSession: []
+      summary: Check Username Availability
+      description: |
+        Reports whether a username can be claimed. Intended to drive live feedback in a username
+        picker before `PUT /users/me/username` is called.
+
+        This route carries **no API-key scope gate**, unlike the rest of the Users module — but it is
+        still not anonymous, so it needs an API key or a whitelisted first-party origin.
+
+        The path segment is normalised the same way the update endpoint normalises it, and
+        `normalizedUsername` echoes back the value that would actually be stored. A `200` with
+        `available: false` is the normal negative answer — an unavailable name is not an error.
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The candidate username. Normalised server-side before the lookup.
+      responses:
+        "200":
+          description: Username availability fetched successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsernameAvailabilityResponse"
+              examples:
+                available:
+                  summary: Free to claim
+                  value:
+                    success: true
+                    message: Username availability fetched successfully
+                    data:
+                      available: true
+                      normalizedUsername: veriworkly-user
+                taken:
+                  summary: Already claimed
+                  value:
+                    success: true
+                    message: Username availability fetched successfully
+                    data:
+                      available: false
+                      normalizedUsername: veriworkly-user
+                      reason: taken
+                invalid:
+                  summary: Fails the username rules
+                  value:
+                    success: true
+                    message: Username availability fetched successfully
+                    data:
+                      available: false
+                      normalizedUsername: a
+                      reason: too_short
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
   /api/v1/roadmap:
     get:
       tags:
@@ -501,6 +739,252 @@ paths:
                 success: false
                 statusCode: 404
                 message: Roadmap feature not found
+  /api/v1/changelog:
+    get:
+      tags:
+        - Changelog
+      operationId: getChangelogEntries
+      summary: Get Changelog Entries
+      security:
+        - ApiKeyAuth: []
+        - LocalSession: []
+        - ProdSession: []
+      description: |
+        Fetch published changelog entries, newest first, with optional filtering and pagination.
+
+        This endpoint has no user session of its own: call it with an API key holding the
+        `changelog:read` scope, or from a whitelisted first-party origin. A request with neither is
+        rejected with `401`.
+
+        Results are cached per query for `CHANGELOG_CACHE_TTL_SECONDS` (default 30 days) and busted
+        whenever an admin writes an entry.
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - major
+              - minor
+              - patch
+          description: Filter entries by release type.
+        - name: tag
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+          description: Return only entries carrying this tag.
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
+          description: Case-insensitive substring match against the entry title and summary.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+          description: Items per page. Values above 50 are rejected with `400`.
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of items to skip. Redundant with `page` — `page` wins if both are sent.
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: 1-based page index. An alternative to `offset`.
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+          description: Alternative spelling of `limit`. Takes precedence over `limit` when both are sent.
+      responses:
+        "200":
+          description: Changelog entries fetched successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangelogListResponse"
+              example:
+                success: true
+                message: Changelog entries fetched successfully
+                data:
+                  items:
+                    - id: v3-21-0
+                      version: 3.22.0
+                      title: Portfolio template library refresh
+                      summary: Signal picks up a new hero and the editor gains section presets.
+                      type: minor
+                      publishedAt: 2026-07-29T10:00:00.000Z
+                      githubUrl: https://github.com/VeriWorkly/veriworkly/releases/tag/v3.22.0
+                      added:
+                        - Section presets in the portfolio editor
+                      improved:
+                        - Signal hero spacing on small viewports
+                      fixed:
+                        - Duplicate toast on failed publish
+                      breaking: []
+                      security: []
+                      tags:
+                        - portfolio
+                        - editor
+                      prRefs:
+                        - number: 412
+                          title: "feat(portfolio): section presets"
+                          url: https://github.com/VeriWorkly/veriworkly/pull/412
+                          author:
+                            login: octocat
+                            avatarUrl: https://avatars.githubusercontent.com/u/583231
+                            htmlUrl: https://github.com/octocat
+                  total: 1
+                  limit: 20
+                  offset: 0
+                  page: 1
+                  pageSize: 20
+                  totalPages: 1
+                  hasMore: false
+                  pagination:
+                    mode: offset
+                    nextOffset: null
+                    nextCursor: null
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                statusCode: 400
+                message: Validation failed
+                details:
+                  - path: limit
+                    message: Number must be less than or equal to 50
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+  /api/v1/changelog/stats:
+    get:
+      tags:
+        - Changelog
+      operationId: getChangelogStats
+      summary: Get Changelog Stats
+      security:
+        - ApiKeyAuth: []
+        - LocalSession: []
+        - ProdSession: []
+      description: |
+        Aggregated release counts by type, the latest published release, and contributor totals
+        derived from the pull-request references recorded on each entry.
+
+        Requires the `changelog:read` scope when called with an API key.
+      responses:
+        "200":
+          description: Changelog stats fetched successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangelogStatsResponse"
+              example:
+                success: true
+                message: Changelog stats fetched successfully
+                data:
+                  totalEntries: 42
+                  major: 3
+                  minor: 18
+                  patch: 21
+                  latest:
+                    version: 3.22.0
+                    title: Portfolio template library refresh
+                    publishedAt: 2026-07-29T10:00:00.000Z
+                  contributorCount: 17
+                  topContributors:
+                    - login: octocat
+                      avatarUrl: https://avatars.githubusercontent.com/u/583231
+                      htmlUrl: https://github.com/octocat
+                      contributions: 9
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+  /api/v1/changelog/{id}:
+    get:
+      tags:
+        - Changelog
+      operationId: getChangelogEntryById
+      summary: Get Changelog Entry by ID
+      security:
+        - ApiKeyAuth: []
+        - LocalSession: []
+        - ProdSession: []
+      description: |
+        Fetch a single changelog entry by its id. Requires the `changelog:read` scope when called
+        with an API key.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The changelog entry id.
+      responses:
+        "200":
+          description: Changelog entry fetched successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangelogEntryResponse"
+              example:
+                success: true
+                message: Changelog entry fetched successfully
+                data:
+                  id: v3-21-0
+                  version: 3.22.0
+                  title: Portfolio template library refresh
+                  summary: Signal picks up a new hero and the editor gains section presets.
+                  type: minor
+                  publishedAt: 2026-07-29T10:00:00.000Z
+                  githubUrl: https://github.com/VeriWorkly/veriworkly/releases/tag/v3.22.0
+                  added:
+                    - Section presets in the portfolio editor
+                  improved:
+                    - Signal hero spacing on small viewports
+                  fixed:
+                    - Duplicate toast on failed publish
+                  breaking: []
+                  security: []
+                  tags:
+                    - portfolio
+                    - editor
+                  prRefs: null
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          description: Changelog entry not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                statusCode: 404
+                message: Changelog entry not found
   /api/v1/github/stats:
     get:
       tags:
@@ -1217,6 +1701,68 @@ paths:
                 statusCode: 404
                 message: API key not found
   /api/v1/api-keys/{id}:
+    get:
+      tags:
+        - API Keys
+      operationId: getApiKey
+      summary: Get API Key
+      description: |
+        Returns the full metadata record for one of the caller's keys — name, scopes, rate limit,
+        expiry, revocation state, and last-used timestamp.
+
+        **The secret is not returned**, and cannot be: only an HMAC-SHA256 hash of it is stored. If
+        you have lost a key's value, rotate it. `keyPrefix` and `keySuffix` are the only fragments
+        kept, and neither is enough to reconstruct the key.
+
+        Session-authenticated only — an API key cannot be used to manage API keys.
+      security:
+        - LocalSession: []
+        - ProdSession: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the API key to fetch.
+      responses:
+        "200":
+          description: API key fetched successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyDetailResponse"
+              example:
+                success: true
+                message: API key fetched successfully
+                data:
+                  id: cmnu7bxq2000163lk4d1zqp8n
+                  keyPrefix: vw_a1b2c
+                  keySuffix: 9f8e7d6
+                  name: CI pipeline
+                  userId: cmnu7awv4000063lk18zpon2m
+                  isActive: true
+                  rateLimit: 20
+                  scopes:
+                    - user:read
+                    - resume:read
+                  expiresAt: 2027-04-11T10:37:35.584Z
+                  revokedAt: null
+                  createdAt: 2026-04-11T10:37:35.584Z
+                  updatedAt: 2026-04-11T10:37:35.584Z
+                  lastUsed: 2026-07-29T09:55:00.000Z
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          description: No key with this ID belongs to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                statusCode: 404
+                message: API key not found
     delete:
       tags:
         - API Keys
@@ -1958,6 +2504,10 @@ paths:
                       min: 2
                       max: 12
                     resumeConversionCredits: 2
+                  extract:
+                    limit: 6
+                    used: 0
+                    remaining: 6
   /api/v1/ats/extract:
     post:
       tags:
@@ -4045,6 +4595,39 @@ components:
           type: string
         data:
           $ref: "#/components/schemas/UserObject"
+    UsernameAvailability:
+      type: object
+      required:
+        - available
+        - normalizedUsername
+      properties:
+        available:
+          type: boolean
+        normalizedUsername:
+          type: string
+          description: The value that would actually be stored, after server-side normalisation.
+        reason:
+          type: string
+          enum:
+            - too_short
+            - too_long
+            - invalid_characters
+            - reserved
+            - taken
+          description: Present only when `available` is `false`.
+    UsernameAvailabilityResponse:
+      type: object
+      required:
+        - success
+        - message
+        - data
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/UsernameAvailability"
     MasterProfile:
       type: object
       required:
@@ -4840,6 +5423,184 @@ components:
           type: string
         data:
           $ref: "#/components/schemas/RoadmapFeatureDetail"
+    ChangelogPrRef:
+      type: object
+      description: A pull request referenced by a changelog entry, resolved from the GitHub release body.
+      required:
+        - number
+        - title
+      properties:
+        number:
+          type: integer
+        title:
+          type: string
+        url:
+          type: string
+          format: uri
+        author:
+          type: object
+          nullable: true
+          properties:
+            login:
+              type: string
+            avatarUrl:
+              type: string
+              format: uri
+            htmlUrl:
+              type: string
+              format: uri
+    ChangelogEntry:
+      type: object
+      required:
+        - id
+        - version
+        - title
+        - type
+        - publishedAt
+      properties:
+        id:
+          type: string
+        version:
+          type: string
+          description: Semantic version string, unique across entries.
+        title:
+          type: string
+        summary:
+          type: string
+          nullable: true
+        type:
+          type: string
+          enum:
+            - major
+            - minor
+            - patch
+        publishedAt:
+          type: string
+          format: date-time
+        githubUrl:
+          type: string
+          format: uri
+          nullable: true
+        added:
+          type: array
+          items:
+            type: string
+        improved:
+          type: array
+          items:
+            type: string
+        fixed:
+          type: array
+          items:
+            type: string
+        breaking:
+          type: array
+          items:
+            type: string
+        security:
+          type: array
+          items:
+            type: string
+        tags:
+          type: array
+          items:
+            type: string
+        prRefs:
+          type: array
+          nullable: true
+          items:
+            $ref: "#/components/schemas/ChangelogPrRef"
+    ChangelogListData:
+      allOf:
+        - type: object
+          required:
+            - items
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/ChangelogEntry"
+        - $ref: "#/components/schemas/OffsetPaginationMeta"
+    ChangelogListResponse:
+      type: object
+      required:
+        - success
+        - message
+        - data
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/ChangelogListData"
+    ChangelogEntryResponse:
+      type: object
+      required:
+        - success
+        - message
+        - data
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/ChangelogEntry"
+    ChangelogStats:
+      type: object
+      properties:
+        totalEntries:
+          type: integer
+        major:
+          type: integer
+        minor:
+          type: integer
+        patch:
+          type: integer
+        latest:
+          type: object
+          nullable: true
+          description: The most recently published entry, or `null` when the changelog is empty.
+          properties:
+            version:
+              type: string
+            title:
+              type: string
+            publishedAt:
+              type: string
+              format: date-time
+        contributorCount:
+          type: integer
+          description: Distinct pull-request authors across every entry.
+        topContributors:
+          type: array
+          items:
+            type: object
+            properties:
+              login:
+                type: string
+              avatarUrl:
+                type: string
+                format: uri
+              htmlUrl:
+                type: string
+                format: uri
+              contributions:
+                type: integer
+    ChangelogStatsResponse:
+      type: object
+      required:
+        - success
+        - message
+        - data
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/ChangelogStats"
     GitHubStats:
       type: object
       properties:
@@ -5105,6 +5866,76 @@ components:
           type: string
         data:
           $ref: "#/components/schemas/ApiKeySecret"
+    ApiKeyDetail:
+      type: object
+      description: |
+        The full metadata record for a single key, returned by `GET /api-keys/{id}`. Identical to
+        `ApiKeySecret` minus `key` — the secret itself is unrecoverable after creation.
+      required:
+        - id
+        - keyPrefix
+        - keySuffix
+        - name
+        - userId
+        - isActive
+        - rateLimit
+        - scopes
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        keyPrefix:
+          type: string
+          description: First 8 characters of the key.
+        keySuffix:
+          type: string
+          description: Last 8 characters of the key. Not enough to reconstruct the secret.
+        name:
+          type: string
+        userId:
+          type: string
+        isActive:
+          type: boolean
+        rateLimit:
+          type: integer
+          description: Requests allowed per 15-minute window for this key.
+        scopes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiKeyScope"
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        lastUsed:
+          type: string
+          format: date-time
+          nullable: true
+          description: Written at most once every 5 minutes per key, so it lags real usage slightly.
+    ApiKeyDetailResponse:
+      type: object
+      required:
+        - success
+        - message
+        - data
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/ApiKeyDetail"
     Document:
       type: object
       required:
@@ -5283,6 +6114,9 @@ components:
       properties:
         id:
           type: string
+        category:
+          type: string
+          description: "One of: parse, contact, structure, content, format."
         severity:
           type: string
           enum:
@@ -5298,18 +6132,45 @@ components:
         fix:
           type: string
     AtsReport:
+      description: |
+        Deterministic, rule-based ATS report. Computed entirely server-side without calling any AI
+        provider. Shape depends on the caller's auth state: anonymous requests to `/ats/check` get
+        `AtsRestrictedReport` (score + verdict only); any authenticated user (free or subscriber)
+        gets `AtsFullReport`. `/ats/analyze` requires auth and always returns `AtsFullReport`.
+      oneOf:
+        - $ref: "#/components/schemas/AtsFullReport"
+        - $ref: "#/components/schemas/AtsRestrictedReport"
+    AtsFullReport:
       type: object
-      description: Deterministic, rule-based ATS report. Computed entirely server-side without calling any AI provider.
+      description: Full deterministic report — every rule's evidence, all matched/missing keywords, all prioritized fixes. Requires an authenticated caller.
       properties:
         version:
           type: string
           enum:
-            - ats-v1
+            - ats-v2
+        restricted:
+          type: boolean
+          enum:
+            - false
+        verdict:
+          type: string
+          enum:
+            - strong
+            - needs-work
+            - weak
         readinessScore:
           type: integer
         jobMatchScore:
           type: integer
           nullable: true
+        matchedKeywords:
+          type: array
+          items:
+            type: string
+        missingKeywords:
+          type: array
+          items:
+            type: string
         parsingWarnings:
           type: array
           items:
@@ -5330,6 +6191,87 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AtsRuleResult"
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/AtsCategoryScore"
+        checksPassed:
+          type: integer
+          description: Number of deterministic rules the resume passed.
+        checksTotal:
+          type: integer
+          description: Total number of deterministic rules evaluated.
+        wordCount:
+          type: integer
+          description: Words counted in the extracted resume text.
+    AtsCategoryScore:
+      type: object
+      description: |
+        Per-area rollup of the deterministic rules. Returned to authenticated and anonymous callers
+        alike: it is an aggregate of per-rule impacts, so it says which part of the resume is losing
+        points without revealing which rule fired or what that rule weighs.
+      properties:
+        category:
+          type: string
+          description: Rule category key, e.g. `parse`, `contact`, `structure`, `content`, `format`.
+        score:
+          type: integer
+          description: Percentage of this category's own weight the resume kept (0-100).
+        passed:
+          type: integer
+          description: Rules in this category that passed.
+        total:
+          type: integer
+          description: Rules evaluated in this category.
+        lost:
+          type: integer
+          description: Points this category actually cost.
+        possible:
+          type: integer
+          description: Worst-case points this category could have cost.
+    AtsRestrictedReport:
+      type: object
+      description: |
+        Returned instead of AtsFullReport when /ats/check is called anonymously — scores, a verdict,
+        and the per-area rollup, but no rule evidence, no keyword lists, and only the single
+        highest-impact fix.
+      properties:
+        version:
+          type: string
+          enum:
+            - ats-v2
+        restricted:
+          type: boolean
+          enum:
+            - true
+        readinessScore:
+          type: integer
+        jobMatchScore:
+          type: integer
+          nullable: true
+        verdict:
+          type: string
+          enum:
+            - strong
+            - needs-work
+            - weak
+        topFix:
+          type: string
+          nullable: true
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/AtsCategoryScore"
+        checksPassed:
+          type: integer
+        checksTotal:
+          type: integer
+        matchedKeywordCount:
+          type: integer
+          description: How many job-description terms the resume covers. The terms themselves require auth.
+        missingKeywordCount:
+          type: integer
+          description: How many job-description terms the resume is missing. The terms themselves require auth.
     AtsAiInsights:
       type: object
       nullable: true
@@ -5393,6 +6335,16 @@ components:
                 max:
                   type: integer
             resumeConversionCredits:
+              type: integer
+        extract:
+          type: object
+          description: Separate budget for resume file uploads (POST /ats/extract) — does not share the scan quota above.
+          properties:
+            limit:
+              type: integer
+            used:
+              type: integer
+            remaining:
               type: integer
     AtsQuotaResponse:
       type: object

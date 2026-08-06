@@ -79,7 +79,8 @@ run `/health/ready` as a post-deploy gate.
 docker compose ps
 ```
 
-Compose defines three services: `web` (the marketing site), `api`, and `redis`.
+Compose defines four services: `web` (the marketing site), `api`, `redis`, and `redisinsight` (a
+Redis GUI on port 5540 — a debugging convenience that should not be publicly exposed).
 
 ### Resource usage
 

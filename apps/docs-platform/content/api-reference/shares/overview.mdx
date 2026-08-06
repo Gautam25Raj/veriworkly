@@ -17,18 +17,19 @@ URL (`/{username}/{slug}`); without one the request fails with `400`.
 
 ## Authentication
 
-| Method                       | Access Level      | Requirement                                                  |
-| :---------------------------- | :----------------- | :--------------------------------------------------------------- |
-| `/shares/public/*`           | **No session**    | An API key, or a whitelisted first-party origin.              |
-| All other routes             | **Authenticated** | Session cookie, or API key with `resume:read`/`resume:write`. |
+| Method             | Access Level      | Requirement                                                   |
+| :----------------- | :---------------- | :------------------------------------------------------------ |
+| `/shares/public/*` | **No session**    | An API key, or a whitelisted first-party origin.              |
+| All other routes   | **Authenticated** | Session cookie, or API key with `resume:read`/`resume:write`. |
 
 <Callout type="warn" title="“Public” means no user session, not no credentials">
   The `/shares/public/*` routes do not require a logged-in user, but they are **not** open to
   anonymous callers — a request carrying neither an API key nor a whitelisted first-party
   `Origin`/`Referer` is rejected with `401`.
 
-  The password-verification route is additionally rate limited to **3 attempts per 5 minutes per
-  IP**, far tighter than the rest of the API, to make protected links impractical to brute-force.
+The password-verification route is additionally rate limited to **3 attempts per 5 minutes per
+IP**, far tighter than the rest of the API, to make protected links impractical to brute-force.
+
 </Callout>
 
 ## Available Endpoints

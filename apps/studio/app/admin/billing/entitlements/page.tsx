@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Card } from "@veriworkly/ui";
-
 import AdminFilterBar from "@/components/admin/AdminFilterBar";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import AdminPagination from "@/components/admin/AdminPagination";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
 import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
+import Panel from "@/components/admin/Panel";
 import { EntitlementGrantForm, EntitlementRevokeAction } from "@/app/admin/billing/BillingActions";
 
 import { fetchAdminEntitlements } from "@/features/admin/services/admin-server";
@@ -124,7 +123,7 @@ export default async function AdminEntitlementsPage({
   const data = await fetchAdminEntitlements(params);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="Revenue"
         title="Entitlements"
@@ -136,7 +135,7 @@ export default async function AdminEntitlementsPage({
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
+      <div className="grid gap-3 lg:grid-cols-[1fr_20rem]">
         <div className="space-y-4">
           <AdminFilterBar basePath="/admin/billing/entitlements" selects={FILTERS} />
 
@@ -156,7 +155,7 @@ export default async function AdminEntitlementsPage({
           />
         </div>
 
-        <Card className="h-fit space-y-4 rounded-3xl p-6">
+        <Panel className="h-fit space-y-4 rounded-xl p-4">
           <div>
             <h3 className="text-foreground font-semibold tracking-tight">Grant entitlement</h3>
             <p className="text-muted mt-1 text-xs leading-5">
@@ -166,7 +165,7 @@ export default async function AdminEntitlementsPage({
           </div>
 
           <EntitlementGrantForm />
-        </Card>
+        </Panel>
       </div>
     </div>
   );

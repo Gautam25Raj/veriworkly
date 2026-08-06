@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { Button, Card } from "@veriworkly/ui";
 
@@ -66,6 +66,20 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
     [doc?.content.links],
   );
 
+  /**
+   * The preview renders deferred content so typing stays responsive.
+   *
+   * Both cover letter templates re-measure their pagination in a layout effect
+   * whenever content changes. Without this, every keystroke ran that measuring pass at
+   * blocking priority — the resume editor already deferred its preview this way, and
+   * the cover letter did not.
+   *
+   * Hook order requires this above the `hydrated`/`doc` early returns, so it reads
+   * through the optional `doc`.
+   */
+  const deferredContent = useDeferredValue(doc?.content);
+  const deferredTemplateId = useDeferredValue(doc?.templateId);
+
   if (!hydrated) {
     return <CoverLetterStateCard title="Loading cover letter" message="Preparing your editor." />;
   }
@@ -112,7 +126,9 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
         }
       }
 
-      const rawAppearance = isRecord(rawContentRecord.appearance) ? rawContentRecord.appearance : {};
+      const rawAppearance = isRecord(rawContentRecord.appearance)
+        ? rawContentRecord.appearance
+        : {};
       const mergedAppearance = { ...currentDoc.content.appearance };
       for (const key of Object.keys(validatedContent.appearance) as Array<
         keyof CoverLetterContent["appearance"]
@@ -123,9 +139,8 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
       }
       mergedContent.appearance = mergedAppearance;
 
-      const importedTitle = importedShell && typeof importedShell.title === "string"
-        ? importedShell.title
-        : undefined;
+      const importedTitle =
+        importedShell && typeof importedShell.title === "string" ? importedShell.title : undefined;
       const importedTemplateId =
         importedShell && typeof importedShell.templateId === "string"
           ? importedShell.templateId
@@ -216,7 +231,12 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
             onUpdateAppearance={updateAppearance}
           />
         }
-        preview={<CoverLetterPreview content={content} templateId={currentDoc.templateId} />}
+        preview={
+          <CoverLetterPreview
+            content={deferredContent ?? content}
+            templateId={deferredTemplateId ?? currentDoc.templateId}
+          />
+        }
         previewTitle={currentDoc.title || "Cover Letter"}
       />
 

@@ -14,6 +14,9 @@ import {
   changelogAdminUpdateSchema,
 } from "#validators/changelogValidator";
 
+import { ADMIN_AUDIT_ACTIONS, recordAdminAudit } from "#services/admin/adminAuditService";
+import { requireAuthUser } from "#middleware/auth";
+
 import { createSuccessResponse, handleValidationError } from "#lib/errors";
 
 /**
@@ -52,6 +55,14 @@ export async function createChangelogEntryController(
       security: payload.security,
       tags: payload.tags,
       prRefs: payload.prRefs,
+    });
+
+    await recordAdminAudit({
+      actorId: requireAuthUser(req).id,
+      action: ADMIN_AUDIT_ACTIONS.changelogCreate,
+      targetType: "ChangelogEntry",
+      targetId: created.id,
+      metadata: { version: created.version, title: created.title },
     });
 
     res.json(createSuccessResponse(created, "Changelog entry created successfully"));
@@ -106,6 +117,14 @@ export async function updateChangelogEntryController(
       prRefs: payload.prRefs,
     });
 
+    await recordAdminAudit({
+      actorId: requireAuthUser(req).id,
+      action: ADMIN_AUDIT_ACTIONS.changelogUpdate,
+      targetType: "ChangelogEntry",
+      targetId: id,
+      metadata: { fields: Object.keys(payload) },
+    });
+
     res.json(createSuccessResponse(updated, "Changelog entry updated successfully"));
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -139,6 +158,13 @@ export async function deleteChangelogEntryController(
 
     const deleted = await deleteChangelogEntry(id);
 
+    await recordAdminAudit({
+      actorId: requireAuthUser(req).id,
+      action: ADMIN_AUDIT_ACTIONS.changelogDelete,
+      targetType: "ChangelogEntry",
+      targetId: id,
+    });
+
     res.json(createSuccessResponse(deleted, "Changelog entry deleted successfully"));
   } catch (error) {
     next(error);
@@ -162,6 +188,13 @@ export async function syncChangelogReleasesController(
 ) {
   try {
     const result = await syncChangelogFromGitHubReleases();
+
+    await recordAdminAudit({
+      actorId: requireAuthUser(req).id,
+      action: ADMIN_AUDIT_ACTIONS.changelogSync,
+      targetType: "ChangelogEntry",
+      metadata: { ...result },
+    });
 
     res.json(createSuccessResponse(result, "Changelog release sync completed successfully"));
   } catch (error) {

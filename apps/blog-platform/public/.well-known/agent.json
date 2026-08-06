@@ -1,21 +1,48 @@
 {
   "schema_version": "1.0",
-  "name": "VeriWorkly Blog",
-  "description": "Insights into career management, open-source engineering, and product updates from the VeriWorkly team.",
+  "name": "VeriWorkly Blog Agent Card",
+  "description": "VeriWorkly Blog (blog.veriworkly.com) publishes research-backed career guidance, primary-source ATS evidence analyses, resume tailoring guides, product release notes, and open-source architecture articles.",
   "contact_email": "info@veriworkly.com",
   "site_url": "https://blog.veriworkly.com",
-  "parent_site_url": "https://veriworkly.com",
   "llms_txt": "https://blog.veriworkly.com/llms.txt",
+  "pricing_md": "https://blog.veriworkly.com/pricing.md",
+  "openapi_spec": "https://blog.veriworkly.com/openapi.json",
 
   "api": {
     "type": "openapi",
     "url": "https://blog.veriworkly.com/openapi.json",
-    "has_user_authentication": true,
-    "auth_type": "cookie, bearer",
-    "auth_details": "Web clients authenticate using Better Auth via Email OTP, establishing a session cookie ('better-auth.session_token'). Programmatic agents must use API Keys as Bearer tokens.",
-    "base_url": "https://api.veriworkly.com/api/v1"
+    "has_user_authentication": false,
+    "base_url": "https://blog.veriworkly.com"
   },
 
-  "master_llms_txt": "https://veriworkly.com/llms.txt",
-  "master_agent_json": "https://veriworkly.com/.well-known/agent.json"
+  "services": [
+    {
+      "name": "Blog & Editorial Platform",
+      "url": "https://blog.veriworkly.com",
+      "description": "Career guidance, primary-source ATS research, resume writing workflows, and architecture essays."
+    },
+    {
+      "name": "RSS Feed",
+      "url": "https://blog.veriworkly.com/rss.xml",
+      "description": "RSS 2.0 feed for automated content indexing."
+    }
+  ],
+
+  "capabilities": [
+    {
+      "name": "Article Indexing & Citations",
+      "description": "Extract evidence-backed articles, primary-source citations, and career writing benchmarks.",
+      "endpoints": ["/ats-resume-myths-what-the-evidence-shows", "/how-to-tailor-your-resume-to-a-job-description", "/how-to-write-resume-bullet-points-that-get-read"]
+    }
+  ],
+
+  "compliance": {
+    "privacy_policy": "https://veriworkly.com/privacy",
+    "terms_of_service": "https://veriworkly.com/terms"
+  },
+
+  "developer": {
+    "name": "Gautam Raj",
+    "github": "https://github.com/Gautam25Raj"
+  }
 }

@@ -7,14 +7,12 @@ export const useMousePositionRef = (containerRef?: RefObject<HTMLElement | SVGEl
     const updatePosition = (x: number, y: number) => {
       if (containerRef && containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
+
         const relativeX = x - rect.left - rect.width / 2;
         const relativeY = y - rect.top - rect.height / 2;
 
-        // Calculate relative position even when outside the container
         positionRef.current = { x: relativeX, y: relativeY };
-      } else {
-        positionRef.current = { x, y };
-      }
+      } else positionRef.current = { x, y };
     };
 
     const handleMouseMove = (ev: MouseEvent) => {

@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Card } from "@veriworkly/ui";
-
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
 import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
+import Panel from "@/components/admin/Panel";
 import { CacheFlushControls, GithubSyncControls } from "@/app/admin/system/SystemActions";
 
 import {
@@ -52,9 +51,9 @@ const logColumns: Array<AdminTableColumn<AdminRequestLogRow>> = [
       <span
         className={
           row.status >= 500
-            ? "font-medium text-red-600"
+            ? "text-destructive font-medium"
             : row.status >= 400
-              ? "font-medium text-amber-600"
+              ? "text-warning font-medium"
               : "text-muted"
         }
       >
@@ -68,7 +67,7 @@ const logColumns: Array<AdminTableColumn<AdminRequestLogRow>> = [
     hideOnMobile: true,
     className: "max-w-sm",
     render: (row) => (
-      <span className="text-xs text-red-600">{row.error ? truncate(row.error, 80) : "—"}</span>
+      <span className="text-destructive text-xs">{row.error ? truncate(row.error, 80) : "—"}</span>
     ),
   },
   {
@@ -104,7 +103,7 @@ export default async function AdminSystemPage() {
     .slice(0, 10);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="Platform"
         title="System & operations"
@@ -136,8 +135,8 @@ export default async function AdminSystemPage() {
         />
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="space-y-3 rounded-3xl p-6">
+      <div className="grid gap-3 lg:grid-cols-3">
+        <Panel className="space-y-3 rounded-xl p-4">
           <h3 className="text-foreground font-semibold tracking-tight">Dependencies</h3>
 
           <div className="space-y-2 text-sm">
@@ -152,7 +151,7 @@ export default async function AdminSystemPage() {
                   </span>
                 </div>
 
-                {check.error ? <p className="text-xs text-red-600">{check.error}</p> : null}
+                {check.error ? <p className="text-destructive text-xs">{check.error}</p> : null}
               </div>
             ))}
           </div>
@@ -160,9 +159,9 @@ export default async function AdminSystemPage() {
           <p className="text-muted border-border/60 border-t pt-3 text-xs">
             Checked {formatRelativeTime(health.timestamp)}
           </p>
-        </Card>
+        </Panel>
 
-        <Card className="space-y-3 rounded-3xl p-6">
+        <Panel className="space-y-3 rounded-xl p-4">
           <h3 className="text-foreground font-semibold tracking-tight">Background jobs</h3>
 
           <div className="space-y-2 text-sm">
@@ -184,9 +183,9 @@ export default async function AdminSystemPage() {
           <p className="text-muted border-border/60 border-t pt-3 text-xs leading-5">
             Both run nightly. A timestamp older than about a day means the scheduler has stopped.
           </p>
-        </Card>
+        </Panel>
 
-        <Card className="space-y-3 rounded-3xl p-6">
+        <Panel className="space-y-3 rounded-xl p-4">
           <h3 className="text-foreground font-semibold tracking-tight">GitHub sync</h3>
 
           {github.latestSync ? (
@@ -212,7 +211,7 @@ export default async function AdminSystemPage() {
               </div>
 
               {github.latestSync.lastError ? (
-                <p className="text-xs text-red-600">{github.latestSync.lastError}</p>
+                <p className="text-destructive text-xs">{github.latestSync.lastError}</p>
               ) : null}
             </div>
           ) : (
@@ -222,11 +221,11 @@ export default async function AdminSystemPage() {
           <div className="border-border/60 border-t pt-3">
             <GithubSyncControls nextSyncAt={github.latestSync?.nextSyncAt ?? null} />
           </div>
-        </Card>
+        </Panel>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
-        <Card className="space-y-4 rounded-3xl p-6">
+      <div className="grid gap-3 lg:grid-cols-[1fr_20rem]">
+        <Panel className="space-y-4 rounded-xl p-4">
           <div className="flex items-center justify-between">
             <h3 className="text-foreground font-semibold tracking-tight">
               Usage events, last 14 days
@@ -257,10 +256,10 @@ export default async function AdminSystemPage() {
               </div>
             </>
           )}
-        </Card>
+        </Panel>
 
         <div className="space-y-4">
-          <Card className="space-y-3 rounded-3xl p-6">
+          <Panel className="space-y-3 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">Top events (all time)</h3>
 
             {topEvents.length === 0 ? (
@@ -275,12 +274,12 @@ export default async function AdminSystemPage() {
                 ))}
               </div>
             )}
-          </Card>
+          </Panel>
 
-          <Card className="space-y-3 rounded-3xl p-6">
+          <Panel className="space-y-3 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">Cache</h3>
             <CacheFlushControls />
-          </Card>
+          </Panel>
         </div>
       </div>
 

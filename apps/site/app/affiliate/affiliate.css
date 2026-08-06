@@ -1,5 +1,3 @@
-/* Custom keyframes and specialized styling for the VeriWorkly Affiliate Page */
-
 @keyframes float-slow {
   0% {
     transform: translate(0px, 0px) scale(1);

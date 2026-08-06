@@ -1,7 +1,10 @@
 "use client";
 
+import { useMemo } from "react";
+
 import { useWorkspace } from "@/components/WorkspaceProvider";
 import { parsePortfolioContent, type CloudPortfolioDraft } from "@/lib/portfolio";
+import { getPortfolioReadiness, isPortfolioPubliclyVisible } from "@/lib/portfolio-status";
 import { DashboardHeader } from "./DashboardHeader";
 import { DashboardMetrics } from "./DashboardMetrics";
 import { DashboardStatus } from "./DashboardStatus";
@@ -11,37 +14,42 @@ import { DashboardProductLinks } from "./DashboardProductLinks";
 export function PortfolioDashboardWorkspace() {
   const data = useWorkspace();
   const draft = data.workspace?.draft as CloudPortfolioDraft | undefined;
-  const content = draft ? parsePortfolioContent(draft.content) : null;
 
-  const visibleSections = content?.sections.filter((section) => section.visible).length ?? 0;
+  const publicationStatus = data.workspace?.publication?.status;
+  const isLive = isPortfolioPubliclyVisible(publicationStatus);
+  const canPublish = Boolean(data.workspace?.billing?.canPublish);
 
-  const projectCount =
-    content?.sections.find((section) => section.type === "projects")?.items.length ?? 0;
+  // `parsePortfolioContent` is a full sanitize pass over every section and item, and the
+  // draft it runs on has usually been parsed once already by the store's hydration. Left
+  // in the render body it re-ran on every render and handed children a new object each
+  // time, defeating any downstream memoization.
+  const readiness = useMemo(() => {
+    const content = draft ? parsePortfolioContent(draft.content) : null;
 
-  const completedIdentity = content
-    ? [
-        content.identity.name,
-        content.identity.headline,
-        content.identity.bio,
-        content.identity.email,
-      ].filter((value) => value.trim()).length
-    : 0;
+    return { ...getPortfolioReadiness(content, publicationStatus), content };
+  }, [draft, publicationStatus]);
 
-  const isLive = data.workspace?.publication?.status === "LIVE";
-  const readiness = Math.round(((completedIdentity + Math.min(visibleSections, 4)) / 8) * 100);
+  const content = readiness.content;
 
   return (
     <main className="surface-grid min-h-[calc(100dvh-4.25rem)] px-4 py-8 sm:px-6 sm:py-10 xl:px-10">
       <div className="mx-auto max-w-7xl">
-        <DashboardHeader userName={data.user?.name} draft={draft} />
+        <DashboardHeader
+          userName={data.user?.name}
+          slug={draft?.slug}
+          isLive={isLive}
+          canPublish={canPublish}
+        />
 
         <DashboardMetrics
           totalViews={data.analytics?.totalViews ?? 0}
-          visibleSections={visibleSections}
-          projectCount={projectCount}
-          readiness={readiness}
+          analyticsLocked={data.analytics?.locked ?? !canPublish}
+          visibleSections={readiness.visibleSections}
+          projectCount={readiness.projectCount}
+          readiness={readiness.percent}
           isLive={isLive}
-          draft={draft}
+          slug={draft?.slug}
+          canPublish={canPublish}
         />
 
         <section className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(19rem,.55fr)]">
@@ -52,13 +60,11 @@ export function PortfolioDashboardWorkspace() {
               content?.identity.headline ||
               "Add your professional headline and strongest work to create a clear public profile."
             }
-            readiness={readiness}
-            completedIdentity={completedIdentity}
-            visibleSections={visibleSections}
-            hasSeo={Boolean(content?.seo.title && content?.seo.description)}
+            readiness={readiness.percent}
+            checks={readiness.checks}
           />
 
-          <DashboardRecommendations projectCount={projectCount} />
+          <DashboardRecommendations projectCount={readiness.projectCount} />
         </section>
 
         <DashboardProductLinks />

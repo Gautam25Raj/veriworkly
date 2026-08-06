@@ -68,6 +68,22 @@ export function categoriesFor(entry: ChangelogEntry) {
   }));
 }
 
+/**
+ * Per-category counts for the listing card, which shows how much changed rather than the
+ * change lists themselves — those live on the detail page now.
+ */
+export function categoryCountsFor(entry: ChangelogEntry) {
+  return CATEGORY_ORDER.filter((category) => entry[category]?.length).map((category) => ({
+    category,
+    count: entry[category].length,
+    ...CATEGORY_META[category],
+  }));
+}
+
+export function changelogEntryHref(id: string) {
+  return `/changelog/${id}`;
+}
+
 export const TYPE_META: Record<ChangelogEntry["type"], { label: string; className: string }> = {
   major: {
     label: "Major",

@@ -1,5 +1,3 @@
-import { randomBytes } from "node:crypto";
-
 export const RESERVED_USERNAMES = new Set([
   "admin",
   "api",
@@ -86,19 +84,6 @@ export function normalizeTags(tags: string[]) {
   }
 
   return normalized;
-}
-
-export function buildUsernameBase(input: { email?: string | null; name?: string | null }) {
-  const emailPrefix = input.email?.split("@")[0];
-  const base = normalizeUsername(emailPrefix || input.name || "user");
-
-  if (base.length >= 3) return base;
-
-  return `${base}user`.slice(0, 32);
-}
-
-export function randomSuffix(bytes = 3) {
-  return randomBytes(bytes).toString("hex");
 }
 
 export async function buildUniqueSlugHelper(

@@ -39,10 +39,11 @@ index the full contents, and fonts are embedded so layout does not shift on the 
 If a system explicitly asks for pasted text, use the **plain text** export rather than copying out of
 the PDF — it produces cleaner, more predictable output.
 
-<Callout type="warn" title="Complete or hide empty entries before exporting">
-  Blank date, role, and company fields currently render as the placeholder strings `"Start - End"`,
-  `"Role"`, and `"Company"` in the actual downloaded file. Fill in or hide any partially-completed
-  entry first.
+<Callout type="info" title="Blank fields are omitted, but blank titles fall back">
+  Empty dates, company names, and locations are dropped from the export rather than printed as
+  placeholders. The one exception is an entry's **title**: an experience with no role renders as
+  `"Role"`, and the same applies to education (`"Education"`), projects (`"Project"`), and custom
+  items (`"Item"`). Give every entry a title, or hide the section.
 </Callout>
 
 ---

@@ -7,6 +7,8 @@ import { ItemAction } from "./ItemAction";
 import { AssetUpload } from "./AssetUpload";
 import { actionClass as action, inputClass as input, sectionInfo } from "./constants";
 import { PortfolioAiAssist } from "./PortfolioAiAssist";
+import { ItemFields } from "./ItemFields";
+import { emptyItemFor, sectionFields, sectionSubtitleDefaults } from "@/lib/section-fields";
 
 export interface SectionEditorProps {
   section: PortfolioSection;
@@ -39,6 +41,19 @@ export function SectionEditor({ section }: SectionEditorProps) {
           onChange={(e) => updateSection(section.id, { title: e.target.value })}
         />
       </Field>
+      {section.type !== "contact" ? (
+        <Field
+          label="Section subtitle"
+          help="Shown under the heading. Clear it to hide the subtitle entirely."
+        >
+          <input
+            className={input}
+            placeholder={sectionSubtitleDefaults[section.type]}
+            value={typeof section.subtitle === "string" ? section.subtitle : ""}
+            onChange={(e) => updateSection(section.id, { subtitle: e.target.value })}
+          />
+        </Field>
+      ) : null}
       {section.type === "contact" ? (
         <p className="bg-paper text-muted rounded-xl p-3 text-xs leading-5">
           The contact section uses your public email and availability from Introduction.
@@ -104,36 +119,19 @@ export function SectionEditor({ section }: SectionEditorProps) {
                 </ItemAction>
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_6rem]">
-              <Field label="Title">
-                <input
-                  className={input}
-                  value={String(item.title ?? "")}
-                  onChange={(e) => updateItem(index, { title: e.target.value })}
-                />
-              </Field>
-              <Field label="Year">
-                <input
-                  className={input}
-                  value={String(item.year ?? "")}
-                  onChange={(e) => updateItem(index, { year: e.target.value })}
-                />
-              </Field>
-            </div>
-            <Field label="Summary">
-              <textarea
-                className={input}
-                rows={3}
-                value={String(item.summary ?? "")}
-                onChange={(e) => updateItem(index, { summary: e.target.value })}
+            <div className="grid gap-3">
+              <ItemFields
+                fields={sectionFields[section.type]}
+                item={item}
+                onChange={(patch) => updateItem(index, patch)}
               />
-            </Field>
+            </div>
             <PortfolioAiAssist
               context={JSON.stringify({
                 sectionType: section.type,
                 sectionTitle: section.title,
-                itemTitle: item.title,
-                year: item.year,
+                itemTitle: item.title ?? item.role ?? item.school,
+                year: item.year ?? item.date ?? item.startDate,
               })}
               documentId={documentId}
               onApply={(summary) => updateItem(index, { summary })}
@@ -154,10 +152,7 @@ export function SectionEditor({ section }: SectionEditorProps) {
             className={`${action} border-line bg-panel text-ink border`}
             onClick={() =>
               updateSection(section.id, {
-                items: [
-                  ...section.items,
-                  { id: createId("item"), title: "", summary: "", year: "" },
-                ],
+                items: [...section.items, { id: createId("item"), ...emptyItemFor(section.type) }],
               })
             }
             type="button"

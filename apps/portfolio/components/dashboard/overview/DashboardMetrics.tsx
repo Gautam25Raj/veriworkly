@@ -1,30 +1,35 @@
 import { Eye, LayoutTemplate, Check, Sparkles } from "lucide-react";
 import { Metric } from "./Metric";
-import type { CloudPortfolioDraft } from "@/lib/portfolio";
+import { portfolioWorkspaceUrl } from "@/config/site";
 
 export interface DashboardMetricsProps {
   totalViews: number;
+  /** Server withheld the figures — show that, rather than a "0" the user would read as real. */
+  analyticsLocked: boolean;
   visibleSections: number;
   projectCount: number;
   readiness: number;
   isLive: boolean;
-  draft?: CloudPortfolioDraft | null;
+  slug?: string;
+  canPublish: boolean;
 }
 
 export function DashboardMetrics({
   totalViews,
+  analyticsLocked,
   visibleSections,
   projectCount,
   readiness,
   isLive,
-  draft,
+  slug,
+  canPublish,
 }: DashboardMetricsProps) {
   return (
     <section className="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <Metric
         label="Portfolio views"
-        value={String(totalViews)}
-        detail="All-time public views"
+        value={analyticsLocked ? "—" : String(totalViews)}
+        detail={analyticsLocked ? "Available on Creator Pro" : "All-time public views"}
         icon={<Eye size={16} />}
       />
       <Metric
@@ -42,7 +47,7 @@ export function DashboardMetrics({
       <Metric
         label="Publication"
         value={isLive ? "Live" : "Draft"}
-        detail={draft ? `${draft.slug}.veriworkly.com` : "Create your first draft"}
+        detail={slug ? portfolioWorkspaceUrl(slug, canPublish).display : "Create your first draft"}
         icon={<Sparkles size={16} />}
       />
     </section>

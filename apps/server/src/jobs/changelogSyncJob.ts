@@ -4,12 +4,22 @@ import { config } from "#config";
 import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
 
-import { syncChangelogFromGitHubReleases } from "#services/changelogSyncService";
+import {
+  shouldSyncChangelogReleases,
+  syncChangelogFromGitHubReleases,
+} from "#services/changelogSyncService";
 
 let job: ScheduledTask | null = null;
 
 async function runSync(reason: "startup" | "cron") {
   try {
+    // Mirrors the GitHub stats job: a restart is not a reason to re-scan GitHub. The cron
+    // is the schedule, so it always runs; only the boot path checks freshness.
+    if (reason === "startup" && !(await shouldSyncChangelogReleases())) {
+      logger.info("Changelog release sync (startup) skipped: last sync is still fresh.");
+      return;
+    }
+
     const result = await syncChangelogFromGitHubReleases();
 
     logger.info(`Changelog release sync (${reason}) success`, {

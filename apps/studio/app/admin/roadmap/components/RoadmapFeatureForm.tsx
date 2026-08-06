@@ -7,7 +7,9 @@ import { cn } from "@/lib/utils";
 
 import type { RoadmapStatus, RoadmapFeature } from "@/features/roadmap/services/roadmap-backend";
 
-import { Card, Input, Button, Select, TextArea } from "@veriworkly/ui";
+import { Input, Button, Select, TextArea } from "@veriworkly/ui";
+
+import Panel from "@/components/admin/Panel";
 
 import {
   type AdminRoadmapPayload,
@@ -119,16 +121,16 @@ export default function RoadmapFeatureForm({
   };
 
   return (
-    <Card className="rounded-4xl p-6 md:p-8">
-      <header className="mb-8">
-        <h2 className="text-foreground text-2xl font-bold tracking-tight">{titleText}</h2>
+    <Panel className="rounded-xl p-4 md:p-6">
+      <header className="mb-5">
+        <h2 className="text-foreground text-lg font-semibold tracking-tight">{titleText}</h2>
 
-        <p className="text-muted-foreground mt-2 text-sm">
+        <p className="text-muted mt-1 text-sm">
           Define feature details, narrative blocks, and custom JSON metadata for the roadmap.
         </p>
       </header>
 
-      <form onSubmit={handleSubmit} className="grid gap-6 md:grid-cols-2">
+      <form onSubmit={handleSubmit} className="grid gap-3 md:grid-cols-2">
         <div className="space-y-2 md:col-span-2">
           <label className="text-foreground text-sm font-semibold" htmlFor="title">
             Title
@@ -358,6 +360,6 @@ export default function RoadmapFeatureForm({
           </Button>
         </footer>
       </form>
-    </Card>
+    </Panel>
   );
 }

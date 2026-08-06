@@ -7,13 +7,20 @@ import { Step, Steps } from "fumadocs-ui/components/steps";
 
 # Docker Production Deployment
 
-The repository ships a `compose.yaml` that orchestrates three services.
+The repository ships a `compose.yaml` that orchestrates four services.
 
-| Service | Image / build                       | Port     | Role                                                                                                 |
-| :------ | :---------------------------------- | :------- | :--------------------------------------------------------------------------------------------------- |
-| `web`   | Built from the root `Dockerfile`    | 3000     | The **marketing site** (`apps/site`), built with Next.js standalone output.                          |
-| `api`   | Built from `apps/server/Dockerfile` | 8080     | The Express API.                                                                                     |
-| `redis` | `redis:7-alpine`                    | internal | Cache, sessions, rate limiting, quotas, and job locks. Persisted to a named volume with AOF enabled. |
+| Service        | Image / build                       | Port     | Role                                                                                                 |
+| :------------- | :---------------------------------- | :------- | :--------------------------------------------------------------------------------------------------- |
+| `web`          | Built from the root `Dockerfile`    | 3000     | The **marketing site** (`apps/site`), built with Next.js standalone output.                          |
+| `api`          | Built from `apps/server/Dockerfile` | 8080     | The Express API.                                                                                     |
+| `redis`        | `redis:7-alpine`                    | internal | Cache, sessions, rate limiting, quotas, and job locks. Persisted to a named volume with AOF enabled. |
+| `redisinsight` | `redis/redisinsight:latest`         | 5540     | A browser GUI for inspecting Redis. A debugging convenience, not a runtime dependency.               |
+
+<Callout type="warn" title="Do not expose `redisinsight` publicly">
+  It publishes port 5540 with no authentication in front of it and hands whoever reaches it full
+  read/write access to Redis — which is where sessions live. Bind it to localhost, put it behind
+  your reverse proxy's auth, or delete the service from `compose.yaml` for a production deployment.
+</Callout>
 
 <Callout type="warn" title="What Compose does and does not deploy">
   The `web` service builds **only the marketing site**. Studio, the portfolio builder, the

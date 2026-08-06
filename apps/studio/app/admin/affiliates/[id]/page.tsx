@@ -2,14 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Card } from "@veriworkly/ui";
-
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
+import Panel from "@/components/admin/Panel";
 import { AffiliateStandingActions } from "@/app/admin/affiliates/AffiliateActions";
 
-import { fetchAdminAffiliateDetail } from "@/features/admin/services/admin-server";
+import { fetchAdminAffiliateDetail, loadAdminDetail } from "@/features/admin/services/admin-server";
 import {
   formatCents,
   formatDate,
@@ -29,13 +28,13 @@ export default async function AdminAffiliateDetailPage({
 }) {
   const { id } = await params;
 
-  const data = await fetchAdminAffiliateDetail(id).catch(() => null);
+  const data = await loadAdminDetail(fetchAdminAffiliateDetail(id));
   if (!data) notFound();
 
   const { affiliate, referrals, commissions, withdrawals, topReferrerHosts } = data;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="Affiliate"
         title={affiliate.name || affiliate.email}
@@ -71,9 +70,9 @@ export default async function AdminAffiliateDetailPage({
         <AdminStatCard label="Clicks" value={formatNumber(affiliate._count.affiliateClicks)} />
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
+      <div className="grid gap-3 lg:grid-cols-[1fr_20rem]">
         <div className="space-y-4">
-          <Card className="space-y-3 rounded-3xl p-6">
+          <Panel className="space-y-3 rounded-xl p-4">
             <div className="flex items-center justify-between">
               <h3 className="text-foreground font-semibold tracking-tight">Commissions</h3>
               <Link
@@ -108,9 +107,9 @@ export default async function AdminAffiliateDetailPage({
                 ))}
               </div>
             )}
-          </Card>
+          </Panel>
 
-          <Card className="space-y-3 rounded-3xl p-6">
+          <Panel className="space-y-3 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">Referrals</h3>
 
             {referrals.length === 0 ? (
@@ -137,9 +136,9 @@ export default async function AdminAffiliateDetailPage({
                 ))}
               </div>
             )}
-          </Card>
+          </Panel>
 
-          <Card className="space-y-3 rounded-3xl p-6">
+          <Panel className="space-y-3 rounded-xl p-4">
             <div className="flex items-center justify-between">
               <h3 className="text-foreground font-semibold tracking-tight">Withdrawals</h3>
               <Link
@@ -171,11 +170,11 @@ export default async function AdminAffiliateDetailPage({
                 ))}
               </div>
             )}
-          </Card>
+          </Panel>
         </div>
 
         <div className="space-y-4">
-          <Card className="space-y-3 rounded-3xl p-6">
+          <Panel className="space-y-3 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">Top referrer hosts</h3>
 
             {topReferrerHosts.length === 0 ? (
@@ -190,9 +189,9 @@ export default async function AdminAffiliateDetailPage({
                 ))}
               </div>
             )}
-          </Card>
+          </Panel>
 
-          <Card className="space-y-2 rounded-3xl p-6">
+          <Panel className="space-y-2 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">Account</h3>
 
             <Link
@@ -206,7 +205,7 @@ export default async function AdminAffiliateDetailPage({
               <AdminStatusBadge status={affiliate.affiliateStatus} />
               <AdminStatusBadge status={affiliate.affiliateTier} />
             </div>
-          </Card>
+          </Panel>
         </div>
       </div>
     </div>

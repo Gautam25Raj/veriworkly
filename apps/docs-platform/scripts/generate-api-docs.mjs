@@ -17,6 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import YAML from "yaml";
+import * as prettier from "prettier";
 import { generateFiles } from "fumadocs-openapi";
 import { createOpenAPI } from "fumadocs-openapi/server";
 
@@ -24,6 +25,11 @@ const appRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const specsDir = path.join(appRoot, "specs");
 const bundlePath = path.join(appRoot, "openapi.yaml");
 const outputDir = path.join(appRoot, "content/api-reference");
+
+// Served at /openapi.json and /openapi.yaml, and advertised by `llms.txt` and the agent card.
+// Written from the same bundle as the MDX pages — they were hand-maintained once and drifted.
+const publicJsonPath = path.join(appRoot, "public/openapi.json");
+const publicYamlPath = path.join(appRoot, "public/openapi.yaml");
 
 /* ------------------------------------------------------------------ bundle */
 
@@ -123,18 +129,34 @@ function assertRefsResolve(document) {
   })(document, "");
 
   if (dangling.length > 0) {
-    throw new Error(`Bundled spec has ${dangling.length} broken $ref(s):\n  ${dangling.join("\n  ")}`);
+    throw new Error(
+      `Bundled spec has ${dangling.length} broken $ref(s):\n  ${dangling.join("\n  ")}`,
+    );
   }
 }
 
 const bundled = resolve(load(path.join(specsDir, "openapi.yaml")), specsDir, null);
 assertRefsResolve(bundled);
 
-fs.writeFileSync(bundlePath, YAML.stringify(bundled, { lineWidth: 0 }), "utf8");
+const bundledYaml = YAML.stringify(bundled, { lineWidth: 0 });
+
+// Everything this script writes is committed, so it all goes through Prettier — otherwise a build
+// leaves the working tree failing the repo-wide `npm run format` check in CI.
+const prettierConfig = await prettier.resolveConfig(publicJsonPath);
+const bundledJson = await prettier.format(JSON.stringify(bundled), {
+  ...prettierConfig,
+  filepath: publicJsonPath,
+});
+
+fs.writeFileSync(bundlePath, bundledYaml, "utf8");
+fs.writeFileSync(publicYamlPath, bundledYaml, "utf8");
+fs.writeFileSync(publicJsonPath, bundledJson, "utf8");
 
 const pathCount = Object.keys(bundled.paths ?? {}).length;
 const schemaCount = Object.keys(bundled.components?.schemas ?? {}).length;
-console.log(`[api-docs] bundled ${pathCount} paths and ${schemaCount} schemas -> openapi.yaml`);
+console.log(
+  `[api-docs] bundled ${pathCount} paths and ${schemaCount} schemas -> openapi.yaml, public/openapi.{json,yaml}`,
+);
 
 /* ---------------------------------------------------------------- generate */
 
@@ -163,3 +185,32 @@ await generateFiles({
 });
 
 console.log("[api-docs] generated MDX pages -> content/api-reference");
+
+/* ------------------------------------------------------------------ format */
+
+// `fumadocs-openapi` does not emit Prettier-formatted MDX, and these pages are committed. Since
+// this script runs on every `dev` and `build`, leaving them unformatted meant any build put the
+// working tree in a state that fails the repo-wide `npm run format` check in CI. Formatting here
+// keeps generate-then-commit a one-step operation.
+const generated = fs
+  .readdirSync(outputDir, { withFileTypes: true })
+  .filter((entry) => entry.isDirectory())
+  .flatMap((entry) =>
+    fs
+      .readdirSync(path.join(outputDir, entry.name))
+      .filter((file) => file.endsWith(".mdx") && file !== "overview.mdx")
+      .map((file) => path.join(outputDir, entry.name, file)),
+  );
+
+await Promise.all(
+  generated.map(async (file) => {
+    const source = fs.readFileSync(file, "utf8");
+    const formatted = await prettier.format(source, {
+      ...(await prettier.resolveConfig(file)),
+      filepath: file,
+    });
+    if (formatted !== source) fs.writeFileSync(file, formatted, "utf8");
+  }),
+);
+
+console.log(`[api-docs] formatted ${generated.length} generated pages with Prettier`);

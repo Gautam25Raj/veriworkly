@@ -12,7 +12,9 @@ export default function Error({
   reset: () => void;
 }) {
   return (
-    <main className="surface-grid flex min-h-screen items-center justify-center">
+    // Not `main` — this renders inside MainLayout's `main`, and nesting landmarks
+    // is invalid HTML.
+    <div className="surface-grid flex min-h-screen items-center justify-center">
       <Container className="flex flex-col items-center text-center">
         <div className="bg-destructive/10 text-destructive shadow-destructive/5 mb-8 flex h-24 w-24 items-center justify-center rounded-full shadow-xl">
           <OctagonAlert className="text-destructive h-12 w-12" />
@@ -35,6 +37,6 @@ export default function Error({
           </Button>
         </div>
       </Container>
-    </main>
+    </div>
   );
 }

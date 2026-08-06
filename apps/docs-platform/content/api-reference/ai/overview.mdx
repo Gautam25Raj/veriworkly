@@ -24,10 +24,10 @@ Expert mode routes to a stronger, more expensive model than Standard mode for th
 
 ## Authentication
 
-| Method | Access Level      | Requirement                                                                                     |
-| :----- | :----------------- | :------------------------------------------------------------------------------------------------ |
-| `GET`  | **Authenticated**  | No user session and no scope needed, but still requires an API key or a first-party origin.     |
-| `POST` | **Authenticated**  | A user session, or an API key carrying the `ai:write` scope. Anonymous callers are rejected.    |
+| Method | Access Level      | Requirement                                                                                  |
+| :----- | :---------------- | :------------------------------------------------------------------------------------------- |
+| `GET`  | **Authenticated** | No user session and no scope needed, but still requires an API key or a first-party origin.  |
+| `POST` | **Authenticated** | A user session, or an API key carrying the `ai:write` scope. Anonymous callers are rejected. |
 
 <Callout type="info">
   `GET /ai/actions` is not open to the public. It returns no user data and spends no credits, but a

@@ -20,7 +20,10 @@ import { EntitlementService } from "#services/entitlementService";
 import { AffiliateService } from "#services/affiliate/index";
 import { CreditService } from "#services/creditService";
 import { ApiKeyService } from "#services/apiKeyService";
-import { sendSubscriptionPurchasedEmail, sendSubscriptionCancelledEmail } from "#services/mail/billingMail";
+import {
+  sendSubscriptionPurchasedEmail,
+  sendSubscriptionCancelledEmail,
+} from "#services/mail/billingMail";
 import {
   creditPackCatalog,
   isCreditPackKey,
@@ -408,7 +411,9 @@ export class BillingService {
       for (let attempt = 0; attempt < WEBHOOK_LOCK_WAIT_ATTEMPTS; attempt++) {
         await new Promise((resolve) => setTimeout(resolve, WEBHOOK_LOCK_WAIT_MS));
 
-        const existing = await prisma.billingWebhookEvent.findUnique({ where: { providerEventId } });
+        const existing = await prisma.billingWebhookEvent.findUnique({
+          where: { providerEventId },
+        });
         if (existing?.status === "PROCESSED") return { duplicate: true };
       }
 

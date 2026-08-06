@@ -1,11 +1,7 @@
 import { z } from "zod";
 
 import { config } from "#config";
-import {
-  getPrivateAiConfig,
-  resetPrivateAiConfigForTests,
-  resolvePrivateAiModel,
-} from "#services/aiPrivateConfig";
+import { getAiActionsPolicyJson, resolvePrivateAiModel } from "#services/aiPrivateConfig";
 import { AI_ACTION_KEYS, type AiActionKey, type AiMode } from "#services/aiTypes";
 import { ApiError } from "#lib/errors";
 
@@ -28,9 +24,7 @@ const actionPolicySchema = z.object({
   expert: modePolicySchema,
 });
 
-const policySchema = z.object({
-  actions: z.record(z.enum(AI_ACTION_KEYS), actionPolicySchema),
-});
+const policySchema = z.record(z.enum(AI_ACTION_KEYS), actionPolicySchema);
 
 export type AiActionPolicy = z.infer<typeof actionPolicySchema>;
 
@@ -40,10 +34,9 @@ function loadPolicy() {
   if (cachedPolicy) return cachedPolicy;
 
   try {
-    cachedPolicy = policySchema.parse(getPrivateAiConfig());
+    cachedPolicy = policySchema.parse(getAiActionsPolicyJson());
     for (const action of AI_ACTION_KEYS) {
-      if (!cachedPolicy.actions[action])
-        throw new ApiError(503, `AI policy is missing action: ${action}.`);
+      if (!cachedPolicy[action]) throw new ApiError(503, `AI policy is missing action: ${action}.`);
     }
     return cachedPolicy;
   } catch (error) {
@@ -53,7 +46,7 @@ function loadPolicy() {
 }
 
 export function getAiActionPolicy(action: AiActionKey) {
-  const policy = loadPolicy().actions[action];
+  const policy = loadPolicy()[action];
   if (!policy) throw new ApiError(400, "Unsupported AI action.");
   return policy;
 }
@@ -68,7 +61,7 @@ export function publicAiActionPolicy() {
 
   return Object.fromEntries(
     AI_ACTION_KEYS.map((action) => {
-      const item = policy.actions[action];
+      const item = policy[action];
       if (!item) throw new ApiError(503, `AI policy is missing action: ${action}.`);
       return [
         action,
@@ -78,11 +71,6 @@ export function publicAiActionPolicy() {
       ];
     }),
   );
-}
-
-export function resetAiPolicyForTests() {
-  cachedPolicy = null;
-  resetPrivateAiConfigForTests();
 }
 
 export function validateAiRuntimeConfig() {

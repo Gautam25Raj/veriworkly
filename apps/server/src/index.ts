@@ -9,9 +9,9 @@ import { logger } from "#lib/logger";
 import { closePrisma, poolMax, clusterWorkerCount } from "#lib/prisma";
 import { initRedis, closeRedis } from "#lib/redis";
 
-import { stopExtractPool } from "#services/atsExtractPool";
+import { stopExtractPool } from "#services/ats/extractPool";
 import { validateAiRuntimeConfig } from "#services/aiPolicy";
-import { validateAtsAiRuntimeConfig } from "#services/atsAiPolicy";
+import { validateAtsAiRuntimeConfig } from "#services/ats/aiPolicy";
 import { ensureAdminUserExists, validateAuthRuntimeConfig } from "#auth/runtime";
 import { validateBillingAndStorageRuntimeConfig } from "#config/validateRuntimeConfig";
 

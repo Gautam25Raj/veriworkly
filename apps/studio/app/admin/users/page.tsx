@@ -144,7 +144,7 @@ export default async function AdminUsersPage({
   const data = await fetchAdminUsers(params);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="People"
         title="Users"

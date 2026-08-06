@@ -90,7 +90,9 @@ async function run() {
   try {
     await Promise.race([
       initRedis(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Redis connect timeout")), 5000)),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Redis connect timeout")), 5000),
+      ),
     ]);
     await cacheDelByPrefix("roadmap:");
     logger.info("Flushed roadmap:* Redis cache prefix");

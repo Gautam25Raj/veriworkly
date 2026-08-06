@@ -199,7 +199,7 @@ export function EntitlementRevokeAction({
   return (
     <AdminActionDialog
       trigger="Revoke"
-      triggerClassName="text-red-600"
+      triggerClassName="text-destructive"
       title="Revoke this entitlement"
       description={`Access to "${entitlementKey}" is removed immediately. Any feature gated on it stops working for this account.`}
       confirmLabel="Revoke"

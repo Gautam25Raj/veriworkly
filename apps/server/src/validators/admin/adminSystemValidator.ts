@@ -28,6 +28,22 @@ export const adminOverviewQuerySchema = z.object({
     }),
 });
 
+export const adminTimeSeriesQuerySchema = z.object({
+  /**
+   * Window for the dashboard charts. Floored at 7 because a chart of fewer points reads as
+   * noise, and capped at 180 because every point is a row scan per metric.
+   */
+  days: z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((value) => {
+      const parsed = value === undefined ? 30 : Number(value);
+      if (!Number.isFinite(parsed)) return 30;
+
+      return Math.min(Math.max(Math.trunc(parsed), 7), 180);
+    }),
+});
+
 export const adminGithubSyncSchema = z.object({
   force: z.boolean().optional().default(false),
   reason: adminReasonSchema,

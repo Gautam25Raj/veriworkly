@@ -13,40 +13,49 @@
  * implementation, which is cheaper than owning another supply-chain dependency for
  * one build artefact.
  */
+
+import { fileURLToPath } from "node:url";
+import { join, dirname } from "node:path";
 import { deflateRawSync } from "node:zlib";
 import { readFileSync, writeFileSync, readdirSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import {
-  brandColors,
-  logoAssets,
   logoRules,
   typeScale,
   fontStack,
+  logoAssets,
   pressFacts,
+  brandColors,
 } from "../config/brand.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+
 const PUBLIC_DIR = join(HERE, "..", "public");
 const LOGO_DIR = join(PUBLIC_DIR, "brand", "logo");
+
 const OUT = join(PUBLIC_DIR, "brand", "veriworkly-brand-kit.zip");
 
 /* ------------------------------------------------------------- zip writer ---- */
 
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);
+
   for (let n = 0; n < 256; n++) {
     let c = n;
+
     for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+
     table[n] = c >>> 0;
   }
+
   return table;
 })();
 
 const crc32 = (buf: Buffer) => {
   let c = 0xffffffff;
+
   for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]!) & 0xff]! ^ (c >>> 8);
+
   return (c ^ 0xffffffff) >>> 0;
 };
 
@@ -59,16 +68,19 @@ interface Entry {
  * Timestamps are pinned so the archive is byte-identical across runs — a kit that
  * changes hash on every build produces noisy diffs and defeats caching.
  */
+
 const DOS_TIME = 0;
 const DOS_DATE = ((2026 - 1980) << 9) | (1 << 5) | 1;
 
 const buildZip = (entries: Entry[]) => {
   const locals: Buffer[] = [];
   const centrals: Buffer[] = [];
+
   let offset = 0;
 
   for (const entry of entries) {
     const name = Buffer.from(entry.path, "utf8");
+
     const compressed = deflateRawSync(entry.data, { level: 9 });
     const crc = crc32(entry.data);
 
@@ -244,6 +256,7 @@ const wanted = new Set(logoAssets.map((a) => a.file));
 const present = readdirSync(LOGO_DIR);
 
 const missing = [...wanted].filter((file) => !present.includes(file));
+
 if (missing.length) {
   console.error(`Missing logo assets referenced by config/brand.ts:\n  ${missing.join("\n  ")}`);
   process.exit(1);
@@ -257,6 +270,7 @@ entries.push({
   path: "palette.json",
   data: Buffer.from(JSON.stringify(palette(), null, 2) + "\n", "utf8"),
 });
+
 entries.push({ path: "README.txt", data: Buffer.from(readme(), "utf8") });
 
 const zip = buildZip(entries);
@@ -265,6 +279,7 @@ writeFileSync(OUT, zip);
 console.log(
   `veriworkly-brand-kit.zip — ${entries.length} files, ${(zip.length / 1024).toFixed(1)} KB`,
 );
+
 for (const entry of entries) {
   console.log(`  ${pad(entry.path, 40)}${(entry.data.length / 1024).toFixed(1)} KB`);
 }

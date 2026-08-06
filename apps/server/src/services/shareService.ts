@@ -149,44 +149,47 @@ export class ShareService {
       const flushedLinks = validCounts.length;
 
       try {
-        await prisma.$transaction(async (tx) => {
-          await tx.viewFlushBatch.create({ data: { id: batchId, kind: "share" } });
+        await prisma.$transaction(
+          async (tx) => {
+            await tx.viewFlushBatch.create({ data: { id: batchId, kind: "share" } });
 
-          if (validViews.length > 0) {
-            await tx.shareView.createMany({
-              data: validViews.map((v) => ({
-                shareLinkId: v.shareLinkId,
-                ipAddress: v.ipAddress,
-                userAgent: v.userAgent,
-                createdAt: new Date(v.timestamp),
-              })),
-            });
-          }
+            if (validViews.length > 0) {
+              await tx.shareView.createMany({
+                data: validViews.map((v) => ({
+                  shareLinkId: v.shareLinkId,
+                  ipAddress: v.ipAddress,
+                  userAgent: v.userAgent,
+                  createdAt: new Date(v.timestamp),
+                })),
+              });
+            }
 
-          for (const [shareLinkId, rawCount] of validCounts) {
-            const count = parseInt(rawCount, 10) || 0;
-            const tsString = lastViewed[shareLinkId];
-            const lastViewedAt = tsString ? new Date(parseInt(tsString, 10)) : new Date();
+            for (const [shareLinkId, rawCount] of validCounts) {
+              const count = parseInt(rawCount, 10) || 0;
+              const tsString = lastViewed[shareLinkId];
+              const lastViewedAt = tsString ? new Date(parseInt(tsString, 10)) : new Date();
 
-            await tx.shareLink.update({
-              where: { id: shareLinkId },
-              data: {
-                viewCount: { increment: count },
-                lastViewedAt,
+              await tx.shareLink.update({
+                where: { id: shareLinkId },
+                data: {
+                  viewCount: { increment: count },
+                  lastViewedAt,
+                },
+              });
+            }
+
+            const retentionLimit = new Date();
+            retentionLimit.setDate(retentionLimit.getDate() - 30);
+            await tx.shareView.deleteMany({
+              where: {
+                createdAt: { lt: retentionLimit },
               },
             });
-          }
-
-          const retentionLimit = new Date();
-          retentionLimit.setDate(retentionLimit.getDate() - 30);
-          await tx.shareView.deleteMany({
-            where: {
-              createdAt: { lt: retentionLimit },
-            },
-          });
-          // Batch job with one update per share link plus a retention sweep; the 5s default is
-          // far too short once a flush covers a real backlog of links.
-        }, { timeout: 120_000, maxWait: 15_000 });
+            // Batch job with one update per share link plus a retention sweep; the 5s default is
+            // far too short once a flush covers a real backlog of links.
+          },
+          { timeout: 120_000, maxWait: 15_000 },
+        );
       } catch (error) {
         if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) {
           throw error;

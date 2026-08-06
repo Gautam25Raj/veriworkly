@@ -215,19 +215,3 @@ export function flushAdminCache(
 }
 
 /* ── Roadmap & changelog ──────────────────────────────────────────────────────────── */
-
-export function createAdminRoadmapFeature(payload: unknown) {
-  return adminRequest("/roadmap", "POST", payload);
-}
-
-export function updateAdminRoadmapFeature(id: string, payload: unknown) {
-  return adminRequest(`/roadmap/${id}`, "PUT", payload);
-}
-
-export function deleteAdminRoadmapFeature(id: string) {
-  return adminRequest<{ id: string }>(`/roadmap/${id}`, "DELETE");
-}
-
-export function syncAdminChangelog() {
-  return adminRequest("/changelog/sync", "POST", {});
-}

@@ -72,7 +72,7 @@ const PortfolioModerationActions = ({
       {compact ? null : (
         <AdminActionDialog
           trigger="Unpublish"
-          triggerClassName="text-red-600"
+          triggerClassName="text-destructive"
           title="Take this portfolio down permanently"
           description={`Deletes the publication for ${subdomain}, forces the source document back to private, and frees the subdomain for reuse. The owner can publish again from their editor.`}
           confirmLabel="Unpublish"

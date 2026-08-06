@@ -61,12 +61,6 @@ export const metadata: Metadata = {
     site: siteConfig.twitter.site,
   },
 
-  icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
-    apple: "/apple-icon.png",
-  },
-
   appleWebApp: {
     title: "VeriWorkly",
     statusBarStyle: "default",
@@ -116,11 +110,57 @@ const webApplicationSchema = {
     name: "VeriWorkly",
   },
 
-  offers: {
-    "@type": "Offer",
-    price: "0",
-    priceCurrency: "USD",
-  },
+  offers: [
+    {
+      "@type": "Offer",
+      name: "Free",
+      price: "0",
+      priceCurrency: "USD",
+      description: "Unlimited local resumes, cover letters, and PDF exports without login.",
+    },
+    {
+      "@type": "Offer",
+      name: "3-Day Sprint Pass",
+      price: "2.99",
+      priceCurrency: "USD",
+      description: "3 days of Creator Pro hosting + 150 AI writing credits.",
+    },
+    {
+      "@type": "Offer",
+      name: "7-Day Hunt Pass",
+      price: "5.99",
+      priceCurrency: "USD",
+      description: "7 days of Creator Pro hosting + 400 AI writing credits.",
+    },
+    {
+      "@type": "Offer",
+      name: "AI Standalone",
+      price: "5.99",
+      priceCurrency: "USD",
+      description: "Standalone AI credits package for document tailoring.",
+    },
+    {
+      "@type": "Offer",
+      name: "Creator Pro",
+      price: "9.99",
+      priceCurrency: "USD",
+      description: "Public portfolio hosting with custom subdomain, analytics, and SEO controls.",
+    },
+    {
+      "@type": "Offer",
+      name: "Job Hunter Bundle (monthly)",
+      price: "14.99",
+      priceCurrency: "USD",
+      description: "Full access bundle on monthly billing.",
+    },
+    {
+      "@type": "Offer",
+      name: "Job Hunter Bundle (annual, per month)",
+      price: "11.99",
+      priceCurrency: "USD",
+      description: "Full access bundle on annual billing.",
+    },
+  ],
 
   featureList: [
     "No login required & local-first",
@@ -133,16 +173,31 @@ const webApplicationSchema = {
   ],
 };
 
+/**
+ * The single sitewide Organization node. Page-level code must not declare a second
+ * "Organization" schema (see /about, which used to) — two nodes for the same entity on
+ * one page is a duplicate-structured-data signal, not two facts. Add fields here instead.
+ */
 const organizationSchema = {
   "@context": "https://schema.org",
   "@type": "Organization",
-  name: "VeriWorkly",
+  name: siteConfig.name,
   url: siteConfig.url,
   logo: `${siteConfig.url}/veriworkly-logo.png`,
+  description: siteConfig.description,
+  email: siteConfig.email,
   founder: {
     "@type": "Person",
     name: siteConfig.creator,
+    url: siteConfig.links.github,
   },
+  knowsAbout: [
+    "AI resume writing",
+    "ATS resume optimization",
+    "Cover letter generation",
+    "Portfolio website publishing",
+    "Privacy-first data storage",
+  ],
   sameAs: [siteConfig.links.github, siteConfig.links.twitter, siteConfig.links.linkedin],
 };
 

@@ -18,6 +18,7 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
+    "db:redis": "npx redis-commander --redis-host 127.0.0.1 --redis-port 6379",
     "db:generate": "prisma generate",
     "sync:github": "tsx src/jobs/runGithubSyncOnce.ts",
     "seed:roadmap": "tsx scripts/seed-roadmap.ts",
@@ -64,8 +65,6 @@
     "eslint": "^9",
     "prettier": "^3.9.6",
     "prisma": "^7.9.1",
-    "resolve-tspaths": "^0.8.23",
-    "tsc-alias": "^1.9.1",
     "tsx": "^4.23.1",
     "typescript": "^6",
     "vitest": "^4.1.10"

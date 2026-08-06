@@ -6,12 +6,12 @@ vi.mock("#lib/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
-vi.mock("#services/atsExtractPool", () => ({
+vi.mock("#services/ats/extractPool", () => ({
   extractInChildProcess: extractInChildProcessMock,
   stopExtractPool: vi.fn(),
 }));
 
-const { AtsResumeExtractService } = await import("#services/atsResumeExtractService");
+const { AtsResumeExtractService } = await import("#services/ats/resumeExtract");
 const { ApiError } = await import("#lib/errors");
 
 function file(buffer: Buffer, originalname: string, mimetype: string) {
@@ -92,7 +92,9 @@ describe("AtsResumeExtractService", () => {
   });
 
   it("passes through pool ApiErrors so timeouts and backpressure keep their status codes", async () => {
-    extractInChildProcessMock.mockRejectedValue(new ApiError(408, "Resume extraction took too long to process."));
+    extractInChildProcessMock.mockRejectedValue(
+      new ApiError(408, "Resume extraction took too long to process."),
+    );
 
     await expect(
       AtsResumeExtractService.extract(file(Buffer.from("%PDF-"), "cv.pdf", "application/pdf")),

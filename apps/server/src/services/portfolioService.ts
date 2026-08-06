@@ -13,8 +13,8 @@ import { prisma } from "#lib/prisma";
 import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
 import { normalizeSlug, RESERVED_USERNAMES } from "#utils/slugs";
-import { cacheGet, cacheSet, cacheDel, getRedis } from "#lib/redis";
-import { userProfileCacheKey } from "#lib/cacheKeys";
+import { cacheGet, cacheSet, cacheDel, cacheDelByPrefix, getRedis } from "#lib/redis";
+import { documentListCachePrefix, userProfileCacheKey } from "#lib/cacheKeys";
 import { hashForAnalytics } from "#utils/analyticsHash";
 import { sendPortfolioUpdatedEmail } from "#services/mail/portfolioMail";
 
@@ -318,8 +318,7 @@ export class PortfolioService {
 
       await Promise.all([
         cacheDel(`document:${userId}:${document.id}`),
-        cacheDel(`documents:list:${userId}:all`),
-        cacheDel(`documents:list:${userId}:PORTFOLIO`),
+        cacheDelByPrefix(documentListCachePrefix(userId)),
         cacheDel(userProfileCacheKey(userId)),
       ]);
 
@@ -430,8 +429,7 @@ export class PortfolioService {
       await Promise.all([
         invalidatePublicPortfolioCaches(subdomains),
         cacheDel(`document:${userId}:${document.id}`),
-        cacheDel(`documents:list:${userId}:all`),
-        cacheDel(`documents:list:${userId}:PORTFOLIO`),
+        cacheDelByPrefix(documentListCachePrefix(userId)),
         ...(existingPublication && existingPublication.documentId !== document.id
           ? [cacheDel(`document:${userId}:${existingPublication.documentId}`)]
           : []),
@@ -492,8 +490,7 @@ export class PortfolioService {
     await Promise.all([
       invalidatePublicPortfolioCaches([publication.subdomain]),
       cacheDel(`document:${userId}:${publication.documentId}`),
-      cacheDel(`documents:list:${userId}:all`),
-      cacheDel(`documents:list:${userId}:PORTFOLIO`),
+      cacheDelByPrefix(documentListCachePrefix(userId)),
     ]);
 
     void revalidatePublicPortfolios([publication.subdomain]);
@@ -675,12 +672,20 @@ export class PortfolioService {
   }
 
   static async getAnalytics(userId: string) {
+    // Visitor analytics is a Creator Pro feature. This is the enforcement point — the
+    // dashboard's lock overlay is presentation only, so without this check the numbers
+    // were still serialized into the page (and readable straight off the endpoint) for
+    // every free account. `canPublish` is the same entitlement the publish path gates on.
+    const billing = await BillingService.getSummary(userId);
+
+    if (!billing.canPublish) return { locked: true, totalViews: 0, daily: [], referrers: [] };
+
     const publication = await prisma.portfolioPublication.findUnique({
       where: { userId },
       select: { id: true },
     });
 
-    if (!publication) return { totalViews: 0, daily: [], referrers: [] };
+    if (!publication) return { locked: false, totalViews: 0, daily: [], referrers: [] };
 
     const [totals, daily, referrers] = await Promise.all([
       prisma.portfolioViewDaily.aggregate({
@@ -733,6 +738,7 @@ export class PortfolioService {
       .slice(0, 30);
 
     return {
+      locked: false,
       totalViews,
       daily: sortedDaily,
       referrers: referrers.map((item) => ({

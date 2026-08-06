@@ -105,7 +105,7 @@ export default async function AdminWithdrawalsPage({
   const data = await fetchAdminWithdrawals(params);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="Revenue"
         title="Affiliate withdrawals"

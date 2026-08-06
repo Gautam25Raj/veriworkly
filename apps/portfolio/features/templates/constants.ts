@@ -3,12 +3,3 @@ export const templatesShell =
 
 export const templateAction =
   "inline-flex min-h-12 items-center justify-center gap-2 rounded-full px-6 text-sm font-bold transition duration-300 hover:-translate-y-1";
-
-export const sharedTemplateFeatures = [
-  "One reusable portfolio content model",
-  "Real live preview before choosing",
-  "Responsive pages for desktop and mobile",
-  "SEO title and social description support",
-  "VeriWorkly subdomain publishing",
-  "Private draft workflow before launch",
-];

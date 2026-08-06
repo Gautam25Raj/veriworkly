@@ -1,17 +1,19 @@
 {
   "schema_version": "1.0",
   "name": "VeriWorkly Agent Card",
-  "description": "VeriWorkly is a developer-focused, privacy-first ecosystem for building and managing professional ATS-friendly resumes. This agent card provides discovery information for AI agents to interact with our platform, API, and documentation.",
+  "description": "VeriWorkly is a developer-focused, privacy-first career workspace ecosystem for ATS-friendly resumes, cover letters, and web portfolios. This agent card provides discovery details, API endpoints, capabilities, and machine-readable resources for AI agents.",
   "contact_email": "info@veriworkly.com",
   "site_url": "https://veriworkly.com",
   "llms_txt": "https://veriworkly.com/llms.txt",
+  "pricing_md": "https://veriworkly.com/pricing.md",
+  "openapi_spec": "https://veriworkly.com/openapi.json",
 
   "api": {
     "type": "openapi",
     "url": "https://veriworkly.com/openapi.json",
     "has_user_authentication": true,
     "auth_type": "cookie, bearer",
-    "auth_details": "Web clients authenticate using Better Auth via Email OTP, establishing a session cookie ('better-auth.session_token'). Programmatic agents must use API Keys as Bearer tokens.",
+    "auth_details": "Web clients authenticate using Better Auth via Email OTP, establishing a session cookie ('better-auth.session_token'). Programmatic agents must use API Keys as Bearer tokens ('Authorization: Bearer vw_...').",
     "base_url": "https://api.veriworkly.com/api/v1"
   },
 
@@ -19,62 +21,99 @@
     {
       "name": "Main Site",
       "url": "https://veriworkly.com",
-      "description": "Landing page, marketing hub, and public roadmap tracker."
+      "description": "Marketing hub, ATS scanner, pricing, style guide, public roadmap, template gallery, and comparison engine."
     },
     {
-      "name": "Resume Studio",
+      "name": "Resume & Document Studio",
       "url": "https://app.veriworkly.com",
-      "description": "Interactive, local-first web application for building, previewing, and exporting resumes."
+      "description": "Interactive local-first workspace for building, tailoring, and exporting resumes, cover letters, and Master Profile."
+    },
+    {
+      "name": "Portfolio Builder & Publishing",
+      "url": "https://portfolio.veriworkly.com",
+      "description": "Web portfolio builder, template catalog (Signal, Atelier, Nimbus, Cipher), subdomain publishing (*.veriworkly.com), and view analytics."
     },
     {
       "name": "Documentation",
       "url": "https://docs.veriworkly.com",
-      "description": "Comprehensive technical guides, integration tutorials, and API reference."
+      "description": "Comprehensive technical guides, integration tutorials, and interactive API reference."
     },
     {
       "name": "Blog",
       "url": "https://blog.veriworkly.com",
-      "description": "Articles on career advice, product updates, and open-source engineering."
+      "description": "Articles on career engineering, product updates, and open-source architecture."
     },
     {
       "name": "API Service",
-      "url": "https://api.veriworkly.com",
-      "description": "Backend services powering document synchronization, analytics, and public sharing."
+      "url": "https://api.veriworkly.com/api/v1",
+      "description": "Node/Express backend service for auth, document sync, ATS scanning, AI tailoring, portfolios, and billing."
     }
   ],
 
   "capabilities": [
     {
       "name": "Manage Documents",
-      "description": "Create, read, update, and delete individual resume documents.",
-      "endpoints": ["/documents"]
+      "description": "Create, read, update, list, and soft-delete resume and cover letter documents.",
+      "endpoints": ["/api/v1/documents", "/api/v1/documents/{id}"]
     },
     {
-      "name": "Public Sharing",
-      "description": "Generate and revoke secure public tokens for sharing resumes.",
-      "endpoints": ["/shares"]
+      "name": "Master Profile Store",
+      "description": "Access and update the central canonical career profile used to seed new documents and portfolios.",
+      "endpoints": ["/api/v1/profiles/master"]
     },
     {
-      "name": "Master Profile Management",
-      "description": "Manage a central profile to seed multiple resumes efficiently.",
-      "endpoints": ["/profiles/master"]
+      "name": "ATS Resume Checker",
+      "description": "Deterministic ATS readiness scanning and job-description keyword match analysis.",
+      "endpoints": ["/api/v1/ats/scan", "/api/v1/ats/analyze", "/api/v1/ats/quota"]
     },
     {
-      "name": "API Key Management",
-      "description": "Create, rotate, and revoke programmatic access tokens.",
-      "endpoints": ["/api-keys"]
+      "name": "AI Content Generation & Tailoring",
+      "description": "AI-powered resume tailoring, section rewriting, bullet point generation, and cover letter drafting.",
+      "endpoints": ["/api/v1/ai/actions", "/api/v1/ai/generate"]
     },
     {
-      "name": "System & Metrics",
-      "description": "Access public roadmap progress and GitHub repository statistics.",
-      "endpoints": ["/roadmap", "/github"]
+      "name": "Profile Import & Ingestion",
+      "description": "OAuth-based GitHub profile/repo import and AI-parsed LinkedIn exported profile text extraction.",
+      "endpoints": ["/api/v1/import/github", "/api/v1/import/linkedin"]
+    },
+    {
+      "name": "Portfolio Builder & Subdomain Publishing",
+      "description": "Manage portfolio drafts, check subdomain availability, publish to custom subdomains, and inspect view analytics.",
+      "endpoints": ["/api/v1/portfolios/me", "/api/v1/portfolios/publish", "/api/v1/portfolios/analytics"]
+    },
+    {
+      "name": "Public Document Sharing",
+      "description": "Generate, configure password protection, and revoke secure share links for documents.",
+      "endpoints": ["/api/v1/shares", "/api/v1/shares/{token}"]
+    },
+    {
+      "name": "Developer API Keys",
+      "description": "Create, list, scope, rotate, and revoke programmatic access tokens.",
+      "endpoints": ["/api/v1/api-keys", "/api/v1/api-keys/{id}"]
+    },
+    {
+      "name": "Billing & AI Credit Wallet",
+      "description": "Inspect credit wallet balance, manage subscriptions, and initiate Dodo Payments checkout sessions.",
+      "endpoints": ["/api/v1/billing/summary", "/api/v1/billing/wallet", "/api/v1/billing/checkout"]
+    },
+    {
+      "name": "Affiliate & Ambassador Programs",
+      "description": "Track referral links, affiliate commissions, and student ambassador applications.",
+      "endpoints": ["/api/v1/affiliates/me", "/api/v1/ambassador/apply"]
+    },
+    {
+      "name": "Public Roadmap & System Stats",
+      "description": "Access open feature roadmap, GitHub statistics, and health metrics.",
+      "endpoints": ["/api/v1/roadmap", "/api/v1/github/stats", "/api/v1/health"]
     }
   ],
 
   "compliance": {
     "privacy_policy": "https://veriworkly.com/privacy",
     "terms_of_service": "https://veriworkly.com/terms",
-    "data_storage": "Local-first by default (in-browser), optional cloud sync to PostgreSQL."
+    "security": "https://veriworkly.com/security",
+    "data_storage": "Local-first by default (in-browser localStorage), optional cloud sync to encrypted PostgreSQL database.",
+    "ai_privacy": "Stateless AI processing. User data is processed strictly on demand and never used to train global AI models."
   },
 
   "developer": {

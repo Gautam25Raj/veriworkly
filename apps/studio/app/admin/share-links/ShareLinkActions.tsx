@@ -10,7 +10,7 @@ import { revokeAdminShareLink } from "@/features/admin/services/admin-actions";
 const ShareLinkActions = ({ id, slug }: { id: string; slug: string }) => (
   <AdminActionDialog
     trigger="Revoke"
-    triggerClassName="text-red-600"
+    triggerClassName="text-destructive"
     title="Revoke this share link"
     description={`The public URL for "${slug}" stops working immediately. The document itself is not deleted, and the owner can share it again.`}
     confirmLabel="Revoke link"

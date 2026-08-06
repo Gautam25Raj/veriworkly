@@ -3,10 +3,10 @@ import { prisma } from "#lib/prisma";
 import { config } from "#config";
 import { ApiError } from "#lib/errors";
 import { createAiClient } from "#services/aiClient";
-import { getAtsAiPolicy } from "#services/atsAiPolicy";
+import { getAtsAiPolicy } from "#services/ats/aiPolicy";
 import { DocumentService } from "#services/documentService";
 import { ProfileService } from "#services/profileService";
-import { convertedResumeSchema } from "#services/atsAiService";
+import { convertedResumeSchema } from "#services/ats/ai";
 import { ProfileImportQuotaService } from "#services/profileImportQuotaService";
 import { EntitlementService } from "#services/entitlementService";
 

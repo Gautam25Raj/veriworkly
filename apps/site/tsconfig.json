@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -19,8 +23,12 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"],
-      "@veriworkly/ui": ["../../packages/ui/src"]
+      "@/*": [
+        "./*"
+      ],
+      "@veriworkly/ui": [
+        "../../packages/ui/src"
+      ]
     }
   },
   "include": [
@@ -34,16 +42,25 @@
     "features/**/*.tsx",
     "hooks/**/*.ts",
     "hooks/**/*.tsx",
+    "lib/**/*.ts",
+    "lib/**/*.tsx",
     "providers/**/*.ts",
     "providers/**/*.tsx",
+    "scripts/**/*.ts",
+    "scripts/**/*.mts",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
     "types/**/*.ts",
     "types/**/*.tsx",
     "utils/**/*.ts",
     "utils/**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
     "next.config.ts",
-    "postcss.config.mjs"
+    "postcss.config.mjs",
+    ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules",
+    ".next/dev"
+  ]
 }

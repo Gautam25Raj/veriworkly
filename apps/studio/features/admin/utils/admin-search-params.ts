@@ -17,8 +17,3 @@ export function toSingleValueParams(params: AdminSearchParams): Record<string, s
 
   return result;
 }
-
-export function parseOffset(value: string | undefined) {
-  const parsed = Number(value ?? 0);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 0;
-}

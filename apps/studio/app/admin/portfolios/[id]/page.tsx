@@ -2,14 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Card } from "@veriworkly/ui";
-
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
+import Panel from "@/components/admin/Panel";
 import PortfolioModerationActions from "@/app/admin/portfolios/PortfolioModerationActions";
 
-import { fetchAdminPortfolioDetail } from "@/features/admin/services/admin-server";
+import { fetchAdminPortfolioDetail, loadAdminDetail } from "@/features/admin/services/admin-server";
 import {
   formatCompactNumber,
   formatDate,
@@ -30,7 +29,7 @@ export default async function AdminPortfolioDetailPage({
 }) {
   const { id } = await params;
 
-  const data = await fetchAdminPortfolioDetail(id, 30).catch(() => null);
+  const data = await loadAdminDetail(fetchAdminPortfolioDetail(id, 30));
   if (!data) notFound();
 
   const { publication, totalViews, dailyViews, topReferrers, auditEntries } = data;
@@ -40,7 +39,7 @@ export default async function AdminPortfolioDetailPage({
   const windowViews = dailyViews.reduce((sum, point) => sum + point.count, 0);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="Portfolio"
         title={publication.subdomain}
@@ -55,12 +54,12 @@ export default async function AdminPortfolioDetailPage({
       />
 
       {publication.status === "SUSPENDED" && publication.suspensionReason ? (
-        <Card className="rounded-3xl border-red-500/30 bg-red-500/5 p-5">
-          <p className="text-sm font-medium text-red-700 dark:text-red-400">
+        <Panel className="border-destructive/30 bg-destructive/5 rounded-xl p-4">
+          <p className="text-destructive text-sm font-medium">
             Suspended {formatDateTime(publication.suspendedAt)}
           </p>
           <p className="text-muted mt-1 text-sm">{publication.suspensionReason}</p>
-        </Card>
+        </Panel>
       ) : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -77,9 +76,9 @@ export default async function AdminPortfolioDetailPage({
         />
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
+      <div className="grid gap-3 lg:grid-cols-[1fr_20rem]">
         <div className="space-y-4">
-          <Card className="space-y-4 rounded-3xl p-6">
+          <Panel className="space-y-4 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">Views, last 30 days</h3>
 
             {dailyViews.length === 0 ? (
@@ -105,9 +104,9 @@ export default async function AdminPortfolioDetailPage({
                 <span>{dailyViews[dailyViews.length - 1]?.date}</span>
               </div>
             ) : null}
-          </Card>
+          </Panel>
 
-          <Card className="space-y-3 rounded-3xl p-6">
+          <Panel className="space-y-3 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">Moderation history</h3>
 
             {auditEntries.length === 0 ? (
@@ -125,11 +124,11 @@ export default async function AdminPortfolioDetailPage({
                 ))}
               </div>
             )}
-          </Card>
+          </Panel>
         </div>
 
         <div className="space-y-4">
-          <Card className="space-y-3 rounded-3xl p-6">
+          <Panel className="space-y-3 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">Owner</h3>
 
             <Link
@@ -147,9 +146,9 @@ export default async function AdminPortfolioDetailPage({
                 joined {formatDate(publication.user.createdAt)}
               </span>
             </div>
-          </Card>
+          </Panel>
 
-          <Card className="space-y-3 rounded-3xl p-6">
+          <Panel className="space-y-3 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">Top referrers (30d)</h3>
 
             {topReferrers.length === 0 ? (
@@ -166,9 +165,9 @@ export default async function AdminPortfolioDetailPage({
                 ))}
               </div>
             )}
-          </Card>
+          </Panel>
 
-          <Card className="space-y-2 rounded-3xl p-6">
+          <Panel className="space-y-2 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">Source document</h3>
 
             <p className="text-foreground text-sm">{publication.document.title}</p>
@@ -180,7 +179,7 @@ export default async function AdminPortfolioDetailPage({
             >
               Open in documents →
             </Link>
-          </Card>
+          </Panel>
         </div>
       </div>
     </div>

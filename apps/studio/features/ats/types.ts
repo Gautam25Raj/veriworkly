@@ -1,5 +1,6 @@
 export type AtsRuleResult = {
   id: string;
+  category: string;
   severity: "info" | "warning" | "error";
   passed: boolean;
   evidence: string;
@@ -7,14 +8,39 @@ export type AtsRuleResult = {
   fix: string;
 };
 
+export type AtsVerdict = "strong" | "needs-work" | "weak";
+
+/** Per-area rollup of the deterministic rules, so the panel can show where the score went. */
+export type AtsCategoryScore = {
+  category: string;
+  score: number;
+  passed: number;
+  total: number;
+  lost: number;
+  possible: number;
+};
+
+/**
+ * Studio only ever calls /ats/check and /ats/analyze while logged in, so it always receives
+ * the full (unrestricted) report — the anonymous, score-only shape is a site-checker concern.
+ */
 export type AtsReport = {
-  version: "ats-v1";
+  version: "ats-v2";
+  restricted: false;
+  verdict: AtsVerdict;
   readinessScore: number;
   jobMatchScore: number | null;
+  matchedKeywords: string[];
+  missingKeywords: string[];
   parsingWarnings: string[];
   strengths: string[];
   failedChecks: AtsRuleResult[];
   prioritizedFixes: string[];
+  rules: AtsRuleResult[];
+  categories: AtsCategoryScore[];
+  checksPassed: number;
+  checksTotal: number;
+  wordCount: number;
 };
 
 export type AtsResult = {
@@ -35,6 +61,7 @@ export type AtsResult = {
     resetsAt: string;
     canConvertResume: boolean;
     pricing: AtsPricing;
+    extract: { limit: number; used: number; remaining: number };
   };
 };
 

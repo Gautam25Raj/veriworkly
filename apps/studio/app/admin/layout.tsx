@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
 
-import AdminNavbar from "@/components/admin/AdminNavbar";
-import { requireAdminUser } from "@/features/admin/services/admin-server";
+import { AuthInitializer } from "@/providers/auth-provider";
+import AdminShell from "@/components/admin/shell/AdminShell";
+import ChartDefs from "@/components/admin/charts/ChartDefs";
+import { fetchAdminActionQueue, requireAdminUser } from "@/features/admin/services/admin-server";
 
 export const metadata: Metadata = {
   title: "Admin",
@@ -14,14 +16,27 @@ const AdminLayout = async ({ children }: { children: ReactNode }) => {
   // Fails closed (404) for any non-admin session before rendering anything below —
   // the backend independently re-enforces this on every admin API call, but the
   // frontend must not rely on that alone (see requireAdminUser's doc comment).
-  await requireAdminUser();
+  const admin = await requireAdminUser();
+
+  // Drives the sidebar's queue badges. Safe to run on every navigation: it is six counts, and
+  // it degrades to zeros rather than throwing, so a counting hiccup cannot break the nav.
+  const queue = await fetchAdminActionQueue();
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(180,216,200,0.20),transparent_50%),linear-gradient(180deg,rgba(10,14,18,0.02)_0%,rgba(10,14,18,0)_45%)]">
-      <AdminNavbar />
+    <AdminShell adminEmail={admin.email} queue={queue}>
+      {/*
+        Hydrates the client auth store for the whole admin section. This used to live on the
+        dashboard page alone, which left every other admin page rendering with an empty user
+        store — anything reading `useUserStore` from an inner page saw null until the operator
+        happened to visit `/admin` first.
+      */}
+      <AuthInitializer initialUser={admin} />
 
-      <main className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 md:py-10">{children}</main>
-    </div>
+      {/* Chart gradients, declared once here so no chart needs `useId` to own one. */}
+      <ChartDefs />
+
+      {children}
+    </AdminShell>
   );
 };
 

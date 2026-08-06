@@ -22,6 +22,14 @@ Manages authentication and application preferences:
   username-scoped (`/share/{username}/{slug}`).
 - **Preferences** — theme (light, dark, or follow system) and the auto-sync toggle.
 
+<Callout type="warn" title="A username is permanent">
+  You can only set a username once. It is baked into every share URL you have handed out — and, on a
+  plan with `custom_subdomain`, into your published portfolio's address — so the API rejects a
+  change with `409 Username is locked and cannot be changed`. Your input is normalised before it is
+  stored (lowercased, non-alphanumerics folded to hyphens, truncated to 32 characters), so check
+  what you will actually get before committing.
+</Callout>
+
 ### Your Master Profile
 
 The canonical record of your career history — work experience, education, projects, skills,
@@ -80,10 +88,9 @@ counter; if the cloud copy has moved on since your device last synced, the write
 the document is marked `conflicted` rather than overwritten. Resolve it from the conflict details
 view at `/settings`.
 
-<Callout type="warn" title="Known issue: editing during an in-flight sync">
-  If you keep typing while a sync request is in flight, the completion handler can write its
-  pre-sync snapshot back over your newer local edits, losing the interim keystrokes. This is a known
-  unresolved issue. If you are editing heavily, prefer manual **Sync Now** over auto-sync.
+<Callout type="info" title="You can keep typing during a sync">
+  When a sync request is in flight, the response only updates the document's sync metadata — never
+  its content. Edits you make while waiting are not overwritten when the request lands.
 </Callout>
 
 ---

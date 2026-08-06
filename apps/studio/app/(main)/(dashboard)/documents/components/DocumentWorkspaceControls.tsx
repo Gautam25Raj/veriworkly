@@ -2,29 +2,6 @@
 
 import type { ReactNode } from "react";
 
-export function TabButton({
-  active,
-  children,
-  onClick,
-}: {
-  active: boolean;
-  children: ReactNode;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={
-        active ? "border-accent border-b-2 pb-2 text-base font-bold" : "text-muted pb-2 text-base"
-      }
-    >
-      {children}
-    </button>
-  );
-}
-
 export function IconToggle({
   active,
   label,

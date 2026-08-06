@@ -35,7 +35,7 @@ const ApiKeyActions = ({ id, name, isActive, revoked }: ApiKeyActionsProps) => {
 
       <AdminActionDialog
         trigger="Revoke"
-        triggerClassName="text-red-600"
+        triggerClassName="text-destructive"
         title="Revoke this API key permanently"
         description={`"${name}" is revoked for good. Use this when a key has leaked — a revoked key can never be re-enabled.`}
         confirmLabel="Revoke permanently"

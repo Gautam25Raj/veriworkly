@@ -102,16 +102,19 @@ export const COMPETITORS: Competitor[] = [
         answer:
           "Rezi has a free plan, but it's capped at one resume and three PDF downloads total. Unformatted, unlimited exports require the $29/month Pro plan or the $149 one-time lifetime plan.",
       },
+
       {
         question: "Do I need an account to use Rezi?",
         answer:
           "Yes — Rezi requires a free account before you can start building. VeriWorkly lets you start building a resume immediately, with no login and no email required.",
       },
+
       {
         question: "Does Rezi have a portfolio or personal website builder?",
         answer:
           "No — Rezi is focused on the resume and its ATS checker; it doesn't build a personal website. VeriWorkly bundles a portfolio builder alongside the resume and cover letter tools at no extra cost.",
       },
+
       {
         question: "What's a good free alternative to Rezi?",
         answer:
@@ -161,16 +164,19 @@ export const COMPETITORS: Competitor[] = [
         answer:
           "Yes, more so than most competitors — unlimited resumes and PDF downloads, plus the job tracker, are free. Teal+ (around $29/month) adds AI writing tools and unlimited ATS keyword matching.",
       },
+
       {
         question: "Do I need to sign up to use Teal?",
         answer:
           "Yes — Teal requires a free account before you can build a resume or use the tracker. VeriWorkly's resume and portfolio builder works immediately with no login required.",
       },
+
       {
         question: "What does Teal do that VeriWorkly doesn't?",
         answer:
           "Teal's job-application tracker and browser extension are its strongest differentiators — VeriWorkly doesn't track applications. VeriWorkly's focus is the document side: resume, cover letter, portfolio, and Master Profile sync, without an account requirement.",
       },
+
       {
         question: "Is there a local-first alternative to Teal?",
         answer:
@@ -220,16 +226,19 @@ export const COMPETITORS: Competitor[] = [
         answer:
           "Yes — Kickresume includes personal website templates, similar to VeriWorkly's portfolio builder. Kickresume gates more website templates behind Premium; VeriWorkly's portfolio builder is free to start.",
       },
+
       {
         question: "Can I try Kickresume without signing up?",
         answer:
           "No — Kickresume requires an account (email, Google, LinkedIn, Facebook, or Apple) before you can start building. VeriWorkly doesn't require login to start a resume, cover letter, or portfolio.",
       },
+
       {
         question: "Is Kickresume's free plan good enough to actually use?",
         answer:
           "It's usable but limited — customization options are restricted on the free tier, and Premium unlocks the full template and phrase library. VeriWorkly's free tier isn't gated behind a customization paywall.",
       },
+
       {
         question: "What's a free, open-source alternative to Kickresume?",
         answer:
@@ -279,16 +288,19 @@ export const COMPETITORS: Competitor[] = [
         answer:
           "It's capped at one page, three fonts, and no cover letter. VeriWorkly's free tier doesn't cap you to one page or restrict which document types you can build.",
       },
+
       {
         question: "Does Novoresume check my resume against a specific job posting?",
         answer:
           "No — its ATS checker scores general resume quality and completeness rather than matching keywords against a specific job description. VeriWorkly's ATS checker is built around matching a resume to a target job posting.",
       },
+
       {
         question: "Can I export a Word (DOCX) file from Novoresume?",
         answer:
           "No — Novoresume only exports to PDF. VeriWorkly exports to PDF, DOCX, and Markdown, which matters if a recruiter or ATS specifically asks for a Word file.",
       },
+
       {
         question: "What's a free alternative to Novoresume without the 1-page limit?",
         answer:
@@ -341,16 +353,19 @@ export const COMPETITORS: Competitor[] = [
         answer:
           "You can build a resume for free, but only a plain-text download is included. A formatted PDF or Word document requires a paid plan — commonly a 14-day, $1.95 trial that renews into a subscription if not cancelled.",
       },
+
       {
         question: "Why do people complain about Zety's pricing?",
         answer:
           "The most common complaint is the low-cost trial converting into a recurring subscription, with some users reporting difficulty cancelling. If you go this route, check the cancellation terms closely before entering payment details.",
       },
+
       {
         question: "Can I download a formatted resume from Zety without paying?",
         answer:
           "No — the free tier only exports plain text (.txt), which most recruiters and ATS systems won't accept as a final document. A paid plan is required for a formatted PDF or Word file.",
       },
+
       {
         question: "What's a free alternative to Zety with no trial-to-subscription trap?",
         answer:
@@ -400,16 +415,19 @@ export const COMPETITORS: Competitor[] = [
         answer:
           "No — free and trial downloads on Enhancv carry Enhancv branding. Removing the watermark requires a paid Pro plan, priced from about $13 to $25 per month depending on billing term.",
       },
+
       {
         question: "Is Enhancv worth the higher price?",
         answer:
           "Its content analyzer and personal-branding template sections are distinctive. Whether that justifies a $19.99+/month plan depends on how much you value that specific writing feedback versus a free, unwatermarked alternative.",
       },
+
       {
         question: "Can I download an Enhancv resume for free without a watermark?",
         answer:
           "No — Enhancv's free tier is a 7-day trial that watermarks every download and caps content at 12 items. VeriWorkly's free exports have no time limit, no watermark, and no content cap.",
       },
+
       {
         question: "What's a free alternative to Enhancv without a watermark or trial limit?",
         answer:

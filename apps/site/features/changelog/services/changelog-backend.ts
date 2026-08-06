@@ -211,6 +211,95 @@ export async function fetchLatestChangelogPublishedAt(): Promise<Date | null> {
   }
 }
 
+export interface ChangelogIndexItem {
+  id: string;
+  version: string;
+  title: string;
+  type: ChangelogType;
+  publishedAt: string;
+}
+
+/**
+ * Hard ceiling on how far back the index walk goes. Each page is a separate week-cached
+ * fetch, so the cost is a handful of upstream requests per deploy no matter how many
+ * detail pages render — but an unbounded loop against a misbehaving backend is not
+ * something a page render should be able to start.
+ */
+const MAX_INDEX_PAGES = 8;
+
+/**
+ * Every release, newest first, assembled from the same paginated `/changelog?limit=15&offset=…`
+ * URLs the listing page already fetches. Reusing those exact URLs matters: they are Data Cache
+ * hits, so the detail pages and `generateStaticParams` cost no extra backend round trips beyond
+ * the listing's own — page 1, which covers almost every lookup, is already warm.
+ */
+async function fetchAllChangelogEntries(): Promise<ChangelogEntry[]> {
+  const collected: ChangelogEntry[] = [];
+
+  try {
+    for (let page = 1; page <= MAX_INDEX_PAGES; page++) {
+      const { entries, total } = await fetchChangelogPage({}, page);
+
+      collected.push(...entries);
+
+      if (entries.length === 0 || collected.length >= total) break;
+    }
+  } catch (err) {
+    console.error("Failed to build changelog index:", err);
+  }
+
+  return collected;
+}
+
+function toIndexItem({
+  id,
+  version,
+  title,
+  type,
+  publishedAt,
+}: ChangelogEntry): ChangelogIndexItem {
+  return { id, version, title, type, publishedAt };
+}
+
+/** Compact newest-first list, for `generateStaticParams` and the sitemap. */
+export async function fetchChangelogIndex(): Promise<ChangelogIndexItem[]> {
+  return (await fetchAllChangelogEntries()).map(toIndexItem);
+}
+
+export interface ChangelogDetail {
+  entry: ChangelogEntry;
+  /** The release immediately before this one chronologically. */
+  older: ChangelogIndexItem | null;
+  /** The release immediately after this one chronologically. */
+  newer: ChangelogIndexItem | null;
+  /** True when this is the most recent release overall. */
+  isLatest: boolean;
+}
+
+/**
+ * Everything a detail page needs in one shot. The entry itself comes out of the cached index
+ * rather than a second `/changelog/:id` call — the listing already carries the full record, so
+ * the by-id endpoint is only touched for entries older than the index window.
+ */
+export async function fetchChangelogDetail(id: string): Promise<ChangelogDetail | null> {
+  const all = await fetchAllChangelogEntries();
+  const position = all.findIndex((item) => item.id === id);
+
+  if (position !== -1) {
+    return {
+      entry: all[position],
+      older: all[position + 1] ? toIndexItem(all[position + 1]) : null,
+      newer: all[position - 1] ? toIndexItem(all[position - 1]) : null,
+      isLatest: position === 0,
+    };
+  }
+
+  const entry = await fetchChangelogEntryById(id);
+  if (!entry) return null;
+
+  return { entry, older: null, newer: null, isLatest: false };
+}
+
 export async function fetchChangelogEntryById(id: string): Promise<ChangelogEntry | null> {
   try {
     const entry = await fetchApiData<ChangelogEntry>(`/changelog/${id}`, {

@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
-import { buttonClassName } from "@veriworkly/ui";
+import { cn } from "@veriworkly/ui";
 
 interface AdminPaginationProps {
   total: number;
@@ -30,6 +31,9 @@ function buildHref(
   return query ? `${basePath}?${query}` : basePath;
 }
 
+const controlClass =
+  "border-border text-foreground hover:border-accent/40 hover:bg-admin-inset focus-visible:ring-accent inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-xs font-medium transition focus-visible:ring-2 focus-visible:outline-none";
+
 const AdminPagination = ({ total, limit, offset, basePath, params = {} }: AdminPaginationProps) => {
   const page = Math.floor(offset / limit) + 1;
   const pageCount = Math.max(1, Math.ceil(total / limit));
@@ -40,38 +44,50 @@ const AdminPagination = ({ total, limit, offset, basePath, params = {} }: AdminP
   const rangeStart = total === 0 ? 0 : offset + 1;
   const rangeEnd = Math.min(offset + limit, total);
 
+  // A single page of results needs no controls at all.
+  if (total <= limit && offset === 0) {
+    return total === 0 ? null : (
+      <p className="text-muted admin-numeric px-1 text-xs">
+        {total} {total === 1 ? "result" : "results"}
+      </p>
+    );
+  }
+
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-muted text-xs">
-        Showing <span className="text-foreground font-medium">{rangeStart}</span>–
+    <div className="flex flex-wrap items-center justify-between gap-3 px-1">
+      <p className="text-muted admin-numeric text-xs">
+        <span className="text-foreground font-medium">{rangeStart}</span>–
         <span className="text-foreground font-medium">{rangeEnd}</span> of{" "}
-        <span className="text-foreground font-medium">{total}</span> · page {page} of {pageCount}
+        <span className="text-foreground font-medium">{total.toLocaleString("en-US")}</span>
+        <span className="mx-1.5 opacity-50">·</span>
+        page {page} of {pageCount}
       </p>
 
       <div className="flex items-center gap-2">
         {hasPrevious ? (
           <Link
             href={buildHref(basePath, params, Math.max(0, offset - limit))}
-            className={buttonClassName("secondary", "sm")}
+            className={controlClass}
           >
+            <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
             Previous
           </Link>
         ) : (
-          <span className={`${buttonClassName("secondary", "sm")} pointer-events-none opacity-40`}>
+          <span className={cn(controlClass, "pointer-events-none opacity-40")} aria-hidden="true">
+            <ChevronLeft className="h-3.5 w-3.5" />
             Previous
           </span>
         )}
 
         {hasNext ? (
-          <Link
-            href={buildHref(basePath, params, offset + limit)}
-            className={buttonClassName("secondary", "sm")}
-          >
+          <Link href={buildHref(basePath, params, offset + limit)} className={controlClass}>
             Next
+            <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
           </Link>
         ) : (
-          <span className={`${buttonClassName("secondary", "sm")} pointer-events-none opacity-40`}>
+          <span className={cn(controlClass, "pointer-events-none opacity-40")} aria-hidden="true">
             Next
+            <ChevronRight className="h-3.5 w-3.5" />
           </span>
         )}
       </div>

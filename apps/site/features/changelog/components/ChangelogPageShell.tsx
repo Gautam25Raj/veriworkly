@@ -44,9 +44,12 @@ const ChangelogPageShell = ({
         <ChangelogContributors stats={stats} />
 
         <div className="border-border/40 bg-card/30 mb-10 flex flex-col gap-4 rounded-3xl border p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] sm:flex-row sm:items-center sm:justify-between">
-          <div className="scrollbar-none overflow-x-auto pb-1.5 sm:pb-0">
-            <ChangelogTypeFilters activeType={activeType} search={search} />
-          </div>
+          {/*
+            Wraps rather than scrolling. The old `overflow-x-auto scrollbar-none` combination
+            clipped "Patch" off the right edge on narrow phones with no scrollbar to hint that
+            anything was there — a filter you cannot see is a filter you cannot use.
+          */}
+          <ChangelogTypeFilters activeType={activeType} search={search} />
 
           <Suspense fallback={<div className="h-9 w-full sm:w-64" />}>
             <ChangelogSearch />
@@ -55,7 +58,7 @@ const ChangelogPageShell = ({
 
         <ChangelogStatsGrid stats={stats} />
 
-        <ChangelogTimeline entries={entries} />
+        <ChangelogTimeline entries={entries} latestVersion={stats?.latest?.version} />
 
         {data?.pagination && (
           <ChangelogPagination

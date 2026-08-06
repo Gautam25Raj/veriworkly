@@ -4,7 +4,7 @@ import { Prisma } from "@prisma/client";
 import { config } from "#config";
 import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
-import { cacheDelByPrefix, getRedis } from "#lib/redis";
+import { cacheDel, cacheDelByPrefix, getRedis } from "#lib/redis";
 import { logger } from "#lib/logger";
 
 import {
@@ -22,6 +22,34 @@ const RELEASE_LOCK_LUA_SCRIPT = `
       return 0
   end
 `;
+
+/**
+ * Set (with a TTL of `changelogSync.minIntervalSeconds`) after every completed sync, whether or
+ * not it created anything. Its presence means "GitHub was scanned recently", which is what the
+ * startup run needs to know — the previous code had no such memory, so every boot re-paginated
+ * the releases API and then issued one `SELECT` per release to rediscover that all of them were
+ * already stored. Under `tsx watch` that fired on every file save.
+ *
+ * Redis-backed rather than a DB column because losing it is harmless: the worst case is one
+ * extra sync that finds nothing.
+ */
+const SYNC_MARKER_KEY = "changelog:release-sync:last-run";
+
+/**
+ * Whether a startup sync is worth running. Cron runs deliberately bypass this — the schedule is
+ * the intent there — so only the boot path pays the freshness check.
+ */
+export async function shouldSyncChangelogReleases(): Promise<boolean> {
+  try {
+    const marker = await getRedis().get(SYNC_MARKER_KEY);
+    return marker === null;
+  } catch (error) {
+    // A Redis read failure must not permanently disable the sync; the lock below still
+    // prevents two instances from syncing at once.
+    logger.warn("Changelog release sync freshness check failed; syncing anyway", error);
+    return true;
+  }
+}
 
 function deriveTitle(release: GitHubReleasePayload, version: string): string {
   if (!release.name) return `Release v${version}`;
@@ -43,7 +71,9 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
   const { owner, repo, token } = config.github;
 
   if (!owner || !repo || !token) {
-    logger.warn("Changelog release sync skipped: GITHUB_OWNER/GITHUB_REPO/GITHUB_TOKEN not configured.");
+    logger.warn(
+      "Changelog release sync skipped: GITHUB_OWNER/GITHUB_REPO/GITHUB_TOKEN not configured.",
+    );
     return { created: 0, skipped: 0, total: 0 };
   }
 
@@ -61,17 +91,25 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
   try {
     const releases = await fetchAllGitHubReleases(owner, repo, token);
 
+    // One `IN (...)` lookup for the whole batch instead of a `findUnique` per release. The
+    // steady state — every release already stored — is now a single query rather than one
+    // per tag, which is what made an idempotent no-op sync look like a busy one in the logs.
+    const releaseIds = releases.map((release) => slugifyVersion(parseReleaseTag(release.tag_name)));
+    const storedRows = await prisma.changelogEntry.findMany({
+      where: { id: { in: releaseIds } },
+      select: { id: true },
+    });
+    const storedIds = new Set(storedRows.map((row) => row.id));
+
     let created = 0;
     let skipped = 0;
 
     for (let index = 0; index < releases.length; index++) {
       const release = releases[index];
       const version = parseReleaseTag(release.tag_name);
-      const id = slugifyVersion(version);
+      const id = releaseIds[index];
 
-      const existing = await prisma.changelogEntry.findUnique({ where: { id }, select: { id: true } });
-
-      if (existing) {
+      if (storedIds.has(id)) {
         skipped++;
         continue;
       }
@@ -115,8 +153,20 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
     }
 
     if (created > 0) {
-      await cacheDelByPrefix("changelog:");
+      // Scoped to the read caches. A blanket `changelog:` wipe would also drop the freshness
+      // marker set just below, handing the next boot a needless full re-scan.
+      await Promise.all([
+        cacheDelByPrefix("changelog:list:"),
+        cacheDelByPrefix("changelog:entry:"),
+      ]);
+      await cacheDel("changelog:stats");
     }
+
+    await redis
+      .set(SYNC_MARKER_KEY, new Date().toISOString(), {
+        EX: Math.max(60, config.changelogSync.minIntervalSeconds),
+      })
+      .catch((err) => logger.error("Failed to record changelog sync freshness marker", err));
 
     logger.info(`Changelog release sync complete: ${created} created, ${skipped} already present`);
 

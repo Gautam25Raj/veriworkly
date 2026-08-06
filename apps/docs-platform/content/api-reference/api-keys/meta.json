@@ -4,6 +4,7 @@
   "pages": [
     "overview",
     "getAllApiKeys",
+    "getApiKey",
     "createApiKey",
     "rotateApiKey",
     "revokeApiKey",

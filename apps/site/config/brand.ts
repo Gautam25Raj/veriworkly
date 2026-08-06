@@ -34,6 +34,7 @@ export const brandColors: BrandColorToken[] = [
     description: "Primary page background. Warm ivory in light, near-black in dark.",
     core: true,
   },
+
   {
     name: "Foreground",
     variable: "--foreground",
@@ -42,6 +43,7 @@ export const brandColors: BrandColorToken[] = [
     description: "Primary text colour.",
     core: true,
   },
+
   {
     name: "Accent",
     variable: "--accent",
@@ -50,6 +52,7 @@ export const brandColors: BrandColorToken[] = [
     description: "Links, CTAs, and focus rings. Lifted in dark mode to hold contrast.",
     core: true,
   },
+
   {
     name: "Accent Foreground",
     variable: "--accent-foreground",
@@ -58,6 +61,7 @@ export const brandColors: BrandColorToken[] = [
     description: "Text and icons placed on an accent fill.",
     core: true,
   },
+
   {
     name: "Card",
     variable: "--card",
@@ -66,6 +70,7 @@ export const brandColors: BrandColorToken[] = [
     description: "Raised component surfaces, one step off the page background.",
     core: true,
   },
+
   {
     name: "Muted",
     variable: "--muted",
@@ -74,6 +79,7 @@ export const brandColors: BrandColorToken[] = [
     description: "Secondary text, metadata, and captions.",
     core: true,
   },
+
   {
     name: "Border",
     variable: "--border",
@@ -82,6 +88,7 @@ export const brandColors: BrandColorToken[] = [
     description: "Dividers and outlines. Always an alpha value, never a solid grey.",
     core: true,
   },
+
   {
     name: "Destructive",
     variable: "--destructive",
@@ -90,6 +97,7 @@ export const brandColors: BrandColorToken[] = [
     description: "Errors, destructive actions, and failed states.",
     core: true,
   },
+
   {
     name: "Success",
     variable: "--success",
@@ -98,6 +106,7 @@ export const brandColors: BrandColorToken[] = [
     description: "Completed, valid, and passing states.",
     core: false,
   },
+
   {
     name: "Warning",
     variable: "--warning",
@@ -106,6 +115,7 @@ export const brandColors: BrandColorToken[] = [
     description: "States that need attention but have not failed.",
     core: false,
   },
+
   {
     name: "Muted Foreground",
     variable: "--muted-foreground",
@@ -114,6 +124,7 @@ export const brandColors: BrandColorToken[] = [
     description: "Text on a muted fill. Intentionally identical in both themes.",
     core: false,
   },
+
   {
     name: "Destructive Foreground",
     variable: "--destructive-foreground",
@@ -122,6 +133,7 @@ export const brandColors: BrandColorToken[] = [
     description: "Text on a destructive fill.",
     core: false,
   },
+
   {
     name: "Success Foreground",
     variable: "--success-foreground",
@@ -130,6 +142,7 @@ export const brandColors: BrandColorToken[] = [
     description: "Text on a success fill.",
     core: false,
   },
+
   {
     name: "Warning Foreground",
     variable: "--warning-foreground",
@@ -138,6 +151,7 @@ export const brandColors: BrandColorToken[] = [
     description: "Text on a warning fill.",
     core: false,
   },
+
   {
     name: "Docs Highlight",
     variable: "--fd-accent",
@@ -169,6 +183,7 @@ export const logoAssets: LogoAsset[] = [
     format: "SVG",
     usage: "Preferred everywhere. Scales to any size, print included.",
   },
+
   {
     name: "Single Colour",
     file: "veriworkly-logo-mono.svg",
@@ -176,6 +191,7 @@ export const logoAssets: LogoAsset[] = [
     format: "SVG",
     usage: "One-colour print, embroidery, and any ground where the facets lose contrast.",
   },
+
   {
     name: "Raster Mark",
     file: "veriworkly-logo-256.png",
@@ -183,6 +199,7 @@ export const logoAssets: LogoAsset[] = [
     format: "PNG",
     usage: "Fallback where SVG is not accepted.",
   },
+
   {
     name: "App Icon",
     file: "veriworkly-icon-512.png",
@@ -190,6 +207,7 @@ export const logoAssets: LogoAsset[] = [
     format: "PNG",
     usage: "Store listings and PWA manifests.",
   },
+
   {
     name: "App Icon (Small)",
     file: "veriworkly-icon-192.png",
@@ -197,6 +215,7 @@ export const logoAssets: LogoAsset[] = [
     format: "PNG",
     usage: "Android home screen and manifest.",
   },
+
   {
     name: "Apple Touch Icon",
     file: "veriworkly-icon-apple-touch.png",
@@ -241,6 +260,7 @@ export const typeScale: TypeScaleStep[] = [
     lineHeight: "1.0",
     usage: "Page-opening headline. One per page.",
   },
+
   {
     label: "Section",
     className: "text-3xl font-semibold tracking-tight",
@@ -250,6 +270,7 @@ export const typeScale: TypeScaleStep[] = [
     lineHeight: "36 px",
     usage: "Section headings.",
   },
+
   {
     label: "Component",
     className: "text-xl font-semibold tracking-tight",
@@ -259,6 +280,7 @@ export const typeScale: TypeScaleStep[] = [
     lineHeight: "28 px",
     usage: "Card and panel titles.",
   },
+
   {
     label: "Body Large",
     className: "text-base leading-8 md:text-lg",
@@ -268,6 +290,7 @@ export const typeScale: TypeScaleStep[] = [
     lineHeight: "32 px",
     usage: "Lead paragraphs and marketing copy.",
   },
+
   {
     label: "Body",
     className: "text-sm leading-relaxed",
@@ -277,6 +300,7 @@ export const typeScale: TypeScaleStep[] = [
     lineHeight: "1.625",
     usage: "Descriptions, list items, and dense UI text.",
   },
+
   {
     label: "Eyebrow",
     className: "text-xs font-semibold tracking-[0.24em] uppercase",
@@ -286,6 +310,7 @@ export const typeScale: TypeScaleStep[] = [
     lineHeight: "16 px",
     usage: "Labels above a heading. Always uppercase.",
   },
+
   {
     label: "Mono Meta",
     className: "font-mono text-xs",
@@ -303,6 +328,7 @@ export const fontStack = {
     variable: "--font-geist-sans",
     usage: "Interface and body copy.",
   },
+
   mono: {
     family: "Geist Mono",
     variable: "--font-geist-mono",
@@ -319,18 +345,21 @@ export const motionTokens = [
     easing: "ease (default)",
     usage: "Hover and focus colour changes on links, cards, and buttons.",
   },
+
   {
     name: "Enter",
     value: "200 ms",
     easing: "cubic-bezier(0.16, 1, 0.3, 1)",
     usage: "Popovers, dropdowns, and dialogs appearing (animate-scale-in).",
   },
+
   {
     name: "Shimmer",
     value: "2.2 s loop",
     easing: "ease-in-out",
     usage: "Skeleton loading placeholders (animate-shimmer).",
   },
+
   {
     name: "Pulse ring",
     value: "2.4 s loop",
@@ -352,6 +381,7 @@ export const pressFacts = {
   repository: siteConfig.links.github,
   licence: "MIT",
   model: "Free-to-use and open-core",
+
   socials: [
     { label: "X", handle: siteConfig.twitter.handle, href: siteConfig.links.twitter },
     { label: "LinkedIn", handle: "/company/veriworkly", href: siteConfig.links.linkedin },

@@ -115,11 +115,20 @@ npm run format:write
 # Backend test suite (Vitest)
 npm test -w @veriworkly/server
 
-# Studio contract tests (Vitest)
+# Frontend contract and unit suites (Vitest)
 npm run test:contracts -w @veriworkly/studio
+npm run test:contracts -w @veriworkly/site
+npm test -w @veriworkly/portfolio
 
 # Verify every workspace builds
 npm run build
+```
+
+If you touched a resume or cover letter template, also run the preview/PDF parity harness — it is
+the only thing that proves the live preview and the exported PDF still agree:
+
+```bash
+npm run test:parity -w @veriworkly/studio
 ```
 
 <Callout type="warn" title="There is no root `npm test`">

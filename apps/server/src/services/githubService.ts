@@ -273,7 +273,10 @@ export interface ParsedReleaseBody {
   security: string[];
 }
 
-const CATEGORY_KEYWORDS: Array<{ pattern: RegExp; category: keyof Omit<ParsedReleaseBody, "summary"> }> = [
+const CATEGORY_KEYWORDS: Array<{
+  pattern: RegExp;
+  category: keyof Omit<ParsedReleaseBody, "summary">;
+}> = [
   { pattern: /security/i, category: "security" },
   { pattern: /breaking/i, category: "breaking" },
   { pattern: /fix|bug/i, category: "fixed" },
@@ -340,7 +343,9 @@ async function derivePrRefsFromCommits(
   token: string,
   baseTag: string | undefined,
   headTag: string,
-): Promise<Array<{ number: number; title: string; url: string; author: GitHubPullRequestSummary["author"] }>> {
+): Promise<
+  Array<{ number: number; title: string; url: string; author: GitHubPullRequestSummary["author"] }>
+> {
   if (!baseTag) return [];
 
   let commits: Array<{ commit: { message: string } }>;
@@ -364,7 +369,12 @@ async function derivePrRefsFromCommits(
     if (prNumbers.size >= 20) break;
   }
 
-  const refs: Array<{ number: number; title: string; url: string; author: GitHubPullRequestSummary["author"] }> = [];
+  const refs: Array<{
+    number: number;
+    title: string;
+    url: string;
+    author: GitHubPullRequestSummary["author"];
+  }> = [];
 
   for (const number of prNumbers) {
     try {

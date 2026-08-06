@@ -199,5 +199,3 @@ const TemplateExplorer = ({ docTypeLabel, templates, familyDescriptions }: Props
 };
 
 export default TemplateExplorer;
-
-export { ALL as ALL_TEMPLATE_FILTER };

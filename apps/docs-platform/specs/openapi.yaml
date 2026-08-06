@@ -60,6 +60,8 @@ tags:
     description: Operations related to authenticated users.
   - name: Roadmap
     description: Operations related to roadmap.
+  - name: Changelog
+    description: Published release notes, filtering, and contributor statistics.
   - name: GitHub
     description: GitHub issues, pull requests, and repository statistics.
   - name: Authentication
@@ -99,6 +101,12 @@ paths:
     $ref: "./paths/users.yaml#/getCurrentUser"
   /api/v1/users/me/name:
     $ref: "./paths/users.yaml#/updateUserName"
+  /api/v1/users/me/username:
+    $ref: "./paths/users.yaml#/setUsername"
+  /api/v1/users/me/sync:
+    $ref: "./paths/users.yaml#/updateAutoSync"
+  /api/v1/users/{username}/availability:
+    $ref: "./paths/users.yaml#/checkUsernameAvailability"
 
   /api/v1/roadmap:
     $ref: "./paths/roadmap.yaml#/getRoadmap"
@@ -106,6 +114,13 @@ paths:
     $ref: "./paths/roadmap.yaml#/getRoadmapStats"
   /api/v1/roadmap/{id}:
     $ref: "./paths/roadmap.yaml#/getRoadmapFeatureById"
+
+  /api/v1/changelog:
+    $ref: "./paths/changelog.yaml#/getChangelogEntries"
+  /api/v1/changelog/stats:
+    $ref: "./paths/changelog.yaml#/getChangelogStats"
+  /api/v1/changelog/{id}:
+    $ref: "./paths/changelog.yaml#/getChangelogEntryById"
 
   /api/v1/github/stats:
     $ref: "./paths/github.yaml#/getGitHubStats"

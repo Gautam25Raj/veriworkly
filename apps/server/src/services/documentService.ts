@@ -7,7 +7,7 @@ import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
 import { buildUniqueSlugHelper } from "#utils/slugs";
 import { cacheGet, cacheSet, cacheDel, cacheDelByPrefix } from "#lib/redis";
-import { userProfileCacheKey } from "#lib/cacheKeys";
+import { documentListCachePrefix, userProfileCacheKey } from "#lib/cacheKeys";
 
 import { EntitlementService } from "#services/entitlementService";
 
@@ -62,12 +62,28 @@ export class DocumentService {
   }
 
   /**
-   * List all documents for a user, optionally filtered by type.
-   * Results are cached for 30 minutes.
+   * List documents for a user, optionally filtered by type and by modification time.
+   *
+   * `content` is only included when `includeContent` is set. The client's document
+   * library renders from metadata alone, and `content` is by far the largest column —
+   * shipping it for every document made a 50-resume list a ~600KB response that was then
+   * held in Redis for 30 minutes. Full bodies come from `getDocument` instead.
+   *
+   * `updatedSince` lets the client pull only what changed since its last hydrate. It is
+   * part of the cache key: omitting it would let a narrow incremental response be served
+   * as if it were the full list.
    */
 
-  static async listDocuments(userId: string, type?: DocumentType) {
-    const cacheKey = `documents:list:${userId}:${type || "all"}`;
+  static async listDocuments(
+    userId: string,
+    type?: DocumentType,
+    options?: { updatedSince?: Date; includeContent?: boolean },
+  ) {
+    const includeContent = options?.includeContent ?? false;
+    const sinceKey = options?.updatedSince ? options.updatedSince.toISOString() : "all";
+    const cacheKey = `documents:list:${userId}:${type || "all"}:${sinceKey}:${
+      includeContent ? "full" : "meta"
+    }`;
 
     const cached = await cacheGet(cacheKey);
 
@@ -78,6 +94,22 @@ export class DocumentService {
         userId,
         type,
         deletedAt: null,
+        ...(options?.updatedSince ? { updatedAt: { gt: options.updatedSince } } : {}),
+      },
+      select: {
+        id: true,
+        type: true,
+        title: true,
+        slug: true,
+        tags: true,
+        metadata: true,
+        templateId: true,
+        visibility: true,
+        revision: true,
+        lastSyncedAt: true,
+        updatedAt: true,
+        createdAt: true,
+        content: includeContent,
       },
       orderBy: { updatedAt: "desc" },
       // Bounded because the full result is serialized into a single Redis value for 30 minutes;
@@ -194,8 +226,7 @@ export class DocumentService {
       },
     });
 
-    await cacheDel(`documents:list:${userId}:all`);
-    await cacheDel(`documents:list:${userId}:${document.type}`);
+    await cacheDelByPrefix(documentListCachePrefix(userId));
     await cacheDel(userProfileCacheKey(userId));
 
     return document;
@@ -280,8 +311,7 @@ export class DocumentService {
       });
 
       await cacheDel(`document:${userId}:${documentId}`);
-      await cacheDel(`documents:list:${userId}:all`);
-      await cacheDel(`documents:list:${userId}:${updated.type}`);
+      await cacheDelByPrefix(documentListCachePrefix(userId));
 
       await Promise.all([
         ...[...readableShareCacheKeys].map((cacheKey) => cacheDel(cacheKey)),
@@ -336,8 +366,7 @@ export class DocumentService {
     }
 
     await cacheDel(`document:${userId}:${documentId}`);
-    await cacheDel(`documents:list:${userId}:all`);
-    await cacheDel(`documents:list:${userId}:${document.type}`);
+    await cacheDelByPrefix(documentListCachePrefix(userId));
     await cacheDelByPrefix(`share:shared-document-ids:${userId}:`);
 
     if (docWithShares?.user?.username) {
@@ -377,8 +406,7 @@ export class DocumentService {
     }
 
     await cacheDel(`document:${userId}:${documentId}`);
-    await cacheDel(`documents:list:${userId}:all`);
-    await cacheDel(`documents:list:${userId}:${document.type}`);
+    await cacheDelByPrefix(documentListCachePrefix(userId));
     await cacheDelByPrefix(`share:shared-document-ids:${userId}:`);
 
     if (docWithShares?.user?.username) {
@@ -417,8 +445,7 @@ export class DocumentService {
     }
 
     await cacheDel(`document:${userId}:${documentId}`);
-    await cacheDel(`documents:list:${userId}:all`);
-    await cacheDel(`documents:list:${userId}:${document.type}`);
+    await cacheDelByPrefix(documentListCachePrefix(userId));
     await cacheDelByPrefix(`share:shared-document-ids:${userId}:`);
     await cacheDel(userProfileCacheKey(userId));
 

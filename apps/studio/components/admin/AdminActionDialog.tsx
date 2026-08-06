@@ -130,7 +130,7 @@ const AdminActionDialog = ({
             <div className="space-y-1.5">
               <label htmlFor={`${titleId}-reason`} className="text-muted text-xs font-medium">
                 {reasonLabel}
-                {reasonRequired ? <span className="text-red-500"> *</span> : null}
+                {reasonRequired ? <span className="text-destructive"> *</span> : null}
               </label>
 
               <TextArea
@@ -142,7 +142,7 @@ const AdminActionDialog = ({
               />
 
               {reasonRequired && reason.length > 0 && !reasonSatisfied ? (
-                <p className="text-xs text-amber-600">Give at least 3 characters of context.</p>
+                <p className="text-warning text-xs">Give at least 3 characters of context.</p>
               ) : null}
             </div>
 
@@ -162,7 +162,14 @@ const AdminActionDialog = ({
               </div>
             ) : null}
 
-            {error ? <p className="text-sm text-red-600">{error}</p> : null}
+            {error ? (
+              <p
+                role="alert"
+                className="border-destructive/25 bg-destructive/10 text-destructive rounded-lg border px-3 py-2 text-sm"
+              >
+                {error}
+              </p>
+            ) : null}
           </Modal.Body>
 
           <Modal.Footer className="-mx-6 -mb-6 rounded-b-3xl">

@@ -48,15 +48,16 @@ Set per application in `apps/{app}/.env`, or shared via the root `.env`.
 
 ### Core runtime
 
-| Variable                             | Description                                                                            | Default                                          |
-| :----------------------------------- | :------------------------------------------------------------------------------------- | :----------------------------------------------- |
-| `NODE_ENV`                           | `development`, `production`, or `test`.                                                | `development`                                    |
-| `PORT`                               | Port the API listens on.                                                               | `8080`                                           |
-| `TRUST_PROXY`                        | Express trust-proxy setting. Accepts `true`/`false`, a hop count, or a CIDR/IP string. | `false`                                          |
-| `ALLOWED_ORIGINS`                    | Comma-separated CORS allowlist. Each entry must be a full origin, not a bare port.      | Ports 3000–3004 and 8080 on `http://localhost`   |
-| `LOG_LEVEL`                          | `debug`, `info`, `warn`, or `error`.                                                   | `info`                                           |
-| `CLUSTERING_ENABLED`                 | Run one worker per CPU core via `throng`.                                              | `true` in production, `false` otherwise          |
-| `WEB_CONCURRENCY` / `SERVER_WORKERS` | Explicit worker count, overriding the CPU-core default.                                | CPU count                                        |
+| Variable                             | Description                                                                                                                                 | Default                                        |
+| :----------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------ | :--------------------------------------------- |
+| `NODE_ENV`                           | `development`, `production`, or `test`.                                                                                                     | `development`                                  |
+| `PORT`                               | Port the API listens on.                                                                                                                    | `8080`                                         |
+| `TRUST_PROXY`                        | Express trust-proxy setting. Accepts `true`/`false`, a hop count, or a CIDR/IP string.                                                      | `false`                                        |
+| `ALLOWED_ORIGINS`                    | Comma-separated CORS allowlist. Each entry must be a full origin, not a bare port.                                                          | Ports 3000–3004 and 8080 on `http://localhost` |
+| `LOG_LEVEL`                          | `debug`, `info`, `warn`, or `error`.                                                                                                        | `info`                                         |
+| `AUDIT_LOG_RETENTION_DAYS`           | How long `AuditLog` rows are kept. Production writes a row per 4xx/5xx, and the daily usage-metrics job is the only thing that prunes them. | `90`                                           |
+| `CLUSTERING_ENABLED`                 | Run one worker per CPU core via `throng`.                                                                                                   | `true` in production, `false` otherwise        |
+| `WEB_CONCURRENCY` / `SERVER_WORKERS` | Explicit worker count, overriding the CPU-core default.                                                                                     | CPU count                                      |
 
 <Callout type="warn" title="`TRUST_PROXY=true` is rejected in production">
   A bare `true` trusts every hop, which lets a client spoof `X-Forwarded-For` and defeat IP-based
@@ -66,10 +67,18 @@ Set per application in `apps/{app}/.env`, or shared via the root `.env`.
 
 ### Database and cache
 
-| Variable       | Required        | Description                                                                                       | Default                  |
-| :------------- | :-------------- | :------------------------------------------------------------------------------------------------ | :----------------------- |
-| `DATABASE_URL` | Yes             | PostgreSQL connection string.                                                                     | —                        |
-| `REDIS_URL`    | Yes in practice | Redis connection string. Sessions, rate limiting, quotas, view buffers, and job locks all use it. | `redis://localhost:6379` |
+| Variable            | Required        | Description                                                                                                                                                                                        | Default                            |
+| :------------------ | :-------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------- |
+| `DATABASE_URL`      | Yes             | PostgreSQL connection string.                                                                                                                                                                      | —                                  |
+| `REDIS_URL`         | Yes in practice | Redis connection string. Sessions, rate limiting, quotas, view buffers, and job locks all use it.                                                                                                  | `redis://localhost:6379`           |
+| `DB_POOL_MAX_TOTAL` | No              | Connection budget for the **whole cluster**, not per process. Set it to roughly 80% of the instance's real `max_connections`; the per-worker pool is derived by dividing this by the worker count. | `80` in production, `10` otherwise |
+| `DB_POOL_MAX`       | No              | Explicit per-process override. Leave unset unless PgBouncer sits in front in transaction mode — a stale value here is how you overcommit the database.                                             | derived from `DB_POOL_MAX_TOTAL`   |
+
+<Callout type="warn" title="The pool budget is cluster-wide">
+  With clustering on, each worker opens its own pool, so what must fit inside Postgres'
+  `max_connections` is (pool size × workers). The API logs a warning at boot if `DB_POOL_MAX ×
+  workers` exceeds `DB_POOL_MAX_TOTAL`.
+</Callout>
 
 ### Authentication
 
@@ -99,14 +108,15 @@ Each provider is registered only if **both** of its values are set.
 
 ### API key security
 
-| Variable                                   | Description                                                                               | Default                     |
-| :----------------------------------------- | :---------------------------------------------------------------------------------------- | :-------------------------- |
-| `API_KEY_HASH_SECRET`                      | HMAC secret used to hash API keys. Must be **distinct from** `AUTH_SECRET` in production. | falls back to `AUTH_SECRET` |
-| `API_KEY_AUTH_CACHE_TTL_SECONDS`           | Redis cache TTL for successful key lookups.                                               | `300`                       |
-| `API_KEY_LAST_USED_TOUCH_INTERVAL_SECONDS` | Minimum interval between `lastUsed` writes.                                               | `300`                       |
-| `API_KEY_DEFAULT_RATE_LIMIT`               | Per-key request limit when none is specified.                                             | `20`                        |
-| `API_KEY_DEFAULT_SCOPES`                   | Comma-separated default scopes.                                                           | `user:read`                 |
-| `API_KEY_DEFAULT_LIFETIME_DAYS`            | Default key lifetime.                                                                     | `365`                       |
+| Variable                                   | Description                                                                                                                                                                                          | Default                     |
+| :----------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------- |
+| `API_KEY_HASH_SECRET`                      | HMAC secret used to hash API keys. Must be **distinct from** `AUTH_SECRET` in production.                                                                                                            | falls back to `AUTH_SECRET` |
+| `API_KEY_AUTH_CACHE_TTL_SECONDS`           | Redis cache TTL for successful key lookups.                                                                                                                                                          | `300`                       |
+| `API_KEY_LAST_USED_TOUCH_INTERVAL_SECONDS` | Minimum interval between `lastUsed` writes.                                                                                                                                                          | `300`                       |
+| `API_KEY_DEFAULT_RATE_LIMIT`               | Per-key request limit (per 15 minutes) when none is specified.                                                                                                                                       | `20`                        |
+| `API_KEY_MAX_RATE_LIMIT`                   | Ceiling a caller may request for a single key. Must stay above the default — when the two were equal, every requested limit was clamped back down and a key's rate limit could only ever be lowered. | `600`                       |
+| `API_KEY_DEFAULT_SCOPES`                   | Comma-separated default scopes.                                                                                                                                                                      | `user:read`                 |
+| `API_KEY_DEFAULT_LIFETIME_DAYS`            | Default key lifetime.                                                                                                                                                                                | `365`                       |
 
 ### Email
 
@@ -121,33 +131,64 @@ Each provider is registered only if **both** of its values are set.
 
 ### Rate limiting
 
-| Variable                       | Description                  | Default               |
-| :----------------------------- | :--------------------------- | :-------------------- |
-| `RATE_LIMIT_WINDOW_MS`         | General window.              | `900000` (15 minutes) |
-| `RATE_LIMIT_MAX_REQUESTS`      | General limit per window.    | `100`                 |
-| `AUTH_RATE_LIMIT_WINDOW_MS`    | Window for `/api/v1/auth/*`. | `60000`               |
-| `AUTH_RATE_LIMIT_MAX_REQUESTS` | Limit for `/api/v1/auth/*`.  | `20`                  |
+| Variable                         | Description                                                                                           | Default               |
+| :------------------------------- | :---------------------------------------------------------------------------------------------------- | :-------------------- |
+| `RATE_LIMIT_WINDOW_MS`           | Per-route window.                                                                                     | `900000` (15 minutes) |
+| `RATE_LIMIT_MAX_REQUESTS`        | Per-route limit per window.                                                                           | `100`                 |
+| `AUTH_RATE_LIMIT_WINDOW_MS`      | Window for `/api/v1/auth/*`.                                                                          | `60000`               |
+| `AUTH_RATE_LIMIT_MAX_REQUESTS`   | Limit for `/api/v1/auth/*`.                                                                           | `20`                  |
+| `GLOBAL_RATE_LIMIT_WINDOW_MS`    | Window for the coarse per-IP ceiling underneath the per-route buckets.                                | `900000`              |
+| `GLOBAL_RATE_LIMIT_MAX_REQUESTS` | That ceiling. Should sit well above any real single-user session.                                     | `1000`                |
+| `MAX_MEMORY_ENTRIES`             | Cap on the in-memory rate-limit map used when Redis is unavailable. Oldest entries are evicted first. | `15000`               |
 
-Several routes carry hard-coded limits that ignore these values: share-password verification
-(3 / 5 min), the public contact form (5 / hour), and usage-metric ingestion (15 / min).
+<Callout type="info" title="Why there are two IP buckets">
+  The per-route limits are keyed by (method, path, IP), so they bound each endpoint independently
+  and never bound a client's total load — across ~70 endpoints one IP could legitimately issue many
+  times the headline number. `GLOBAL_RATE_LIMIT_*` is the ceiling underneath them.
+</Callout>
+
+Several routes carry hard-coded limits that ignore all of the above: share-password verification
+(3 / 5 min), the public contact form (5 / hour), and usage-metric ingestion (15 / min). The Dodo
+billing webhook is exempt from IP rate limiting entirely — it is authenticated by HMAC signature,
+and throttling a provider retry storm would silently diverge payment state from reality.
 
 ### AI
 
-| Variable                                | Description                                                         | Default  |
-| :-------------------------------------- | :------------------------------------------------------------------ | :------- |
-| `AI_API_KEY`                            | Provider credential. **Required in production.**                    | —        |
-| `AI_BASE_URL`                           | OpenAI-compatible endpoint used to route requests.                  | —        |
-| `AI_TIMEOUT_MS`                         | Per-request timeout.                                                | `120000` |
-| `AI_RATE_LIMIT_WINDOW_MS`               | Window for `/api/v1/ai/*`.                                          | `60000`  |
-| `AI_RATE_LIMIT_MAX_REQUESTS`            | Limit for `/api/v1/ai/*`.                                           | `20`     |
-| `AI_PRIVATE_CONFIG_PATH`                | Path to the private AI policy file (prompts, models, credit costs). | —        |
-| `AI_PRIVATE_CONFIG_JSON`                | The same policy supplied inline as JSON.                            | —        |
-| `AI_STANDARD_MODEL` / `AI_EXPERT_MODEL` | Model IDs. Read only indirectly — the policy names them as `env:AI_STANDARD_MODEL`. | —        |
+| Variable                                | Description                                                                       | Default  |
+| :-------------------------------------- | :-------------------------------------------------------------------------------- | :------- |
+| `AI_API_KEY`                            | Provider credential. **Required in production.**                                  | —        |
+| `AI_BASE_URL`                           | OpenAI-compatible endpoint used to route requests.                                | —        |
+| `AI_TIMEOUT_MS`                         | Per-request timeout.                                                              | `120000` |
+| `AI_RATE_LIMIT_WINDOW_MS`               | Window for `/api/v1/ai/*`.                                                        | `60000`  |
+| `AI_RATE_LIMIT_MAX_REQUESTS`            | Limit for `/api/v1/ai/*`.                                                         | `20`     |
+| `AI_STANDARD_MODEL` / `AI_EXPERT_MODEL` | Model IDs. Read only indirectly — a policy names them as `env:AI_STANDARD_MODEL`. | —        |
+| `SITE_URL`                              | Sent as the referer/attribution header to the upstream AI provider.               | —        |
 
-<Callout type="info" title="AI policy is private configuration">
-  Per-action prompts, model selection, token limits, and **credit costs** all live in the private AI
-  policy, not in application code. In production the API validates that a policy exists and defines
-  both a `standard` and an `expert` tier for every action, and refuses to boot otherwise.
+### Private AI policies
+
+There are **three independent private policies**, each with its own `_PATH` / `_JSON` pair. Point
+`_PATH` at a mounted, gitignored file, or inject the same JSON inline through `_JSON`; `_JSON` wins
+when both are set. None of them is safe to commit.
+
+| Variable pair                                       | Governs                                                                                              |
+| :-------------------------------------------------- | :--------------------------------------------------------------------------------------------------- |
+| `AI_ACTIONS_POLICY_PATH` / `AI_ACTIONS_POLICY_JSON` | General AI writing actions (rewrite, generate, tailor) — model routing, prompts, and credit costs.   |
+| `ATS_AI_POLICY_PATH` / `ATS_AI_POLICY_JSON`         | The ATS AI-analysis layer (`/ats/analyze` insights and `/ats/convert-resume`) — prompts and pricing. |
+| `ATS_ENGINE_POLICY_PATH` / `ATS_ENGINE_POLICY_JSON` | The deterministic ATS scoring engine — rule weights, regex patterns, and the keyword dictionary.     |
+
+<Callout type="info" title="Why these are private, and what happens when they are missing">
+  Per-action prompts, model selection, token limits, and **credit costs** live in policy files
+  rather than application code; the scoring engine's weights and keyword dictionary in particular
+  must stay private, or the ATS score becomes gameable. A request needing an unconfigured policy
+  fails with `503 <policy name> is not configured`. In production the API additionally validates at
+  boot that the actions policy defines both a `standard` and an `expert` tier for every action, and
+  refuses to start otherwise.
+</Callout>
+
+<Callout type="warn" title="Renamed from `AI_PRIVATE_CONFIG_*`">
+  The single combined `AI_PRIVATE_CONFIG_PATH` / `AI_PRIVATE_CONFIG_JSON` pair was split into the
+  three policies above. Those two names are no longer read by anything — a deployment still setting
+  them has no AI policy configured at all.
 </Callout>
 
 ### Billing (Dodo Payments)
@@ -211,11 +252,12 @@ corresponding routes return `503` and Studio shows a "Coming Soon" screen.
 
 ### Changelog sync
 
-| Variable                          | Description                                         | Default     |
-| :-------------------------------- | :-------------------------------------------------- | :---------- |
-| `CHANGELOG_RELEASE_SYNC_ENABLED`  | Imports missing GitHub Releases into the changelog. | `true`      |
-| `CHANGELOG_RELEASE_SYNC_CRON`     | Sync schedule.                                      | `0 6 * * *` |
-| `CHANGELOG_RELEASE_SYNC_TIMEZONE` | Cron timezone.                                      | `UTC`       |
+| Variable                                      | Description                                                                                                               | Default     |
+| :-------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------ | :---------- |
+| `CHANGELOG_RELEASE_SYNC_ENABLED`              | Imports missing GitHub Releases into the changelog.                                                                       | `true`      |
+| `CHANGELOG_RELEASE_SYNC_CRON`                 | Sync schedule.                                                                                                            | `0 6 * * *` |
+| `CHANGELOG_RELEASE_SYNC_TIMEZONE`             | Cron timezone.                                                                                                            | `UTC`       |
+| `CHANGELOG_RELEASE_SYNC_MIN_INTERVAL_SECONDS` | Minimum gap between two startup syncs. Restarts within this window skip the GitHub scan entirely; the cron is unaffected. | `21600`     |
 
 ### Usage metrics
 

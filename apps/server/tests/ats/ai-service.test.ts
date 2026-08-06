@@ -23,7 +23,7 @@ vi.mock("#config", () => ({
   },
 }));
 
-vi.mock("#services/atsAiPolicy", () => ({
+vi.mock("#services/ats/aiPolicy", () => ({
   getAtsAiPolicy: vi.fn(() => ({
     prompts: {
       standardAnalysis: "standard-analysis-prompt",
@@ -64,9 +64,11 @@ vi.mock("#services/entitlementService", () => ({
 }));
 
 const report = {
-  version: "ats-v1" as const,
+  version: "ats-v2" as const,
   readinessScore: 75,
   jobMatchScore: 70,
+  matchedKeywords: [],
+  missingKeywords: [],
   parsingWarnings: [],
   strengths: ["Clear structure"],
   failedChecks: [],
@@ -100,7 +102,7 @@ describe("ATS AI service", () => {
         },
       ],
     });
-    const { AtsAiService } = await import("../../src/services/atsAiService");
+    const { AtsAiService } = await import("../../src/services/ats/ai");
 
     await AtsAiService.analyze("user_1", "request_online", "Resume text", "Job text", report, true);
 
@@ -141,7 +143,7 @@ describe("ATS AI service", () => {
         },
       ],
     });
-    const { AtsAiService } = await import("../../src/services/atsAiService");
+    const { AtsAiService } = await import("../../src/services/ats/ai");
 
     const result = await AtsAiService.convertResume("user_1", "request_convert", "Old resume");
 
@@ -192,7 +194,7 @@ describe("ATS AI service", () => {
         },
       ],
     });
-    const { AtsAiService } = await import("../../src/services/atsAiService");
+    const { AtsAiService } = await import("../../src/services/ats/ai");
 
     const result = await AtsAiService.convertResume("user_1", "request_resilient", "Old resume");
 
@@ -218,7 +220,7 @@ describe("ATS AI service", () => {
       id: "conversion_2",
       choices: [{ message: { content: "{" } }],
     });
-    const { AtsAiService } = await import("../../src/services/atsAiService");
+    const { AtsAiService } = await import("../../src/services/ats/ai");
 
     await expect(
       AtsAiService.convertResume("user_1", "request_invalid", "Old resume"),

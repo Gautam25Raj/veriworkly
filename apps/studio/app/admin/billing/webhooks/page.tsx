@@ -81,7 +81,7 @@ const columns: Array<AdminTableColumn<AdminWebhookRow>> = [
     hideOnMobile: true,
     className: "max-w-xs",
     render: (row) => (
-      <span className="text-xs text-red-600">{row.error ? truncate(row.error, 80) : "—"}</span>
+      <span className="text-destructive text-xs">{row.error ? truncate(row.error, 80) : "—"}</span>
     ),
   },
   {
@@ -111,7 +111,7 @@ export default async function AdminWebhooksPage({
   ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="Revenue"
         title="Billing webhooks"

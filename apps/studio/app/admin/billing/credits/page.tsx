@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { Card } from "@veriworkly/ui";
-
 import AdminFilterBar from "@/components/admin/AdminFilterBar";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import AdminPagination from "@/components/admin/AdminPagination";
 import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
+import Panel from "@/components/admin/Panel";
 import { CreditAdjustmentForm } from "@/app/admin/billing/BillingActions";
 
 import {
@@ -103,7 +102,7 @@ export default async function AdminCreditsPage({
   ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="Revenue"
         title="Credit wallets"
@@ -126,7 +125,7 @@ export default async function AdminCreditsPage({
         <AdminStatCard label="Spent (30d)" value={formatNumber(summary.credits.spentLast30Days)} />
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
+      <div className="grid gap-3 lg:grid-cols-[1fr_20rem]">
         <div className="space-y-4">
           <AdminFilterBar
             basePath="/admin/billing/credits"
@@ -150,7 +149,7 @@ export default async function AdminCreditsPage({
           />
         </div>
 
-        <Card className="h-fit space-y-4 rounded-3xl p-6">
+        <Panel className="h-fit space-y-4 rounded-xl p-4">
           <div>
             <h3 className="text-foreground font-semibold tracking-tight">Adjust credits</h3>
             <p className="text-muted mt-1 text-xs leading-5">
@@ -160,7 +159,7 @@ export default async function AdminCreditsPage({
           </div>
 
           <CreditAdjustmentForm />
-        </Card>
+        </Panel>
       </div>
     </div>
   );

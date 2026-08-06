@@ -148,7 +148,7 @@ export default async function AdminDocumentsPage({
   const summary = overview.documents;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="Content"
         title="Documents"

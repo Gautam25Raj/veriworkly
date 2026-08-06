@@ -2,13 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Card } from "@veriworkly/ui";
-
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
+import Panel from "@/components/admin/Panel";
 import AmbassadorReviewActions from "@/app/admin/ambassadors/AmbassadorReviewActions";
 
-import { fetchAdminAmbassadorApplication } from "@/features/admin/services/admin-server";
+import {
+  fetchAdminAmbassadorApplication,
+  loadAdminDetail,
+} from "@/features/admin/services/admin-server";
 import { formatDateTime, humanizeKey } from "@/features/admin/utils/admin-format";
 
 export const metadata: Metadata = {
@@ -34,13 +36,13 @@ export default async function AdminAmbassadorDetailPage({
 }) {
   const { id } = await params;
 
-  const data = await fetchAdminAmbassadorApplication(id).catch(() => null);
+  const data = await loadAdminDetail(fetchAdminAmbassadorApplication(id));
   if (!data) notFound();
 
   const { application, reviewer, auditEntries } = data;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <AdminPageHeader
         eyebrow="Ambassador application"
         title={application.user.name || application.user.email}
@@ -57,9 +59,9 @@ export default async function AdminAmbassadorDetailPage({
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
+      <div className="grid gap-3 lg:grid-cols-[1fr_20rem]">
         <div className="space-y-4">
-          <Card className="space-y-5 rounded-3xl p-6">
+          <Panel className="space-y-5 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">Application</h3>
 
             {ANSWER_FIELDS.map((field) => {
@@ -82,10 +84,10 @@ export default async function AdminAmbassadorDetailPage({
                 <p className="text-foreground text-sm">{application.socialHandle}</p>
               </div>
             ) : null}
-          </Card>
+          </Panel>
 
           {application.status !== "PENDING" ? (
-            <Card className="space-y-2 rounded-3xl p-6">
+            <Panel className="space-y-2 rounded-xl p-4">
               <h3 className="text-foreground font-semibold tracking-tight">Review</h3>
 
               <p className="text-muted text-sm">
@@ -96,10 +98,10 @@ export default async function AdminAmbassadorDetailPage({
               {application.reviewNote ? (
                 <p className="text-foreground text-sm leading-6">{application.reviewNote}</p>
               ) : null}
-            </Card>
+            </Panel>
           ) : null}
 
-          <Card className="space-y-3 rounded-3xl p-6">
+          <Panel className="space-y-3 rounded-xl p-4">
             <h3 className="text-foreground font-semibold tracking-tight">Audit history</h3>
 
             {auditEntries.length === 0 ? (
@@ -117,10 +119,10 @@ export default async function AdminAmbassadorDetailPage({
                 ))}
               </div>
             )}
-          </Card>
+          </Panel>
         </div>
 
-        <Card className="h-fit space-y-3 rounded-3xl p-6">
+        <Panel className="h-fit space-y-3 rounded-xl p-4">
           <h3 className="text-foreground font-semibold tracking-tight">Applicant</h3>
 
           <Link
@@ -142,7 +144,7 @@ export default async function AdminAmbassadorDetailPage({
               </dd>
             </div>
           </dl>
-        </Card>
+        </Panel>
       </div>
     </div>
   );

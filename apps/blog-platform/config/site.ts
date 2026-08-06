@@ -34,3 +34,13 @@ export const siteConfig = {
     "VeriWorkly",
   ],
 } as const;
+
+/**
+ * Next.js replaces `alternates` wholesale rather than deep-merging it, so a page that
+ * sets its own canonical silently drops the feed links declared in the root layout.
+ * Every page spreads this instead of re-declaring `canonical` alone.
+ */
+export const feedAlternates: Record<string, { url: string; title: string }[]> = {
+  "application/rss+xml": [{ url: `${siteConfig.url}/rss.xml`, title: siteConfig.name }],
+  "application/atom+xml": [{ url: `${siteConfig.url}/atom.xml`, title: siteConfig.name }],
+};

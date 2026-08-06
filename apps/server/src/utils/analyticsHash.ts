@@ -8,5 +8,7 @@ const ANALYTICS_HASH_PEPPER = process.env.ANALYTICS_HASH_PEPPER || "veriworkly-a
  * the auth secret can't silently change analytics hashes and vice versa.
  */
 export function hashForAnalytics(value: string): string {
-  return createHash("sha256").update(value + ANALYTICS_HASH_PEPPER).digest("hex");
+  return createHash("sha256")
+    .update(value + ANALYTICS_HASH_PEPPER)
+    .digest("hex");
 }

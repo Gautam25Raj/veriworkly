@@ -59,7 +59,11 @@ export async function createCommission(input: {
   return result;
 }
 
-export async function updateCommission(id: string, status: "AVAILABLE" | "REVERSED", reason?: string) {
+export async function updateCommission(
+  id: string,
+  status: "AVAILABLE" | "REVERSED",
+  reason?: string,
+) {
   const result = await prisma.$transaction(async (tx) => {
     const commission = await tx.affiliateCommission.findUnique({ where: { id } });
     if (!commission) throw new ApiError(404, "Commission not found.");
@@ -69,7 +73,9 @@ export async function updateCommission(id: string, status: "AVAILABLE" | "REVERS
       where: { userId: commission.affiliateId },
       data: {
         pendingCents: { decrement: commission.amountCents },
-        ...(status === "AVAILABLE" ? { availableCents: { increment: commission.amountCents } } : {}),
+        ...(status === "AVAILABLE"
+          ? { availableCents: { increment: commission.amountCents } }
+          : {}),
       },
     });
     return tx.affiliateCommission.update({

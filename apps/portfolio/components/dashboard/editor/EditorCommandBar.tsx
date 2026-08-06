@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ExternalLink, Eye, Globe2, Lock, Save } from "lucide-react";
 import { toast } from "sonner";
-import { portfolioPublicUrl, siteConfig } from "@/config/site";
+import { portfolioWorkspaceUrl, siteConfig } from "@/config/site";
 import { isPremiumTemplate } from "@/lib/portfolio";
 import { usePortfolioStore } from "@/store/portfolio-store";
 import { useWorkspace } from "@/components/WorkspaceProvider";
@@ -11,8 +11,17 @@ import { actionClass as action } from "./constants";
 const isProd = process.env.NODE_ENV === "production";
 
 export function EditorCommandBar() {
-  const { slug, status, billing, publication, draft, saveDraft, publish, content, user } =
-    usePortfolioStore();
+  // Selected field by field: a bare `usePortfolioStore()` subscribes to the whole store,
+  // so the command bar re-rendered on every keystroke anywhere in the editor.
+  const slug = usePortfolioStore((state) => state.slug);
+  const status = usePortfolioStore((state) => state.status);
+  const billing = usePortfolioStore((state) => state.billing);
+  const publication = usePortfolioStore((state) => state.publication);
+  const draft = usePortfolioStore((state) => state.draft);
+  const content = usePortfolioStore((state) => state.content);
+  const user = usePortfolioStore((state) => state.user);
+  const saveDraft = usePortfolioStore((state) => state.saveDraft);
+  const publish = usePortfolioStore((state) => state.publish);
   const { isAdmin } = useWorkspace();
 
   // Publishing is blocked in production for everyone except the admin — this mirrors the
@@ -82,13 +91,7 @@ export function EditorCommandBar() {
     }
   };
 
-  const urlPath = billing.canPublish
-    ? portfolioPublicUrl(slug)
-    : `${siteConfig.links.portfolio}/portfolio/${slug}`;
-
-  const urlDisplay = billing.canPublish
-    ? `${slug}.veriworkly.com`
-    : `portfolio.veriworkly.com/portfolio/${slug}`;
+  const { href: urlPath, display: urlDisplay } = portfolioWorkspaceUrl(slug, billing.canPublish);
 
   return (
     <header className="z-40 grid min-h-16 shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-white/10 bg-[#171717] px-3 text-white sm:px-4">

@@ -1,16 +1,26 @@
 import type { CloudPortfolioDraft } from "@/lib/portfolio";
+import type { PortfolioWorkspaceBootstrap } from "@/store/portfolio-store";
 
 import { portfolioWorkspaceUrl } from "@/config/site";
+import { fetchServerApiData } from "@/lib/server-api";
 import { isPortfolioPubliclyVisible } from "@/lib/portfolio-status";
 import { loadWorkspaceBootstrap } from "@/lib/workspace-bootstrap";
 
-import { WorkspaceProvider } from "@/components/WorkspaceProvider";
+import { AnalyticsProvider } from "@/components/WorkspaceProvider";
 import { PortfolioAppShell } from "@/components/dashboard/sidebar/PortfolioAppShell";
 
 const DashboardLayout = async ({ children }: { children: React.ReactNode }) => {
-  // Analytics is fetched here rather than one level up so it stays on the routes
-  // that actually render it (overview + analytics) instead of the editor's path.
-  const bootstrap = await loadWorkspaceBootstrap({ includeAnalytics: true });
+  // Analytics is fetched here rather than in the parent workspace layout so it stays on
+  // the routes that actually render it. `/editor` shares that parent and never reads it,
+  // and awaiting the query there (an aggregate, two groupBys and a Redis read) would sit
+  // on the editor's first byte for nothing.
+  //
+  // The workspace bootstrap is re-requested rather than threaded down, which costs no
+  // extra round trips: `fetchServerApiData` is `cache()`-wrapped per request.
+  const [bootstrap, analytics] = await Promise.all([
+    loadWorkspaceBootstrap(),
+    fetchServerApiData<PortfolioWorkspaceBootstrap["analytics"]>("/portfolios/analytics"),
+  ]);
 
   const draft = bootstrap.workspace?.draft as CloudPortfolioDraft | undefined;
 
@@ -23,11 +33,11 @@ const DashboardLayout = async ({ children }: { children: React.ReactNode }) => {
       : undefined;
 
   return (
-    <WorkspaceProvider initialData={bootstrap}>
+    <AnalyticsProvider analytics={analytics}>
       <PortfolioAppShell user={bootstrap.user} publicUrl={publicUrl}>
         {children}
       </PortfolioAppShell>
-    </WorkspaceProvider>
+    </AnalyticsProvider>
   );
 };
 

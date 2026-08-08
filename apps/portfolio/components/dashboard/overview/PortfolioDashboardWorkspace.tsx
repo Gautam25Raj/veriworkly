@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 
-import { useWorkspace } from "@/components/WorkspaceProvider";
+import { useAnalytics, useWorkspace } from "@/components/WorkspaceProvider";
 import { parsePortfolioContent, type CloudPortfolioDraft } from "@/lib/portfolio";
 import { getPortfolioReadiness, isPortfolioPubliclyVisible } from "@/lib/portfolio-status";
 import { DashboardHeader } from "./DashboardHeader";
@@ -13,6 +13,7 @@ import { DashboardProductLinks } from "./DashboardProductLinks";
 
 export function PortfolioDashboardWorkspace() {
   const data = useWorkspace();
+  const analytics = useAnalytics();
   const draft = data.workspace?.draft as CloudPortfolioDraft | undefined;
 
   const publicationStatus = data.workspace?.publication?.status;
@@ -42,8 +43,8 @@ export function PortfolioDashboardWorkspace() {
         />
 
         <DashboardMetrics
-          totalViews={data.analytics?.totalViews ?? 0}
-          analyticsLocked={data.analytics?.locked ?? !canPublish}
+          totalViews={analytics?.totalViews ?? 0}
+          analyticsLocked={analytics?.locked ?? !canPublish}
           visibleSections={readiness.visibleSections}
           projectCount={readiness.projectCount}
           readiness={readiness.percent}

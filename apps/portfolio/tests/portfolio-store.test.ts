@@ -41,7 +41,8 @@ const baseContent = {
 };
 
 describe("portfolio store", () => {
-  let usePortfolioStore: typeof import("@/store/portfolio-store").usePortfolioStore;
+  let createPortfolioStore: typeof import("@/store/portfolio-store").createPortfolioStore;
+  let store: ReturnType<typeof createPortfolioStore>;
   let localStorageMock: ReturnType<typeof createMemoryStorage>;
 
   beforeEach(async () => {
@@ -51,12 +52,13 @@ describe("portfolio store", () => {
     localStorageMock = createMemoryStorage();
     vi.stubGlobal("window", { localStorage: localStorageMock });
 
-    ({ usePortfolioStore } = await import("@/store/portfolio-store"));
+    ({ createPortfolioStore } = await import("@/store/portfolio-store"));
+    store = createPortfolioStore();
   });
 
   it("normalizes slug input through updateSlug", () => {
-    usePortfolioStore.getState().updateSlug("  Gautam Raj!! ");
-    expect(usePortfolioStore.getState().slug).toBe("gautam-raj");
+    store.getState().updateSlug("  Gautam Raj!! ");
+    expect(store.getState().slug).toBe("gautam-raj");
   });
 
   it("keeps the newer cloud draft when a stale local guest cache disagrees with it", async () => {
@@ -101,9 +103,9 @@ describe("portfolio store", () => {
       }),
     );
 
-    await usePortfolioStore.getState().loadWorkspace();
+    await store.getState().loadWorkspace();
 
-    const state = usePortfolioStore.getState();
+    const state = store.getState();
     expect(state.content.identity.bio).toBe("cloud");
     expect(state.slug).toBe("cloud-slug");
   });
@@ -153,9 +155,9 @@ describe("portfolio store", () => {
       }),
     );
 
-    await usePortfolioStore.getState().loadWorkspace();
+    await store.getState().loadWorkspace();
 
-    const state = usePortfolioStore.getState();
+    const state = store.getState();
     expect(state.content.identity.bio).toBe("local");
     expect(state.slug).toBe("local-slug");
     expect(draftSaveCalled).toBe(true);
@@ -176,8 +178,8 @@ describe("portfolio store", () => {
       }),
     );
 
-    const first = usePortfolioStore.getState().loadWorkspace();
-    const second = usePortfolioStore.getState().loadWorkspace();
+    const first = store.getState().loadWorkspace();
+    const second = store.getState().loadWorkspace();
 
     await Promise.all([first, second]);
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useWorkspace } from "@/components/WorkspaceProvider";
+import { useAnalytics, useWorkspace } from "@/components/WorkspaceProvider";
 import { siteConfig } from "@/config/site";
 import { Lock } from "lucide-react";
 import Link from "next/link";
@@ -18,11 +18,11 @@ export type PortfolioAnalytics = {
 };
 
 export function PortfolioAnalyticsWorkspace() {
-  // Everything comes from the workspace context rather than the store: the context is
-  // already correct during server rendering, so this page ships its real numbers in the
-  // initial HTML instead of rendering a locked shell and then swapping after hydration.
-  const { analytics: rawAnalytics, user, workspace } = useWorkspace();
-  const analytics = rawAnalytics as PortfolioAnalytics | null;
+  // Both contexts are already correct during server rendering, so this page ships its
+  // real numbers in the initial HTML instead of rendering a locked shell and then
+  // swapping after hydration.
+  const { user, workspace } = useWorkspace();
+  const analytics = useAnalytics() as PortfolioAnalytics | null;
 
   // The server decides this — a locked payload carries no figures to render. Falling back
   // to the local entitlement only covers the case where analytics never loaded at all

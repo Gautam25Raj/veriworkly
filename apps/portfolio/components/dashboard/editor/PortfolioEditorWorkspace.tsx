@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePortfolioStore } from "@/store/portfolio-store";
+import { usePortfolioStore, usePortfolioStoreApi } from "@/store/portfolio-store";
 import { EditorCommandBar } from "@/components/dashboard/editor/EditorCommandBar";
 import { StructureRail } from "@/components/dashboard/editor/StructureRail";
 import { ContentCanvas } from "@/components/dashboard/editor/ContentCanvas";
@@ -10,6 +10,10 @@ import { TemplatePicker } from "@/components/dashboard/editor/TemplatePicker";
 import { WorkspaceNotice } from "@/components/dashboard/editor/WorkspaceNotice";
 
 export function PortfolioEditorWorkspace() {
+  // These effects read the *latest* state at fire time rather than subscribing, so they
+  // go through the store API instead of a selector — the autosave timer must not be torn
+  // down and rebuilt on every keystroke.
+  const storeApi = usePortfolioStoreApi();
   const save = usePortfolioStore((state) => state.saveDraft);
   const ready = usePortfolioStore((state) => state.ready);
   const selectedPageIdState = usePortfolioStore((state) => state.selectedPageId);
@@ -29,20 +33,20 @@ export function PortfolioEditorWorkspace() {
       : "profile";
 
   useEffect(() => {
-    if (!ready || usePortfolioStore.getState().draft) return;
+    if (!ready || storeApi.getState().draft) return;
     void save();
-  }, [ready, save]);
+  }, [ready, save, storeApi]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      if (usePortfolioStore.getState().isDirty) void save();
+      if (storeApi.getState().isDirty) void save();
     }, 12000);
     return () => window.clearInterval(timer);
-  }, [save]);
+  }, [save, storeApi]);
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (!usePortfolioStore.getState().isDirty) return;
+      if (!storeApi.getState().isDirty) return;
       event.preventDefault();
       // Legacy browsers ignore preventDefault() here and instead show the
       // "leave site?" prompt only when returnValue is set to a truthy value.
@@ -50,7 +54,7 @@ export function PortfolioEditorWorkspace() {
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, []);
+  }, [storeApi]);
 
   return (
     <main className="workspace-theme bg-paper-2 text-ink flex h-dvh min-h-0 flex-col overflow-hidden">

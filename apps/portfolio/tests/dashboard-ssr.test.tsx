@@ -1,13 +1,13 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 process.env.NEXT_PUBLIC_BACKEND_URL = "http://test-backend.local";
 
-import { WorkspaceProvider } from "@/components/WorkspaceProvider";
+import { AnalyticsProvider, WorkspaceProvider } from "@/components/WorkspaceProvider";
 import { PortfolioAnalyticsWorkspace } from "@/components/dashboard/analytics/PortfolioAnalyticsWorkspace";
 import { PortfolioDashboardWorkspace } from "@/components/dashboard/overview/PortfolioDashboardWorkspace";
+import { PortfolioSettingsWorkspace } from "@/components/dashboard/settings/PortfolioSettingsWorkspace";
 import { createDefaultPortfolio, type PortfolioContent } from "@/lib/portfolio";
-import { usePortfolioStore } from "@/store/portfolio-store";
 
 /**
  * `renderToStaticMarkup` runs no effects, so it reproduces exactly what the server
@@ -70,19 +70,23 @@ function bootstrap({
   };
 }
 
-beforeEach(() => {
-  // The store is a module-level singleton shared across tests; reset the hydration
-  // flag so each render starts from the pre-hydration state a server pass sees.
-  usePortfolioStore.setState({ ready: false });
-});
+/** Mirrors the real route nesting: workspace layout wraps, dashboard layout adds analytics. */
+function renderWorkspace(
+  options: Parameters<typeof bootstrap>[0],
+  children: React.ReactNode,
+): string {
+  const data = bootstrap(options);
+
+  return renderToStaticMarkup(
+    <WorkspaceProvider initialData={data}>
+      <AnalyticsProvider analytics={data.analytics}>{children}</AnalyticsProvider>
+    </WorkspaceProvider>,
+  );
+}
 
 describe("dashboard server rendering", () => {
   it("emits the real portfolio data in the initial HTML", () => {
-    const markup = renderToStaticMarkup(
-      <WorkspaceProvider initialData={bootstrap()}>
-        <PortfolioDashboardWorkspace />
-      </WorkspaceProvider>,
-    );
+    const markup = renderWorkspace({}, <PortfolioDashboardWorkspace />);
 
     // Each of these was the empty-state value before the provider fell back to
     // `initialData`: no name, "0" views, "0%" readiness, "Create your first draft".
@@ -95,11 +99,7 @@ describe("dashboard server rendering", () => {
   });
 
   it("does not read the clock during the server pass", () => {
-    const markup = renderToStaticMarkup(
-      <WorkspaceProvider initialData={bootstrap()}>
-        <PortfolioDashboardWorkspace />
-      </WorkspaceProvider>,
-    );
+    const markup = renderWorkspace({}, <PortfolioDashboardWorkspace />);
 
     // A server-timezone greeting would hydrate into a different one for the visitor.
     expect(markup).toContain("Welcome back");
@@ -109,10 +109,9 @@ describe("dashboard server rendering", () => {
   });
 
   it("shows the free-tier address rather than a subdomain the account lacks", () => {
-    const markup = renderToStaticMarkup(
-      <WorkspaceProvider initialData={bootstrap({ canPublish: false, locked: true })}>
-        <PortfolioDashboardWorkspace />
-      </WorkspaceProvider>,
+    const markup = renderWorkspace(
+      { canPublish: false, locked: true },
+      <PortfolioDashboardWorkspace />,
     );
 
     expect(markup).toContain("portfolio.veriworkly.com/portfolio/gautam");
@@ -120,23 +119,83 @@ describe("dashboard server rendering", () => {
   });
 
   it("withholds view counts from a locked account instead of showing a false zero", () => {
-    const markup = renderToStaticMarkup(
-      <WorkspaceProvider initialData={bootstrap({ canPublish: false, locked: true })}>
-        <PortfolioDashboardWorkspace />
-      </WorkspaceProvider>,
+    const markup = renderWorkspace(
+      { canPublish: false, locked: true },
+      <PortfolioDashboardWorkspace />,
     );
 
     expect(markup).toContain("Available on Creator Pro");
   });
 });
 
-describe("analytics server rendering", () => {
-  it("renders the figures for an entitled account", () => {
-    const markup = renderToStaticMarkup(
-      <WorkspaceProvider initialData={bootstrap()}>
-        <PortfolioAnalyticsWorkspace />
+describe("store isolation between renders", () => {
+  it("does not leak one render's portfolio into another", () => {
+    // The reason the store had to stop being a module-level singleton. On the server a
+    // singleton is shared by every in-flight request, so seeding it with a user's data
+    // during render would make that data readable by whoever renders next. Each provider
+    // now owns its instance; rendering one must not affect the other.
+    const first = renderWorkspace({}, <PortfolioSettingsWorkspace />);
+
+    const second = renderToStaticMarkup(
+      <WorkspaceProvider
+        initialData={{
+          user: { name: "Someone Else", email: "other@veriworkly.com" },
+          workspace: {
+            draft: {
+              id: "doc_2",
+              slug: "someone-else",
+              templateId: "signal",
+              content: {
+                ...completeContent,
+                identity: { ...completeContent.identity, name: "Someone Else" },
+                seo: { title: "Someone Else", description: "Other", socialImage: null },
+              },
+              revision: 1,
+              updatedAt: new Date("2026-08-02T00:00:00.000Z").toISOString(),
+            },
+            publication: null,
+            billing: { canPublish: true, status: "ACTIVE" },
+          },
+          isAdmin: false,
+        }}
+      >
+        <PortfolioSettingsWorkspace />
       </WorkspaceProvider>,
     );
+
+    expect(first).toContain("gautam");
+    expect(first).not.toContain("someone-else");
+    expect(second).toContain("someone-else");
+    expect(second).not.toContain("Gautam Raj");
+  });
+});
+
+describe("settings server rendering", () => {
+  it("puts the account's own values in the form fields, not placeholders", () => {
+    const markup = renderWorkspace({}, <PortfolioSettingsWorkspace />);
+    const values = [...markup.matchAll(/value="([^"]*)"/g)].map((match) => match[1]);
+
+    // This page is driven entirely by the store. While that store was a module-level
+    // singleton it could not be seeded during SSR, so these fields server-rendered as
+    // `["portfolio", "VeriWorkly User | Portfolio"]` — fabricated values in a form the
+    // user was about to edit — and only became correct after hydration.
+    expect(values).toContain("gautam");
+    expect(values).toContain("Gautam Raj");
+    expect(values).not.toContain("portfolio");
+    expect(markup).not.toContain("VeriWorkly User");
+  });
+
+  it("previews the real public address", () => {
+    const markup = renderWorkspace({}, <PortfolioSettingsWorkspace />);
+
+    expect(markup).toContain("gautam.veriworkly.com");
+    expect(markup).not.toContain("portfolio.veriworkly.com/portfolio/portfolio");
+  });
+});
+
+describe("analytics server rendering", () => {
+  it("renders the figures for an entitled account", () => {
+    const markup = renderWorkspace({}, <PortfolioAnalyticsWorkspace />);
 
     expect(markup).toContain("1234");
     expect(markup).toContain("news.ycombinator.com");
@@ -144,10 +203,9 @@ describe("analytics server rendering", () => {
   });
 
   it("ships no figures at all when the server locked the payload", () => {
-    const markup = renderToStaticMarkup(
-      <WorkspaceProvider initialData={bootstrap({ canPublish: false, locked: true })}>
-        <PortfolioAnalyticsWorkspace />
-      </WorkspaceProvider>,
+    const markup = renderWorkspace(
+      { canPublish: false, locked: true },
+      <PortfolioAnalyticsWorkspace />,
     );
 
     // The lock is enforced server-side, so the numbers are absent from the payload

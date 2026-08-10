@@ -1,12 +1,12 @@
 [
   {
     "id": "v3-21-0",
-    "version": "3.21.0",
+    "version": "3.22.0",
     "title": "AI Experience Refresh, Resume Editor Enhancements & Platform Reliability",
     "summary": "One of our biggest releases yet: a completely refreshed AI-first website experience, major improvements to the resume editor, new authentication and security enhancements, Redis-powered performance optimizations, smarter billing workflows, and expanded template documentation.",
     "type": "minor",
     "publishedAt": "2026-06-29T14:11:47Z",
-    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.21.0",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.22.0",
     "added": [
       "Refreshed AI-first marketing website and product messaging",
       "Added two-column resume layouts and improved section visibility controls",
@@ -151,14 +151,7 @@
         }
       }
     ],
-    "tags": [
-      "ai",
-      "ats",
-      "billing",
-      "portfolio",
-      "resume-editor",
-      "cover-letter"
-    ]
+    "tags": ["ai", "ats", "billing", "portfolio", "resume-editor", "cover-letter"]
   },
   {
     "id": "v3-20-0",
@@ -199,12 +192,7 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "portfolio",
-      "resume-editor",
-      "sharing",
-      "faq"
-    ]
+    "tags": ["portfolio", "resume-editor", "sharing", "faq"]
   },
   {
     "id": "v3-19-0",
@@ -230,12 +218,7 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "ai",
-      "ats",
-      "billing",
-      "cover-letter"
-    ]
+    "tags": ["ai", "ats", "billing", "cover-letter"]
   },
   {
     "id": "v3-18-0",
@@ -269,11 +252,7 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "ai",
-      "affiliate",
-      "performance"
-    ]
+    "tags": ["ai", "affiliate", "performance"]
   },
   {
     "id": "v3-17-0",
@@ -304,12 +283,7 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "templates",
-      "security",
-      "api",
-      "performance"
-    ]
+    "tags": ["templates", "security", "api", "performance"]
   },
   {
     "id": "v3-16-0",
@@ -342,11 +316,7 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "billing",
-      "portfolio",
-      "templates"
-    ]
+    "tags": ["billing", "portfolio", "templates"]
   },
   {
     "id": "v3-15-0",
@@ -382,13 +352,7 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "portfolio",
-      "templates",
-      "security",
-      "api",
-      "performance"
-    ]
+    "tags": ["portfolio", "templates", "security", "api", "performance"]
   },
   {
     "id": "v3-14-1",
@@ -415,10 +379,7 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "security",
-      "performance"
-    ]
+    "tags": ["security", "performance"]
   },
   {
     "id": "v3-14-0",
@@ -450,11 +411,7 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "portfolio",
-      "templates",
-      "architecture"
-    ]
+    "tags": ["portfolio", "templates", "architecture"]
   },
   {
     "id": "v3-10-2",
@@ -485,10 +442,7 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "cover-letter",
-      "performance"
-    ]
+    "tags": ["cover-letter", "performance"]
   },
   {
     "id": "v3-10-0",
@@ -519,12 +473,7 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "resume-editor",
-      "cover-letter",
-      "templates",
-      "architecture"
-    ]
+    "tags": ["resume-editor", "cover-letter", "templates", "architecture"]
   },
   {
     "id": "v3-9-0",
@@ -555,10 +504,7 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "templates",
-      "architecture"
-    ]
+    "tags": ["templates", "architecture"]
   },
   {
     "id": "v3-8-0",
@@ -590,11 +536,7 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "resume-editor",
-      "templates",
-      "architecture"
-    ]
+    "tags": ["resume-editor", "templates", "architecture"]
   },
   {
     "id": "v3-6-0",
@@ -628,10 +570,7 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "templates",
-      "design-system"
-    ]
+    "tags": ["templates", "design-system"]
   },
   {
     "id": "v3-5-0",
@@ -661,12 +600,7 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "security",
-      "api",
-      "sharing",
-      "performance"
-    ]
+    "tags": ["security", "api", "sharing", "performance"]
   },
   {
     "id": "v3-4-0",
@@ -695,12 +629,7 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "resume-editor",
-      "templates",
-      "api",
-      "sharing"
-    ]
+    "tags": ["resume-editor", "templates", "api", "sharing"]
   },
   {
     "id": "v3-3-0",
@@ -729,13 +658,7 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "ats",
-      "resume-editor",
-      "templates",
-      "sharing",
-      "architecture"
-    ]
+    "tags": ["ats", "resume-editor", "templates", "sharing", "architecture"]
   },
   {
     "id": "v3-2-0",
@@ -763,12 +686,7 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "portfolio",
-      "cover-letter",
-      "sharing",
-      "architecture"
-    ]
+    "tags": ["portfolio", "cover-letter", "sharing", "architecture"]
   },
   {
     "id": "v3-1-0",
@@ -793,11 +711,7 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "resume-editor",
-      "templates",
-      "architecture"
-    ]
+    "tags": ["resume-editor", "templates", "architecture"]
   },
   {
     "id": "v3-0-0",
@@ -826,12 +740,7 @@
     ],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "resume-editor",
-      "templates",
-      "api",
-      "architecture"
-    ]
+    "tags": ["resume-editor", "templates", "api", "architecture"]
   },
   {
     "id": "v2-2-1",
@@ -853,10 +762,7 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "security",
-      "api"
-    ]
+    "tags": ["security", "api"]
   },
   {
     "id": "v2-2-0",
@@ -885,10 +791,6 @@
     "breaking": [],
     "security": [],
     "prRefs": [],
-    "tags": [
-      "api",
-      "sharing",
-      "performance"
-    ]
+    "tags": ["api", "sharing", "performance"]
   }
 ]

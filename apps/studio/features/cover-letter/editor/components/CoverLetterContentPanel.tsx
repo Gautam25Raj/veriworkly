@@ -4,44 +4,46 @@ import { useState } from "react";
 
 import { Button, Select } from "@veriworkly/ui";
 
-import type { CoverLetterContent } from "@/features/cover-letter/types";
 import type { CoverLetterSectionId } from "@/features/cover-letter/types";
-import type { ResumeLinkDisplayMode, ResumeLinkItem, ResumeLinkType } from "@/types/resume";
+import type { ResumeLinkDisplayMode, ResumeLinkType } from "@/types/resume";
 
 import { linkTypeOptions } from "@/features/documents/editor/link-options";
-import SectionAccordion from "@/features/resume/editor/content/SectionAccordion";
+import { useCoverLetterStore } from "@/features/cover-letter/store/cover-letter-store";
+import SectionAccordion from "@/features/documents/editor/SectionAccordion";
 import { AiFieldAssist } from "@/features/ai/AiFieldAssist";
 
-import { EditorBlock, Field, TextField } from "./CoverLetterFields";
+import { EditorBlock, TextAreaField, TextInputField } from "@/features/documents/editor/form";
 
 interface CoverLetterContentPanelProps {
-  content: CoverLetterContent;
   documentId: string;
-  links: CoverLetterContent["links"];
-  onAddLink: () => void;
-  onRemoveLink: (index: number) => void;
-  onUpdateContent: (patch: Partial<CoverLetterContent>) => void;
-  onUpdateLink: (index: number, patch: Partial<ResumeLinkItem>) => void;
-  onUpdateLinks: (patch: Partial<CoverLetterContent["links"]>) => void;
 }
 
-export function CoverLetterContentPanel({
-  content,
-  documentId,
-  links,
-  onAddLink,
-  onRemoveLink,
-  onUpdateContent,
-  onUpdateLink,
-  onUpdateLinks,
-}: CoverLetterContentPanelProps) {
+const EMPTY_LINKS = { displayMode: "icon-username" as const, items: [] };
+
+/**
+ * Reads state through narrow store selectors, the same pattern the resume section
+ * components use (`features/resume/editor/content/sections/`). It previously took eight
+ * props threaded down from the editor.
+ */
+export function CoverLetterContentPanel({ documentId }: CoverLetterContentPanelProps) {
   const [openSectionId, setOpenSectionId] = useState<CoverLetterSectionId | null>("profile");
+
+  const content = useCoverLetterStore((state) => state.document?.content);
+  const onUpdateContent = useCoverLetterStore((state) => state.updateContent);
+  const onUpdateLinks = useCoverLetterStore((state) => state.updateLinks);
+  const onAddLink = useCoverLetterStore((state) => state.addLinkItem);
+  const onUpdateLink = useCoverLetterStore((state) => state.updateLinkItem);
+  const onRemoveLink = useCoverLetterStore((state) => state.removeLinkItem);
 
   function toggleSection(sectionId: string) {
     setOpenSectionId((currentSectionId) =>
       currentSectionId === sectionId ? null : (sectionId as CoverLetterSectionId),
     );
   }
+
+  if (!content) return null;
+
+  const links = content.links ?? EMPTY_LINKS;
 
   return (
     <div>
@@ -57,42 +59,42 @@ export function CoverLetterContentPanel({
         onToggle={toggleSection}
       >
         <EditorBlock title="Profile">
-          <Field
+          <TextInputField
             label="Full name"
             value={content.senderName}
-            onChange={(senderName) => onUpdateContent({ senderName })}
+            onValueChange={(senderName) => onUpdateContent({ senderName })}
           />
 
-          <Field
+          <TextInputField
             label="Professional title"
             value={content.senderTitle}
-            onChange={(senderTitle) => onUpdateContent({ senderTitle })}
+            onValueChange={(senderTitle) => onUpdateContent({ senderTitle })}
           />
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field
+            <TextInputField
               label="Email"
               value={content.senderEmail}
-              onChange={(senderEmail) => onUpdateContent({ senderEmail })}
+              onValueChange={(senderEmail) => onUpdateContent({ senderEmail })}
             />
 
-            <Field
+            <TextInputField
               label="Phone"
               value={content.senderPhone}
-              onChange={(senderPhone) => onUpdateContent({ senderPhone })}
+              onValueChange={(senderPhone) => onUpdateContent({ senderPhone })}
             />
           </div>
 
-          <Field
+          <TextInputField
             label="Location"
             value={content.senderLocation}
-            onChange={(senderLocation) => onUpdateContent({ senderLocation })}
+            onValueChange={(senderLocation) => onUpdateContent({ senderLocation })}
           />
 
-          <Field
+          <TextInputField
             label="Website"
             value={content.senderWebsite}
-            onChange={(senderWebsite) => onUpdateContent({ senderWebsite })}
+            onValueChange={(senderWebsite) => onUpdateContent({ senderWebsite })}
           />
         </EditorBlock>
       </SectionAccordion>
@@ -141,19 +143,19 @@ export function CoverLetterContentPanel({
                     </Select>
                   </label>
 
-                  <Field
+                  <TextInputField
                     label="Label"
                     value={item.label}
                     placeholder="veriworkly-user"
-                    onChange={(label) => onUpdateLink(index, { label })}
+                    onValueChange={(label) => onUpdateLink(index, { label })}
                   />
                 </div>
 
-                <Field
+                <TextInputField
                   label="URL"
                   value={item.url}
                   placeholder="https://..."
-                  onChange={(url) => onUpdateLink(index, { url })}
+                  onValueChange={(url) => onUpdateLink(index, { url })}
                 />
 
                 <Button
@@ -181,39 +183,43 @@ export function CoverLetterContentPanel({
         isOpen={openSectionId === "target"}
       >
         <EditorBlock title="Target">
-          <Field
+          <TextInputField
             label="Target role"
             value={content.jobTitle}
-            onChange={(jobTitle) => onUpdateContent({ jobTitle })}
+            onValueChange={(jobTitle) => onUpdateContent({ jobTitle })}
           />
 
-          <Field
+          <TextInputField
             label="Company"
             value={content.companyName}
-            onChange={(companyName) => onUpdateContent({ companyName })}
+            onValueChange={(companyName) => onUpdateContent({ companyName })}
           />
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field
+            <TextInputField
               label="Hiring manager"
               value={content.recipientName}
-              onChange={(recipientName) => onUpdateContent({ recipientName })}
+              onValueChange={(recipientName) => onUpdateContent({ recipientName })}
             />
 
-            <Field
+            <TextInputField
               label="Recipient title"
               value={content.recipientTitle}
-              onChange={(recipientTitle) => onUpdateContent({ recipientTitle })}
+              onValueChange={(recipientTitle) => onUpdateContent({ recipientTitle })}
             />
           </div>
 
-          <Field
+          <TextInputField
             label="Company location"
             value={content.companyLocation}
-            onChange={(companyLocation) => onUpdateContent({ companyLocation })}
+            onValueChange={(companyLocation) => onUpdateContent({ companyLocation })}
           />
 
-          <Field label="Date" value={content.date} onChange={(date) => onUpdateContent({ date })} />
+          <TextInputField
+            label="Date"
+            value={content.date}
+            onValueChange={(date) => onUpdateContent({ date })}
+          />
         </EditorBlock>
       </SectionAccordion>
 
@@ -224,30 +230,30 @@ export function CoverLetterContentPanel({
         isOpen={openSectionId === "letter"}
       >
         <EditorBlock title="Letter">
-          <Field
+          <TextInputField
             label="Subject"
             value={content.subject}
             placeholder="Application for Senior Product Engineer"
-            onChange={(subject) => onUpdateContent({ subject })}
+            onValueChange={(subject) => onUpdateContent({ subject })}
           />
 
-          <Field
+          <TextInputField
             label="Greeting"
             value={content.greeting}
-            onChange={(greeting) => onUpdateContent({ greeting })}
+            onValueChange={(greeting) => onUpdateContent({ greeting })}
           />
 
-          <TextField
+          <TextAreaField
             label="Opening"
             value={content.opening}
-            onChange={(opening) => onUpdateContent({ opening })}
+            onValueChange={(opening) => onUpdateContent({ opening })}
           />
 
-          <TextField
+          <TextAreaField
             label="Main body"
             value={content.body}
             className="min-h-44 font-mono text-[13px]"
-            onChange={(body) => onUpdateContent({ body })}
+            onValueChange={(body) => onUpdateContent({ body })}
           />
           <AiFieldAssist
             action="generate_cover_letter"
@@ -257,31 +263,31 @@ export function CoverLetterContentPanel({
             text={content.body}
           />
 
-          <TextField
+          <TextAreaField
             label="Proof points"
             value={content.highlights}
             className="min-h-32 font-mono text-[13px]"
-            onChange={(highlights) => onUpdateContent({ highlights })}
+            onValueChange={(highlights) => onUpdateContent({ highlights })}
           />
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field
+            <TextInputField
               label="Closing"
               value={content.closing}
-              onChange={(closing) => onUpdateContent({ closing })}
+              onValueChange={(closing) => onUpdateContent({ closing })}
             />
 
-            <Field
+            <TextInputField
               label="Signature"
               value={content.signature}
-              onChange={(signature) => onUpdateContent({ signature })}
+              onValueChange={(signature) => onUpdateContent({ signature })}
             />
           </div>
 
-          <Field
+          <TextInputField
             label="Postscript"
             value={content.postscript}
-            onChange={(postscript) => onUpdateContent({ postscript })}
+            onValueChange={(postscript) => onUpdateContent({ postscript })}
           />
         </EditorBlock>
       </SectionAccordion>

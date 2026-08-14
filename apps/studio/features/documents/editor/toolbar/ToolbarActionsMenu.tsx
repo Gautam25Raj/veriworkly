@@ -14,14 +14,19 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useState } from "react";
 
 import { Button, Menu, MenuItem, MenuSeparator } from "@veriworkly/ui";
 
 import { cn } from "@/lib/utils";
 
+import ConfirmModal from "@/components/modals/ConfirmModal";
+
 import { useUserStore } from "@/store/useUserStore";
 
 interface ToolbarActionsMenuProps {
+  /** Shown in the reset/empty confirmations, e.g. "resume" or "cover letter". */
+  documentLabel: string;
   onDelete: () => void;
   onImportJson: () => void;
   onImportMarkdown: () => void;
@@ -33,7 +38,10 @@ interface ToolbarActionsMenuProps {
   onPdfDebug?: () => void;
 }
 
+type PendingWipe = "reset" | "empty";
+
 const ToolbarActionsMenu = ({
+  documentLabel,
   onDelete,
   onImportJson,
   onImportMarkdown,
@@ -46,6 +54,78 @@ const ToolbarActionsMenu = ({
 }: ToolbarActionsMenuProps) => {
   const isLoggedIn = useUserStore((state) => state.isLoggedIn);
 
+  // "Reset to Defaults" and "Empty Fields" both discard the entire document and there is
+  // no undo stack, yet they used to fire straight from the menu with no confirmation —
+  // while document *deletion* right below them did get a confirm dialog. Confirming here
+  // covers both editors at once, since they share this menu.
+  const [pendingWipe, setPendingWipe] = useState<PendingWipe | null>(null);
+
+  function confirmPendingWipe() {
+    if (pendingWipe === "reset") onReset();
+    if (pendingWipe === "empty") onEmptyFields();
+
+    setPendingWipe(null);
+  }
+
+  return (
+    <>
+      <ToolbarActionsMenuTrigger
+        documentLabel={documentLabel}
+        isLoggedIn={isLoggedIn}
+        onDelete={onDelete}
+        onImportJson={onImportJson}
+        onImportMarkdown={onImportMarkdown}
+        onShare={onShare}
+        onSync={onSync}
+        onFullPreview={onFullPreview}
+        onPdfDebug={onPdfDebug}
+        onRequestReset={() => setPendingWipe("reset")}
+        onRequestEmpty={() => setPendingWipe("empty")}
+      />
+
+      <ConfirmModal
+        open={pendingWipe !== null}
+        onConfirmAction={confirmPendingWipe}
+        onCloseAction={() => setPendingWipe(null)}
+        title={pendingWipe === "empty" ? "Empty all fields?" : "Reset to defaults?"}
+        description={
+          pendingWipe === "empty"
+            ? `This clears every field in this ${documentLabel}. There is no undo.`
+            : `This replaces this ${documentLabel}'s content with the starter template. There is no undo.`
+        }
+        confirmLabel={pendingWipe === "empty" ? "Empty fields" : "Reset"}
+        cancelLabel="Keep my changes"
+      />
+    </>
+  );
+};
+
+interface ToolbarActionsMenuTriggerProps {
+  documentLabel: string;
+  isLoggedIn: boolean;
+  onDelete: () => void;
+  onImportJson: () => void;
+  onImportMarkdown: () => void;
+  onShare: () => void;
+  onSync: () => void;
+  onFullPreview?: () => void;
+  onPdfDebug?: () => void;
+  onRequestReset: () => void;
+  onRequestEmpty: () => void;
+}
+
+const ToolbarActionsMenuTrigger = ({
+  isLoggedIn,
+  onDelete,
+  onImportJson,
+  onImportMarkdown,
+  onShare,
+  onSync,
+  onFullPreview,
+  onPdfDebug,
+  onRequestReset,
+  onRequestEmpty,
+}: ToolbarActionsMenuTriggerProps) => {
   return (
     <Menu
       panelClassName="min-w-52"
@@ -164,7 +244,7 @@ const ToolbarActionsMenu = ({
           <MenuItem
             onClick={() => {
               close();
-              onReset();
+              onRequestReset();
             }}
           >
             <RotateCcw className="h-4 w-4" />
@@ -174,7 +254,7 @@ const ToolbarActionsMenu = ({
           <MenuItem
             onClick={() => {
               close();
-              onEmptyFields();
+              onRequestEmpty();
             }}
           >
             <Eraser className="h-4 w-4" />

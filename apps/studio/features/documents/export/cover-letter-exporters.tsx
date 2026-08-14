@@ -13,7 +13,7 @@ import { downloadBlob } from "@/features/documents/export/download";
 import { exportDocumentAsDocx } from "@/features/documents/export/export-docx";
 import { getDocumentFileBaseName } from "./export-file-names";
 
-import { CoverLetterPdf } from "@/templates/cover-letter/pdf";
+import { createCoverLetterPdfElement } from "@/templates/cover-letter/pdf";
 import { registerPdfFontById } from "@/templates/pdf/fonts";
 import {
   buildCoverLetterHtml,
@@ -47,7 +47,7 @@ export async function exportCoverLetterDocument(
     case "docx":
       return exportDocumentAsDocx(document);
     case "html": {
-      const html = buildCoverLetterHtml(content, document.templateId);
+      const html = await buildCoverLetterHtml(content, document.templateId);
       downloadBlob(new Blob([html], { type: "text/html;charset=utf-8" }), `${fileBase}.html`);
       return;
     }
@@ -63,7 +63,10 @@ export async function exportCoverLetterDocument(
     }
     case "pdf": {
       registerPdfFontById(content.appearance?.fontFamily);
-      const renderer = <CoverLetterPdf content={content} templateId={document.templateId} />;
+      const renderer = await createCoverLetterPdfElement({
+        content,
+        templateId: document.templateId,
+      });
       const blob = await pdf(renderer).toBlob();
       downloadBlob(blob, `${fileBase}.pdf`);
       return;

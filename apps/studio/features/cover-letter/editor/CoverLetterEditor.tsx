@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useRef, useState } from "react";
 
 import { Button, Card } from "@veriworkly/ui";
 
@@ -14,15 +14,19 @@ import type { CoverLetterContent } from "@/features/cover-letter/types";
 import { parseCoverLetterContent } from "@/features/cover-letter/schema";
 
 import { CoverLetterPreview } from "@/templates/cover-letter/web";
-import ShareDocumentModal from "@/components/modals/ShareDocumentModal";
 import { DocumentEditorShell } from "@/features/documents/editor/DocumentEditorShell";
-import { startDocumentSyncWorker } from "@/features/documents/services/document-sync";
+import {
+  startDocumentSyncWorker,
+  hydrateCloudDocumentByIdToLocalStorage,
+} from "@/features/documents/services/document-sync";
 import { importCoverLetterMarkdownFile } from "@/features/cover-letter/markdown-import";
-import { deleteDocument } from "@/features/documents/services/document-workspace-service";
+import { describeSaveResult } from "@/features/documents/services/save-failure-message";
 import { loadWorkspaceSettingsFromLocalStorage } from "@/features/documents/services/workspace-settings";
 
+import { useCoverLetterStore } from "@/features/cover-letter/store/cover-letter-store";
+
 import { CoverLetterToolbar } from "./components/CoverLetterToolbar";
-import { useCoverLetterDocument } from "./hooks/useCoverLetterDocument";
+import CoverLetterEditorModals from "./components/CoverLetterEditorModals";
 import { CoverLetterContentPanel } from "./components/CoverLetterContentPanel";
 import { CoverLetterSettingsPanel } from "./components/CoverLetterSettingsPanel";
 
@@ -30,28 +34,72 @@ interface CoverLetterEditorProps {
   documentId: string;
 }
 
+/**
+ * Structured to match `features/resume/editor/ResumeEditor.tsx`: hydrate from local
+ * storage (falling back to the cloud), autosave on a debounce, start the sync worker,
+ * and render the shared editor shell with a deferred preview.
+ */
 export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps) {
   const router = useRouter();
   const isLoggedIn = useUserStore((state) => state.isLoggedIn);
-  const [shareModalOpen, setShareModalOpen] = useState(false);
 
-  const {
-    doc,
-    hydrated,
-    message,
-    setMessage,
-    updateDocument,
-    updateContent,
-    updateAppearance,
-    updateLinks,
-    addLink,
-    updateLink,
-    removeLink,
-    saveCurrentDocument,
-  } = useCoverLetterDocument(documentId);
+  const hasHydratedRef = useRef(false);
+
+  const [hydrated, setHydrated] = useState(false);
+  const [message, setMessage] = useState("Autosave ready");
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+
+  const document = useCoverLetterStore((state) => state.document);
+  const hydrateFromStorage = useCoverLetterStore((state) => state.hydrateFromStorage);
+  const saveToStorage = useCoverLetterStore((state) => state.saveToStorage);
+  const updateContent = useCoverLetterStore((state) => state.updateContent);
+  const setDocument = useCoverLetterStore((state) => state.setDocument);
+
+  const deferredDocument = useDeferredValue(document);
+
+  const coverLetterPreviewId = `cover-letter-preview-${documentId}`;
 
   useEffect(() => {
-    if (!hydrated || !isLoggedIn) return;
+    let cancelled = false;
+
+    const hydrate = async () => {
+      if (hydrateFromStorage(documentId)) {
+        hasHydratedRef.current = true;
+        setHydrated(true);
+        return;
+      }
+
+      const cloudResult = await hydrateCloudDocumentByIdToLocalStorage("COVER_LETTER", documentId);
+
+      if (cancelled) return;
+
+      if (cloudResult.ok) hydrateFromStorage(documentId);
+
+      hasHydratedRef.current = true;
+      setHydrated(true);
+    };
+
+    void hydrate();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [documentId, hydrateFromStorage]);
+
+  // Autosave. Surfacing the result is the point: the previous implementation
+  // discarded it, so a full-storage failure silently dropped the user's edits.
+  useEffect(() => {
+    if (!hasHydratedRef.current || !document) return;
+
+    const failure = describeSaveResult(saveToStorage({ debounceMs: 300 }));
+
+    setMessage(failure ?? "Saved locally");
+    if (failure) toast.error(failure);
+  }, [document, saveToStorage]);
+
+  useEffect(() => {
+    if (!hasHydratedRef.current || !isLoggedIn) return;
 
     const workspaceSettings = loadWorkspaceSettingsFromLocalStorage();
 
@@ -59,32 +107,13 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
       enabled: isLoggedIn && workspaceSettings.autoSyncEnabled,
       idleDelayMs: 12_000,
     });
-  }, [hydrated, isLoggedIn, doc?.id]);
-
-  const links = useMemo(
-    () => doc?.content.links ?? { displayMode: "icon-username" as const, items: [] },
-    [doc?.content.links],
-  );
-
-  /**
-   * The preview renders deferred content so typing stays responsive.
-   *
-   * Both cover letter templates re-measure their pagination in a layout effect
-   * whenever content changes. Without this, every keystroke ran that measuring pass at
-   * blocking priority — the resume editor already deferred its preview this way, and
-   * the cover letter did not.
-   *
-   * Hook order requires this above the `hydrated`/`doc` early returns, so it reads
-   * through the optional `doc`.
-   */
-  const deferredContent = useDeferredValue(doc?.content);
-  const deferredTemplateId = useDeferredValue(doc?.templateId);
+  }, [isLoggedIn, document?.id]);
 
   if (!hydrated) {
     return <CoverLetterStateCard title="Loading cover letter" message="Preparing your editor." />;
   }
 
-  if (!doc) {
+  if (!document) {
     return (
       <CoverLetterStateCard
         title="Cover letter not found"
@@ -97,7 +126,14 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
     );
   }
 
-  const currentDoc = doc;
+  const currentDocument = document;
+
+  function saveNow() {
+    const failure = describeSaveResult(saveToStorage({ flush: true }));
+
+    setMessage(failure ?? "Draft saved locally");
+    if (failure) toast.error(failure);
+  }
 
   async function importJson(file: File | undefined) {
     if (!file) return;
@@ -118,7 +154,7 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
 
       // Only overwrite fields the imported file actually specified, so a partial
       // export/backup still merges onto (rather than wiping) the current draft.
-      const mergedContent: CoverLetterContent = { ...currentDoc.content };
+      const mergedContent: CoverLetterContent = { ...currentDocument.content };
       for (const key of Object.keys(validatedContent) as (keyof CoverLetterContent)[]) {
         if (key === "appearance") continue;
         if (key in rawContentRecord) {
@@ -129,7 +165,7 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
       const rawAppearance = isRecord(rawContentRecord.appearance)
         ? rawContentRecord.appearance
         : {};
-      const mergedAppearance = { ...currentDoc.content.appearance };
+      const mergedAppearance = { ...currentDocument.content.appearance };
       for (const key of Object.keys(validatedContent.appearance) as Array<
         keyof CoverLetterContent["appearance"]
       >) {
@@ -146,16 +182,13 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
           ? importedShell.templateId
           : undefined;
 
-      updateDocument(
-        {
-          ...currentDoc,
-          title: importedTitle || currentDoc.title,
-          templateId: importedTemplateId || currentDoc.templateId,
-          updatedAt: new Date().toISOString(),
-          content: mergedContent,
-        },
-        { flush: true },
-      );
+      setDocument({
+        ...currentDocument,
+        title: importedTitle || currentDocument.title,
+        templateId: importedTemplateId || currentDocument.templateId,
+        updatedAt: new Date().toISOString(),
+        content: mergedContent,
+      });
 
       toast.success("Cover letter imported");
     } catch {
@@ -167,98 +200,52 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
     if (!file) return;
 
     try {
-      const importedContent = await importCoverLetterMarkdownFile(file, currentDoc.content);
+      const importedContent = await importCoverLetterMarkdownFile(file, currentDocument.content);
 
-      updateDocument(
-        {
-          ...currentDoc,
-          title: importedContent.jobTitle || currentDoc.title,
-          updatedAt: new Date().toISOString(),
-          content: importedContent,
-        },
-        { flush: true },
-      );
-
+      updateContent(importedContent);
       toast.success("Cover letter markdown imported");
     } catch {
       toast.error("Import failed. Use a valid cover letter Markdown file.");
     }
   }
 
-  function deleteCurrentDocument() {
-    const confirmed = window.confirm(`Delete "${currentDoc.title}"? This cannot be undone.`);
-    if (!confirmed) return;
-
-    deleteDocument("COVER_LETTER", currentDoc.id);
-    router.push("/documents");
-  }
-
-  const content = currentDoc.content;
+  const previewDocument = deferredDocument ?? currentDocument;
 
   return (
     <>
       <DocumentEditorShell
         toolbar={
           <CoverLetterToolbar
-            document={currentDoc}
+            documentId={documentId}
             message={message}
-            onDelete={deleteCurrentDocument}
+            onSave={saveNow}
+            onSetMessage={setMessage}
             onImportJson={importJson}
             onImportMarkdown={importMarkdown}
             onOpenShare={() => setShareModalOpen(true)}
-            onSave={saveCurrentDocument}
-            onSetMessage={setMessage}
-            onUpdateDocument={updateDocument}
+            onOpenDelete={() => setDeleteModalOpen(true)}
           />
         }
-        contentPanel={
-          <CoverLetterContentPanel
-            content={content}
-            documentId={currentDoc.id}
-            links={links}
-            onAddLink={addLink}
-            onRemoveLink={removeLink}
-            onUpdateContent={updateContent}
-            onUpdateLink={updateLink}
-            onUpdateLinks={updateLinks}
+        modals={
+          <CoverLetterEditorModals
+            shareModalOpen={shareModalOpen}
+            onShareModalClose={() => setShareModalOpen(false)}
+            deleteModalOpen={deleteModalOpen}
+            onDeleteModalClose={() => setDeleteModalOpen(false)}
           />
         }
-        settingsPanel={
-          <CoverLetterSettingsPanel
-            document={currentDoc}
-            appearance={content.appearance}
-            onUpdateDocument={updateDocument}
-            onUpdateAppearance={updateAppearance}
-          />
-        }
+        contentPanel={<CoverLetterContentPanel documentId={currentDocument.id} />}
+        settingsPanel={<CoverLetterSettingsPanel />}
         preview={
           <CoverLetterPreview
-            content={deferredContent ?? content}
-            templateId={deferredTemplateId ?? currentDoc.templateId}
+            content={previewDocument.content}
+            templateId={previewDocument.templateId}
           />
         }
-        previewTitle={currentDoc.title || "Cover Letter"}
+        previewId={coverLetterPreviewId}
+        previewTitle={previewDocument.title || "Cover Letter"}
+        settingsLabel="Style settings"
       />
-
-      {shareModalOpen ? (
-        <ShareDocumentModal
-          documentId={null}
-          document={{
-            source: "document",
-            id: currentDoc.id,
-            type: "COVER_LETTER",
-            title: currentDoc.title,
-            description: content.subject || content.jobTitle || "Cover letter",
-            templateId: currentDoc.templateId,
-            templateName: "Cover Letter",
-            templateDescription: "Cover letter",
-            previewImage: "",
-            updatedAt: currentDoc.updatedAt,
-            sync: currentDoc.sync,
-          }}
-          onClose={() => setShareModalOpen(false)}
-        />
-      ) : null}
     </>
   );
 }

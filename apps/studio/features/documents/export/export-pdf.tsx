@@ -14,7 +14,7 @@ import { downloadBlob } from "./download";
 export async function exportResumeAsPdf(resume: ResumeData): Promise<void> {
   registerPdfFont(resume);
 
-  const TemplatePdf = loadTemplatePdfComponentById(resume.templateId);
+  const TemplatePdf = await loadTemplatePdfComponentById(resume.templateId);
   const blob = await pdf(<TemplatePdf resume={resume} />).toBlob();
 
   downloadBlob(blob, `${getResumeFileBaseName(resume)}.pdf`);

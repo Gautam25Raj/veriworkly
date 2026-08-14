@@ -2,12 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import type {
-  CoverLetterContent,
-  CoverLetterSectionId,
-  CoverLetterAppearance,
-} from "@/features/cover-letter/types";
-import type { BaseDocument } from "@/features/documents/core/types";
+import type { CoverLetterSectionId } from "@/features/cover-letter/types";
 import type { FontFamilyId } from "@/features/documents/constants/fonts";
 
 import {
@@ -21,47 +16,37 @@ import {
 } from "@/features/documents/editor/DocumentTemplatePickerModal";
 import { fontOptions } from "@/features/documents/constants/fonts";
 import { templateCatalogByType } from "@/features/documents/core/template-catalog";
+import { useCoverLetterStore } from "@/features/cover-letter/store/cover-letter-store";
 
-interface CoverLetterSettingsPanelProps {
-  document: BaseDocument<CoverLetterContent>;
-  appearance: CoverLetterAppearance;
-  onUpdateDocument: (
-    next: BaseDocument<CoverLetterContent>,
-    options?: { debounceMs?: number; flush?: boolean },
-  ) => void;
-  onUpdateAppearance: (patch: Partial<CoverLetterAppearance>) => void;
-}
-
-export function CoverLetterSettingsPanel({
-  document,
-  appearance,
-  onUpdateDocument,
-  onUpdateAppearance,
-}: CoverLetterSettingsPanelProps) {
+/**
+ * Reads state through narrow store selectors, matching
+ * features/resume/editor/EditorSettingsPanel.tsx.
+ */
+export function CoverLetterSettingsPanel() {
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
 
+  const templateId = useCoverLetterStore((state) => state.document?.templateId);
+  const appearance = useCoverLetterStore((state) => state.document?.content.appearance);
+  const setTemplateId = useCoverLetterStore((state) => state.setTemplateId);
+  const onUpdateAppearance = useCoverLetterStore((state) => state.updateAppearance);
+  const setSectionVisibilityInStore = useCoverLetterStore((state) => state.setSectionVisibility);
+
   const activeTemplate = templateCatalogByType.COVER_LETTER.find(
-    (template) => template.id === document.templateId,
+    (template) => template.id === templateId,
   );
   const hiddenSections = useMemo(
-    () => appearance.hiddenSections ?? [],
-    [appearance.hiddenSections],
+    () => appearance?.hiddenSections ?? [],
+    [appearance?.hiddenSections],
   );
 
-  function updateTemplate(templateId: string) {
-    onUpdateDocument({
-      ...document,
-      templateId,
-      updatedAt: new Date().toISOString(),
-    });
+  if (!appearance) return null;
+
+  function updateTemplate(nextTemplateId: string) {
+    setTemplateId(nextTemplateId);
   }
 
   function setSectionVisibility(sectionId: CoverLetterSectionId, visible: boolean) {
-    onUpdateAppearance({
-      hiddenSections: visible
-        ? hiddenSections.filter((id) => id !== sectionId)
-        : Array.from(new Set([...hiddenSections, sectionId])),
-    });
+    setSectionVisibilityInStore(sectionId, visible);
   }
 
   return (
@@ -169,7 +154,7 @@ export function CoverLetterSettingsPanel({
       </div>
 
       <DocumentTemplatePickerModal
-        activeTemplateId={document.templateId}
+        activeTemplateId={templateId ?? ""}
         description="Choose a cover letter layout."
         onChange={updateTemplate}
         onClose={() => setTemplateModalOpen(false)}

@@ -1,17 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { toast } from "sonner";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, FileSearch, Save } from "lucide-react";
 
-import { Button } from "@veriworkly/ui";
-
-import type { CoverLetterContent } from "@/features/cover-letter/types";
-import type { BaseDocument, ExportFormat } from "@/features/documents/core/types";
+import type { ExportFormat } from "@/features/documents/core/types";
 
 import ToolbarHeader from "@/features/documents/editor/toolbar/ToolbarHeader";
+import ToolbarSaveButton from "@/features/documents/editor/toolbar/ToolbarSaveButton";
 import ToolbarActionsMenu from "@/features/documents/editor/toolbar/ToolbarActionsMenu";
 import ToolbarDownloadMenu from "@/features/documents/editor/toolbar/ToolbarDownloadMenu";
 
@@ -20,33 +16,34 @@ import { useUserStore } from "@/store/useUserStore";
 import { getDocumentPreviewPath } from "@/features/documents/core/routes";
 import { syncDocumentNow } from "@/features/documents/services/document-sync";
 import { exportDocumentByType } from "@/features/documents/export/export-dispatcher";
-import { createDefaultCoverLetter, createEmptyCoverLetter } from "@/features/cover-letter/defaults";
+
+import { useCoverLetterStore } from "@/features/cover-letter/store/cover-letter-store";
 
 interface CoverLetterToolbarProps {
-  document: BaseDocument<CoverLetterContent>;
+  documentId: string;
   message: string;
-  onDelete: () => void;
+  onSave: () => void;
+  onSetMessage: (message: string) => void;
   onImportJson: (file: File | undefined) => Promise<void>;
   onImportMarkdown: (file: File | undefined) => Promise<void>;
   onOpenShare: () => void;
-  onSave: () => void;
-  onSetMessage: (message: string) => void;
-  onUpdateDocument: (
-    next: BaseDocument<CoverLetterContent>,
-    options?: { debounceMs?: number; flush?: boolean },
-  ) => void;
+  onOpenDelete: () => void;
 }
 
+/**
+ * Structured to match `features/resume/editor/ResumeToolbar.tsx`: an editable title in
+ * the header, the shared save button, the shared download menu, and Full Preview /
+ * PDF Debug inside the actions menu rather than as loose inline buttons.
+ */
 export function CoverLetterToolbar({
-  document,
+  documentId,
   message,
-  onDelete,
+  onSave,
+  onSetMessage,
   onImportJson,
   onImportMarkdown,
   onOpenShare,
-  onSave,
-  onSetMessage,
-  onUpdateDocument,
+  onOpenDelete,
 }: CoverLetterToolbarProps) {
   const router = useRouter();
 
@@ -55,6 +52,11 @@ export function CoverLetterToolbar({
   const [activeDownload, setActiveDownload] = useState<ExportFormat | null>(null);
 
   const isLoggedIn = useUserStore((state) => state.isLoggedIn);
+
+  const document = useCoverLetterStore((state) => state.document);
+  const updateTitle = useCoverLetterStore((state) => state.updateTitle);
+  const resetDocument = useCoverLetterStore((state) => state.resetDocument);
+  const emptyDocument = useCoverLetterStore((state) => state.emptyDocument);
 
   async function handleSync() {
     if (!isLoggedIn) {
@@ -65,7 +67,7 @@ export function CoverLetterToolbar({
     onSetMessage("Syncing with cloud...");
 
     try {
-      await syncDocumentNow("COVER_LETTER", document.id);
+      await syncDocumentNow("COVER_LETTER", documentId);
       onSetMessage("Synced successfully");
       toast.success("Synced successfully");
     } catch (error) {
@@ -76,6 +78,8 @@ export function CoverLetterToolbar({
   }
 
   async function download(format: ExportFormat) {
+    if (!document) return;
+
     setActiveDownload(format);
 
     try {
@@ -89,41 +93,16 @@ export function CoverLetterToolbar({
   }
 
   return (
-    <header className="flex min-h-11 shrink-0 flex-wrap items-center justify-between gap-2">
+    <div className="flex min-h-11 flex-wrap items-center justify-between gap-2">
       <ToolbarHeader
-        title="Cover Letter Editor"
         message={message}
+        title={document?.title ?? "Untitled Cover Letter"}
         onBack={() => router.push("/documents")}
+        onTitleChange={updateTitle}
       />
 
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {process.env.NODE_ENV === "development" ? (
-          <Button asChild size="sm" variant="ghost" className="rounded-xl">
-            <Link
-              target="_blank"
-              rel="noreferrer"
-              href={`/pdf-debug/cover-letter/${document.templateId}?id=${document.id}`}
-            >
-              <FileSearch className="mr-2 h-4 w-4" />
-              PDF Debug
-            </Link>
-          </Button>
-        ) : null}
-
-        <Button
-          size="sm"
-          variant="ghost"
-          className="rounded-xl"
-          onClick={() => router.push(getDocumentPreviewPath("COVER_LETTER", document.id))}
-        >
-          <Eye className="mr-2 h-4 w-4" />
-          Full Preview
-        </Button>
-
-        <Button size="sm" variant="secondary" className="rounded-xl" onClick={onSave}>
-          <Save className="mr-2 h-4 w-4" />
-          Save
-        </Button>
+        <ToolbarSaveButton onSave={onSave} />
 
         <input
           type="file"
@@ -160,23 +139,32 @@ export function CoverLetterToolbar({
         />
 
         <ToolbarActionsMenu
+          documentLabel="cover letter"
           onShare={onOpenShare}
-          onDelete={onDelete}
+          onDelete={onOpenDelete}
           onImportJson={() => jsonInputRef.current?.click()}
           onImportMarkdown={() => markdownInputRef.current?.click()}
           onReset={() => {
-            const reset = createDefaultCoverLetter(document.id);
-            onUpdateDocument({ ...reset, updatedAt: new Date().toISOString() }, { flush: true });
+            resetDocument();
             onSetMessage("Cover letter reset to defaults");
           }}
           onEmptyFields={() => {
-            const empty = createEmptyCoverLetter(document.id);
-            onUpdateDocument({ ...empty, updatedAt: new Date().toISOString() }, { flush: true });
+            emptyDocument();
             onSetMessage("All fields cleared");
           }}
           onSync={handleSync}
+          onFullPreview={() => router.push(getDocumentPreviewPath("COVER_LETTER", documentId))}
+          onPdfDebug={
+            process.env.NODE_ENV === "development"
+              ? () =>
+                  window.open(
+                    `/pdf-debug/cover-letter/${document?.templateId ?? ""}?id=${documentId}`,
+                    "_blank",
+                  )
+              : undefined
+          }
         />
       </div>
-    </header>
+    </div>
   );
 }

@@ -17,7 +17,7 @@ import { measurePagination, measureResume } from "./web-measure";
 import { recordReport } from "./report";
 import { startParityServer } from "./server";
 
-import { pdfTemplateRegistry } from "@/templates/resume/pdf";
+import { loadTemplatePdfComponentById } from "@/templates/resume/pdf";
 
 /**
  * The only test that measures both renderers.
@@ -124,7 +124,7 @@ describe("resume preview and PDF lay out the same boxes", () => {
       it(`${templateId} / ${fixture}`, async () => {
         const resume = { ...PARITY_FIXTURES[fixture as ParityFixtureId].resume(), templateId };
         const shape = readResumeDocument(
-          await layoutPages(pdfTemplateRegistry[templateId], { resume }),
+          await layoutPages(await loadTemplatePdfComponentById(templateId), { resume }),
         );
         const pdfNodes = describeResumePdf(shape, layout);
 
@@ -176,7 +176,7 @@ describe("resume preview and PDF break pages at the same place", () => {
       it(`${templateId} / ${fixture}`, async () => {
         const resume = { ...PARITY_FIXTURES[fixture as ParityFixtureId].resume(), templateId };
         const shape = readResumeDocument(
-          await layoutPages(pdfTemplateRegistry[templateId], { resume }),
+          await layoutPages(await loadTemplatePdfComponentById(templateId), { resume }),
         );
 
         const preview = await measure(
@@ -209,7 +209,7 @@ describe("no section heading is stranded by a page break", () => {
       it(`${templateId} / ${fixture}`, async () => {
         const resume = { ...PARITY_FIXTURES[fixture as ParityFixtureId].resume(), templateId };
         const shape = readResumeDocument(
-          await layoutPages(pdfTemplateRegistry[templateId], { resume }),
+          await layoutPages(await loadTemplatePdfComponentById(templateId), { resume }),
         );
 
         // A section that breaks immediately after its heading leaves the title

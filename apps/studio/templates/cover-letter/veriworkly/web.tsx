@@ -6,6 +6,9 @@ import type { CSSProperties } from "react";
 import type { CoverLetterContent } from "@/features/cover-letter/types";
 import type { CoverLetterTokens } from "../tokens";
 
+import { createCoverLetterPageProbe } from "../measure";
+import { paginateIncremental } from "@/templates/shared/pagination";
+
 import {
   buildCoverLetterFlowContent,
   buildVeriworklyFlowItems,
@@ -15,7 +18,6 @@ import {
   getVeriworklyFlowItemWeight,
   isCoverLetterSectionVisible,
   keepVeriworklyProofHeadingWithNext,
-  paginateMeasuredItems,
   paginateWeightedItems,
   type CoverLetterPalette,
   type VeriworklyFlowItem,
@@ -251,15 +253,6 @@ function SubjectBlock({
   );
 }
 
-function fitsInsideBottomPadding(container: HTMLElement, content: HTMLElement) {
-  const containerStyle = window.getComputedStyle(container);
-  const paddingBottom = Number.parseFloat(containerStyle.paddingBottom) || 0;
-  const containerBottom = container.getBoundingClientRect().bottom - paddingBottom;
-  const contentBottom = content.getBoundingClientRect().bottom;
-
-  return contentBottom <= containerBottom + 1;
-}
-
 function paginateVeriworklyHtmlItems(items: VeriworklyFlowItem[]) {
   return paginateWeightedItems(
     items,
@@ -380,28 +373,22 @@ export function VeriworklyCoverLetterPreview({ content }: { content: CoverLetter
       probe.appendChild(main);
       measureRef.current?.appendChild(probe);
 
-      const fitsPage = (items: VeriworklyFlowItem[], pageIndex: number) => {
-        main.innerHTML = "";
-
-        const prefix = pageIndex === 0 ? firstPrefixRef.current : nextPrefixRef.current;
-        if (prefix) main.appendChild(prefix.cloneNode(true));
-
-        const body = document.createElement("section");
-        body.style.marginTop = px(S.subjectTop);
-
-        items.forEach((item) => {
-          const node = itemRefs.current.get(item.id);
-          if (node) body.appendChild(node.cloneNode(true));
-        });
-
-        main.appendChild(body);
-
-        return main.scrollHeight <= PAGE_HEIGHT + 1 && fitsInsideBottomPadding(main, body);
-      };
-
-      const nextPages = paginateMeasuredItems(
+      const nextPages = paginateIncremental(
         flowItems,
-        fitsPage,
+        createCoverLetterPageProbe<VeriworklyFlowItem>({
+          // The rail is a sibling of `main`, so height is measured on `main`.
+          measureRoot: main,
+          contentRoot: main,
+          pageHeight: PAGE_HEIGHT,
+          getPrefix: (pageIndex) =>
+            pageIndex === 0 ? firstPrefixRef.current : nextPrefixRef.current,
+          getItemNode: (item) => itemRefs.current.get(item.id) ?? null,
+          createBody: () => {
+            const body = document.createElement("section");
+            body.style.marginTop = px(S.subjectTop);
+            return body;
+          },
+        }),
         keepVeriworklyProofHeadingWithNext,
       );
       probe.remove();

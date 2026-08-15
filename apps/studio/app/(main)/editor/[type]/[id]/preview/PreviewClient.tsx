@@ -44,11 +44,15 @@ export function PreviewClient({ documentId, type }: PreviewClientProps) {
   useEffect(() => {
     if (type !== "RESUME") return;
     let cancelled = false;
-    const nextTemplate = loadTemplateComponentById(resume.templateId);
 
-    queueMicrotask(() => {
-      if (!cancelled) setTemplateComponent(() => nextTemplate);
-    });
+    loadTemplateComponentById(resume.templateId)
+      .then((nextTemplate) => {
+        // Updater form: a component is a function, so a bare setState would call it.
+        if (!cancelled) setTemplateComponent(() => nextTemplate);
+      })
+      .catch(() => {
+        if (!cancelled) setTemplateComponent(null);
+      });
 
     return () => {
       cancelled = true;

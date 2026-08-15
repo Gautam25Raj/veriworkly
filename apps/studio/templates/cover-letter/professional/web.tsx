@@ -7,6 +7,9 @@ import type { CoverLetterContent } from "@/features/cover-letter/types";
 import type { ResumeLinkDisplayMode, ResumeLinkItem } from "@/types/resume";
 import type { CoverLetterTokens } from "../tokens";
 
+import { createCoverLetterPageProbe } from "../measure";
+import { paginateIncremental } from "@/templates/shared/pagination";
+
 import {
   buildCoverLetterFlowContent,
   buildProfessionalFlowItems,
@@ -15,7 +18,6 @@ import {
   getProfessionalFlowItemWeight,
   getCoverLetterFlowSenderName,
   isCoverLetterSectionVisible,
-  paginateMeasuredItems,
   paginateWeightedItems,
   type CoverLetterPalette,
   type ProfessionalFlowItem,
@@ -290,15 +292,6 @@ function SubjectBlock({
  * that a letter continues.
  */
 
-function fitsInsideBottomPadding(container: HTMLElement, content: HTMLElement) {
-  const containerStyle = window.getComputedStyle(container);
-  const paddingBottom = Number.parseFloat(containerStyle.paddingBottom) || 0;
-  const containerBottom = container.getBoundingClientRect().bottom - paddingBottom;
-  const contentBottom = content.getBoundingClientRect().bottom;
-
-  return contentBottom <= containerBottom + 1;
-}
-
 function paginateProfessionalHtmlItems(items: ProfessionalFlowItem[]) {
   return paginateWeightedItems(items, getProfessionalFlowItemWeight, (pageIndex) =>
     pageIndex === 0 ? 17 : 26,
@@ -393,27 +386,22 @@ export function ProfessionalCoverLetterPreview({ content }: { content: CoverLett
       });
       measureRef.current?.appendChild(probe);
 
-      const fitsPage = (items: ProfessionalFlowItem[], pageIndex: number) => {
-        probe.innerHTML = "";
-
-        // Only the first page carries the letterhead; later pages are body only.
-        const prefix = pageIndex === 0 ? firstPrefixRef.current : null;
-        if (prefix) probe.appendChild(prefix.cloneNode(true));
-
-        const main = document.createElement("main");
-        main.style.marginTop = px(S.bodyTop);
-
-        items.forEach((item) => {
-          const node = itemRefs.current.get(item.id);
-          if (node) main.appendChild(node.cloneNode(true));
-        });
-
-        probe.appendChild(main);
-
-        return probe.scrollHeight <= PAGE_HEIGHT + 1 && fitsInsideBottomPadding(probe, main);
-      };
-
-      const nextPages = paginateMeasuredItems(flowItems, fitsPage);
+      const nextPages = paginateIncremental(
+        flowItems,
+        createCoverLetterPageProbe<ProfessionalFlowItem>({
+          measureRoot: probe,
+          contentRoot: probe,
+          pageHeight: PAGE_HEIGHT,
+          // Only the first page carries the letterhead; later pages are body only.
+          getPrefix: (pageIndex) => (pageIndex === 0 ? firstPrefixRef.current : null),
+          getItemNode: (item) => itemRefs.current.get(item.id) ?? null,
+          createBody: () => {
+            const main = document.createElement("main");
+            main.style.marginTop = px(S.bodyTop);
+            return main;
+          },
+        }),
+      );
       probe.remove();
       const nextKey = getFlowPageKey(nextPages);
 

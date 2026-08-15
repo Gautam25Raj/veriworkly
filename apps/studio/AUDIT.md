@@ -113,7 +113,7 @@
 - **`components/dashboard/AccountMenu.tsx`** uses `role="menu"`/`role="menuitem"` but implements none of the expected ARIA menu keyboard behavior (no arrow-key roving focus, Home/End, typeahead) â€” exposing the role without the interaction model is worse than not using it. It's also a **completely separate hand-rolled dropdown implementation** from `Navbar.tsx`'s `Menu`/`MenuItem` primitive (`@veriworkly/ui`) used for the same "account dropdown" concept â€” two different accessibility guarantees for one UI concept.
 - **Duplicate, both-flawed logout implementations:** `AccountMenu.tsx:61-68`'s `handleLogout` has no try/catch around `await signOutCurrentUser()` (unhandled throw from an onClick). `Navbar.tsx:24-35`'s version catches but only `console.error`s and redirects regardless. Should be a single `useLogout()` hook with real user-facing error feedback.
 - **`ThemeToggle.tsx`/`AccountMenuTheme.tsx`** duplicate the same dark/light toggle logic independently, and toggling only ever moves between explicit light/dark â€” there's no way back to `"system"` once left, silently discarding the user's original preference.
-- **`StudioShell.tsx:62-84`:** `createNewDocument`'s billing check treats *any* fetch failure (network error, timeout) the same as "not paid," and then blocks document creation past the free-tier limit â€” a transient network blip can incorrectly block a paying user. The free-tier limit (`1`) is a magic number duplicated between the check (line 75) and the user-facing message string (line 77) â€” should be one named constant. `STUDIO_VERSION = "v3.21.0"` (line 44) is hardcoded and will drift from `package.json`.
+- **`StudioShell.tsx:62-84`:** `createNewDocument`'s billing check treats *any* fetch failure (network error, timeout) the same as "not paid," and then blocks document creation past the free-tier limit â€” a transient network blip can incorrectly block a paying user. The free-tier limit (`1`) is a magic number duplicated between the check (line 75) and the user-facing message string (line 77) â€” should be one named constant. `STUDIO_VERSION = "v3.22.0"` (line 44) is hardcoded and will drift from `package.json`.
 - **`components/layout/Footer.tsx`:** the same Tailwind class string is copy-pasted across ~15 `<Link>` elements instead of being data-driven the way `NavLinks.tsx`/`config/site.ts` already does it elsewhere in the app.
 
 ### Auth/session lib (`lib/`, `providers/`)
@@ -239,9 +239,9 @@ This is the largest and most architecturally significant part of the app (~90 fi
 
 ---
 
-## 4. Documents feature — core engine, export pipeline, sync & storage
+## 4. Documents feature ï¿½ core engine, export pipeline, sync & storage
 
-This is the most architecturally significant section — the document-lifecycle and data-integrity backbone. Key findings: a real data-loss race condition in sync, two independent unsynchronized writers to the same localStorage keys, non-exhaustive export dispatcher that silently produces garbage for new document types, and placeholder text bleeding into real exports.
+This is the most architecturally significant section ï¿½ the document-lifecycle and data-integrity backbone. Key findings: a real data-loss race condition in sync, two independent unsynchronized writers to the same localStorage keys, non-exhaustive export dispatcher that silently produces garbage for new document types, and placeholder text bleeding into real exports.
 
 ### ?? CRITICAL: Stale-snapshot overwrite in sync causes silent data loss
 
@@ -249,7 +249,7 @@ This is the most architecturally significant section — the document-lifecycle an
 
 **How it fails:**
 1. User types ? autosave persists content v1 to localStorage.
-2. Sync worker reads v1 into `item` variable, then calls `DocumentApi.update(...)` (network round trip, takes 100ms–several seconds).
+2. Sync worker reads v1 into `item` variable, then calls `DocumentApi.update(...)` (network round trip, takes 100msï¿½several seconds).
 3. **While the network call is in flight**, user keeps typing ? autosave debounce fires again ? persists content **v2** to the same localStorage key.
 4. Network request resolves; sync code calls `this.config.localStorage.persist(updated)`, where `updated = {...item /* = v1 */, sync: {...synced...}}`.
 5. `LocalStorageService.persist()` does see the v2 content as `existing`, detects a payload change, but then **overwrites the entire record back down to v1**, because the to-be-persisted value is built from the stale in-memory `item` snapshot, not by patching only the `sync` field onto the current storage value.
@@ -257,7 +257,7 @@ This is the most architecturally significant section — the document-lifecycle an
 
 **Fix:** never persist a stale full-item snapshot after an `await`. Either re-read from storage immediately before the final write and merge only the `sync` field, or add a dedicated `patchSync(id, syncPatch)` method that does targeted field-only updates.
 
-### ?? No single source of truth for document storage — two independent writers + duplicated keys
+### ?? No single source of truth for document storage ï¿½ two independent writers + duplicated keys
 
 **Files:** `features/documents/services/document-workspace-service.ts` (editor autosave), `features/documents/services/document-sync.ts` (sync worker), `features/documents/services/document-library.ts` (collection loader)
 
@@ -265,7 +265,7 @@ This is the most architecturally significant section — the document-lifecycle an
 
 **Fix:** consolidate to one storage engine instance per document type, shared by both autosave and sync. Extract the key scheme into a single constant. Add a `BroadcastChannel` or `storage` event listener for true multi-tab safety.
 
-### ?? Export dispatcher is not type-driven — adding a new DocumentType silently produces garbage
+### ?? Export dispatcher is not type-driven ï¿½ adding a new DocumentType silently produces garbage
 
 **Files:** `features/documents/export/export-dispatcher.tsx:34-98`, `features/documents/export/docx/document-docx.ts:92-112`
 
@@ -277,13 +277,13 @@ This is the most architecturally significant section — the document-lifecycle an
 
 **File:** `features/documents/utils/formatters.ts:7-16` and replicated in all export files
 
-**Pattern:** `formatDateRange(startDate, endDate, current)` does `safeText(startDate) || "Start"` — a fallback meant for the *editor* empty state. When a user leaves both dates blank on a WIP entry, the exported PDF/DOCX/HTML/Markdown literally print `"Start - End"`, `"Role"`, `"Company"`, `"Degree"`, etc. as actual content.
+**Pattern:** `formatDateRange(startDate, endDate, current)` does `safeText(startDate) || "Start"` ï¿½ a fallback meant for the *editor* empty state. When a user leaves both dates blank on a WIP entry, the exported PDF/DOCX/HTML/Markdown literally print `"Start - End"`, `"Role"`, `"Company"`, `"Degree"`, etc. as actual content.
 
 This is a severe correctness bug for a resume builder.
 
 **Fix:** Give exporters an export-specific formatting mode that omits the field/line entirely instead of substituting a fake label.
 
-### ?? Import preserves identity/sync metadata — risk of cloud document collision
+### ?? Import preserves identity/sync metadata ï¿½ risk of cloud document collision
 
 **File:** `features/documents/core/registry.tsx:45-76` (`parseResumeDocument`)
 
@@ -301,9 +301,9 @@ This is a severe correctness bug for a resume builder.
 
 ### ?? Multiple correctness/security gaps in the export pipeline
 
-- No try/catch anywhere in export generation — unhandled rejections, no UI feedback.
-- Link `href` values in HTML/Markdown not scheme-validated — `javascript:alert(...)` passes through (self-XSS).
-- `export-text.ts` regex-strips Markdown-like characters — `"# 1 in sales"` becomes `"1 in sales"`.
+- No try/catch anywhere in export generation ï¿½ unhandled rejections, no UI feedback.
+- Link `href` values in HTML/Markdown not scheme-validated ï¿½ `javascript:alert(...)` passes through (self-XSS).
+- `export-text.ts` regex-strips Markdown-like characters ï¿½ `"# 1 in sales"` becomes `"1 in sales"`.
 - DOCX newlines lost via `new TextRun(text)` (no `\n` ? line-break handling).
 - Non-Latin filenames stripped to generic `resume.pdf` (i18n + collision risk).
 
@@ -311,7 +311,7 @@ This is a severe correctness bug for a resume builder.
 
 **File:** `features/documents/constants/fonts.ts:29,42,55` (web) vs. `31-34,44-47,57-59` (PDF)
 
-**Finding:** Web stylesheets load 6 weights (300, 400, 500, 600, 700, 800) but PDF only registers 400 and 700 — WYSIWYG mismatch.
+**Finding:** Web stylesheets load 6 weights (300, 400, 500, 600, 700, 800) but PDF only registers 400 and 700 ï¿½ WYSIWYG mismatch.
 
 **Fix:** Constrain UI weights to {400, 700} or add missing `.ttf` files.
 
@@ -327,7 +327,7 @@ This is a severe correctness bug for a resume builder.
 
 **Fix:** Remove hardcoded fallback. Enforce lockdown authoritatively server-side.
 
-### ?? Username edit modal: unverified username can slip through (HIGH — real bug)
+### ?? Username edit modal: unverified username can slip through (HIGH ï¿½ real bug)
 
 **Files:** `features/profile/components/EditProfileUsernameModal.tsx` vs. `SetUsernameModal.tsx`
 
@@ -339,7 +339,7 @@ This is a severe correctness bug for a resume builder.
 
 **File:** `features/profile/components/master/master-utils.ts:112-252`, line 119
 
-**Finding:** No leading truthiness guard — `isTenDigitPhone("")` is `false`, so leaving phone blank rejects every save with "Basics phone must have exactly 10 digits" with no indication phone is mandatory.
+**Finding:** No leading truthiness guard ï¿½ `isTenDigitPhone("")` is `false`, so leaving phone blank rejects every save with "Basics phone must have exactly 10 digits" with no indication phone is mandatory.
 
 **Fix:** Guard the check or mark phone as explicitly required in UI.
 
@@ -358,7 +358,7 @@ This is a severe correctness bug for a resume builder.
 - **`AmbassadorApplyForm.tsx`**: year accepts any string (e.g. "abc" passes).
 - **`AffiliatePage.tsx`**: never distinguishes PENDING/SUSPENDED states (inconsistent with AmbassadorPage).
 
-### ?? No defense-in-depth for admin access — backend is sole gatekeeper
+### ?? No defense-in-depth for admin access ï¿½ backend is sole gatekeeper
 
 **File:** `features/admin/services/admin-server.ts:84-149`
 
@@ -397,8 +397,8 @@ This is a severe correctness bug for a resume builder.
 ## Summary & Action Items
 
 **Critical fixes (data integrity / security):**
-1. Fix sync data-loss race condition — `document-sync-service.ts`
-2. Consolidate document storage — eliminate duplicate writers
+1. Fix sync data-loss race condition ï¿½ `document-sync-service.ts`
+2. Consolidate document storage ï¿½ eliminate duplicate writers
 3. Remove hardcoded email + enforce billing lockdown server-side
 4. Make export dispatcher exhaustive
 5. Fix username edit modal's unverified submit guard
@@ -419,4 +419,4 @@ This is a severe correctness bug for a resume builder.
 
 ---
 
-**Audit complete.** Every file in `apps/studio` was read in full. Issues span security (hardcoded secrets, unvalidated URLs, client-side authorization), correctness (data loss, WYSIWYG mismatches, placeholder leaks), performance (O(n²) pagination, whole-store subscriptions, duplicate font loads), accessibility, and code quality (1,000+ lines of duplication, dead code, inconsistent patterns).
+**Audit complete.** Every file in `apps/studio` was read in full. Issues span security (hardcoded secrets, unvalidated URLs, client-side authorization), correctness (data loss, WYSIWYG mismatches, placeholder leaks), performance (O(nï¿½) pagination, whole-store subscriptions, duplicate font loads), accessibility, and code quality (1,000+ lines of duplication, dead code, inconsistent patterns).

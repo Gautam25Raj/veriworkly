@@ -330,7 +330,13 @@ function PdfItem({
 
   rows.push(
     <View key="head" style={[styles.itemHead, spacing()].flat()}>
-      <Text style={styles.itemTitle}>{item.title}</Text>
+      {/* Mirrors shared/web.tsx: spacer rather than an empty Text, so the preview and
+          the export agree on both the omission and the meta alignment. */}
+      {item.title ? (
+        <Text style={styles.itemTitle}>{item.title}</Text>
+      ) : (
+        <View style={pdfFlexible} />
+      )}
       {layout === "gutter" ? (showLinkInHead ? headMeta : null) : headMeta}
     </View>,
   );

@@ -94,9 +94,19 @@ const ShareDocumentClient = ({
 
     setTemplateState((prev) => ({ ...prev, loading: true, error: null }));
 
-    const component = loadTemplateComponentById(resume.templateId);
-
-    if (isActive) setTemplateState({ loading: false, error: null, component });
+    loadTemplateComponentById(resume.templateId)
+      .then((component) => {
+        if (isActive) setTemplateState({ loading: false, error: null, component });
+      })
+      .catch(() => {
+        if (isActive) {
+          setTemplateState({
+            loading: false,
+            error: "This resume's template could not be loaded.",
+            component: null,
+          });
+        }
+      });
 
     return () => {
       isActive = false;

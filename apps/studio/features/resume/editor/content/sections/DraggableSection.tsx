@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import type { SectionDnDHandlers } from "./section-types";
 import type { ResumeSectionId } from "@/types/resume";
 
-import SectionAccordion from "../SectionAccordion";
+import SectionAccordion from "@/features/documents/editor/SectionAccordion";
 
 interface DraggableSectionProps extends SectionDnDHandlers {
   children: ReactNode;

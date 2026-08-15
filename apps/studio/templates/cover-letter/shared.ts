@@ -263,32 +263,6 @@ export function buildCoverLetterFlowContent(content: CoverLetterContent): CoverL
   };
 }
 
-export function paginateMeasuredItems<T extends { id: string }>(
-  items: T[],
-  fitsPage: (items: T[], pageIndex: number) => boolean,
-  keepWithNext?: (item: T, nextItem: T | undefined) => boolean,
-) {
-  const pages: T[][] = [[]];
-  let pageIndex = 0;
-
-  for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
-    const item = items[itemIndex];
-    const nextItem = items[itemIndex + 1];
-    const candidate = [...pages[pageIndex], item];
-    const fitCandidate =
-      keepWithNext?.(item, nextItem) && nextItem ? [...candidate, nextItem] : candidate;
-
-    if (pages[pageIndex].length > 0 && !fitsPage(fitCandidate, pageIndex)) {
-      pages.push([]);
-      pageIndex += 1;
-    }
-
-    pages[pageIndex].push(item);
-  }
-
-  return pages.filter((page) => page.length > 0);
-}
-
 export function paginateWeightedItems<T>(
   items: T[],
   getItemWeight: (item: T) => number,

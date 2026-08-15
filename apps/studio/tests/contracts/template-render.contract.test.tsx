@@ -11,8 +11,9 @@ import type { CoverLetterSectionId } from "@/features/cover-letter/types";
 import { defaultResume } from "@/features/resume/constants/default-resume";
 import { templateCatalogByType } from "@/features/documents/core/template-catalog";
 import { loadTemplateComponentById, templateRegistry } from "@/templates";
-import { pdfTemplateRegistry } from "@/templates/resume/pdf";
-import { CoverLetterPreview, buildCoverLetterHtml } from "@/templates/cover-letter/web";
+import { pdfTemplateIds } from "@/templates/resume/pdf";
+import { buildCoverLetterHtml } from "@/templates/cover-letter/web";
+import { coverLetterTemplateRegistry } from "@/templates/cover-letter/registry";
 
 const SHIPPED_RESUME_TEMPLATE_IDS = [
   "executive-clarity",
@@ -35,7 +36,7 @@ describe("template render contract", () => {
   it("keeps the web registry, picker catalog and PDF registry in sync", () => {
     const webIds = [...templateRegistry.map((template) => template.id)].sort();
     const catalogIds = [...templateCatalogByType.RESUME.map((template) => template.id)].sort();
-    const pdfIds = Object.keys(pdfTemplateRegistry).sort();
+    const pdfIds = [...pdfTemplateIds].sort();
 
     expect(catalogIds).toEqual(webIds);
     expect(pdfIds).toEqual(webIds);
@@ -50,7 +51,7 @@ describe("template render contract", () => {
 
   it("renders every registered template for canonical resume data", async () => {
     for (const template of templateRegistry) {
-      const TemplateComponent = loadTemplateComponentById(template.id);
+      const TemplateComponent = await loadTemplateComponentById(template.id);
 
       const html = renderToStaticMarkup(
         <TemplateComponent
@@ -91,7 +92,7 @@ describe("template render contract", () => {
     };
 
     for (const template of templateRegistry) {
-      const TemplateComponent = loadTemplateComponentById(template.id);
+      const TemplateComponent = await loadTemplateComponentById(template.id);
 
       const html = renderToStaticMarkup(
         <TemplateComponent resume={{ ...richResume, templateId: template.id }} />,
@@ -111,7 +112,7 @@ describe("template render contract", () => {
 
   it("returns safely for missing template props", async () => {
     for (const template of templateRegistry) {
-      const TemplateComponent = loadTemplateComponentById(template.id);
+      const TemplateComponent = await loadTemplateComponentById(template.id);
 
       expect(() =>
         renderToStaticMarkup(<TemplateComponent {...({} as unknown as TemplateRenderProps)} />),
@@ -134,7 +135,7 @@ describe("template render contract", () => {
     };
 
     for (const template of templateRegistry) {
-      const TemplateComponent = loadTemplateComponentById(template.id);
+      const TemplateComponent = await loadTemplateComponentById(template.id);
 
       const html = renderToStaticMarkup(
         <TemplateComponent resume={{ ...hiddenBasicsResume, templateId: template.id }} />,
@@ -164,7 +165,7 @@ describe("template render contract", () => {
     };
 
     for (const template of templateRegistry) {
-      const TemplateComponent = loadTemplateComponentById(template.id);
+      const TemplateComponent = await loadTemplateComponentById(template.id);
 
       const html = renderToStaticMarkup(
         <TemplateComponent resume={{ ...linkedResume, templateId: template.id }} />,
@@ -187,7 +188,7 @@ describe("template render contract", () => {
     };
 
     for (const template of templateRegistry) {
-      const TemplateComponent = loadTemplateComponentById(template.id);
+      const TemplateComponent = await loadTemplateComponentById(template.id);
 
       const html = renderToStaticMarkup(
         <TemplateComponent resume={{ ...emptySectionsResume, templateId: template.id }} />,
@@ -230,7 +231,7 @@ describe("template render contract", () => {
     };
 
     for (const template of templateRegistry) {
-      const TemplateComponent = loadTemplateComponentById(template.id);
+      const TemplateComponent = await loadTemplateComponentById(template.id);
 
       const html = renderToStaticMarkup(
         <TemplateComponent resume={{ ...hiddenCustomResume, templateId: template.id }} />,
@@ -240,11 +241,11 @@ describe("template render contract", () => {
     }
   });
 
-  it("exports professional and veriworkly cover-letter HTML with expected content", () => {
+  it("exports professional and veriworkly cover-letter HTML with expected content", async () => {
     const content = createDefaultCoverLetter("cover-letter-contract").content;
 
     for (const templateId of ["professional", "veriworkly-special"]) {
-      const html = buildCoverLetterHtml(content, templateId);
+      const html = await buildCoverLetterHtml(content, templateId);
 
       expect(html).toContain(content.senderName);
       expect(html).toContain(content.recipientName);
@@ -255,7 +256,7 @@ describe("template render contract", () => {
     }
   });
 
-  it("honours the cover-letter appearance colours in every rendered element", () => {
+  it("honours the cover-letter appearance colours in every rendered element", async () => {
     const base = createDefaultCoverLetter("cover-letter-appearance").content;
     const content = {
       ...base,
@@ -269,7 +270,7 @@ describe("template render contract", () => {
     };
 
     for (const templateId of ["professional", "veriworkly-special"]) {
-      const html = buildCoverLetterHtml(content, templateId);
+      const html = await buildCoverLetterHtml(content, templateId);
 
       expect(html, `${templateId} must use the chosen text colour`).toContain("#1b3a2f");
       expect(html, `${templateId} must use the chosen page colour`).toContain("#fffdf7");
@@ -284,7 +285,7 @@ describe("template render contract", () => {
     }
   });
 
-  it("honours the cover-letter appearance colours in the live preview", () => {
+  it("honours the cover-letter appearance colours in the live preview", async () => {
     const base = createDefaultCoverLetter("cover-letter-preview-appearance").content;
     const content = {
       ...base,
@@ -297,9 +298,8 @@ describe("template render contract", () => {
     };
 
     for (const templateId of ["professional", "veriworkly-special"]) {
-      const html = renderToStaticMarkup(
-        <CoverLetterPreview content={content} templateId={templateId} />,
-      );
+      const CoverLetterTemplate = await coverLetterTemplateRegistry.loadWeb(templateId);
+      const html = renderToStaticMarkup(<CoverLetterTemplate content={content} />);
 
       expect(html, `${templateId} preview must use the chosen text colour`).toContain("#1b3a2f");
       expect(html, `${templateId} preview must use the chosen accent colour`).toContain("#c2410c");
@@ -322,9 +322,9 @@ describe("template render contract", () => {
     }
   });
 
-  it("keeps cover-letter sidebar text readable on a dark rail", () => {
+  it("keeps cover-letter sidebar text readable on a dark rail", async () => {
     const base = createDefaultCoverLetter("cover-letter-dark-rail").content;
-    const html = buildCoverLetterHtml(
+    const html = await buildCoverLetterHtml(
       { ...base, appearance: { ...base.appearance, sidebarColor: "#0b1220" } },
       "veriworkly-special",
     );
@@ -340,7 +340,7 @@ describe("template render contract", () => {
     );
   });
 
-  it("respects hidden cover-letter sections in HTML export", () => {
+  it("respects hidden cover-letter sections in HTML export", async () => {
     const content = {
       ...createDefaultCoverLetter("cover-letter-hidden-sections").content,
       links: {
@@ -361,7 +361,7 @@ describe("template render contract", () => {
     };
 
     for (const templateId of ["professional", "veriworkly-special"]) {
-      const html = buildCoverLetterHtml(content, templateId);
+      const html = await buildCoverLetterHtml(content, templateId);
 
       expect(html).not.toContain(content.senderEmail);
       expect(html).not.toContain("github.com/veriworkly");

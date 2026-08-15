@@ -16,8 +16,9 @@ import { syncDocumentNow } from "@/features/documents/services/document-sync";
 import ToolbarHeader from "@/features/documents/editor/toolbar/ToolbarHeader";
 import ToolbarActionsMenu from "@/features/documents/editor/toolbar/ToolbarActionsMenu";
 import ToolbarDownloadMenu from "@/features/documents/editor/toolbar/ToolbarDownloadMenu";
+import { getSaveFailureMessage } from "@/features/documents/services/save-failure-message";
 import { useToolbarDownloads } from "@/features/resume/editor/toolbar/useToolbarDownloads";
-import ToolbarSecondaryActions from "@/features/resume/editor/toolbar/ToolbarSecondaryActions";
+import ToolbarSaveButton from "@/features/documents/editor/toolbar/ToolbarSaveButton";
 
 import { useResumeStore } from "@/features/resume/store/resume-store";
 
@@ -41,6 +42,7 @@ const ResumeToolbar = ({ resumeId, resumePreviewId, onOpenShare, onOpenDelete }:
   const emptyResume = useResumeStore((state) => state.emptyResume);
   const setResume = useResumeStore((state) => state.setResume);
   const updateTitle = useResumeStore((state) => state.updateTitle);
+  const saveToStorage = useResumeStore((state) => state.saveToStorage);
 
   const isLoggedIn = useUserStore((state) => state.isLoggedIn);
   const [message, setMessage] = useState("Autosave ready");
@@ -73,13 +75,6 @@ const ResumeToolbar = ({ resumeId, resumePreviewId, onOpenShare, onOpenDelete }:
     onDownloadText,
     onDownloadMarkdown,
   } = useToolbarDownloads(resume, resumePreviewId, setMessage);
-
-  function getSaveFailureMessage(reason: "quota-exceeded" | "unknown") {
-    if (reason === "quota-exceeded")
-      return "Storage is full. Remove older resumes or exports and try again.";
-
-    return "Unable to save locally right now. Please try again.";
-  }
 
   async function onImportResume(file: File | undefined) {
     if (!file) return;
@@ -131,9 +126,14 @@ const ResumeToolbar = ({ resumeId, resumePreviewId, onOpenShare, onOpenDelete }:
       />
 
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <ToolbarSecondaryActions
-          onMessage={setMessage}
-          getSaveFailureMessage={getSaveFailureMessage}
+        <ToolbarSaveButton
+          onSave={() => {
+            const saveResult = saveToStorage({ flush: true });
+
+            setMessage(
+              saveResult.ok ? "Draft saved locally" : getSaveFailureMessage(saveResult.reason),
+            );
+          }}
         />
 
         <input
@@ -171,6 +171,7 @@ const ResumeToolbar = ({ resumeId, resumePreviewId, onOpenShare, onOpenDelete }:
         />
 
         <ToolbarActionsMenu
+          documentLabel="resume"
           onShare={onOpenShare}
           onDelete={onOpenDelete}
           onImportJson={() => jsonInputRef.current?.click()}

@@ -4,7 +4,7 @@ import type { BaseSectionProps } from "./section-types";
 
 import { Input } from "@veriworkly/ui";
 
-import { Field, TextArea } from "../EditorFormPrimitives";
+import { Field, TextArea } from "@/features/documents/editor/form";
 import GenericCustomSection from "./GenericCustomSection";
 
 const AchievementsSection = (props: BaseSectionProps) => {

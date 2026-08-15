@@ -1,19 +1,30 @@
+import type { ReactElement } from "react";
+// Type-only, so this does not pull the renderer into any bundle.
+import type { DocumentProps } from "@react-pdf/renderer";
+
+import { createElement } from "react";
+
 import type { CoverLetterContent } from "@/features/cover-letter/types";
 
-import { COVER_LETTER_VERIWORKLY_ID } from "./shared";
-import { VeriworklyCoverLetterPdf } from "./veriworkly/pdf";
-import { ProfessionalCoverLetterPdf } from "./professional/pdf";
+import { coverLetterTemplateRegistry } from "./registry";
 
-export function CoverLetterPdf({
+/**
+ * Builds the PDF element for the selected cover letter template.
+ *
+ * Async because the template module is fetched on demand — the same boundary the
+ * resume PDF path uses (`templates/resume/pdf/index.ts`), and what keeps
+ * `@react-pdf/renderer` out of every bundle that merely references a document.
+ */
+export async function createCoverLetterPdfElement({
   content,
   templateId,
 }: {
   content: CoverLetterContent;
   templateId?: string;
-}) {
-  if (templateId === COVER_LETTER_VERIWORKLY_ID) {
-    return <VeriworklyCoverLetterPdf content={content} />;
-  }
+}): Promise<ReactElement<DocumentProps>> {
+  const Template = await coverLetterTemplateRegistry.loadPdf(templateId);
 
-  return <ProfessionalCoverLetterPdf content={content} />;
+  // Templates render a `<Document>` but declare their own props, which react-pdf's
+  // element types cannot infer. The cast is confined to this one place.
+  return createElement(Template, { content }) as unknown as ReactElement<DocumentProps>;
 }

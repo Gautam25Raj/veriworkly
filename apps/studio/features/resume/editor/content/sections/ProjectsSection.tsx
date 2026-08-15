@@ -9,7 +9,7 @@ import { useResumeStore } from "@/features/resume/store/resume-store";
 import { validateProject } from "@/features/resume/utils/validation";
 import { AiFieldAssist } from "@/features/ai/AiFieldAssist";
 
-import { Field, TextArea, invalidClass, DelimitedTextArea } from "../EditorFormPrimitives";
+import { Field, TextArea, invalidClass, DelimitedTextArea } from "@/features/documents/editor/form";
 import DraggableSection from "./DraggableSection";
 import type { BaseSectionProps } from "./section-types";
 

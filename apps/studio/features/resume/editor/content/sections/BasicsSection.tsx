@@ -6,7 +6,7 @@ import { useResumeStore } from "@/features/resume/store/resume-store";
 import { validateBasics } from "@/features/resume/utils/validation";
 
 import DraggableSection from "./DraggableSection";
-import { CheckboxField, TextInputField } from "../EditorFormPrimitives";
+import { CheckboxField, TextInputField } from "@/features/documents/editor/form";
 
 const BasicsSection = ({
   isOpen,

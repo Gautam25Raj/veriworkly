@@ -8,7 +8,7 @@ import { Button } from "@veriworkly/ui";
 import { useResumeStore } from "@/features/resume/store/resume-store";
 import { validateLinkItem } from "@/features/resume/utils/validation";
 
-import { Field, invalidClass } from "../EditorFormPrimitives";
+import { Field, invalidClass } from "@/features/documents/editor/form";
 import DraggableSection from "./DraggableSection";
 import type { BaseSectionProps } from "./section-types";
 import { linkTypeOptions } from "@/features/documents/editor/link-options";

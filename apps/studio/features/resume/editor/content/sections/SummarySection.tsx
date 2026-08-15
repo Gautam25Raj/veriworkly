@@ -9,7 +9,7 @@ import { validateSummary } from "@/features/resume/utils/validation";
 import { AiFieldAssist } from "@/features/ai/AiFieldAssist";
 
 import DraggableSection from "./DraggableSection";
-import { Field, invalidClass, TextArea } from "../EditorFormPrimitives";
+import { Field, invalidClass, TextArea } from "@/features/documents/editor/form";
 
 const SummarySection = ({
   isOpen,

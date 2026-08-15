@@ -277,7 +277,16 @@ function WebItem({
         justifyContent: "space-between",
       }}
     >
-      <h3 style={{ ...webText(tokens.itemTitle), ...webFlexible }}>{item.title}</h3>
+      {/*
+        An untitled entry renders a flexible spacer instead of an empty heading: the
+        heading would still occupy a line box, and dropping it outright would let
+        `space-between` pull the date meta to the left edge.
+      */}
+      {item.title ? (
+        <h3 style={{ ...webText(tokens.itemTitle), ...webFlexible }}>{item.title}</h3>
+      ) : (
+        <div style={webFlexible} />
+      )}
       {layout === "gutter" ? (showLinkInHead ? headMeta : null) : headMeta}
     </div>,
   );

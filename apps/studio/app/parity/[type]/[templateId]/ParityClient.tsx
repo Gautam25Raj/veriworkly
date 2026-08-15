@@ -5,7 +5,9 @@ import { createElement, useEffect, useState } from "react";
 import type { ResumeData } from "@/types/resume";
 
 import { loadTemplateComponentById } from "@/templates";
+import { coverLetterTemplateRegistry } from "@/templates/cover-letter/registry";
 import { CoverLetterPreview } from "@/templates/cover-letter/web";
+import { useTemplateComponent } from "@/templates/shared/use-template-component";
 import { ResumePagedPreview } from "@/features/resume/editor/ResumePagedPreview";
 
 import { PARITY_FIXTURES, type ParityFixtureId } from "@/tests/parity/fixtures";
@@ -32,14 +34,14 @@ export function ParityClient({
   templateId: string;
   type: ParityType;
 }) {
-  const [ready, setReady] = useState(false);
+  const [fontsReady, setFontsReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     // The harness must never measure against fallback metrics.
     void document.fonts.ready.then(() => {
-      if (!cancelled) setReady(true);
+      if (!cancelled) setFontsReady(true);
     });
 
     return () => {
@@ -47,13 +49,25 @@ export function ParityClient({
     };
   }, []);
 
-  let body: React.ReactNode;
+  // Template renderers are fetched on demand, so readiness has to include them —
+  // otherwise the harness can latch `data-parity-ready` while the page is still empty
+  // and measure nothing. Both loads are memoized by the registry, so resolving the
+  // cover letter component here costs no extra fetch beyond what CoverLetterPreview does.
+  const ResumeTemplate = useTemplateComponent(loadTemplateComponentById, templateId);
+  const coverLetterTemplate = useTemplateComponent(coverLetterTemplateRegistry.loadWeb, templateId);
+
+  const templateReady = type === "resume" ? Boolean(ResumeTemplate) : Boolean(coverLetterTemplate);
+  const ready = fontsReady && templateReady;
+
+  let body: React.ReactNode = null;
 
   if (type === "resume") {
-    const resume: ResumeData = { ...PARITY_FIXTURES[fixture].resume(), templateId };
-    const element = createElement(loadTemplateComponentById(templateId), { resume });
+    if (ResumeTemplate) {
+      const resume: ResumeData = { ...PARITY_FIXTURES[fixture].resume(), templateId };
+      const element = createElement(ResumeTemplate, { resume });
 
-    body = mode === "paged" ? <ResumePagedPreview>{element}</ResumePagedPreview> : element;
+      body = mode === "paged" ? <ResumePagedPreview>{element}</ResumePagedPreview> : element;
+    }
   } else {
     body = (
       <CoverLetterPreview

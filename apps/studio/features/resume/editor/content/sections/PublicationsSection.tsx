@@ -4,7 +4,7 @@ import { Input } from "@veriworkly/ui";
 
 import type { BaseSectionProps } from "./section-types";
 
-import { Field } from "../EditorFormPrimitives";
+import { Field } from "@/features/documents/editor/form";
 import GenericCustomSection from "./GenericCustomSection";
 
 const PublicationsSection = (props: BaseSectionProps) => {

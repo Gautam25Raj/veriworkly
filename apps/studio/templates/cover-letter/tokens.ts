@@ -2,6 +2,8 @@ import type { CoverLetterContent } from "@/features/cover-letter/types";
 import type { CoverLetterPalette } from "./shared";
 import type { TextToken } from "@/templates/shared/text-tokens";
 
+import { DOCUMENT_PAGE_HEIGHT_PX, DOCUMENT_PAGE_WIDTH_PX } from "@/templates/shared/page-geometry";
+
 /**
  * Cover-letter type scale and rhythm, in CSS pixels.
  *
@@ -11,14 +13,14 @@ import type { TextToken } from "@/templates/shared/text-tokens";
  */
 export const COVER_LETTER_SCALE = {
   /**
-   * The page box, in CSS pixels. The PDF states the same size in points rather
-   * than using `size="A4"` (793.71x1122.52px), and the preview states it in
-   * pixels rather than the Tailwind classes `w-198.5 h-280.75`, which only
-   * resolve to these numbers while the spacing scale and root font size are
-   * left at their defaults.
+   * The page box comes from the shared document geometry so resumes and cover
+   * letters describe the same physical page with the same numbers. The preview
+   * states it in pixels rather than the Tailwind classes `w-198.5 h-280.75`, which
+   * only resolve correctly while the spacing scale and root font size are left at
+   * their defaults.
    */
-  pageWidth: 794,
-  pageHeight: 1123,
+  pageWidth: DOCUMENT_PAGE_WIDTH_PX,
+  pageHeight: DOCUMENT_PAGE_HEIGHT_PX,
 
   senderName: 34,
   senderTitle: 14,

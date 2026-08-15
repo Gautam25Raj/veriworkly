@@ -7,7 +7,7 @@ import type { BaseSectionProps } from "./section-types";
 import { Input } from "@veriworkly/ui";
 import { Button } from "@veriworkly/ui";
 
-import { Field, invalidClass, DelimitedTextArea } from "../EditorFormPrimitives";
+import { Field, invalidClass, DelimitedTextArea } from "@/features/documents/editor/form";
 
 import { useResumeStore } from "@/features/resume/store/resume-store";
 import { validateSkillGroup } from "@/features/resume/utils/validation";

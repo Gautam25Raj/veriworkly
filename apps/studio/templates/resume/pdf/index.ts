@@ -1,21 +1,23 @@
-import type { PdfTemplateComponent } from "./types";
+import type { ComponentType } from "react";
 
-import { CompactAtsPdf } from "@/templates/resume/precision-ats/pdf";
-import { CleanProfessionalPdf } from "@/templates/resume/executive-clarity/pdf";
-import { ModernMinimalPdf } from "@/templates/resume/modern-minimal/pdf";
-import { TimelineFocusPdf } from "@/templates/resume/timeline-focus/pdf";
-import { BoldImpactPdf } from "@/templates/resume/bold-impact/pdf";
-import { CorporateBriefPdf } from "@/templates/resume/corporate-brief/pdf";
+import type { PdfTemplateProps } from "./types";
 
-export const pdfTemplateRegistry: Record<string, PdfTemplateComponent> = {
-  "executive-clarity": CleanProfessionalPdf,
-  "precision-ats": CompactAtsPdf,
-  "modern-minimal": ModernMinimalPdf,
-  "timeline-focus": TimelineFocusPdf,
-  "corporate-brief": CorporateBriefPdf,
-  "bold-impact": BoldImpactPdf,
-};
+import { resumeTemplateRegistry } from "@/templates/resume/registry";
 
-export function loadTemplatePdfComponentById(id: string | undefined): PdfTemplateComponent {
-  return pdfTemplateRegistry[id ?? ""] ?? CleanProfessionalPdf;
+/**
+ * Resolves a resume's PDF renderer on demand.
+ *
+ * Async, and deliberately so: eagerly importing all six PDF templates here is what
+ * pulled `@react-pdf/renderer` into every route that touched this module. Callers are
+ * export paths and the debug route, both of which are already asynchronous.
+ */
+export function loadTemplatePdfComponentById(
+  id: string | undefined,
+): Promise<ComponentType<PdfTemplateProps>> {
+  return resumeTemplateRegistry.loadPdf(id);
 }
+
+/** Template ids that have a PDF renderer — used by contract and parity suites. */
+export const pdfTemplateIds: string[] = resumeTemplateRegistry.ids;
+
+export type { PdfTemplateProps };

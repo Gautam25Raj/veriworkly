@@ -15,12 +15,13 @@ import { FONT_REGISTRY } from "@/features/documents/constants/fonts";
 import { registerPdfHyphenation } from "@/templates/pdf/fonts";
 import { createDefaultCoverLetter } from "@/features/cover-letter/defaults";
 import { defaultResume } from "@/features/resume/constants/default-resume";
-import { CoverLetterPdf } from "@/templates/cover-letter/pdf";
+import { coverLetterTemplateRegistry } from "@/templates/cover-letter/registry";
 import { COVER_LETTER_SCALE, createCoverLetterTokens } from "@/templates/cover-letter/tokens";
 import { getCoverLetterPalette } from "@/templates/cover-letter/shared";
 import { getResumeRenderStyle } from "@/features/documents/rendering/resume-rendering";
 import { pxToPt } from "@/features/resume/constants/resume-layout";
-import { pdfTemplateRegistry } from "@/templates/resume/pdf";
+import { DOCUMENT_PAGE_HEIGHT_PX, DOCUMENT_PAGE_WIDTH_PX } from "@/templates/shared/page-geometry";
+import { loadTemplatePdfComponentById } from "@/templates/resume/pdf";
 import { createResumePdfStyles } from "@/templates/resume/shared/pdf";
 import { createResumeTokens } from "@/templates/resume/shared/tokens";
 import { pdfText } from "@/templates/shared/text-tokens";
@@ -106,8 +107,9 @@ async function layoutPages(element: ReactElement<DocumentProps>): Promise<Node[]
 }
 
 async function layoutFirstPage(id: string): Promise<Node> {
+  const TemplatePdf = await loadTemplatePdfComponentById(id);
   const pages = await layoutPages(
-    pdfElement(pdfTemplateRegistry[id], { resume: { ...defaultResume, templateId: id } }),
+    pdfElement(TemplatePdf, { resume: { ...defaultResume, templateId: id } }),
   );
 
   return pages[0];
@@ -226,15 +228,15 @@ describe("resume pdf geometry matches the shared scale", () => {
         }
       };
 
-      near(box(page).width, 794, "page width");
-      near(box(page).height, 1122, "page height");
+      near(box(page).width, DOCUMENT_PAGE_WIDTH_PX, "page width");
+      near(box(page).height, DOCUMENT_PAGE_HEIGHT_PX, "page height");
 
       const pagePadding = (PAGE_PADDING[id] ?? ((p: number) => p))(style.pagePadding);
       const sectionSpacing = (SECTION_SPACING[id] ?? ((s: number) => s))(style.sectionSpacing);
 
       // A section that reaches the bottom of the text area continues on the
       // next page, so react-pdf stretches its box to the break.
-      const contentBottom = 1122 - pagePadding;
+      const contentBottom = DOCUMENT_PAGE_HEIGHT_PX - pagePadding;
       const isSplit = (section: Node) =>
         box(section).top + box(section).height >= contentBottom - 0.5;
 
@@ -339,7 +341,8 @@ describe("cover letter pdf geometry matches the shared scale", () => {
       const palette = getCoverLetterPalette(content.appearance);
       const tokens = createCoverLetterTokens(content.appearance, palette);
 
-      const [page] = await layoutPages(pdfElement(CoverLetterPdf, { content, templateId }));
+      const CoverLetterPdf = await coverLetterTemplateRegistry.loadPdf(templateId);
+      const [page] = await layoutPages(pdfElement(CoverLetterPdf, { content }));
       const problems: string[] = [];
       const near = (actual: number, expected: number, what: string) => {
         if (Math.abs(actual - expected) > 0.02) {
@@ -347,10 +350,12 @@ describe("cover letter pdf geometry matches the shared scale", () => {
         }
       };
 
-      // The preview page is 794x1123 CSS px; "A4" would be a fraction narrower
-      // and wrap long lines differently.
-      near(box(page).width, 794, `${templateId} page width`);
-      near(box(page).height, 1123, `${templateId} page height`);
+      // The page box comes from the shared document geometry — "A4" would be a
+      // fraction narrower and wrap long lines differently. Asserting against the
+      // constant (not a literal) is what keeps resumes and cover letters from drifting
+      // back to describing the same page with two different heights.
+      near(box(page).width, DOCUMENT_PAGE_WIDTH_PX, `${templateId} page width`);
+      near(box(page).height, DOCUMENT_PAGE_HEIGHT_PX, `${templateId} page height`);
 
       // Fixed columns must survive Yoga's shrinking.
       const fixedWidth =

@@ -1,16 +1,14 @@
-import type { CoverLetterContent } from "@/features/cover-letter/types";
-import { DocumentFontLoader } from "@/features/documents/components/DocumentFontLoader";
+"use client";
 
-import {
-  buildCoverLetterText,
-  buildCoverLetterMarkdown,
-  COVER_LETTER_VERIWORKLY_ID,
-} from "./shared";
-import {
-  ProfessionalCoverLetterPreview,
-  buildProfessionalCoverLetterHtml,
-} from "./professional/web";
-import { VeriworklyCoverLetterPreview, buildVeriworklyCoverLetterHtml } from "./veriworkly/web";
+import type { CoverLetterContent } from "@/features/cover-letter/types";
+
+import { createElement } from "react";
+
+import { DocumentFontLoader } from "@/features/documents/components/DocumentFontLoader";
+import { useTemplateComponent } from "@/templates/shared/use-template-component";
+
+import { buildCoverLetterMarkdown, buildCoverLetterText } from "./shared";
+import { coverLetterTemplateRegistry, loadCoverLetterHtmlBuilder } from "./registry";
 
 export { buildCoverLetterMarkdown, buildCoverLetterText };
 export { splitContactLinks, splitMarkdownLines, splitRichTextBlocks } from "./shared";
@@ -20,23 +18,28 @@ interface CoverLetterPreviewProps {
   templateId: string;
 }
 
+/**
+ * Renders the selected cover letter template, fetched on demand — the same lazy
+ * pattern the resume preview uses (see `templates/shared/use-template-component.ts`).
+ */
 export function CoverLetterPreview({ content, templateId }: CoverLetterPreviewProps) {
+  const Template = useTemplateComponent(coverLetterTemplateRegistry.loadWeb, templateId);
+
   return (
     <>
       <DocumentFontLoader />
-      {templateId === COVER_LETTER_VERIWORKLY_ID ? (
-        <VeriworklyCoverLetterPreview content={content} />
-      ) : (
-        <ProfessionalCoverLetterPreview content={content} />
-      )}
+      {Template ? createElement(Template, { content }) : null}
     </>
   );
 }
 
-export function buildCoverLetterHtml(content: CoverLetterContent, templateId: string): string {
-  if (templateId === COVER_LETTER_VERIWORKLY_ID) {
-    return buildVeriworklyCoverLetterHtml(content);
-  }
-
-  return buildProfessionalCoverLetterHtml(content);
+/**
+ * Standalone HTML for the selected template. Async because the builder lives in the
+ * template module, which is loaded on demand.
+ */
+export function buildCoverLetterHtml(
+  content: CoverLetterContent,
+  templateId: string,
+): Promise<string> {
+  return loadCoverLetterHtmlBuilder(templateId).then((build) => build(content));
 }

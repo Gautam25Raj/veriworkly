@@ -13,8 +13,8 @@ import { FONT_REGISTRY } from "@/features/documents/constants/fonts";
 import { registerPdfHyphenation } from "@/templates/pdf/fonts";
 import { createDefaultCoverLetter } from "@/features/cover-letter/defaults";
 import { defaultResume } from "@/features/resume/constants/default-resume";
-import { pdfTemplateRegistry } from "@/templates/resume/pdf";
-import { CoverLetterPdf } from "@/templates/cover-letter/pdf";
+import { loadTemplatePdfComponentById, pdfTemplateIds } from "@/templates/resume/pdf";
+import { coverLetterTemplateRegistry } from "@/templates/cover-letter/registry";
 
 /**
  * Every paragraph must be broken into lines at the width of the box it ends up
@@ -186,9 +186,9 @@ describe("no PDF paragraph is broken for the wrong column", () => {
     }
   });
 
-  for (const templateId of Object.keys(pdfTemplateRegistry)) {
+  for (const templateId of pdfTemplateIds) {
     it(`${templateId} wraps every paragraph inside its column`, async () => {
-      const laid = await layout(pdfTemplateRegistry[templateId], {
+      const laid = await layout(await loadTemplatePdfComponentById(templateId), {
         resume: wordyResume(templateId),
       });
       const problems = overflowingLines(laid);
@@ -199,7 +199,9 @@ describe("no PDF paragraph is broken for the wrong column", () => {
 
   for (const templateId of ["professional", "veriworkly-special"]) {
     it(`${templateId} cover letter wraps every paragraph inside its column`, async () => {
-      const laid = await layout(CoverLetterPdf, { content: wordyCoverLetter(), templateId });
+      const laid = await layout(await coverLetterTemplateRegistry.loadPdf(templateId), {
+        content: wordyCoverLetter(),
+      });
       const problems = overflowingLines(laid);
 
       expect(problems, `${templateId}:\n${problems.join("\n")}`).toEqual([]);

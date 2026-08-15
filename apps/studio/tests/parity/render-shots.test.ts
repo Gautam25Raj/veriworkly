@@ -14,8 +14,8 @@ import { PARITY_FIXTURES } from "./fixtures";
 import { launchParityBrowser } from "./browser";
 import { registerParityFonts } from "./pdf-layout";
 import { startParityServer } from "./server";
-import { pdfTemplateRegistry } from "@/templates/resume/pdf";
-import { CoverLetterPdf } from "@/templates/cover-letter/pdf";
+import { loadTemplatePdfComponentById, pdfTemplateIds } from "@/templates/resume/pdf";
+import { coverLetterTemplateRegistry } from "@/templates/cover-letter/registry";
 
 const OUT = path.join(process.cwd(), "tests", "parity", "shots");
 
@@ -87,11 +87,12 @@ const FIXTURE = (process.env.SHOT_FIXTURE ?? "default") as "default";
 // `tests/parity/shots/` so a human can compare them. It asserts nothing —
 // looking at the pages is the point.
 describe.skipIf(!process.env.SHOT)("shots", () => {
-  for (const templateId of Object.keys(pdfTemplateRegistry)) {
+  for (const templateId of pdfTemplateIds) {
     it(`resume ${templateId}`, async () => {
       const resume = { ...PARITY_FIXTURES[FIXTURE].resume(), templateId };
       const name = `resume-${templateId}`;
-      const file = await writePdf(name, createElement(pdfTemplateRegistry[templateId], { resume }));
+      const TemplatePdf = await loadTemplatePdfComponentById(templateId);
+      const file = await writePdf(name, createElement(TemplatePdf, { resume }));
 
       const pages = await shootWeb(
         name,
@@ -108,7 +109,8 @@ describe.skipIf(!process.env.SHOT)("shots", () => {
     it(`cover letter ${templateId}`, async () => {
       const content = PARITY_FIXTURES[FIXTURE].coverLetter() as CoverLetterContent;
       const name = `cl-${templateId}`;
-      const file = await writePdf(name, createElement(CoverLetterPdf, { content, templateId }));
+      const CoverLetterPdf = await coverLetterTemplateRegistry.loadPdf(templateId);
+      const file = await writePdf(name, createElement(CoverLetterPdf, { content }));
 
       const pages = await shootWeb(
         name,

@@ -12,7 +12,7 @@ import { startParityServer } from "./server";
 import { ptToPx } from "./geometry";
 
 import { COVER_LETTER_SCALE } from "@/templates/cover-letter/tokens";
-import { CoverLetterPdf } from "@/templates/cover-letter/pdf";
+import { coverLetterTemplateRegistry } from "@/templates/cover-letter/registry";
 
 /**
  * Cover letters paginate themselves rather than letting one engine flow the
@@ -33,11 +33,11 @@ const MEASURABLE_FIXTURES = PARITY_FIXTURE_IDS.filter((id) => id !== "cjk");
  * longer fits — the VeriWorkly cover letter paginates twice over, with two
  * different algorithms:
  *
- *   preview  templates/cover-letter/veriworkly/web.tsx  paginateMeasuredItems
+ *   preview  templates/cover-letter/veriworkly/web.tsx  paginateIncremental
  *   PDF      templates/cover-letter/veriworkly/pdf.tsx  paginateWeightedItems
  *   HTML     the same file, different page limits again
  *
- * `paginateMeasuredItems` reads real boxes out of a hidden probe.
+ * `paginateIncremental` reads real boxes out of a hidden probe.
  * `paginateWeightedItems` estimates from character counts
  * (`Math.ceil(text.length / 82)` and friends) against a flat budget of 24 units
  * a page. The estimate is deliberately conservative, so on dense copy it starts
@@ -120,7 +120,8 @@ describe("cover letter preview and PDF produce the same pages", () => {
     for (const fixture of MEASURABLE_FIXTURES) {
       it(`${templateId} / ${fixture}`, async () => {
         const content = PARITY_FIXTURES[fixture as ParityFixtureId].coverLetter();
-        const pdfPages = await layoutPages(CoverLetterPdf, { content, templateId });
+        const CoverLetterPdf = await coverLetterTemplateRegistry.loadPdf(templateId);
+        const pdfPages = await layoutPages(CoverLetterPdf, { content });
         const preview = await readPreview(templateId, fixture);
 
         const known = KNOWN_PAGINATION_DIFFERENCES[`${templateId}/${fixture}`];
@@ -158,7 +159,8 @@ describe("neither renderer drops cover letter content off the page", () => {
     for (const fixture of MEASURABLE_FIXTURES) {
       it(`${templateId} / ${fixture}`, async () => {
         const content = PARITY_FIXTURES[fixture as ParityFixtureId].coverLetter();
-        const pdfPages = await layoutPages(CoverLetterPdf, { content, templateId });
+        const CoverLetterPdf = await coverLetterTemplateRegistry.loadPdf(templateId);
+        const pdfPages = await layoutPages(CoverLetterPdf, { content });
 
         // A page that does not wrap silently clips whatever the split put past
         // its bottom edge, so the content is not merely misplaced — it is gone.

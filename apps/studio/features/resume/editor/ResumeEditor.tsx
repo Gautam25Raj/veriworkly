@@ -1,9 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useDeferredValue, useEffect, useRef, useState } from "react";
-
-import type { TemplateComponent } from "@/types/template";
+import { createElement, useDeferredValue, useEffect, useRef, useState } from "react";
 
 import { useResume } from "@/features/resume/hooks/use-resume";
 
@@ -20,6 +18,7 @@ import { DocumentEditorShell } from "@/features/documents/editor/DocumentEditorS
 import { loadWorkspaceSettingsFromLocalStorage } from "@/features/documents/services/workspace-settings";
 
 import { loadTemplateComponentById } from "@/templates";
+import { useTemplateComponent } from "@/templates/shared/use-template-component";
 
 import ResumeToolbar from "./ResumeToolbar";
 import ResumeEditorModals from "./ResumeEditorModals";
@@ -42,8 +41,6 @@ const ResumeEditor = ({ documentId }: ResumeEditorProps) => {
   const isLoggedIn = useUserStore((state) => state.isLoggedIn);
 
   const { hydrateFromStorage, resume, saveToStorage, setResume } = useResume();
-
-  const [templateComponent, setTemplateComponent] = useState<TemplateComponent | null>(null);
 
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -126,34 +123,19 @@ const ResumeEditor = ({ documentId }: ResumeEditorProps) => {
     });
   }, [isLoggedIn, resume.id]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const TemplateComponent = useTemplateComponent(
+    loadTemplateComponentById,
+    deferredResume.templateId,
+  );
 
-    const loadTemplate = async () => {
-      const nextTemplate = await loadTemplateComponentById(deferredResume.templateId);
-
-      if (!cancelled) {
-        setTemplateComponent(() => nextTemplate);
-      }
-    };
-
-    void loadTemplate();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [deferredResume.templateId]);
-
-  const preview = templateComponent
-    ? (() => {
-        const TemplateComponent = templateComponent;
-        return (
-          <ResumePagedPreview>
-            <TemplateComponent resume={deferredResume} />
-          </ResumePagedPreview>
-        );
-      })()
-    : null;
+  // `createElement` rather than JSX: the template is resolved at runtime, and the React
+  // compiler lint treats a capitalized hook result in JSX position as a component
+  // declared during render.
+  const preview = TemplateComponent ? (
+    <ResumePagedPreview>
+      {createElement(TemplateComponent, { resume: deferredResume })}
+    </ResumePagedPreview>
+  ) : null;
 
   return (
     <DocumentEditorShell

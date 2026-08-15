@@ -10,7 +10,7 @@ import { Button } from "@veriworkly/ui";
 import { useResumeStore } from "@/features/resume/store/resume-store";
 
 import DraggableSection from "./DraggableSection";
-import { Field, TextArea } from "../EditorFormPrimitives";
+import { Field, TextArea } from "@/features/documents/editor/form";
 
 const CustomSection = ({
   isOpen,

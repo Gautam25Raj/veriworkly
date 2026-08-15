@@ -135,7 +135,25 @@ function createDomPageProbe(
   let openSectionIndex: number | null = null;
   let openShell: HTMLElement | null = null;
   let openItems: HTMLElement | null = null;
-  let lastAppend: { type: "block" } | { type: "item"; createdSection: boolean } | null = null;
+
+  /**
+   * One entry per append, so `undo()` can be called repeatedly — see the
+   * `IncrementalPageProbe.undo` contract. Each entry records enough to reverse
+   * exactly that append, including whether it opened a new section wrapper.
+   */
+  type AppendRecord =
+    | { type: "block" }
+    | {
+        type: "item";
+        createdSection: boolean;
+        shell: HTMLElement | null;
+        items: HTMLElement | null;
+        previousSectionIndex: number | null;
+        previousShell: HTMLElement | null;
+        previousItems: HTMLElement | null;
+      };
+
+  const appends: AppendRecord[] = [];
 
   return {
     append(unit) {
@@ -144,9 +162,13 @@ function createDomPageProbe(
         openSectionIndex = null;
         openShell = null;
         openItems = null;
-        lastAppend = { type: "block" };
+        appends.push({ type: "block" });
         return;
       }
+
+      const previousSectionIndex = openSectionIndex;
+      const previousShell = openShell;
+      const previousItems = openItems;
 
       let createdSection = false;
 
@@ -163,7 +185,15 @@ function createDomPageProbe(
 
       if (openItems) openItems.appendChild(unit.item.cloneNode(true));
 
-      lastAppend = { type: "item", createdSection };
+      appends.push({
+        type: "item",
+        createdSection,
+        shell: openShell,
+        items: openItems,
+        previousSectionIndex,
+        previousShell,
+        previousItems,
+      });
     },
 
     fits() {
@@ -171,20 +201,25 @@ function createDomPageProbe(
     },
 
     undo() {
-      if (!lastAppend) return;
+      const record = appends.pop();
+      if (!record) return;
 
-      if (lastAppend.type === "block") {
+      if (record.type === "block") {
         if (probe.lastElementChild) probe.removeChild(probe.lastElementChild);
-      } else if (lastAppend.createdSection) {
-        if (openShell && openShell.parentNode === probe) probe.removeChild(openShell);
-        openSectionIndex = null;
-        openShell = null;
-        openItems = null;
-      } else if (openItems?.lastElementChild) {
-        openItems.removeChild(openItems.lastElementChild);
+        return;
       }
 
-      lastAppend = null;
+      if (record.items?.lastElementChild) {
+        record.items.removeChild(record.items.lastElementChild);
+      }
+
+      if (record.createdSection) {
+        if (record.shell && record.shell.parentNode === probe) probe.removeChild(record.shell);
+
+        openSectionIndex = record.previousSectionIndex;
+        openShell = record.previousShell;
+        openItems = record.previousItems;
+      }
     },
 
     reset() {
@@ -192,7 +227,7 @@ function createDomPageProbe(
       openSectionIndex = null;
       openShell = null;
       openItems = null;
-      lastAppend = null;
+      appends.length = 0;
     },
   };
 }

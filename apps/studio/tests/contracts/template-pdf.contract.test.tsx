@@ -13,8 +13,8 @@ import { createDefaultCoverLetter } from "@/features/cover-letter/defaults";
 import { defaultResume } from "@/features/resume/constants/default-resume";
 import { FONT_REGISTRY } from "@/features/documents/constants/fonts";
 import { registerPdfHyphenation } from "@/templates/pdf/fonts";
-import { CoverLetterPdf } from "@/templates/cover-letter/pdf";
-import { pdfTemplateRegistry } from "@/templates/resume/pdf";
+import { coverLetterTemplateRegistry } from "@/templates/cover-letter/registry";
+import { loadTemplatePdfComponentById, pdfTemplateIds } from "@/templates/resume/pdf";
 
 /**
  * The browser registers PDF fonts from URLs (templates/pdf/fonts.ts). Under
@@ -71,8 +71,9 @@ describe("resume pdf export contract", () => {
     ),
   };
 
-  for (const [templateId, TemplatePdf] of Object.entries(pdfTemplateRegistry)) {
+  for (const templateId of pdfTemplateIds) {
     it(`renders a real PDF for ${templateId}`, async () => {
+      const TemplatePdf = await loadTemplatePdfComponentById(templateId);
       const buffer = await renderToBuffer(
         pdfElement(TemplatePdf, { resume: { ...resumeWithCredential, templateId } }),
       );
@@ -94,15 +95,15 @@ describe("cover letter pdf export contract", () => {
 
   for (const templateId of ["professional", "veriworkly-special"]) {
     it(`renders a real PDF for ${templateId}`, async () => {
-      const buffer = await renderToBuffer(
-        pdfElement(CoverLetterPdf, { content: createContent(), templateId }),
-      );
+      const CoverLetterPdf = await coverLetterTemplateRegistry.loadPdf(templateId);
+      const buffer = await renderToBuffer(pdfElement(CoverLetterPdf, { content: createContent() }));
 
       expect(buffer.subarray(0, 5).toString("latin1")).toBe("%PDF-");
       expect(buffer.byteLength).toBeGreaterThan(5_000);
     }, 30_000);
 
     it(`renders ${templateId} with an inverted colour scheme`, async () => {
+      const CoverLetterPdf = await coverLetterTemplateRegistry.loadPdf(templateId);
       const buffer = await renderToBuffer(
         pdfElement(CoverLetterPdf, {
           content: createContent({
@@ -111,7 +112,6 @@ describe("cover letter pdf export contract", () => {
             sidebarColor: "#020617",
             accentColor: "#f97316",
           }),
-          templateId,
         }),
       );
 

@@ -1,12 +1,24 @@
-export const RESUME_PAGE_WIDTH_PX = 794;
-export const RESUME_PAGE_HEIGHT_PX = 1122;
-export const RESUME_PDF_SCALE = 72 / 96;
-export const RESUME_PAGE_WIDTH_PT = RESUME_PAGE_WIDTH_PX * RESUME_PDF_SCALE;
-export const RESUME_PAGE_HEIGHT_PT = RESUME_PAGE_HEIGHT_PX * RESUME_PDF_SCALE;
+import {
+  DOCUMENT_PAGE_HEIGHT_PT,
+  DOCUMENT_PAGE_HEIGHT_PX,
+  DOCUMENT_PAGE_WIDTH_PT,
+  DOCUMENT_PAGE_WIDTH_PX,
+  DOCUMENT_PDF_SCALE,
+  pxToPt,
+} from "@/templates/shared/page-geometry";
 
-export function pxToPt(value: number): number {
-  return value * RESUME_PDF_SCALE;
-}
+/**
+ * The page box is shared with every other document type — see
+ * `templates/shared/page-geometry.ts`. These aliases exist so resume call sites can
+ * keep reading `RESUME_PAGE_*`, but they must never diverge from the shared values.
+ */
+export const RESUME_PAGE_WIDTH_PX = DOCUMENT_PAGE_WIDTH_PX;
+export const RESUME_PAGE_HEIGHT_PX = DOCUMENT_PAGE_HEIGHT_PX;
+export const RESUME_PDF_SCALE = DOCUMENT_PDF_SCALE;
+export const RESUME_PAGE_WIDTH_PT = DOCUMENT_PAGE_WIDTH_PT;
+export const RESUME_PAGE_HEIGHT_PT = DOCUMENT_PAGE_HEIGHT_PT;
+
+export { pxToPt };
 
 export const RESUME_LAYOUT = {
   pagePadding: 32,

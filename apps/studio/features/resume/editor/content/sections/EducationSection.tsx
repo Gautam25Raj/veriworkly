@@ -11,7 +11,7 @@ import { useResumeStore } from "@/features/resume/store/resume-store";
 import { validateEducation } from "@/features/resume/utils/validation";
 
 import DraggableSection from "./DraggableSection";
-import { Field, invalidClass, TextArea } from "../EditorFormPrimitives";
+import { Field, invalidClass, TextArea } from "@/features/documents/editor/form";
 
 const EducationSection = ({
   isOpen,

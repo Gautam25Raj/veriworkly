@@ -1,6 +1,8 @@
-import { templateRegistry, type TemplateDefinition } from "@/templates";
+import type { TemplateMeta } from "@/features/documents/core/types";
 
-export const templateSummaries = templateRegistry.map((template: TemplateDefinition) => ({
+import { templateRegistry } from "@/templates";
+
+export const templateSummaries = templateRegistry.map((template: TemplateMeta) => ({
   id: template.id,
   name: template.name,
   description: template.description,

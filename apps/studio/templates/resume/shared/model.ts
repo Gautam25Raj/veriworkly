@@ -60,10 +60,20 @@ function cleanList(values: string[] | undefined): string[] {
   return (values ?? []).map((value) => cleanResumeText(value)).filter(Boolean);
 }
 
+/**
+ * Titles are left empty when the user has not filled them in, never substituted with
+ * a placeholder word.
+ *
+ * Entries reaching here are pre-filtered by `hasExperienceContent` and friends, which
+ * pass an entry that has *any* content — so a row with a company and bullets but no
+ * role would previously render the literal text "Role" into the preview and, worse,
+ * into the exported PDF/DOCX/HTML. Renderers skip an empty title (see `renderItem` in
+ * shared/web.tsx and shared/pdf.tsx).
+ */
 export function getExperienceRenderItems(items: ResumeData["experience"]): ResumeRenderItem[] {
   return items.map((item) => ({
     id: item.id,
-    title: cleanResumeText(item.role) || "Role",
+    title: cleanResumeText(item.role),
     meta: formatDateRange(item.startDate, item.endDate, item.current),
     subtitle: joinMeta([item.company, item.location]),
     link: null,
@@ -75,7 +85,7 @@ export function getExperienceRenderItems(items: ResumeData["experience"]): Resum
 export function getEducationRenderItems(items: ResumeData["education"]): ResumeRenderItem[] {
   return items.map((item) => ({
     id: item.id,
-    title: getEducationTitle(item) || "Education",
+    title: getEducationTitle(item),
     meta: getEducationMeta(item),
     subtitle: getEducationSchool(item),
     link: null,
@@ -90,7 +100,7 @@ export function getProjectRenderItems(items: ResumeData["projects"]): ResumeRend
 
     return {
       id: item.id,
-      title: getProjectTitle(item) || "Project",
+      title: getProjectTitle(item),
       meta: "",
       subtitle: cleanList(item.skills).join(", "),
       link: href ? { href, text: getProjectLinkText(item) || href } : null,

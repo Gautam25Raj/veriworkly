@@ -1,11 +1,10 @@
 "use client";
 
 import { memo, useState } from "react";
-import { ChevronDown, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { Button } from "@veriworkly/ui";
 
 import type { FontFamilyId } from "@/features/documents/constants/fonts";
-import { cn } from "@/lib/utils";
 
 import { templateCatalogByType } from "@/features/documents/core/template-catalog";
 import {
@@ -13,6 +12,7 @@ import {
   DocumentTemplateSummary,
 } from "@/features/documents/editor/DocumentTemplatePickerModal";
 
+import SectionAccordion from "@/features/documents/editor/SectionAccordion";
 import SectionVisibilitySettings from "./settings/SectionVisibilitySettings";
 import { SettingsColor, SettingsRange, SettingsSelect } from "./settings/SettingControls";
 
@@ -20,41 +20,11 @@ import { fontOptions } from "@/features/documents/constants/fonts";
 import { useResumeStore } from "@/features/resume/store/resume-store";
 import { defaultResume } from "@/features/resume/constants/default-resume";
 
-const SettingsSectionAccordion = ({
-  children,
-  isOpen,
-  label,
-  onToggle,
-}: {
-  children: React.ReactNode;
-  isOpen: boolean;
-  label: string;
-  onToggle: () => void;
-}) => {
-  return (
-    <div className="border-border bg-background/70 overflow-hidden border-b transition last:border-b-0">
-      <button
-        type="button"
-        onClick={onToggle}
-        className={cn(
-          "flex w-full cursor-pointer items-center justify-between px-3 py-3 text-left text-sm font-semibold transition",
-          isOpen ? "bg-card text-foreground" : "text-muted hover:bg-card hover:text-foreground",
-        )}
-      >
-        <span className="min-w-0 truncate">{label}</span>
-        <ChevronDown className={cn("h-4 w-4 shrink-0 transition", isOpen ? "rotate-180" : "")} />
-      </button>
-
-      {isOpen ? <div className="bg-card border-border/70 border-t p-3">{children}</div> : null}
-    </div>
-  );
-};
+type SettingsSectionId = "typography" | "colors" | "visibility";
 
 const EditorSettingsPanel = memo(function EditorSettingsPanel() {
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
-  const [openSection, setOpenSection] = useState<"typography" | "colors" | "visibility" | null>(
-    "typography",
-  );
+  const [openSection, setOpenSection] = useState<SettingsSectionId | null>("typography");
 
   const sections = useResumeStore((state) => state.resume.sections);
   const templateId = useResumeStore((state) => state.resume.templateId);
@@ -72,8 +42,8 @@ const EditorSettingsPanel = memo(function EditorSettingsPanel() {
 
   const isTwoColumnTemplate = !!selectedTemplate?.tags.includes("Two columns");
 
-  const handleToggle = (section: "typography" | "colors" | "visibility") => {
-    setOpenSection((curr) => (curr === section ? null : section));
+  const handleToggle = (section: string) => {
+    setOpenSection((curr) => (curr === section ? null : (section as SettingsSectionId)));
   };
 
   return (
@@ -90,10 +60,11 @@ const EditorSettingsPanel = memo(function EditorSettingsPanel() {
       />
 
       <div className="flex flex-col">
-        <SettingsSectionAccordion
+        <SectionAccordion
           label="Typography & Spacing"
           isOpen={openSection === "typography"}
-          onToggle={() => handleToggle("typography")}
+          id="typography"
+          onToggle={handleToggle}
         >
           <div className="text-foreground space-y-4">
             <SettingsSelect
@@ -149,12 +120,13 @@ const EditorSettingsPanel = memo(function EditorSettingsPanel() {
               }
             />
           </div>
-        </SettingsSectionAccordion>
+        </SectionAccordion>
 
-        <SettingsSectionAccordion
+        <SectionAccordion
           label="Color Theme"
           isOpen={openSection === "colors"}
-          onToggle={() => handleToggle("colors")}
+          id="colors"
+          onToggle={handleToggle}
         >
           <div className="text-foreground space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -230,12 +202,13 @@ const EditorSettingsPanel = memo(function EditorSettingsPanel() {
               Reset Theme Defaults
             </Button>
           </div>
-        </SettingsSectionAccordion>
+        </SectionAccordion>
 
-        <SettingsSectionAccordion
+        <SectionAccordion
           label="Section Visibility"
           isOpen={openSection === "visibility"}
-          onToggle={() => handleToggle("visibility")}
+          id="visibility"
+          onToggle={handleToggle}
         >
           <div className="text-foreground">
             <SectionVisibilitySettings
@@ -247,7 +220,7 @@ const EditorSettingsPanel = memo(function EditorSettingsPanel() {
               onUpdateSectionColumn={updateSectionColumn}
             />
           </div>
-        </SettingsSectionAccordion>
+        </SectionAccordion>
       </div>
 
       <DocumentTemplatePickerModal

@@ -11,7 +11,14 @@ export interface IncrementalPageProbe<T> {
   append(item: T): void;
   /** Whether the page still fits after the most recent {@link append}. */
   fits(): boolean;
-  /** Undoes the most recent {@link append}. */
+  /**
+   * Undoes the most recent {@link append}.
+   *
+   * Must behave as a stack pop: `paginateIncremental` can call this twice in a row
+   * (the keep-with-next lookahead appends a probe item, undoes it, and may then undo
+   * the real item as well), so an implementation that only remembers a single last
+   * append will leave stale content on the page.
+   */
   undo(): void;
   /** Discards the page under construction and starts an empty one. */
   reset(): void;

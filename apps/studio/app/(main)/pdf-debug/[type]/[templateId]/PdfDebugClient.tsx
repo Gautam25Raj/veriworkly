@@ -1,7 +1,10 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { createElement, useEffect, useMemo } from "react";
+import { createElement, useEffect, useMemo, useState } from "react";
+
+import type { ReactElement } from "react";
+import type { DocumentProps } from "@react-pdf/renderer";
 
 const PDFViewer = dynamic(() => import("@react-pdf/renderer").then((mod) => mod.PDFViewer), {
   ssr: false,
@@ -12,7 +15,7 @@ import type { CoverLetterContent } from "@/features/cover-letter/types";
 
 import { registerPdfFont, registerPdfFontById } from "@/templates/pdf/fonts";
 
-import { CoverLetterPdf } from "@/templates/cover-letter/pdf";
+import { createCoverLetterPdfElement } from "@/templates/cover-letter/pdf";
 import { createDefaultCoverLetter } from "@/features/cover-letter/defaults";
 
 import { loadResumeById } from "@/features/resume/services/resume-service";
@@ -48,15 +51,9 @@ function createDebugCoverLetter(templateId: string) {
   };
 }
 
-/**
- * Not a component: the PDF template is looked up by id, so it is instantiated
- * through `createElement` to keep the registry the single source of truth.
- */
-function renderResumePdfDebugDocument(resume: ResumeData, templateId: string) {
-  return createElement(loadTemplatePdfComponentById(templateId), { resume });
-}
-
 export function PdfDebugClient({ documentId, templateId, type }: PdfDebugClientProps) {
+  const [documentElement, setDocumentElement] = useState<ReactElement<DocumentProps> | null>(null);
+
   const resume = useMemo(() => {
     if (type !== "resume") return null;
 
@@ -71,25 +68,52 @@ export function PdfDebugClient({ documentId, templateId, type }: PdfDebugClientP
     return { ...(saved ?? createDebugCoverLetter(templateId)), templateId };
   }, [documentId, templateId, type]);
 
+  // PDF templates are fetched on demand, so the element is built in an effect. Fonts are
+  // registered here too, immediately before the element is created — react-pdf reads its
+  // global font registry at render time, so registering in a separate effect could let a
+  // first render happen against the fallback font.
   useEffect(() => {
-    if (resume) registerPdfFont(resume);
-    if (coverLetter) {
-      registerPdfFontById((coverLetter.content as CoverLetterContent).appearance?.fontFamily);
-    }
-  }, [coverLetter, resume]);
+    let cancelled = false;
+
+    const build = async () => {
+      if (resume) {
+        registerPdfFont(resume);
+        const TemplatePdf = await loadTemplatePdfComponentById(templateId);
+
+        if (!cancelled) {
+          setDocumentElement(
+            createElement(TemplatePdf, { resume }) as unknown as ReactElement<DocumentProps>,
+          );
+        }
+        return;
+      }
+
+      if (coverLetter) {
+        const content = coverLetter.content as CoverLetterContent;
+        registerPdfFontById(content.appearance?.fontFamily);
+
+        const element = await createCoverLetterPdfElement({ content, templateId });
+
+        if (!cancelled) setDocumentElement(element);
+        return;
+      }
+
+      if (!cancelled) setDocumentElement(null);
+    };
+
+    void build();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [coverLetter, resume, templateId]);
 
   const title =
     resume?.basics.fullName ??
     coverLetter?.title ??
     (type === "resume" ? "Resume" : "Cover Letter");
 
-  const documentElement = resume ? (
-    renderResumePdfDebugDocument(resume, templateId)
-  ) : coverLetter ? (
-    <CoverLetterPdf content={coverLetter.content as CoverLetterContent} templateId={templateId} />
-  ) : null;
-
-  if (!documentElement) {
+  if (!resume && !coverLetter) {
     return (
       <main className="bg-background flex min-h-screen items-center justify-center p-6">
         <div className="text-center">
@@ -121,9 +145,13 @@ export function PdfDebugClient({ documentId, templateId, type }: PdfDebugClientP
       </div>
 
       <div className="min-h-0 flex-1">
-        <PDFViewer className="h-[calc(100vh-65px)] w-full" showToolbar>
-          {documentElement}
-        </PDFViewer>
+        {documentElement ? (
+          <PDFViewer className="h-[calc(100vh-65px)] w-full" showToolbar>
+            {documentElement}
+          </PDFViewer>
+        ) : (
+          <p className="text-muted p-6 text-sm">Loading template…</p>
+        )}
       </div>
     </main>
   );

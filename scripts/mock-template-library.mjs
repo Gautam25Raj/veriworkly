@@ -6,7 +6,7 @@ const projectRoot = process.cwd();
 const templateLibPath = path.join(projectRoot, "apps", "portfolio", "template-library");
 const registryFilePath = path.join(templateLibPath, "registry.ts");
 
-if (fs.existsSync(registryFilePath)) {
+if (fs.existsSync(registryFilePath) && !process.env.FORCE_MOCK) {
   console.log("Template library already exists. Skipping mock setup.");
   process.exit(0);
 }
@@ -25,6 +25,7 @@ const typesContent = `export interface PortfolioSection {
   id: string;
   type: string;
   title: string;
+  subtitle?: string;
   visible: boolean;
   items: Array<Record<string, unknown>>;
 }
@@ -111,6 +112,7 @@ export const templatesRegistry = {
     audience: "Mock signal audience",
     strengths: ["Mock signal strengths"],
     image: "/templates/signal-template-preview.png",
+    isPremium: false,
     loader: () => import("./signal/SignalTemplate"),
     design: signalDesign,
   },
@@ -121,6 +123,7 @@ export const templatesRegistry = {
     audience: "Mock atelier audience",
     strengths: ["Mock atelier strengths"],
     image: "/templates/atelier-template-preview.png",
+    isPremium: false,
     loader: () => import("./atelier/AtelierTemplate"),
     design: atelierDesign,
   },
@@ -131,9 +134,9 @@ export const templatesRegistry = {
     audience: "Mock nimbus audience",
     strengths: ["Mock nimbus strengths"],
     image: "/templates/nimbus-template-preview.png",
+    isPremium: true,
     loader: () => import("./nimbus/NimbusTemplate"),
     design: nimbusDesign,
-    isPremium: true,
   },
   cipher: {
     name: "Cipher",
@@ -142,9 +145,9 @@ export const templatesRegistry = {
     audience: "Mock cipher audience",
     strengths: ["Mock cipher strengths"],
     image: "/templates/cipher-template-preview.png",
+    isPremium: true,
     loader: () => import("./cipher/CipherTemplate"),
     design: cipherDesign,
-    isPremium: true,
   },
 } satisfies Record<string, TemplateRegistryEntry>;
 
@@ -161,34 +164,26 @@ export function hasPrivateTemplate(id: string): id is PrivateTemplateId {
 
 fs.writeFileSync(registryFilePath, registryContent);
 
-// AtelierTemplate
-const atelierContent = `import React from "react";
+// Helper template body generator
+function createTemplateComponentCode(templateName, isSignal = false) {
+  return `import React from "react";
 import { safeExternalUrl, itemText, type PortfolioProject } from "../types";
 import "./styles.css";
 
-export default function AtelierTemplate({ project }: { project: PortfolioProject }) {
+export default function ${templateName}Template({ project }: { project: PortfolioProject }) {
   const visibleSections = project.sections.filter((s) => s.visible);
+  ${isSignal ? `const projectsSection = visibleSections.find((s) => s.type === "projects");` : ""}
+
   return (
     <div>
-      <div>Mock Atelier Template: {project.identity.name}</div>
+      <div>Mock ${templateName} Template: {project.identity.name}</div>
+      ${isSignal ? `{projectsSection && <a href={"#" + projectsSection.id}>Explore work</a>}` : ""}
       {visibleSections.map((section) => {
-        if (section.type === "projects") {
-          return (
-            <div key={section.id} data-section={section.type}>
-              <h2>{section.title}</h2>
-              {section.items.map((item, idx) => (
-                <div key={idx}>
-                  <h3>{itemText(item, "title") || itemText(item, "name")}</h3>
-                  <p>{itemText(item, "summary")}</p>
-                </div>
-              ))}
-            </div>
-          );
-        }
         if (section.type === "contact") {
           return (
             <div key={section.id} data-section={section.type}>
               <h2>{section.title}</h2>
+              {section.subtitle ? <p>{section.subtitle}</p> : null}
               {project.socialLinks.map((link) => {
                 const href = safeExternalUrl(link.url);
                 return href && link.label.trim() ? (
@@ -200,17 +195,43 @@ export default function AtelierTemplate({ project }: { project: PortfolioProject
             </div>
           );
         }
+
         return (
           <div key={section.id} data-section={section.type}>
             <h2>{section.title}</h2>
-            {section.type === "services" && <div className="atelier-service-list" />}
-            {section.type === "testimonials" && <div className="atelier-testimonial-list" />}
-            {section.items.map((item, idx) => (
-              <div key={idx}>
-                <h3>{itemText(item, "title") || itemText(item, "name")}</h3>
-                <p>{itemText(item, "summary")}</p>
-              </div>
-            ))}
+            {section.subtitle ? <p>{section.subtitle}</p> : null}
+            ${isSignal ? '{section.type === "experience" && <div className="signal-timeline" />}' : ""}
+            ${isSignal ? '{section.type === "testimonials" && <div className="signal-quotes-grid" />}' : ""}
+            ${templateName === "Atelier" ? '{section.type === "services" && <div className="atelier-service-list" />}' : ""}
+            ${templateName === "Atelier" ? '{section.type === "testimonials" && <div className="atelier-testimonial-list" />}' : ""}
+            {section.items.map((item, idx) => {
+              const indexNum = idx + 1;
+              const indexLabel = indexNum >= 10 ? String(indexNum) : "0" + indexNum;
+              const degree = itemText(item, "degree");
+              const field = itemText(item, "field");
+              const degreeField = degree && field ? degree + " in " + field : "";
+
+              return (
+                <div key={idx}>
+                  <span>{indexLabel}</span>
+                  {degreeField ? <p>{degreeField}</p> : null}
+                  {Object.entries(item).map(([k, v]) => {
+                    if (k === "id" || k === "visible") return null;
+                    if (k === "link") {
+                      const href = typeof v === "string" ? safeExternalUrl(v) : "";
+                      return href ? <a key={k} href={href}>Link</a> : null;
+                    }
+                    if (Array.isArray(v)) {
+                      return <p key={k}>{v.join(" ")}</p>;
+                    }
+                    if (typeof v === "string" || typeof v === "number") {
+                      return <p key={k}>{String(v)}</p>;
+                    }
+                    return null;
+                  })}
+                </div>
+              );
+            })}
           </div>
         );
       })}
@@ -218,8 +239,13 @@ export default function AtelierTemplate({ project }: { project: PortfolioProject
   );
 }
 `;
+}
 
-fs.writeFileSync(path.join(templateLibPath, "atelier", "AtelierTemplate.tsx"), atelierContent);
+// AtelierTemplate
+fs.writeFileSync(
+  path.join(templateLibPath, "atelier", "AtelierTemplate.tsx"),
+  createTemplateComponentCode("Atelier"),
+);
 fs.writeFileSync(path.join(templateLibPath, "atelier", "styles.css"), "/* Mock styles */");
 
 const atelierDesignContent = `export const design = {
@@ -238,64 +264,10 @@ const atelierDesignContent = `export const design = {
 fs.writeFileSync(path.join(templateLibPath, "atelier", "design.ts"), atelierDesignContent);
 
 // SignalTemplate
-const signalContent = `import React from "react";
-import { safeExternalUrl, itemText, type PortfolioProject } from "../types";
-import "./styles.css";
-
-export default function SignalTemplate({ project }: { project: PortfolioProject }) {
-  const visibleSections = project.sections.filter((s) => s.visible);
-  return (
-    <div>
-      <div>Mock Signal Template: {project.identity.name}</div>
-      {visibleSections.map((section) => {
-        if (section.type === "projects") {
-          return (
-            <div key={section.id} data-section={section.type}>
-              <h2>{section.title}</h2>
-              {section.items.map((item, idx) => (
-                <div key={idx}>
-                  <h3>{itemText(item, "title") || itemText(item, "name")}</h3>
-                  <p>{itemText(item, "summary")}</p>
-                </div>
-              ))}
-            </div>
-          );
-        }
-        if (section.type === "contact") {
-          return (
-            <div key={section.id} data-section={section.type}>
-              <h2>{section.title}</h2>
-              {project.socialLinks.map((link) => {
-                const href = safeExternalUrl(link.url);
-                return href && link.label.trim() ? (
-                  <a key={link.id} href={href}>
-                    {link.label}
-                  </a>
-                ) : null;
-              })}
-            </div>
-          );
-        }
-        return (
-          <div key={section.id} data-section={section.type}>
-            <h2>{section.title}</h2>
-            {section.type === "experience" && <div className="signal-timeline" />}
-            {section.type === "testimonials" && <div className="signal-quotes-grid" />}
-            {section.items.map((item, idx) => (
-              <div key={idx}>
-                <h3>{itemText(item, "title") || itemText(item, "name")}</h3>
-                <p>{itemText(item, "summary")}</p>
-              </div>
-            ))}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-`;
-
-fs.writeFileSync(path.join(templateLibPath, "signal", "SignalTemplate.tsx"), signalContent);
+fs.writeFileSync(
+  path.join(templateLibPath, "signal", "SignalTemplate.tsx"),
+  createTemplateComponentCode("Signal", true),
+);
 fs.writeFileSync(path.join(templateLibPath, "signal", "styles.css"), "/* Mock styles */");
 
 // SignalDesign
@@ -312,20 +284,13 @@ const signalDesignContent = `export const design = {
   designNotes: ["Mock signal designNotes"],
 };
 `;
-
 fs.writeFileSync(path.join(templateLibPath, "signal", "design.ts"), signalDesignContent);
 
 // NimbusTemplate
-const nimbusContent = `import React from "react";
-import { type PortfolioProject } from "../types";
-import "./styles.css";
-
-export default function NimbusTemplate({ project }: { project: PortfolioProject }) {
-  return <div>Mock Nimbus Template: {project.identity.name}</div>;
-}
-`;
-
-fs.writeFileSync(path.join(templateLibPath, "nimbus", "NimbusTemplate.tsx"), nimbusContent);
+fs.writeFileSync(
+  path.join(templateLibPath, "nimbus", "NimbusTemplate.tsx"),
+  createTemplateComponentCode("Nimbus"),
+);
 fs.writeFileSync(path.join(templateLibPath, "nimbus", "styles.css"), "/* Mock styles */");
 
 // NimbusDesign
@@ -342,19 +307,41 @@ const nimbusDesignContent = `export const design = {
   designNotes: ["Mock nimbus designNotes"],
 };
 `;
-
 fs.writeFileSync(path.join(templateLibPath, "nimbus", "design.ts"), nimbusDesignContent);
 
 // CipherTemplate
 const cipherContent = `import React from "react";
-import { type PortfolioProject } from "../types";
+import { safeExternalUrl, type PortfolioProject } from "../types";
 import "./styles.css";
 
 export default function CipherTemplate({ project }: { project: PortfolioProject }) {
-  return <div>Mock Cipher Template: {project.identity.name}</div>;
+  const visibleSections = project.sections.filter((s) => s.visible);
+  return (
+    <div>
+      <div>Mock Cipher Template: {project.identity.name}</div>
+      {visibleSections.map((section) => (
+        <div key={section.id} data-section={section.type}>
+          <h2>{section.title}</h2>
+          {section.items.map((item, idx) => (
+            <div key={idx}>
+              {Object.entries(item).map(([k, v]) => {
+                if (k === "id" || k === "visible") return null;
+                if (k === "link") {
+                  const href = typeof v === "string" ? safeExternalUrl(v) : "";
+                  return href ? <a key={k} href={href}>Link</a> : null;
+                }
+                if (Array.isArray(v)) return <p key={k}>{v.join(" ")}</p>;
+                if (typeof v === "string" || typeof v === "number") return <p key={k}>{String(v)}</p>;
+                return null;
+              })}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
 }
 `;
-
 fs.writeFileSync(path.join(templateLibPath, "cipher", "CipherTemplate.tsx"), cipherContent);
 fs.writeFileSync(path.join(templateLibPath, "cipher", "styles.css"), "/* Mock styles */");
 
@@ -372,7 +359,6 @@ const cipherDesignContent = `export const design = {
   designNotes: ["Mock cipher designNotes"],
 };
 `;
-
 fs.writeFileSync(path.join(templateLibPath, "cipher", "design.ts"), cipherDesignContent);
 
 console.log("Mock templates set up successfully.");

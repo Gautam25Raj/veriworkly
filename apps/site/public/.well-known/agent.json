@@ -79,7 +79,11 @@
     {
       "name": "Portfolio Builder & Subdomain Publishing",
       "description": "Manage portfolio drafts, check subdomain availability, publish to custom subdomains, and inspect view analytics.",
-      "endpoints": ["/api/v1/portfolios/me", "/api/v1/portfolios/publish", "/api/v1/portfolios/analytics"]
+      "endpoints": [
+        "/api/v1/portfolios/me",
+        "/api/v1/portfolios/publish",
+        "/api/v1/portfolios/analytics"
+      ]
     },
     {
       "name": "Public Document Sharing",

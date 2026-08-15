@@ -7,7 +7,7 @@
 
 **Verification after fixes:** `npx tsc --noEmit` (clean) · `npx eslint .` (0 errors, 3 pre-existing warnings) · `npx vitest run` (**63/63 passing**, up from 30) · `npx next build` (exit 0). CSS chunk sizes were re-measured from a clean rebuild.
 
-**Note on repository layout:** `template-library/` is a git submodule pointing at `github.com/VeriWorkly/portfolio-templates`. The template changes need their own commit in that repo plus a submodule pointer bump here. The changes in *this* repo are: `app/globals.css`, `app/api/template/{nimbus,cipher}/og/route.tsx`, `tests/template-library.test.tsx`, `tests/stubs/next-font-google.ts`, and `vitest.config.ts`. **Nothing has been committed — all changes are working-tree only.**
+**Note on repository layout:** `template-library/` is a git submodule pointing at `github.com/VeriWorkly/portfolio-templates`. The template changes need their own commit in that repo plus a submodule pointer bump here. The changes in _this_ repo are: `app/globals.css`, `app/api/template/{nimbus,cipher}/og/route.tsx`, `tests/template-library.test.tsx`, `tests/stubs/next-font-google.ts`, and `vitest.config.ts`. **Nothing has been committed — all changes are working-tree only.**
 
 Severity: **HIGH** (trust, correctness, or measurable performance cost on the most-served page) · **MEDIUM** (real bug or notable UX/a11y gap) · **LOW** (polish, consistency, minor optimization).
 
@@ -17,12 +17,12 @@ Severity: **HIGH** (trust, correctness, or measurable performance cost on the mo
 
 Registered in [`template-library/registry.ts`](template-library/registry.ts), surfaced through [`templates/catalog/templates.ts`](templates/catalog/templates.ts), mounted server-side by [`templates/runtime/registry.tsx`](templates/runtime/registry.tsx).
 
-| id | Name | Tier | Aesthetic | TSX lines | CSS lines | Built CSS |
-|---|---|---|---|---|---|---|
-| `signal` | Signal | Free | Mint-emerald tech-editorial; GSAP stacking project cards; dual dark/light theme | 1999 | 2526 | **147.9 KB** (750 selectors) |
-| `atelier` | Atelier | Free | Warm sand print/editorial; flat card geometry; drifting orbit spheres | 1398 | 1406 | 27.3 KB (549 selectors) |
-| `nimbus` | Nimbus | Premium | Brutalist broadsheet; amber accent; cursor-follow ring, text scramble, marquee | 1741 | 2244 | 36.8 KB (575 selectors) |
-| `cipher` | Cipher | Premium | CRT terminal emulator; cold-boot sequence; command line; matrix rain | 1862 | 775 | 14.5 KB (247 selectors) |
+| id        | Name    | Tier    | Aesthetic                                                                       | TSX lines | CSS lines | Built CSS                    |
+| --------- | ------- | ------- | ------------------------------------------------------------------------------- | --------- | --------- | ---------------------------- |
+| `signal`  | Signal  | Free    | Mint-emerald tech-editorial; GSAP stacking project cards; dual dark/light theme | 1999      | 2526      | **147.9 KB** (750 selectors) |
+| `atelier` | Atelier | Free    | Warm sand print/editorial; flat card geometry; drifting orbit spheres           | 1398      | 1406      | 27.3 KB (549 selectors)      |
+| `nimbus`  | Nimbus  | Premium | Brutalist broadsheet; amber accent; cursor-follow ring, text scramble, marquee  | 1741      | 2244      | 36.8 KB (575 selectors)      |
+| `cipher`  | Cipher  | Premium | CRT terminal emulator; cold-boot sequence; command line; matrix rain            | 1862      | 775       | 14.5 KB (247 selectors)      |
 
 Signal is the default and the most complete — it renders 17 section types against Atelier's and Nimbus's smaller sets. It is also where the majority of the findings sit, which matters disproportionately because it is the free tier and therefore the most-served template in the product.
 
@@ -34,24 +34,24 @@ Shared contract lives in [`template-library/types.ts`](template-library/types.ts
 
 **Files:** `template-library/signal/SignalTemplate.tsx`
 
-Roughly twenty `itemText(item, key, fallback)` calls in Signal supply *real-sounding institutional names* as their fallback. When a portfolio owner leaves a field blank, the published page asserts a credential they never entered:
+Roughly twenty `itemText(item, key, fallback)` calls in Signal supply _real-sounding institutional names_ as their fallback. When a portfolio owner leaves a field blank, the published page asserts a credential they never entered:
 
-| Line | Code | Rendered when field is blank |
-|---|---|---|
-| 880 | `itemText(item, "school", "Stanford University")` | "Stanford University" |
-| 881 | `itemText(item, "degree", "Master of Science")` | "Master of Science" |
-| 882 | `itemText(item, "field", "Computer Science")` | "Computer Science" |
-| 687 | `itemText(item, "company", "Synthetix Labs")` | "Synthetix Labs" |
-| 686 | `itemText(item, "role", "Staff Systems Engineer")` | "Staff Systems Engineer" |
-| 929 | `itemText(item, "issuer", "SIGGRAPH Academy")` | certification issuer |
-| 1128 | `itemText(item, "issuer", "SIGGRAPH Journal")` | publication venue |
-| 1200 | `itemText(item, "issuer", "US Patent Office")` | patent authority |
-| 1270 | `itemText(item, "issuer", "Google")` | test-score issuer |
-| 1269 | `itemText(item, "score", … "100/100")` | a perfect score |
-| 1365 | `itemText(item, "issuer", "Synthetix Corp")` | achievement issuer |
-| 1424 | `itemText(item, "issuer", "Code For All")` | volunteer org |
-| 1480 | `itemText(item, "issuer", "Type League")` | award issuer |
-| 1609 | `itemTitle(item, "CTO")` | testimonial author |
+| Line | Code                                               | Rendered when field is blank |
+| ---- | -------------------------------------------------- | ---------------------------- |
+| 880  | `itemText(item, "school", "Stanford University")`  | "Stanford University"        |
+| 881  | `itemText(item, "degree", "Master of Science")`    | "Master of Science"          |
+| 882  | `itemText(item, "field", "Computer Science")`      | "Computer Science"           |
+| 687  | `itemText(item, "company", "Synthetix Labs")`      | "Synthetix Labs"             |
+| 686  | `itemText(item, "role", "Staff Systems Engineer")` | "Staff Systems Engineer"     |
+| 929  | `itemText(item, "issuer", "SIGGRAPH Academy")`     | certification issuer         |
+| 1128 | `itemText(item, "issuer", "SIGGRAPH Journal")`     | publication venue            |
+| 1200 | `itemText(item, "issuer", "US Patent Office")`     | patent authority             |
+| 1270 | `itemText(item, "issuer", "Google")`               | test-score issuer            |
+| 1269 | `itemText(item, "score", … "100/100")`             | a perfect score              |
+| 1365 | `itemText(item, "issuer", "Synthetix Corp")`       | achievement issuer           |
+| 1424 | `itemText(item, "issuer", "Code For All")`         | volunteer org                |
+| 1480 | `itemText(item, "issuer", "Type League")`          | award issuer                 |
+| 1609 | `itemTitle(item, "CTO")`                           | testimonial author           |
 
 Also date fallbacks that invent a year outright: `itemText(item, "year", "2026")` (591), `itemText(item, "date", "2025")` (1129, 1201, 1366, 1481), `"Class of 2022"` (879), `"June 2026"` (1540).
 
@@ -115,12 +115,15 @@ None of that renders. The template is currently advertising a design it does not
 **Files:** `template-library/signal/styles.css:1`, `template-library/nimbus/style.css:6`, `template-library/cipher/style.css:1`
 
 ```css
-/* signal */ @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&family=Space+Mono:…");
-/* nimbus */ @import url("https://fonts.googleapis.com/css2?family=Fraunces:…&family=DM+Mono:…");
-/* cipher */ @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:…");
+/* signal */
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&family=Space+Mono:…");
+/* nimbus */
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:…&family=DM+Mono:…");
+/* cipher */
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:…");
 ```
 
-A CSS `@import` of a remote stylesheet is discovered only *after* the importing stylesheet has been downloaded and parsed, producing a serial chain before text can paint in the right face:
+A CSS `@import` of a remote stylesheet is discovered only _after_ the importing stylesheet has been downloaded and parsed, producing a serial chain before text can paint in the right face:
 
 ```
 HTML → template CSS chunk → fonts.googleapis.com/css2 → font files
@@ -159,14 +162,14 @@ One of the hero's two calls-to-action scrolls nowhere. It also renders unconditi
 
 Every section description in Signal is hardcoded and written exclusively for a graphics/systems engineer:
 
-| Line | Section | Copy |
-|---|---|---|
-| 583 | Projects | "digital systems, graphics engines, and production interfaces" |
-| 794 | Skills | "Programming languages, rendering engines, compiler workflows…" |
-| 923 | Certifications | "specialized technical licenses, and advanced system training" |
-| 1122 | Publications | "academic journals, and engineering contributions" |
-| 1194 | Patents | "US Patent registry entries and documented UI engineering frameworks" |
-| 1602 | Testimonials | "Endorsements from directors, core CTOs, and peer engineers" |
+| Line | Section        | Copy                                                                  |
+| ---- | -------------- | --------------------------------------------------------------------- |
+| 583  | Projects       | "digital systems, graphics engines, and production interfaces"        |
+| 794  | Skills         | "Programming languages, rendering engines, compiler workflows…"       |
+| 923  | Certifications | "specialized technical licenses, and advanced system training"        |
+| 1122 | Publications   | "academic journals, and engineering contributions"                    |
+| 1194 | Patents        | "US Patent registry entries and documented UI engineering frameworks" |
+| 1602 | Testimonials   | "Endorsements from directors, core CTOs, and peer engineers"          |
 
 Plus placeholder titles in the same register: `itemTitle(item, "WebGL Engine Architecture")` (748), `itemTitle(item, "Algorithmic Typography Shaders")` (1127), `itemTitle(item, "Layout Stacking System Patent")` (1199). The experience section hardcodes a headline card reading "Iterating on visual, tactile interfaces and reliable compiler-optimized systems" (669), and the footer hardcodes "Subscribe to Technical Logs / updates on creative engineering and WebGL development" (1944–1946).
 
@@ -233,7 +236,7 @@ On scroll-down the nav animates to `y: -120, opacity: 0` — but nothing sets `v
 
 ```ts
 import AtelierTemplate from "@/template-library/atelier/AtelierTemplate";
-import SignalTemplate  from "@/template-library/signal/SignalTemplate";
+import SignalTemplate from "@/template-library/signal/SignalTemplate";
 ```
 
 The contract suite renders Signal and Atelier only — asserting section ordering, `data-section` presence, and malformed-input resilience. **Nimbus and Cipher, the two paid templates, are never rendered by any test.** Neither the section-ordering contract nor the malformed-data guards are verified for them, despite Cipher being the most stateful template in the library (boot sequence, command parser, drag state, timers).
@@ -244,15 +247,15 @@ The contract suite renders Signal and Atelier only — asserting section orderin
 
 ## 11. LOW ✅ FIXED — Assorted
 
-| # | Finding | Location |
-|---|---|---|
-| 11.1 | **"Local Time" shows the visitor's clock, not the owner's.** The hero Profile Summary card lists Location and directly beneath it Local Time, fed by `new Date().toLocaleTimeString()` in the visitor's own timezone. Reads as the owner's local time; is not. Either derive a timezone from `identity.location` or relabel it "Your time". | `signal/SignalTemplate.tsx:99-112, 437-442` |
-| 11.2 | **Duplicate React keys on tag lists.** `key={tag}` and `key={kw}` use the tag string itself; a portfolio listing the same skill twice produces colliding keys and a reconciliation warning. | `signal/SignalTemplate.tsx:629, 807` |
-| 11.3 | **Unbounded localStorage growth.** `signal_messages` and `signal_subscribers` are read, pushed to, and rewritten with no cap. A visitor who submits repeatedly grows the array without limit. Cap at ~50 entries or drop the log entirely — it is explicitly not the delivery mechanism. | `signal/SignalTemplate.tsx:1741-1744, 1898-1901` |
-| 11.4 | **Unscoped `document.querySelector`.** The nav-hide effect queries `.signal-nav-container` globally rather than through `containerRef`, unlike every other selector in the same `useGSAP` scope. Breaks if two Signal instances mount (editor preview beside a live render). | `signal/SignalTemplate.tsx:174` |
-| 11.5 | **OG image routes exist for two of four templates.** `app/api/template/signal/og/` and `app/api/template/atelier/og/` have routes; `nimbus` and `cipher` do not — so the two premium templates have no template-specific social card. | `app/api/template/` |
-| 11.6 | **No skip-to-content link in any template.** Signal in particular puts a floating nav, a theme widget, and a full hero ahead of the first section, with no bypass for keyboard and screen-reader users (WCAG 2.4.1). | all four |
-| 11.7 | **Reduced-motion block is a blunt instrument.** `.signal-site * { transform: none !important; filter: none !important; }` disables *all* transforms under `prefers-reduced-motion`, including any that are layout-critical (centering translates, etc.) rather than decorative. Currently harmless, but it will silently break the first layout transform anyone adds. Scope it to the animated classes already listed alongside it. | `signal/styles.css:2512-2526` |
+| #    | Finding                                                                                                                                                                                                                                                                                                                                                                                                                              | Location                                         |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ |
+| 11.1 | **"Local Time" shows the visitor's clock, not the owner's.** The hero Profile Summary card lists Location and directly beneath it Local Time, fed by `new Date().toLocaleTimeString()` in the visitor's own timezone. Reads as the owner's local time; is not. Either derive a timezone from `identity.location` or relabel it "Your time".                                                                                          | `signal/SignalTemplate.tsx:99-112, 437-442`      |
+| 11.2 | **Duplicate React keys on tag lists.** `key={tag}` and `key={kw}` use the tag string itself; a portfolio listing the same skill twice produces colliding keys and a reconciliation warning.                                                                                                                                                                                                                                          | `signal/SignalTemplate.tsx:629, 807`             |
+| 11.3 | **Unbounded localStorage growth.** `signal_messages` and `signal_subscribers` are read, pushed to, and rewritten with no cap. A visitor who submits repeatedly grows the array without limit. Cap at ~50 entries or drop the log entirely — it is explicitly not the delivery mechanism.                                                                                                                                             | `signal/SignalTemplate.tsx:1741-1744, 1898-1901` |
+| 11.4 | **Unscoped `document.querySelector`.** The nav-hide effect queries `.signal-nav-container` globally rather than through `containerRef`, unlike every other selector in the same `useGSAP` scope. Breaks if two Signal instances mount (editor preview beside a live render).                                                                                                                                                         | `signal/SignalTemplate.tsx:174`                  |
+| 11.5 | **OG image routes exist for two of four templates.** `app/api/template/signal/og/` and `app/api/template/atelier/og/` have routes; `nimbus` and `cipher` do not — so the two premium templates have no template-specific social card.                                                                                                                                                                                                | `app/api/template/`                              |
+| 11.6 | **No skip-to-content link in any template.** Signal in particular puts a floating nav, a theme widget, and a full hero ahead of the first section, with no bypass for keyboard and screen-reader users (WCAG 2.4.1).                                                                                                                                                                                                                 | all four                                         |
+| 11.7 | **Reduced-motion block is a blunt instrument.** `.signal-site * { transform: none !important; filter: none !important; }` disables _all_ transforms under `prefers-reduced-motion`, including any that are layout-critical (centering translates, etc.) rather than decorative. Currently harmless, but it will silently break the first layout transform anyone adds. Scope it to the animated classes already listed alongside it. | `signal/styles.css:2512-2526`                    |
 
 ---
 
@@ -303,7 +306,7 @@ Not in the original report, same class of defect, found while editing:
 - **Signal hardcoded a five-star rating on every testimonial** — `"★".repeat(5)` with `aria-label="5 star rating"`, rendered unconditionally regardless of data. This is the same fabrication as §1: it asserts a review nobody gave. Now driven by an optional `rating` field and omitted when absent.
 - **Signal invented a full score gauge and "Grade A+"** for test-score items with no score entered (`percent` defaulted to `100`). Now `null` when unparseable, and the gauge and grade are both omitted.
 - **Signal's language proficiency meter drew 3-of-5 bars for a blank level.** Now omitted when no level is entered.
-- **Signal declared `--font-sans` and `--font-mono` on `:root`**, so loading the template silently overrode the *app's* global `--font-mono` for the whole page. Now scoped to `.signal-site`.
+- **Signal declared `--font-sans` and `--font-mono` on `:root`**, so loading the template silently overrode the _app's_ global `--font-mono` for the whole page. Now scoped to `.signal-site`.
 - **Nimbus rendered literal `"Role"`, `"Degree"`, and `"Institution"`** placeholders for blank fields — milder than Signal's fabricated institutions but the same failure. Now collapses.
 - **Atelier and Nimbus rendered a dangling `"at"`** between an empty role and empty company. Now only joins when both halves exist.
 - **Signal's `0{index+1}` also affected the publications badge** (`[010] PUBLISHED`) and writing rows, beyond the sites §7 listed.

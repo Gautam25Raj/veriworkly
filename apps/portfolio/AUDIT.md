@@ -11,6 +11,7 @@ Severity: **CRITICAL** (data loss / broken core flow) · **HIGH** (real bug or s
 ## 1. Critical & high-severity bugs
 
 ### 1.1 ✅ FIXED — Contact form and newsletter signup on the Signal template didn't send anything anywhere
+
 `template-library/signal/SignalTemplate.tsx`
 
 `SignalContactForm` and the footer newsletter form both `await`ed a fake delay, wrote the submission to `localStorage` on the **visitor's own browser**, and showed a success state implying the message was received. Nothing was ever transmitted to the portfolio owner.
@@ -18,6 +19,7 @@ Severity: **CRITICAL** (data loss / broken core flow) · **HIGH** (real bug or s
 **Fix applied:** both forms now hand the validated submission to the visitor's own mail client via a pre-filled `mailto:` to the portfolio owner's email (real delivery, no backend required — matching how Atelier/Nimbus/Cipher already handle contact), with the on-device `localStorage` write kept only as a secondary log, and success copy corrected to describe what actually happens ("Opening your email app..."). Both forms are disabled with an explanatory message if the portfolio has no valid contact email. `signal/design.ts` and `signal/design.md` were updated to describe the new (accurate) behavior.
 
 ### 1.2 ✅ FIXED — `TemplatePicker`'s premium gating was driven by a field that was never set
+
 `template-library/registry.ts`, `templates/catalog/templates.ts`, `components/dashboard/editor/TemplatePicker.tsx`, `components/dashboard/editor/EditorCommandBar.tsx`, `components/dashboard/settings/PortfolioSettingsWorkspace.tsx`
 
 `TemplateSummary.isPremium` was read from the registry but never set on any entry, so the Template Picker never showed a "PRO" badge or disabled Nimbus/Cipher — while separate hardcoded `templateId === "nimbus" || templateId === "cipher"` checks elsewhere silently blocked publish/save later.
@@ -25,18 +27,21 @@ Severity: **CRITICAL** (data loss / broken core flow) · **HIGH** (real bug or s
 **Fix applied:** `isPremium: true`/`false` is now set explicitly on every registry entry (signal/atelier: `false`; nimbus/cipher: `true`). Added `isPremiumTemplate(templateId)` in `templates/catalog/templates.ts` as the single source of truth, exported through `lib/portfolio.ts`, and both `EditorCommandBar.tsx` and `PortfolioSettingsWorkspace.tsx` now call it instead of duplicating the id-string check. `TemplatePicker.tsx` now correctly shows the PRO badge / disables the two premium templates for non-premium users up front.
 
 ### 1.3 ~~One-time "3-Day Sprint" / "7-Day Hunt" passes send the wrong `interval` value~~ — verified, false positive
+
 `components/pricing/BundlePricingSection.tsx`
 
 Checked against the billing backend directly: `apps/server/src/services/productCatalog.ts` defines `CatalogInterval = "one_day" | "seven_day" | "monthly" | "annual"`, and `billingService.ts` maps `"one_day"` → `addDays(eventTime, 3)` — the backend's `one_day` catalog key already grants 3 days, matching the "3-Day Sprint" copy and its $2.99 price exactly. The frontend's `interval=one_day` param is correct as-is; there is no `three_day` enum value to send instead. **No code change made.**
 
 ### 1.4 ✅ FIXED — Guest→cloud login merge could silently overwrite newer cloud data with a stale local draft
+
 `store/portfolio-store.ts`, `lib/portfolio-storage.ts`
 
 On login, if a local (guest) draft and a cloud draft both existed and differed, the store unconditionally treated the local copy as authoritative and pushed it to the cloud, with no comparison against the cloud draft's timestamp — a real data-loss path if the cloud draft was actually newer (edited elsewhere, or after publishing).
 
-**Fix applied:** `lib/portfolio-storage.ts`'s cache now stores an `updatedAt` timestamp alongside `slug`/`content` on every save. `loadWorkspace()` in the store now only lets the local draft win when its `updatedAt` is *provably* newer than the cloud draft's; otherwise the cloud draft wins, and if the local cache predates this fix (no timestamp to compare), the cloud draft is kept and the user is shown a message explaining the ambiguous local edits weren't applied — rather than silently guessing. Also fixed while in this file: `updateSlug` now normalizes internally (a future caller can no longer forget to), `loadWorkspace()` has a re-entrancy guard so concurrent calls share one in-flight load instead of racing, and the redundant `analytics: number` field (which could desync from `analyticsData.totalViews`, and was unused everywhere it mattered) was removed. Covered by new tests in `tests/portfolio-store.test.ts` (merge-wins-local, merge-wins-cloud, re-entrancy).
+**Fix applied:** `lib/portfolio-storage.ts`'s cache now stores an `updatedAt` timestamp alongside `slug`/`content` on every save. `loadWorkspace()` in the store now only lets the local draft win when its `updatedAt` is _provably_ newer than the cloud draft's; otherwise the cloud draft wins, and if the local cache predates this fix (no timestamp to compare), the cloud draft is kept and the user is shown a message explaining the ambiguous local edits weren't applied — rather than silently guessing. Also fixed while in this file: `updateSlug` now normalizes internally (a future caller can no longer forget to), `loadWorkspace()` has a re-entrancy guard so concurrent calls share one in-flight load instead of racing, and the redundant `analytics: number` field (which could desync from `analyticsData.totalViews`, and was unused everywhere it mattered) was removed. Covered by new tests in `tests/portfolio-store.test.ts` (merge-wins-local, merge-wins-cloud, re-entrancy).
 
 ### 1.5 ✅ FIXED — `parsePortfolioContent` crashed on malformed section data, with no guard at its riskiest call site
+
 `lib/portfolio.ts`, `lib/published-portfolio.ts`
 
 `parsePortfolioContent` indexed into `section.type` without checking that each array element was actually an object first — a single `null`/primitive entry (corrupted cloud draft, truncated write) threw and crashed the parse. `published-portfolio.ts`'s fetch (which serves **every public portfolio page**) wasn't wrapped in try/catch either, so this — or any transient backend hiccup — took down a visitor's page with a hard 500.
@@ -44,6 +49,7 @@ On login, if a local (guest) draft and a cloud draft both existed and differed, 
 **Fix applied:** `parsePortfolioContent` now filters out non-object entries from `sections`, `items`, and `socialLinks` before touching their properties, and validates/reshapes `socialLinks` into `{id, label, url}` instead of blindly casting. `getPublishedPortfolio` in `published-portfolio.ts` is now wrapped in try/catch (returns `null` on any failure, which the caller already treats as `notFound()`) and has an 8s `AbortController` timeout so a hung backend can't hang the page render. Covered by new tests in `tests/portfolio-contract.test.tsx` (malformed sections, malformed items, non-object draft, malformed social links).
 
 ### 1.6 ✅ FIXED — Broken login link on the Analytics page
+
 `components/dashboard/analytics/PortfolioAnalyticsWorkspace.tsx`
 
 The "Log In" CTA linked to `href="/login"`, a route that doesn't exist in this app (login lives on the separate Studio app).
@@ -51,6 +57,7 @@ The "Log In" CTA linked to `href="/login"`, a route that doesn't exist in this a
 **Fix applied:** now builds `${siteConfig.links.app}/login?callbackURL=...` and navigates via `window.location.href`, matching the working pattern already used in `EditorCommandBar.tsx`.
 
 ### 1.7 ✅ FIXED — No mobile navigation menu on the two public marketing nav bars
+
 `components/Navigation.tsx`, `features/templates/components/TemplatesNavigation.tsx`
 
 Templates/Pricing/FAQ (and the "Start building" CTA) were hidden behind `hidden md:flex`/`hidden sm:inline` with no mobile fallback — phone users had no way to reach them from the nav bar.
@@ -58,6 +65,7 @@ Templates/Pricing/FAQ (and the "Start building" CTA) were hidden behind `hidden 
 **Fix applied:** both navs now render a hamburger button below their breakpoint that opens a `createPortal`-based overlay menu (mirroring the dashboard sidebar's existing mobile-drawer pattern) with all the links plus the "Start building" CTA, closing on link click, backdrop click, Escape, or route change.
 
 ### 1.8 ✅ FIXED — Pricing page showed a "payments disabled" banner but left every checkout button clickable
+
 `app/pricing/page.tsx`, `components/pricing/*`, `features/pricing/components/CheckoutButton.tsx`, `features/pricing/components/PriceCard.tsx`
 
 `paymentsBlocked` was computed and shown in a banner but never passed down to the actual checkout buttons, which stayed fully active regardless.
@@ -71,7 +79,7 @@ Templates/Pricing/FAQ (and the "Start building" CTA) were hidden behind `hidden 
 - **✅ FIXED — `app/api/revalidate/route.ts`** — removed the hardcoded `"dev-revalidate-secret"` fallback entirely; the route now fails closed (503) if `PORTFOLIO_REVALIDATE_SECRET` isn't configured, and compares the provided secret using `crypto.timingSafeEqual` over SHA-256 digests (avoids both the timing side-channel and the length-mismatch throw a naive `timingSafeEqual` call would hit).
 - **✅ FIXED — Hardcoded admin-email gate duplicated in two places** — extracted into `lib/admin.ts`'s `isAdminUser(user)`, used by both `app/(workspace)/layout.tsx` and `app/pricing/page.tsx` (and the newly-gated `app/og-generator/page.tsx`, see §6). It fails closed: if `ADMIN_EMAIL` isn't set, nobody is treated as an admin, rather than falling back to a hardcoded personal address.
 - **✅ FIXED — Inconsistent JSON-LD escaping** — added a shared `<JsonLd data={...} />` component (`components/JsonLd.tsx`) that always escapes `<` before serializing, and replaced all 7 raw `dangerouslySetInnerHTML` JSON-LD blocks across the app (`app/layout.tsx`, `app/page.tsx`, `app/pricing/page.tsx`, `app/templates/page.tsx`, `app/templates/[id]/page.tsx`, `app/faq/page.tsx`, `app/portfolios/[username]/[[...slug]]/page.tsx`) with it.
-- **✅ FIXED — `proxy.ts`'s `!path.includes(".")` heuristic** — replaced with `looksLikeStaticAssetPath()`, which only matches when the *final* path segment ends in a dot-extension, so a route or username containing a dot elsewhere in the path is no longer misclassified as a static asset. Covered by new tests in `tests/proxy-middleware.test.ts`.
+- **✅ FIXED — `proxy.ts`'s `!path.includes(".")` heuristic** — replaced with `looksLikeStaticAssetPath()`, which only matches when the _final_ path segment ends in a dot-extension, so a route or username containing a dot elsewhere in the path is no longer misclassified as a static asset. Covered by new tests in `tests/proxy-middleware.test.ts`.
 - **✅ FIXED — `proxy.ts`'s hardcoded login URL** — now built from `siteConfig.links.app` (the same source of truth used elsewhere) instead of a separately hardcoded dev/prod URL pair.
 - **✅ FIXED — No `Content-Security-Policy` header** — added to `next.config.ts`: same-origin + first-party `*.veriworkly.com` allowlist for scripts/styles/connect/frames, `object-src 'none'`, `frame-ancestors 'self'`, `base-uri 'self'`, `form-action 'self'`, plus `upgrade-insecure-requests` in production. Not nonce-based (would require threading a per-request nonce through 4 independent template renderers and many inline `style={{}}` usages) — `'unsafe-inline'` is kept for script/style, but this still blocks the highest-value vector: loading a `<script src="https://attacker.example/x.js">` from an untrusted origin.
 - **✅ FIXED — `components/DraftPreview.tsx`'s anti-copy/devtools-blocking hacks** — removed entirely (context-menu blocking, `Ctrl+C`/`Ctrl+U`/`Ctrl+P`/`F12`/devtools-shortcut interception, `select-none`/`userSelect: none` styling). These were trivially bypassable and only harmed legitimate use (text selection, `Ctrl+F`, screen readers).

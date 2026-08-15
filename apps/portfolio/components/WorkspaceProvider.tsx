@@ -116,7 +116,11 @@ function WorkspaceBridge({
     () =>
       ready
         ? { user, workspace: { draft, publication, billing }, isAdmin: initialData.isAdmin }
-        : { user: initialData.user, workspace: initialData.workspace, isAdmin: initialData.isAdmin },
+        : {
+            user: initialData.user,
+            workspace: initialData.workspace,
+            isAdmin: initialData.isAdmin,
+          },
     [ready, user, draft, publication, billing, initialData],
   );
 

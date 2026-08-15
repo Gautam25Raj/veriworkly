@@ -44,8 +44,9 @@ async function validateUrl(value: string) {
     url.hostname.endsWith(".local")
   )
     throw new ApiError(400, "Job URL host is not allowed.");
-  const addresses = isIP(url.hostname)
-    ? [{ address: url.hostname }]
+  const rawHost = url.hostname.replace(/^\[|\]$/g, "");
+  const addresses = isIP(rawHost)
+    ? [{ address: rawHost }]
     : await lookup(url.hostname, { all: true, verbatim: true });
   if (!addresses.length || addresses.some(({ address }) => isPrivateIp(address)))
     throw new ApiError(400, "Job URL resolves to a blocked network.");

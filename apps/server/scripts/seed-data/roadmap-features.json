@@ -5,11 +5,7 @@
     "description": "Build and edit a full resume or cover letter instantly in the browser — no account, no email, and no payment wall to get started.",
     "status": "done",
     "eta": "Q1 2026",
-    "tags": [
-      "core",
-      "privacy",
-      "local-first"
-    ],
+    "tags": ["core", "privacy", "local-first"],
     "createdAt": "2026-02-10T09:00:00.000Z",
     "startedAt": "2026-02-10T09:00:00.000Z",
     "completedAt": "2026-03-20T18:00:00.000Z",
@@ -62,11 +58,7 @@
     "description": "See every edit reflected instantly in a paged, print-accurate live preview as you type — no refresh and no export-to-check.",
     "status": "done",
     "eta": "Q1 2026",
-    "tags": [
-      "core",
-      "editor",
-      "ux"
-    ],
+    "tags": ["core", "editor", "ux"],
     "createdAt": "2026-02-14T09:00:00.000Z",
     "startedAt": "2026-02-14T09:00:00.000Z",
     "completedAt": "2026-03-18T12:00:00.000Z",
@@ -103,10 +95,7 @@
     "description": "Swap between resume templates instantly with zero data loss or manual reformatting, thanks to a strict content/presentation split.",
     "status": "done",
     "eta": "Q1 2026",
-    "tags": [
-      "templates",
-      "editor"
-    ],
+    "tags": ["templates", "editor"],
     "createdAt": "2026-02-20T09:00:00.000Z",
     "startedAt": "2026-02-20T09:00:00.000Z",
     "completedAt": "2026-03-31T18:09:00.000Z",
@@ -141,10 +130,7 @@
     "description": "A token-based theme system with persistent dark and light switching for comfortable, accessible long editing sessions.",
     "status": "done",
     "eta": "Q1 2026",
-    "tags": [
-      "ui",
-      "accessibility"
-    ],
+    "tags": ["ui", "accessibility"],
     "createdAt": "2026-03-05T09:00:00.000Z",
     "startedAt": "2026-03-05T09:00:00.000Z",
     "completedAt": "2026-03-31T18:09:40.660Z",
@@ -175,11 +161,7 @@
     "description": "Create, organize, and switch between unlimited resumes and cover letters from one dashboard, with grid/list views, search, and sync status.",
     "status": "done",
     "eta": "Q1 2026",
-    "tags": [
-      "core",
-      "editor",
-      "dashboard"
-    ],
+    "tags": ["core", "editor", "dashboard"],
     "createdAt": "2026-03-10T09:00:00.000Z",
     "startedAt": "2026-03-10T09:00:00.000Z",
     "completedAt": "2026-04-20T21:00:00.000Z",
@@ -232,11 +214,7 @@
     "description": "A full section-based resume editor with drag-and-drop reordering, hide/show sections, and two freely-selectable ATS-safe templates.",
     "status": "done",
     "eta": "Q1 2026",
-    "tags": [
-      "templates",
-      "editor",
-      "ats"
-    ],
+    "tags": ["templates", "editor", "ats"],
     "createdAt": "2026-02-25T09:00:00.000Z",
     "startedAt": "2026-02-25T09:00:00.000Z",
     "completedAt": "2026-03-31T18:09:00.000Z",
@@ -278,10 +256,7 @@
     "description": "Export any resume or cover letter as a high-quality, layout-accurate PDF directly from the browser — no external tools required.",
     "status": "done",
     "eta": "Q1 2026",
-    "tags": [
-      "export",
-      "core"
-    ],
+    "tags": ["export", "core"],
     "createdAt": "2026-03-01T09:00:00.000Z",
     "startedAt": "2026-03-01T09:00:00.000Z",
     "completedAt": "2026-03-31T18:09:46.660Z",
@@ -316,10 +291,7 @@
     "description": "Add an account only when you want cross-device sync — passwordless email OTP plus Google, GitHub, and LinkedIn sign-in.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "auth",
-      "sync"
-    ],
+    "tags": ["auth", "sync"],
     "createdAt": "2026-03-25T09:00:00.000Z",
     "startedAt": "2026-04-01T00:00:00.000Z",
     "completedAt": "2026-04-05T20:07:54.640Z",
@@ -367,10 +339,7 @@
     "description": "Maintain one canonical career profile that auto-seeds new resumes, cover letters, and portfolios — edits to a document never overwrite it.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "core",
-      "profile"
-    ],
+    "tags": ["core", "profile"],
     "createdAt": "2026-03-31T21:19:02.031Z",
     "startedAt": "2026-04-05T20:08:51.459Z",
     "completedAt": "2026-04-10T21:28:11.460Z",
@@ -410,10 +379,7 @@
     "description": "A dedicated cover letter editor sharing the same live-preview and export pipeline as resumes, with two purpose-built templates.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "writing",
-      "templates"
-    ],
+    "tags": ["writing", "templates"],
     "createdAt": "2026-03-31T21:20:34.085Z",
     "startedAt": "2026-04-02T09:00:00.000Z",
     "completedAt": "2026-04-18T17:00:00.000Z",
@@ -449,9 +415,7 @@
     "description": "Export any document in six formats from one menu — for ATS portals, editing in Word, developer workflows, or plain-text sharing.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "export"
-    ],
+    "tags": ["export"],
     "createdAt": "2026-03-31T21:21:01.421Z",
     "startedAt": "2026-04-01T11:16:00.000Z",
     "completedAt": "2026-04-01T20:11:00.000Z",
@@ -478,9 +442,7 @@
     "description": "Export a resume or cover letter as a high-quality PNG or JPG — built for social previews and portfolio embeds, not just print.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "export"
-    ],
+    "tags": ["export"],
     "createdAt": "2026-03-31T21:21:08.752Z",
     "startedAt": "2026-04-01T18:14:00.000Z",
     "completedAt": "2026-04-01T20:12:00.000Z",
@@ -506,11 +468,7 @@
     "description": "Background job processing for document exports keeps requests fast and non-blocking, even under heavy concurrent load.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "infra",
-      "performance",
-      "export"
-    ],
+    "tags": ["infra", "performance", "export"],
     "createdAt": "2026-04-01T12:00:00.000Z",
     "startedAt": "2026-04-01T13:00:00.000Z",
     "completedAt": "2026-04-20T22:13:05.851Z",
@@ -541,10 +499,7 @@
     "description": "Generated export files persist in object storage with automatic lifecycle cleanup, instead of vanishing after a single download.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "infra",
-      "export"
-    ],
+    "tags": ["infra", "export"],
     "createdAt": "2026-04-10T09:00:00.000Z",
     "startedAt": "2026-04-15T10:00:00.000Z",
     "completedAt": "2026-04-15T10:00:00.000Z",
@@ -575,9 +530,7 @@
     "description": "Bring existing resumes in from JSON, hand-authored Markdown, or an uploaded PDF/DOCX/TXT file, extracted server-side for reuse.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "import"
-    ],
+    "tags": ["import"],
     "createdAt": "2026-04-01T09:00:00.000Z",
     "startedAt": "2026-04-05T09:00:00.000Z",
     "completedAt": "2026-04-25T15:00:00.000Z",
@@ -607,11 +560,7 @@
     "description": "Connect GitHub via real OAuth and deterministically map languages to skills and repositories to project entries — no AI required.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "import",
-      "github",
-      "integration"
-    ],
+    "tags": ["import", "github", "integration"],
     "createdAt": "2026-04-05T09:00:00.000Z",
     "startedAt": "2026-04-10T09:00:00.000Z",
     "completedAt": "2026-05-05T16:00:00.000Z",
@@ -642,11 +591,7 @@
     "description": "Paste an exported LinkedIn profile and have AI structure it into resume data in seconds — free monthly import, unlimited on paid plans.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "import",
-      "ai",
-      "linkedin"
-    ],
+    "tags": ["import", "ai", "linkedin"],
     "createdAt": "2026-04-08T09:00:00.000Z",
     "startedAt": "2026-04-12T09:00:00.000Z",
     "completedAt": "2026-05-10T16:00:00.000Z",
@@ -675,10 +620,7 @@
     "description": "Paste or upload an existing resume in any format and let AI restructure it into a fully editable, templated VeriWorkly document.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "ai",
-      "import"
-    ],
+    "tags": ["ai", "import"],
     "createdAt": "2026-04-15T09:00:00.000Z",
     "startedAt": "2026-04-20T09:00:00.000Z",
     "completedAt": "2026-05-15T16:00:00.000Z",
@@ -704,10 +646,7 @@
     "description": "A free, non-AI rules engine scores formatting risk, section completeness, action verbs, and keyword match against a job description.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "ats",
-      "core"
-    ],
+    "tags": ["ats", "core"],
     "createdAt": "2026-04-01T09:00:00.000Z",
     "startedAt": "2026-04-05T09:00:00.000Z",
     "completedAt": "2026-04-30T16:00:00.000Z",
@@ -738,10 +677,7 @@
     "description": "Layer LLM-driven explanations, missing-evidence detection, and keyword opportunities on the core ATS scan — even by pasting a job URL.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "ats",
-      "ai"
-    ],
+    "tags": ["ats", "ai"],
     "createdAt": "2026-04-10T09:00:00.000Z",
     "startedAt": "2026-04-15T09:00:00.000Z",
     "completedAt": "2026-05-05T16:00:00.000Z",
@@ -772,10 +708,7 @@
     "description": "Rewrite or generate resume sections, cover letters, and tailored applications with upfront credit cost and an explicit replace-or-discard step.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "ai",
-      "editor"
-    ],
+    "tags": ["ai", "editor"],
     "createdAt": "2026-04-05T09:00:00.000Z",
     "startedAt": "2026-04-10T09:00:00.000Z",
     "completedAt": "2026-05-01T16:00:00.000Z",
@@ -806,10 +739,7 @@
     "description": "Turn any document into a public link with optional password, expiry date, per-link revocation, and human-readable username-based URLs.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "sharing",
-      "core"
-    ],
+    "tags": ["sharing", "core"],
     "createdAt": "2026-03-31T21:20:41.245Z",
     "startedAt": "2026-04-08T20:08:00.000Z",
     "completedAt": "2026-04-22T20:52:20.067Z",
@@ -855,11 +785,7 @@
     "description": "Create, scope, rotate, and revoke API keys from a self-serve dashboard — hashed storage, per-key rate limits, and auto-expiry.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "platform",
-      "api",
-      "security"
-    ],
+    "tags": ["platform", "api", "security"],
     "createdAt": "2026-04-05T10:00:00.000Z",
     "startedAt": "2026-04-20T09:00:00.000Z",
     "completedAt": "2026-05-20T16:00:00.000Z",
@@ -907,10 +833,7 @@
     "description": "A full wallet view of AI credit balance and transaction history, plus billing management and a dedicated checkout flow.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "billing",
-      "credits"
-    ],
+    "tags": ["billing", "credits"],
     "createdAt": "2026-04-01T09:00:00.000Z",
     "startedAt": "2026-04-10T09:00:00.000Z",
     "completedAt": "2026-05-01T16:00:00.000Z",
@@ -937,10 +860,7 @@
     "description": "A structure/content/live-preview workspace supporting 18 reorderable, hideable section types, autosaving continuously while dirty.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "portfolio",
-      "editor"
-    ],
+    "tags": ["portfolio", "editor"],
     "createdAt": "2026-04-01T09:00:00.000Z",
     "startedAt": "2026-04-05T09:00:00.000Z",
     "completedAt": "2026-05-10T16:00:00.000Z",
@@ -982,10 +902,7 @@
     "description": "Two free templates for engineers and designers, plus two premium templates with cursor effects, a scramble-text hover, and a live terminal emulator.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "portfolio",
-      "templates"
-    ],
+    "tags": ["portfolio", "templates"],
     "createdAt": "2026-04-01T09:00:00.000Z",
     "startedAt": "2026-04-10T09:00:00.000Z",
     "completedAt": "2026-05-15T16:00:00.000Z",
@@ -1029,10 +946,7 @@
     "description": "Publish free at a shared path, or claim a true custom subdomain on a premium plan — enforced at the routing layer, not just the UI.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "portfolio",
-      "publishing"
-    ],
+    "tags": ["portfolio", "publishing"],
     "createdAt": "2026-04-05T09:00:00.000Z",
     "startedAt": "2026-04-15T09:00:00.000Z",
     "completedAt": "2026-05-20T16:00:00.000Z",
@@ -1075,10 +989,7 @@
     "description": "Track total views, section/project counts, a completeness-based readiness percentage, and a health checklist with next-step suggestions.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "portfolio",
-      "dashboard"
-    ],
+    "tags": ["portfolio", "dashboard"],
     "createdAt": "2026-04-10T09:00:00.000Z",
     "startedAt": "2026-04-20T09:00:00.000Z",
     "completedAt": "2026-05-25T16:00:00.000Z",
@@ -1104,10 +1015,7 @@
     "description": "Total views, a recent-window trend line, active days, and referrer breakdown for published portfolios — unlocked on premium plans.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "portfolio",
-      "analytics"
-    ],
+    "tags": ["portfolio", "analytics"],
     "createdAt": "2026-04-15T09:00:00.000Z",
     "startedAt": "2026-04-25T09:00:00.000Z",
     "completedAt": "2026-05-30T16:00:00.000Z",
@@ -1133,11 +1041,7 @@
     "description": "Every portfolio template gets its own detail page — design philosophy, style guide, FAQs, and best-fit guidance — plus a protected live preview.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "portfolio",
-      "seo",
-      "content"
-    ],
+    "tags": ["portfolio", "seo", "content"],
     "createdAt": "2026-05-20T09:00:00.000Z",
     "startedAt": "2026-05-25T09:00:00.000Z",
     "completedAt": "2026-06-20T16:00:00.000Z",
@@ -1176,10 +1080,7 @@
     "description": "The same Standard/Expert AI writing assistant, scoped to portfolio bio, headline, and section copy generation.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "ai",
-      "portfolio"
-    ],
+    "tags": ["ai", "portfolio"],
     "createdAt": "2026-04-20T09:00:00.000Z",
     "startedAt": "2026-04-25T09:00:00.000Z",
     "completedAt": "2026-06-01T16:00:00.000Z",
@@ -1205,10 +1106,7 @@
     "description": "Email OTP alongside three OAuth providers, cross-subdomain sessions, account linking, and automatic security and welcome emails.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "auth",
-      "security"
-    ],
+    "tags": ["auth", "security"],
     "createdAt": "2026-04-01T09:00:00.000Z",
     "startedAt": "2026-04-05T09:00:00.000Z",
     "completedAt": "2026-06-05T16:00:00.000Z",
@@ -1249,10 +1147,7 @@
     "description": "Subscriptions, one-off credit packs, a customer billing portal, and idempotent webhook processing that grants entitlements automatically.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "billing",
-      "infra"
-    ],
+    "tags": ["billing", "infra"],
     "createdAt": "2026-04-10T09:00:00.000Z",
     "startedAt": "2026-04-15T09:00:00.000Z",
     "completedAt": "2026-06-10T16:00:00.000Z",
@@ -1279,10 +1174,7 @@
     "description": "A 3-tier commission structure with referral tracking, a payout wallet, a public leaderboard, and a separate campus ambassador application flow.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "growth",
-      "affiliate"
-    ],
+    "tags": ["growth", "affiliate"],
     "createdAt": "2026-04-20T09:00:00.000Z",
     "startedAt": "2026-04-25T09:00:00.000Z",
     "completedAt": "2026-06-15T16:00:00.000Z",
@@ -1318,11 +1210,7 @@
     "description": "A centralized admin system for roadmap content management, GitHub integration, monetization controls, and product usage analytics.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "admin",
-      "infra",
-      "analytics"
-    ],
+    "tags": ["admin", "infra", "analytics"],
     "createdAt": "2026-03-30T20:50:16.277Z",
     "startedAt": "2026-03-30T09:00:00.000Z",
     "completedAt": "2026-04-18T20:53:59.670Z",
@@ -1363,11 +1251,7 @@
     "description": "View real issues, pull requests, and repository activity inside the product itself, synced from GitHub every 12 hours.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "product",
-      "analytics",
-      "transparency"
-    ],
+    "tags": ["product", "analytics", "transparency"],
     "createdAt": "2026-04-06T20:49:50.832Z",
     "startedAt": "2026-04-06T20:53:15.402Z",
     "completedAt": "2026-04-09T20:53:15.402Z",
@@ -1407,10 +1291,7 @@
     "description": "A unified Docker Compose setup runs the entire stack with one command, eliminating environment drift between machines.",
     "status": "done",
     "eta": "Q1 2026",
-    "tags": [
-      "infra",
-      "devops"
-    ],
+    "tags": ["infra", "devops"],
     "createdAt": "2026-04-02T10:05:02.021Z",
     "startedAt": "2026-04-03T15:43:00.000Z",
     "completedAt": "2026-04-05T20:08:00.000Z",
@@ -1458,10 +1339,7 @@
     "description": "Site, Studio, Portfolio, server, docs, and blog live as independent apps sharing common infrastructure in one coordinated monorepo.",
     "status": "done",
     "eta": "Q3 2026",
-    "tags": [
-      "architecture",
-      "infra"
-    ],
+    "tags": ["architecture", "infra"],
     "createdAt": "2026-04-08T09:00:00.000Z",
     "startedAt": "2026-04-10T09:00:00.000Z",
     "completedAt": "2026-07-06T16:00:00.000Z",
@@ -1509,10 +1387,7 @@
     "description": "A single internal component library powers consistent design, theming, and layout primitives across every Next.js app in the ecosystem.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "ui",
-      "design-system"
-    ],
+    "tags": ["ui", "design-system"],
     "createdAt": "2026-04-08T11:00:00.000Z",
     "startedAt": "2026-04-15T09:00:00.000Z",
     "completedAt": "2026-05-01T16:00:00.000Z",
@@ -1547,11 +1422,7 @@
     "description": "Terms, Privacy, Security, FAQ, and Resources pages ship with structured content, an accordion UI, and full sitemap coverage.",
     "status": "done",
     "eta": "Q2 2026",
-    "tags": [
-      "product",
-      "content",
-      "trust"
-    ],
+    "tags": ["product", "content", "trust"],
     "createdAt": "2026-04-11T15:00:00.000Z",
     "startedAt": "2026-04-11T16:00:00.000Z",
     "completedAt": "2026-04-13T01:55:00.000Z",
@@ -1587,10 +1458,7 @@
     "description": "Tiered rate limiting, scoped CORS, global security headers, SSRF-safe job-description URL fetching, and prompt remediation of reported issues.",
     "status": "done",
     "eta": "Q3 2026",
-    "tags": [
-      "security",
-      "infra"
-    ],
+    "tags": ["security", "infra"],
     "createdAt": "2026-04-01T09:00:00.000Z",
     "startedAt": "2026-04-01T09:00:00.000Z",
     "completedAt": "2026-06-25T16:00:00.000Z",
@@ -1645,10 +1513,7 @@
     "description": "Multi-process clustering with graceful shutdown handling keeps the API responsive under real concurrent load instead of single-threaded bottlenecks.",
     "status": "done",
     "eta": "Q3 2026",
-    "tags": [
-      "infra",
-      "performance"
-    ],
+    "tags": ["infra", "performance"],
     "createdAt": "2026-06-20T09:00:00.000Z",
     "startedAt": "2026-06-25T09:00:00.000Z",
     "completedAt": "2026-07-01T16:00:00.000Z",
@@ -1690,10 +1555,7 @@
     "description": "Dedicated, testable email workflows for welcome messages, new-device login alerts, and account-deletion confirmations.",
     "status": "done",
     "eta": "Q3 2026",
-    "tags": [
-      "infra",
-      "email"
-    ],
+    "tags": ["infra", "email"],
     "createdAt": "2026-06-25T09:00:00.000Z",
     "startedAt": "2026-06-28T09:00:00.000Z",
     "completedAt": "2026-07-05T16:00:00.000Z",
@@ -1728,11 +1590,7 @@
     "description": "A redesigned login page pairs a product showcase section with stronger on-page SEO signals to convert more first-time visitors.",
     "status": "done",
     "eta": "Q3 2026",
-    "tags": [
-      "ui",
-      "seo",
-      "growth"
-    ],
+    "tags": ["ui", "seo", "growth"],
     "createdAt": "2026-06-28T09:00:00.000Z",
     "startedAt": "2026-07-01T09:00:00.000Z",
     "completedAt": "2026-07-06T16:00:00.000Z",
@@ -1766,10 +1624,7 @@
     "description": "One consistent navbar and footer ship across the marketing site, documentation platform, and blog for a seamless cross-app experience.",
     "status": "done",
     "eta": "Q3 2026",
-    "tags": [
-      "ui",
-      "navigation"
-    ],
+    "tags": ["ui", "navigation"],
     "createdAt": "2026-04-08T14:00:00.000Z",
     "startedAt": "2026-04-15T09:00:00.000Z",
     "completedAt": "2026-05-05T16:00:00.000Z",
@@ -1811,10 +1666,7 @@
     "description": "Publishing missing docs.veriworkly.com guides for Master Profile, cover letters, Portfolio, ATS, AI writing, imports, billing, and affiliates.",
     "status": "in-progress",
     "eta": "Q4 2026",
-    "tags": [
-      "docs",
-      "content"
-    ],
+    "tags": ["docs", "content"],
     "createdAt": "2026-06-01T09:00:00.000Z",
     "startedAt": "2026-06-15T09:00:00.000Z",
     "completedAt": null,
@@ -1841,10 +1693,7 @@
     "description": "Growing blog.veriworkly.com beyond its first three posts with regular guides on resumes, portfolios, ATS, and career strategy.",
     "status": "in-progress",
     "eta": "Q4 2026",
-    "tags": [
-      "content",
-      "blog"
-    ],
+    "tags": ["content", "blog"],
     "createdAt": "2026-06-01T09:00:00.000Z",
     "startedAt": "2026-06-15T09:00:00.000Z",
     "completedAt": null,
@@ -1870,10 +1719,7 @@
     "description": "Extending the OpenAPI reference beyond auth/API-keys/GitHub/roadmap to document AI, ATS, billing, portfolio, and affiliate endpoints.",
     "status": "in-progress",
     "eta": "Q4 2026",
-    "tags": [
-      "docs",
-      "api"
-    ],
+    "tags": ["docs", "api"],
     "createdAt": "2026-04-07T10:00:00.000Z",
     "startedAt": "2026-06-01T09:00:00.000Z",
     "completedAt": null,
@@ -1899,9 +1745,7 @@
     "description": "Share links already track total views and last-viewed time; deeper device and referrer-level analytics parity with Portfolio is in progress.",
     "status": "in-progress",
     "eta": "Q4 2026",
-    "tags": [
-      "analytics"
-    ],
+    "tags": ["analytics"],
     "createdAt": "2026-03-31T21:20:53.721Z",
     "startedAt": "2026-06-01T09:00:00.000Z",
     "completedAt": null,
@@ -1927,9 +1771,7 @@
     "description": "A full pass on keyboard access, focus states, contrast, non-color status cues, and reduced-motion support across every surface.",
     "status": "in-progress",
     "eta": "Q4 2026",
-    "tags": [
-      "accessibility"
-    ],
+    "tags": ["accessibility"],
     "createdAt": "2026-05-01T09:00:00.000Z",
     "startedAt": "2026-06-01T09:00:00.000Z",
     "completedAt": null,
@@ -1955,10 +1797,7 @@
     "description": "Aligning the marketing pricing table with the backend's actual document-cap and Master Profile entitlement checks, then fixing whichever is wrong.",
     "status": "in-progress",
     "eta": "Q4 2026",
-    "tags": [
-      "billing",
-      "product"
-    ],
+    "tags": ["billing", "product"],
     "createdAt": "2026-06-10T09:00:00.000Z",
     "startedAt": "2026-06-15T09:00:00.000Z",
     "completedAt": null,
@@ -1984,10 +1823,7 @@
     "description": "The data model for per-user votes, bookmarks, and comments on roadmap items already exists — wiring it to live, public endpoints is underway.",
     "status": "in-progress",
     "eta": "Q4 2026",
-    "tags": [
-      "roadmap",
-      "community"
-    ],
+    "tags": ["roadmap", "community"],
     "createdAt": "2026-05-15T09:00:00.000Z",
     "startedAt": "2026-06-01T09:00:00.000Z",
     "completedAt": null,
@@ -2013,10 +1849,7 @@
     "description": "AI and ATS-analysis endpoints already check for an ai:write scope, but it isn't yet issuable from the API key creation UI — closing that gap.",
     "status": "in-progress",
     "eta": "Q4 2026",
-    "tags": [
-      "api",
-      "ai"
-    ],
+    "tags": ["api", "ai"],
     "createdAt": "2026-05-20T09:00:00.000Z",
     "startedAt": "2026-06-05T09:00:00.000Z",
     "completedAt": null,
@@ -2042,10 +1875,7 @@
     "description": "The portfolio product is fully built and wired end-to-end; opening it from admin-only to every user in production is a launch decision, not an engineering gap.",
     "status": "todo",
     "eta": "Q4 2026",
-    "tags": [
-      "portfolio",
-      "launch"
-    ],
+    "tags": ["portfolio", "launch"],
     "createdAt": "2026-07-15T09:00:00.000Z",
     "startedAt": null,
     "completedAt": null,
@@ -2071,10 +1901,7 @@
     "description": "Dodo Payments is fully integrated; enabling checkout for all non-admin accounts in production alongside the portfolio launch.",
     "status": "todo",
     "eta": "Q4 2026",
-    "tags": [
-      "billing",
-      "launch"
-    ],
+    "tags": ["billing", "launch"],
     "createdAt": "2026-07-15T09:00:00.000Z",
     "startedAt": null,
     "completedAt": null,
@@ -2100,10 +1927,7 @@
     "description": "Extending the Master Profile-driven editor shell and export pipeline beyond resumes and cover letters to invoices and formal letters.",
     "status": "todo",
     "eta": "Q1 2027",
-    "tags": [
-      "core",
-      "editor"
-    ],
+    "tags": ["core", "editor"],
     "createdAt": "2026-07-15T09:00:00.000Z",
     "startedAt": null,
     "completedAt": null,
@@ -2129,11 +1953,7 @@
     "description": "Moving LinkedIn import from paste-and-parse to a genuine OAuth-based data pull, matching the GitHub import model.",
     "status": "todo",
     "eta": "Q1 2027",
-    "tags": [
-      "import",
-      "linkedin",
-      "integration"
-    ],
+    "tags": ["import", "linkedin", "integration"],
     "createdAt": "2026-07-15T09:00:00.000Z",
     "startedAt": null,
     "completedAt": null,
@@ -2159,10 +1979,7 @@
     "description": "Continuing to extend AI writing, tailoring, and analysis across documents, portfolios, and ATS feedback, without hiding cost or auto-replacing content.",
     "status": "todo",
     "eta": "Q1 2027",
-    "tags": [
-      "ai",
-      "vision"
-    ],
+    "tags": ["ai", "vision"],
     "createdAt": "2026-07-15T09:00:00.000Z",
     "startedAt": null,
     "completedAt": null,
@@ -2188,10 +2005,7 @@
     "description": "Hard-delete and restore already exist at the service layer; wiring them to a route gives users real control beyond today's soft delete.",
     "status": "todo",
     "eta": "Q4 2026",
-    "tags": [
-      "core",
-      "data"
-    ],
+    "tags": ["core", "data"],
     "createdAt": "2026-07-15T09:00:00.000Z",
     "startedAt": null,
     "completedAt": null,
@@ -2217,11 +2031,7 @@
     "description": "Cipher's internal design spec describes it as a mode toggled from within Nimbus, but it ships as a standalone template — reconciling the two.",
     "status": "todo",
     "eta": "Q4 2026",
-    "tags": [
-      "portfolio",
-      "templates",
-      "design"
-    ],
+    "tags": ["portfolio", "templates", "design"],
     "createdAt": "2026-07-15T09:00:00.000Z",
     "startedAt": null,
     "completedAt": null,
@@ -2246,10 +2056,7 @@
     "description": "A decoupled, standalone page for browsing and comparing resume and cover letter templates, separate from the in-editor picker.",
     "status": "todo",
     "eta": "Q4 2026",
-    "tags": [
-      "templates",
-      "ux"
-    ],
+    "tags": ["templates", "ux"],
     "createdAt": "2026-06-01T09:00:00.000Z",
     "startedAt": null,
     "completedAt": null,
@@ -2284,11 +2091,7 @@
     "description": "A batch of public-site polish: real template preview cards in the feature grid, capped template counts on the landing page, and fixed text-selection styling.",
     "status": "todo",
     "eta": "Q4 2026",
-    "tags": [
-      "portfolio",
-      "ui",
-      "polish"
-    ],
+    "tags": ["portfolio", "ui", "polish"],
     "createdAt": "2026-06-10T09:00:00.000Z",
     "startedAt": null,
     "completedAt": null,
@@ -2315,11 +2118,7 @@
     "description": "Smoothing the path from browsing a template to actually editing it: auto-assigning the selected template, a floating launch button on previews, and a proper guest login redirect.",
     "status": "todo",
     "eta": "Q4 2026",
-    "tags": [
-      "portfolio",
-      "onboarding",
-      "ux"
-    ],
+    "tags": ["portfolio", "onboarding", "ux"],
     "createdAt": "2026-06-10T09:00:00.000Z",
     "startedAt": null,
     "completedAt": null,
@@ -2345,10 +2144,7 @@
     "description": "Page-specific loading skeletons across Studio routes for a faster-feeling, less jarring navigation experience.",
     "status": "todo",
     "eta": "Q4 2026",
-    "tags": [
-      "ux",
-      "performance"
-    ],
+    "tags": ["ux", "performance"],
     "createdAt": "2026-06-01T09:00:00.000Z",
     "startedAt": null,
     "completedAt": null,
@@ -2383,10 +2179,7 @@
     "description": "Growing beyond today's four templates (Signal, Atelier, Nimbus, Cipher) with additional personalities for more industries and career paths.",
     "status": "todo",
     "eta": "Q1 2027",
-    "tags": [
-      "portfolio",
-      "templates"
-    ],
+    "tags": ["portfolio", "templates"],
     "createdAt": "2026-07-15T09:00:00.000Z",
     "startedAt": null,
     "completedAt": null,
@@ -2412,11 +2205,7 @@
     "description": "Small but meaningful trust fixes — a correct support contact address and consistent restricted-access navigation back to the right homepage.",
     "status": "todo",
     "eta": "Q4 2026",
-    "tags": [
-      "product",
-      "trust",
-      "polish"
-    ],
+    "tags": ["product", "trust", "polish"],
     "createdAt": "2026-06-15T09:00:00.000Z",
     "startedAt": null,
     "completedAt": null,

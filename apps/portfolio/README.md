@@ -10,12 +10,12 @@ Portfolio is fully built and working, being brought to general availability in s
 
 Four templates, sourced from the private submodule and rendered server-side:
 
-| Template | Personality | Access |
-|---|---|---|
-| **Signal** | Structured, technical — dual dark/light theme, real local-time display in the hero | Free (default) |
-| **Atelier** | Expressive, editorial — print/magazine-style masonry, serif headlines | Free |
-| **Nimbus** | Atmospheric, tech-editorial — cursor-follow ring, text-scramble hover, no cards/shadows/blur | Premium |
-| **Cipher** | Interactive terminal emulator with command autocomplete and hidden easter eggs | Premium |
+| Template    | Personality                                                                                  | Access         |
+| ----------- | -------------------------------------------------------------------------------------------- | -------------- |
+| **Signal**  | Structured, technical — dual dark/light theme, real local-time display in the hero           | Free (default) |
+| **Atelier** | Expressive, editorial — print/magazine-style masonry, serif headlines                        | Free           |
+| **Nimbus**  | Atmospheric, tech-editorial — cursor-follow ring, text-scramble hover, no cards/shadows/blur | Premium        |
+| **Cipher**  | Interactive terminal emulator with command autocomplete and hidden easter eggs               | Premium        |
 
 ## ✏️ Editor
 

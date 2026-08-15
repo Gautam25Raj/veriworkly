@@ -32,7 +32,11 @@
     {
       "name": "Article Indexing & Citations",
       "description": "Extract evidence-backed articles, primary-source citations, and career writing benchmarks.",
-      "endpoints": ["/ats-resume-myths-what-the-evidence-shows", "/how-to-tailor-your-resume-to-a-job-description", "/how-to-write-resume-bullet-points-that-get-read"]
+      "endpoints": [
+        "/ats-resume-myths-what-the-evidence-shows",
+        "/how-to-tailor-your-resume-to-a-job-description",
+        "/how-to-write-resume-bullet-points-that-get-read"
+      ]
     }
   ],
 

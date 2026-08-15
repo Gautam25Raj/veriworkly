@@ -97,23 +97,23 @@ veriworkly/
 
 ### Technology Stack
 
-| Component | Technology | Description |
-| :--- | :--- | :--- |
-| **Frontend Framework** | **Next.js 16 (App Router)** | React 19 meta-framework with SSR & route handlers across all 5 frontends |
-| **Styling & Tokens** | **Tailwind CSS 4** | Utility-first CSS using native `@theme` directives & shared design tokens |
-| **Design System** | **`@veriworkly/ui`** | In-house UI component primitives & layout shells (no Radix or MUI dependencies) |
-| **State & Storage** | **Zustand** | Lightweight frontend state management, persisted to browser `localStorage` |
-| **PDF Generation** | **`@react-pdf/renderer`** | Pure client-side high-fidelity PDF rendering engine |
-| **DOCX Generation** | **`docx`** | Client-side Microsoft Word document generator |
-| **Backend Runtime** | **Node.js 20+** | TypeScript Express 4 server, clustered with `throng` in production |
-| **Database & ORM** | **PostgreSQL + Prisma 7** | Type-safe relational database storage & migrations |
-| **Cache & Queues** | **Redis** | Auth sessions, rate limiting, ATS quotas, view counts, and distributed job locks |
-| **Authentication** | **Better-Auth** | Passwordless Email OTP plus Google, GitHub, and LinkedIn OAuth providers |
-| **File Parsing** | **`pdf-parse`, `mammoth`** | Server-side text extraction for PDF and Word resume uploads |
-| **Payments** | **Dodo Payments** | Credit purchases, subscription management, and billing portal |
-| **Object Storage** | **Cloudflare R2** | Presigned S3-compatible image uploads for custom portfolios |
-| **Background Tasks** | **`node-cron`** | 5 automated background cron jobs guarded by Redis distributed locks |
-| **Docs & Search** | **Fumadocs + MDX** | Content engine powering documentation, API reference, and blog platform |
+| Component              | Technology                  | Description                                                                      |
+| :--------------------- | :-------------------------- | :------------------------------------------------------------------------------- |
+| **Frontend Framework** | **Next.js 16 (App Router)** | React 19 meta-framework with SSR & route handlers across all 5 frontends         |
+| **Styling & Tokens**   | **Tailwind CSS 4**          | Utility-first CSS using native `@theme` directives & shared design tokens        |
+| **Design System**      | **`@veriworkly/ui`**        | In-house UI component primitives & layout shells (no Radix or MUI dependencies)  |
+| **State & Storage**    | **Zustand**                 | Lightweight frontend state management, persisted to browser `localStorage`       |
+| **PDF Generation**     | **`@react-pdf/renderer`**   | Pure client-side high-fidelity PDF rendering engine                              |
+| **DOCX Generation**    | **`docx`**                  | Client-side Microsoft Word document generator                                    |
+| **Backend Runtime**    | **Node.js 20+**             | TypeScript Express 4 server, clustered with `throng` in production               |
+| **Database & ORM**     | **PostgreSQL + Prisma 7**   | Type-safe relational database storage & migrations                               |
+| **Cache & Queues**     | **Redis**                   | Auth sessions, rate limiting, ATS quotas, view counts, and distributed job locks |
+| **Authentication**     | **Better-Auth**             | Passwordless Email OTP plus Google, GitHub, and LinkedIn OAuth providers         |
+| **File Parsing**       | **`pdf-parse`, `mammoth`**  | Server-side text extraction for PDF and Word resume uploads                      |
+| **Payments**           | **Dodo Payments**           | Credit purchases, subscription management, and billing portal                    |
+| **Object Storage**     | **Cloudflare R2**           | Presigned S3-compatible image uploads for custom portfolios                      |
+| **Background Tasks**   | **`node-cron`**             | 5 automated background cron jobs guarded by Redis distributed locks              |
+| **Docs & Search**      | **Fumadocs + MDX**          | Content engine powering documentation, API reference, and blog platform          |
 
 ---
 
@@ -161,11 +161,13 @@ veriworkly/
 4. **Launch Development Servers**
 
    **Launch all services simultaneously**:
+
    ```bash
    npm run dev:all
    ```
 
    **Or run specific application workspaces individually**:
+
    ```bash
    npm run dev            # Marketing Site    → http://localhost:3000
    npm run dev:studio     # Document Builder  → http://localhost:3001
@@ -181,9 +183,9 @@ veriworkly/
 
 ### Service Probes & Health Check
 
-| Endpoint | URL | Purpose |
-| :--- | :--- | :--- |
-| **API Liveness** | [http://localhost:8080/api/v1/health](http://localhost:8080/api/v1/health) | Lightweight HTTP server liveness check |
+| Endpoint          | URL                                                                                    | Purpose                                                       |
+| :---------------- | :------------------------------------------------------------------------------------- | :------------------------------------------------------------ |
+| **API Liveness**  | [http://localhost:8080/api/v1/health](http://localhost:8080/api/v1/health)             | Lightweight HTTP server liveness check                        |
 | **API Readiness** | [http://localhost:8080/api/v1/health/ready](http://localhost:8080/api/v1/health/ready) | Probes active PostgreSQL database and Redis cache connections |
 
 ### Testing & Quality Commands
@@ -212,14 +214,14 @@ npm run build
 
 ## 📖 Documentation Directory
 
-| Topic | Description | Link / Location |
-| :--- | :--- | :--- |
-| **System Overview** | Architecture overview, export pipeline, and technical specs. | [docs.veriworkly.com/docs/overview](https://docs.veriworkly.com/docs/overview) |
-| **Monorepo Architecture** | Application layout, routing proxy, and private template submodule. | [docs.veriworkly.com/docs/architecture/monorepo](https://docs.veriworkly.com/docs/architecture/monorepo) |
-| **API Reference** | OpenAPI 3.0 specification & interactive developer reference endpoints. | [docs.veriworkly.com/api-reference](https://docs.veriworkly.com/api-reference) |
-| **Local Setup Guide** | Environment variables, database initialization, and dev servers. | [docs.veriworkly.com/docs/getting-started/local-setup](https://docs.veriworkly.com/docs/getting-started/local-setup) |
-| **Docker Operations** | Orchestration, Docker Compose, and deployment parameters. | [README.Docker.md](README.Docker.md) |
-| **Contributing Protocol** | Issue claiming, PR naming conventions, and repository standards. | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| Topic                     | Description                                                            | Link / Location                                                                                                      |
+| :------------------------ | :--------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------- |
+| **System Overview**       | Architecture overview, export pipeline, and technical specs.           | [docs.veriworkly.com/docs/overview](https://docs.veriworkly.com/docs/overview)                                       |
+| **Monorepo Architecture** | Application layout, routing proxy, and private template submodule.     | [docs.veriworkly.com/docs/architecture/monorepo](https://docs.veriworkly.com/docs/architecture/monorepo)             |
+| **API Reference**         | OpenAPI 3.0 specification & interactive developer reference endpoints. | [docs.veriworkly.com/api-reference](https://docs.veriworkly.com/api-reference)                                       |
+| **Local Setup Guide**     | Environment variables, database initialization, and dev servers.       | [docs.veriworkly.com/docs/getting-started/local-setup](https://docs.veriworkly.com/docs/getting-started/local-setup) |
+| **Docker Operations**     | Orchestration, Docker Compose, and deployment parameters.              | [README.Docker.md](README.Docker.md)                                                                                 |
+| **Contributing Protocol** | Issue claiming, PR naming conventions, and repository standards.       | [CONTRIBUTING.md](CONTRIBUTING.md)                                                                                   |
 
 ---
 
@@ -228,6 +230,7 @@ npm run build
 We welcome community contributions! Please follow our guidelines when getting involved:
 
 > [!IMPORTANT]
+>
 > 1. 🌟 **Star the repository** to support open-source development.
 > 2. 📋 **Claim an issue** by commenting on it and waiting to be officially assigned before starting work.
 > 3. 📝 Follow conventional commit naming standards (`feat:`, `fix:`, `docs:`, `refactor:`).

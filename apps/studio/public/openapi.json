@@ -88,9 +88,7 @@
   "paths": {
     "/api/v1/health": {
       "get": {
-        "tags": [
-          "Health"
-        ],
+        "tags": ["Health"],
         "operationId": "healthCheck",
         "summary": "Liveness Check",
         "description": "Lightweight liveness probe. Confirms the API process is up and responding.\n\nIt deliberately touches **no** external dependency — no database query, no Redis command — so\nthat frequent uptime polling does not keep database compute awake. It therefore cannot report\non PostgreSQL or Redis, and never returns `503`. For dependency health use\n`GET /api/v1/health/ready`.\n\nThis is the only truly public endpoint on the API: it requires no session, no API key, and no\nfirst-party origin.\n",
@@ -118,9 +116,7 @@
     },
     "/api/v1/health/ready": {
       "get": {
-        "tags": [
-          "Health"
-        ],
+        "tags": ["Health"],
         "operationId": "healthReady",
         "summary": "Readiness Check",
         "description": "Deep readiness probe for deploy gates and manual diagnostics. Runs a `SELECT 1` against\nPostgreSQL and a `PING` against Redis, and returns `503` if either is unreachable.\n\nBecause it wakes database compute on every call, prefer `GET /api/v1/health` for routine\nuptime monitoring. Like the liveness probe, it requires no authentication.\n",
@@ -165,9 +161,7 @@
     },
     "/api/v1/users/me": {
       "get": {
-        "tags": [
-          "Users"
-        ],
+        "tags": ["Users"],
         "operationId": "getCurrentUser",
         "security": [
           {
@@ -235,9 +229,7 @@
     },
     "/api/v1/users/me/name": {
       "put": {
-        "tags": [
-          "Users"
-        ],
+        "tags": ["Users"],
         "operationId": "updateUserName",
         "security": [
           {
@@ -258,9 +250,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "name"
-                ],
+                "required": ["name"],
                 "properties": {
                   "name": {
                     "type": "string",
@@ -354,9 +344,7 @@
     },
     "/api/v1/roadmap": {
       "get": {
-        "tags": [
-          "Roadmap"
-        ],
+        "tags": ["Roadmap"],
         "operationId": "getRoadmap",
         "summary": "Get Roadmap Features",
         "security": [
@@ -377,11 +365,7 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "enum": [
-                "todo",
-                "in-progress",
-                "done"
-              ]
+              "enum": ["todo", "in-progress", "done"]
             },
             "required": false,
             "description": "Filter features by status"
@@ -391,11 +375,7 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "enum": [
-                "newest",
-                "oldest",
-                "recently-completed"
-              ],
+              "enum": ["newest", "oldest", "recently-completed"],
               "default": "newest"
             },
             "required": false,
@@ -476,10 +456,7 @@
                         "description": "Generate resumes using AI",
                         "status": "in-progress",
                         "eta": "Q3 2026",
-                        "tags": [
-                          "ai",
-                          "resume"
-                        ],
+                        "tags": ["ai", "resume"],
                         "createdAt": "2026-04-01T00:00:00.000Z",
                         "startedAt": "2026-04-10T00:00:00.000Z",
                         "completedAt": null,
@@ -531,9 +508,7 @@
     },
     "/api/v1/roadmap/stats": {
       "get": {
-        "tags": [
-          "Roadmap"
-        ],
+        "tags": ["Roadmap"],
         "operationId": "getRoadmapStats",
         "summary": "Get Roadmap Stats",
         "security": [
@@ -575,9 +550,7 @@
     },
     "/api/v1/roadmap/{id}": {
       "get": {
-        "tags": [
-          "Roadmap"
-        ],
+        "tags": ["Roadmap"],
         "operationId": "getRoadmapFeatureById",
         "summary": "Get Roadmap Feature by ID",
         "security": [
@@ -620,9 +593,7 @@
                     "description": "Generate resumes using AI",
                     "status": "in-progress",
                     "eta": "Q3 2026",
-                    "tags": [
-                      "ai"
-                    ],
+                    "tags": ["ai"],
                     "createdAt": "2026-04-01T00:00:00.000Z",
                     "startedAt": "2026-04-10T00:00:00.000Z",
                     "completedAt": null,
@@ -658,9 +629,7 @@
     },
     "/api/v1/github/stats": {
       "get": {
-        "tags": [
-          "GitHub"
-        ],
+        "tags": ["GitHub"],
         "operationId": "getGitHubStats",
         "summary": "Get GitHub Stats",
         "security": [
@@ -721,9 +690,7 @@
     },
     "/api/v1/github/issues": {
       "get": {
-        "tags": [
-          "GitHub"
-        ],
+        "tags": ["GitHub"],
         "operationId": "getGitHubIssues",
         "summary": "Get GitHub Issues",
         "security": [
@@ -744,11 +711,7 @@
             "name": "status",
             "schema": {
               "type": "string",
-              "enum": [
-                "todo",
-                "in-progress",
-                "done"
-              ]
+              "enum": ["todo", "in-progress", "done"]
             },
             "description": "Derived at sync time — closed items and items labelled `done` map to `done`; items\nlabelled `in-progress`, `in progress`, or `active` map to `in-progress`; everything else\nis `todo`.\n"
           },
@@ -757,11 +720,7 @@
             "name": "kind",
             "schema": {
               "type": "string",
-              "enum": [
-                "issue",
-                "pull-request",
-                "all"
-              ]
+              "enum": ["issue", "pull-request", "all"]
             },
             "description": "`all` is equivalent to omitting the filter."
           },
@@ -826,9 +785,7 @@
                         "status": "in-progress",
                         "kind": "issue",
                         "url": "https://github.com/owner/repo/issues/42",
-                        "labels": [
-                          "enhancement"
-                        ],
+                        "labels": ["enhancement"],
                         "createdAt": "2026-04-20T10:00:00.000Z",
                         "updatedAt": "2026-04-25T10:00:00.000Z"
                       }
@@ -858,9 +815,7 @@
     },
     "/api/v1/github/admin/sync": {
       "post": {
-        "tags": [
-          "GitHub"
-        ],
+        "tags": ["GitHub"],
         "operationId": "syncGitHubStats",
         "security": [
           {
@@ -953,9 +908,7 @@
     },
     "/api/v1/auth/email-otp/send-verification-otp": {
       "post": {
-        "tags": [
-          "Authentication"
-        ],
+        "tags": ["Authentication"],
         "operationId": "sendOTP",
         "summary": "Send OTP",
         "description": "Emails a one-time password to the given address.\n\nAuthentication is handled by **Better Auth**, mounted at `/api/v1/auth`. Its endpoints return\nBetter Auth's own payloads — they are **not** wrapped in the `{ success, message, data }`\nenvelope the rest of this API uses.\n\nRate limited to 3 requests per minute per IP.\n",
@@ -965,10 +918,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "email",
-                  "type"
-                ],
+                "required": ["email", "type"],
                 "properties": {
                   "email": {
                     "type": "string",
@@ -976,11 +926,7 @@
                   },
                   "type": {
                     "type": "string",
-                    "enum": [
-                      "sign-in",
-                      "email-verification",
-                      "forget-password"
-                    ],
+                    "enum": ["sign-in", "email-verification", "forget-password"],
                     "description": "Required. Use `sign-in` for the login flow — that is what the VeriWorkly\ndashboard sends.\n"
                   }
                 }
@@ -1022,9 +968,7 @@
     },
     "/api/v1/auth/sign-in/email-otp": {
       "post": {
-        "tags": [
-          "Authentication"
-        ],
+        "tags": ["Authentication"],
         "operationId": "verifyOTP",
         "summary": "Sign In With Email OTP",
         "description": "Exchanges a valid OTP for a session. On success the session cookie is set via `Set-Cookie`\nand the session token plus the user record are returned.\n\nA user is created automatically on first sign-in. Codes expire after 5 minutes and allow 3\nattempts by default. This endpoint returns Better Auth's payload, not the\n`{ success, message, data }` envelope.\n\nRate limited to 20 requests per minute per IP — the default for `/api/v1/auth/*`. (A tighter\n5/minute rule exists in configuration but targets `/email-otp/verify-otp`, a path this Better\nAuth version does not expose, so it never applies.)\n",
@@ -1034,10 +978,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "email",
-                  "otp"
-                ],
+                "required": ["email", "otp"],
                 "properties": {
                   "email": {
                     "type": "string",
@@ -1062,10 +1003,7 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": [
-                    "token",
-                    "user"
-                  ],
+                  "required": ["token", "user"],
                   "properties": {
                     "token": {
                       "type": "string",
@@ -1091,9 +1029,7 @@
     },
     "/api/v1/auth/get-session": {
       "get": {
-        "tags": [
-          "Authentication"
-        ],
+        "tags": ["Authentication"],
         "operationId": "getSession",
         "summary": "Get Current Session",
         "security": [
@@ -1138,9 +1074,7 @@
     },
     "/api/v1/auth/sign-out": {
       "post": {
-        "tags": [
-          "Authentication"
-        ],
+        "tags": ["Authentication"],
         "operationId": "signOut",
         "summary": "Sign Out",
         "security": [
@@ -1176,9 +1110,7 @@
     },
     "/api/v1/api-keys": {
       "get": {
-        "tags": [
-          "API Keys"
-        ],
+        "tags": ["API Keys"],
         "operationId": "getAllApiKeys",
         "summary": "List API Keys",
         "description": "Lists the caller's API keys, newest first.\n\n**No form of the secret is returned here — not even a masked one.** Each entry carries only\n`keyPrefix`, the first 8 characters of the key, which is enough to tell keys apart in a list.\nIf you lose a secret, rotate the key.\n\nSession-authenticated only — an API key cannot be used to manage API keys.\n",
@@ -1280,9 +1212,7 @@
         }
       },
       "post": {
-        "tags": [
-          "API Keys"
-        ],
+        "tags": ["API Keys"],
         "operationId": "createApiKey",
         "summary": "Create API Key",
         "description": "Generates a new API key. **The full secret is returned exactly once, in this response.** It\nis stored only as an HMAC-SHA256 hash and can never be retrieved again — save it immediately.\n\nSession-authenticated only — an API key cannot be used to mint API keys.\n",
@@ -1300,9 +1230,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "name"
-                ],
+                "required": ["name"],
                 "properties": {
                   "name": {
                     "type": "string",
@@ -1333,10 +1261,7 @@
               },
               "example": {
                 "name": "My Documentation Key",
-                "scopes": [
-                  "user:read",
-                  "resume:read"
-                ]
+                "scopes": ["user:read", "resume:read"]
               }
             }
           }
@@ -1361,10 +1286,7 @@
                     "userId": "cmnu7awv4000063lk18zpon2x",
                     "isActive": true,
                     "rateLimit": 20,
-                    "scopes": [
-                      "user:read",
-                      "resume:read"
-                    ],
+                    "scopes": ["user:read", "resume:read"],
                     "expiresAt": "2027-04-11T10:37:35.584Z",
                     "revokedAt": null,
                     "createdAt": "2026-04-11T10:37:35.584Z",
@@ -1411,9 +1333,7 @@
     },
     "/api/v1/api-keys/{id}/rotate": {
       "post": {
-        "tags": [
-          "API Keys"
-        ],
+        "tags": ["API Keys"],
         "operationId": "rotateApiKey",
         "summary": "Rotate API Key",
         "description": "Revokes the target key and issues a replacement in one transaction. The old secret stops\nworking immediately.\n\nEvery field in the body is optional — send `{}` to rotate the secret while carrying over the\nexisting name, scopes, and rate limit. As with creation, the new secret is returned exactly\nonce. The response also carries `rotatedFromId`, the id of the key that was replaced.\n\nOnly an active, unrevoked key can be rotated; anything else returns `404`.\n",
@@ -1491,10 +1411,7 @@
                     "userId": "cmnu7awv4000063lk18zpon2x",
                     "isActive": true,
                     "rateLimit": 20,
-                    "scopes": [
-                      "user:read",
-                      "resume:read"
-                    ],
+                    "scopes": ["user:read", "resume:read"],
                     "expiresAt": "2027-04-11T10:37:35.584Z",
                     "revokedAt": null,
                     "createdAt": "2026-04-26T10:00:00.000Z",
@@ -1539,9 +1456,7 @@
     },
     "/api/v1/api-keys/{id}/revoke": {
       "post": {
-        "tags": [
-          "API Keys"
-        ],
+        "tags": ["API Keys"],
         "operationId": "revokeApiKey",
         "summary": "Revoke API Key",
         "description": "Immediately disables an API key without deleting its record — `isActive` becomes false and\n`revokedAt` is stamped. The cached authentication record is purged at the same time, so the\nsecret stops working right away rather than after the cache expires.\n\nA revoked key cannot be reactivated; rotate or create a new one instead. `data` is `null` on\nsuccess.\n",
@@ -1603,9 +1518,7 @@
     },
     "/api/v1/api-keys/{id}": {
       "delete": {
-        "tags": [
-          "API Keys"
-        ],
+        "tags": ["API Keys"],
         "operationId": "deleteApiKey",
         "summary": "Delete API Key",
         "description": "Permanently removes an API key and its record. Use `POST /api-keys/{id}/revoke` instead if\nyou want to keep the audit trail.\n\n`data` is `null` on success.\n",
@@ -1667,9 +1580,7 @@
     },
     "/api/v1/profiles/master": {
       "get": {
-        "tags": [
-          "Profile"
-        ],
+        "tags": ["Profile"],
         "operationId": "getMasterProfile",
         "security": [
           {
@@ -1743,9 +1654,7 @@
         }
       },
       "put": {
-        "tags": [
-          "Profile"
-        ],
+        "tags": ["Profile"],
         "operationId": "updateMasterProfile",
         "security": [
           {
@@ -1872,9 +1781,7 @@
     },
     "/api/v1/profiles/import/quota": {
       "get": {
-        "tags": [
-          "Profile Import"
-        ],
+        "tags": ["Profile Import"],
         "operationId": "getImportQuota",
         "security": [
           {
@@ -1928,9 +1835,7 @@
     },
     "/api/v1/profiles/import/github": {
       "post": {
-        "tags": [
-          "Profile Import"
-        ],
+        "tags": ["Profile Import"],
         "operationId": "importGithub",
         "security": [
           {
@@ -2055,9 +1960,7 @@
     },
     "/api/v1/profiles/import/linkedin": {
       "post": {
-        "tags": [
-          "Profile Import"
-        ],
+        "tags": ["Profile Import"],
         "operationId": "importLinkedin",
         "security": [
           {
@@ -2175,9 +2078,7 @@
     },
     "/api/v1/documents": {
       "get": {
-        "tags": [
-          "Documents"
-        ],
+        "tags": ["Documents"],
         "operationId": "listDocuments",
         "security": [
           {
@@ -2199,12 +2100,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": [
-                "RESUME",
-                "COVER_LETTER",
-                "PORTFOLIO",
-                "LINK_IN_BIO"
-              ]
+              "enum": ["RESUME", "COVER_LETTER", "PORTFOLIO", "LINK_IN_BIO"]
             },
             "description": "Filter documents by type."
           }
@@ -2253,9 +2149,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Documents"
-        ],
+        "tags": ["Documents"],
         "operationId": "createDocument",
         "security": [
           {
@@ -2336,9 +2230,7 @@
     },
     "/api/v1/documents/{id}": {
       "get": {
-        "tags": [
-          "Documents"
-        ],
+        "tags": ["Documents"],
         "operationId": "getDocument",
         "security": [
           {
@@ -2394,9 +2286,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "Documents"
-        ],
+        "tags": ["Documents"],
         "operationId": "updateDocument",
         "security": [
           {
@@ -2513,9 +2403,7 @@
         }
       },
       "delete": {
-        "tags": [
-          "Documents"
-        ],
+        "tags": ["Documents"],
         "operationId": "deleteDocument",
         "security": [
           {
@@ -2579,9 +2467,7 @@
     },
     "/api/v1/ats/quota": {
       "get": {
-        "tags": [
-          "ATS"
-        ],
+        "tags": ["ATS"],
         "operationId": "getAtsQuota",
         "security": [
           {
@@ -2640,9 +2526,7 @@
     },
     "/api/v1/ats/extract": {
       "post": {
-        "tags": [
-          "ATS"
-        ],
+        "tags": ["ATS"],
         "operationId": "extractAtsResumeText",
         "security": [
           {
@@ -2663,9 +2547,7 @@
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "resume"
-                ],
+                "required": ["resume"],
                 "properties": {
                   "resume": {
                     "type": "string",
@@ -2735,9 +2617,7 @@
     },
     "/api/v1/ats/check": {
       "post": {
-        "tags": [
-          "ATS"
-        ],
+        "tags": ["ATS"],
         "operationId": "checkAtsResume",
         "security": [
           {
@@ -2800,9 +2680,7 @@
     },
     "/api/v1/ats/analyze": {
       "post": {
-        "tags": [
-          "ATS"
-        ],
+        "tags": ["ATS"],
         "operationId": "analyzeAtsResume",
         "security": [
           {
@@ -2940,9 +2818,7 @@
     },
     "/api/v1/ats/convert-resume": {
       "post": {
-        "tags": [
-          "ATS"
-        ],
+        "tags": ["ATS"],
         "operationId": "convertAtsResume",
         "security": [
           {
@@ -3038,9 +2914,7 @@
     },
     "/api/v1/ai/actions": {
       "get": {
-        "tags": [
-          "AI"
-        ],
+        "tags": ["AI"],
         "operationId": "getAiActions",
         "security": [
           {
@@ -3089,9 +2963,7 @@
     },
     "/api/v1/ai/generate": {
       "post": {
-        "tags": [
-          "AI"
-        ],
+        "tags": ["AI"],
         "operationId": "generateAiContent",
         "security": [
           {
@@ -3237,9 +3109,7 @@
     },
     "/api/v1/portfolios/public": {
       "get": {
-        "tags": [
-          "Portfolios"
-        ],
+        "tags": ["Portfolios"],
         "operationId": "listPublicPortfolios",
         "summary": "List Public Portfolios",
         "description": "Lists the subdomains of every portfolio currently in `LIVE` or `GRACE` status, most recently\nupdated first. Returns subdomain and timestamp only — no portfolio content.\n\nNo user session is required, but the request must carry an API key or originate from a\nwhitelisted first-party origin; otherwise it is rejected with `401`. Cached for 5 minutes.\n",
@@ -3290,9 +3160,7 @@
     },
     "/api/v1/portfolios/public/{subdomain}": {
       "get": {
-        "tags": [
-          "Portfolios"
-        ],
+        "tags": ["Portfolios"],
         "operationId": "getPublicPortfolio",
         "summary": "Get Public Portfolio By Subdomain",
         "description": "Returns the published snapshot for a live portfolio subdomain.\n\nReturns `404` for a suspended portfolio, or one whose grace period has just expired — that\nlookup also flips the record to `SUSPENDED` as a side effect. Cached for up to 10 minutes,\nshortened to the remaining grace window for portfolios in `GRACE`.\n\nNo user session is required, but the request must carry an API key or originate from a\nwhitelisted first-party origin; otherwise it is rejected with `401`.\n",
@@ -3358,9 +3226,7 @@
     },
     "/api/v1/portfolios/public/{subdomain}/view": {
       "post": {
-        "tags": [
-          "Portfolios"
-        ],
+        "tags": ["Portfolios"],
         "operationId": "recordPortfolioView",
         "summary": "Record Portfolio View",
         "description": "Records an analytics view for a published portfolio. Responds `202 Accepted` with\n`data: null` — the count is not persisted synchronously.\n\nViews are buffered in Redis, deduplicated per viewer IP for 30 minutes, and flushed to\nPostgres by a scheduled job. A repeat view inside that window is accepted and silently\ndropped, so a `202` does not guarantee the count increased.\n\nNo user session is required, but the request must carry an API key or originate from a\nwhitelisted first-party origin; otherwise it is rejected with `401`.\n",
@@ -3432,9 +3298,7 @@
     },
     "/api/v1/portfolios/me": {
       "get": {
-        "tags": [
-          "Portfolios"
-        ],
+        "tags": ["Portfolios"],
         "operationId": "getMyPortfolio",
         "security": [
           {
@@ -3465,9 +3329,7 @@
     },
     "/api/v1/portfolios/draft": {
       "put": {
-        "tags": [
-          "Portfolios"
-        ],
+        "tags": ["Portfolios"],
         "operationId": "savePortfolioDraft",
         "security": [
           {
@@ -3536,9 +3398,7 @@
     },
     "/api/v1/portfolios/subdomains/{slug}/availability": {
       "get": {
-        "tags": [
-          "Portfolios"
-        ],
+        "tags": ["Portfolios"],
         "operationId": "checkPortfolioSubdomainAvailability",
         "security": [
           {
@@ -3581,9 +3441,7 @@
     },
     "/api/v1/portfolios/preview/{documentId}": {
       "get": {
-        "tags": [
-          "Portfolios"
-        ],
+        "tags": ["Portfolios"],
         "operationId": "previewPortfolio",
         "security": [
           {
@@ -3639,9 +3497,7 @@
     },
     "/api/v1/portfolios/publish": {
       "post": {
-        "tags": [
-          "Portfolios"
-        ],
+        "tags": ["Portfolios"],
         "operationId": "publishPortfolio",
         "security": [
           {
@@ -3763,9 +3619,7 @@
     },
     "/api/v1/portfolios/unpublish": {
       "post": {
-        "tags": [
-          "Portfolios"
-        ],
+        "tags": ["Portfolios"],
         "operationId": "unpublishPortfolio",
         "security": [
           {
@@ -3796,9 +3650,7 @@
     },
     "/api/v1/portfolios/analytics": {
       "get": {
-        "tags": [
-          "Portfolios"
-        ],
+        "tags": ["Portfolios"],
         "operationId": "getPortfolioAnalytics",
         "security": [
           {
@@ -3829,9 +3681,7 @@
     },
     "/api/v1/portfolio-assets/upload-url": {
       "post": {
-        "tags": [
-          "Portfolio Assets"
-        ],
+        "tags": ["Portfolio Assets"],
         "operationId": "createPortfolioAssetUploadUrl",
         "security": [
           {
@@ -3902,9 +3752,7 @@
     },
     "/api/v1/portfolio-assets/complete": {
       "post": {
-        "tags": [
-          "Portfolio Assets"
-        ],
+        "tags": ["Portfolio Assets"],
         "operationId": "completePortfolioAssetUpload",
         "security": [
           {
@@ -3980,9 +3828,7 @@
     },
     "/api/v1/portfolio-assets/{id}": {
       "delete": {
-        "tags": [
-          "Portfolio Assets"
-        ],
+        "tags": ["Portfolio Assets"],
         "operationId": "deletePortfolioAsset",
         "security": [
           {
@@ -4043,9 +3889,7 @@
     },
     "/api/v1/billing/me": {
       "get": {
-        "tags": [
-          "Billing"
-        ],
+        "tags": ["Billing"],
         "operationId": "getBillingSummary",
         "security": [
           {
@@ -4086,9 +3930,7 @@
     },
     "/api/v1/billing/history": {
       "get": {
-        "tags": [
-          "Billing"
-        ],
+        "tags": ["Billing"],
         "operationId": "getBillingHistory",
         "security": [
           {
@@ -4119,9 +3961,7 @@
     },
     "/api/v1/billing/credits": {
       "get": {
-        "tags": [
-          "Billing"
-        ],
+        "tags": ["Billing"],
         "operationId": "getCreditWallet",
         "security": [
           {
@@ -4152,9 +3992,7 @@
     },
     "/api/v1/billing/credits/history": {
       "get": {
-        "tags": [
-          "Billing"
-        ],
+        "tags": ["Billing"],
         "operationId": "getCreditHistory",
         "security": [
           {
@@ -4185,9 +4023,7 @@
     },
     "/api/v1/billing/checkout": {
       "post": {
-        "tags": [
-          "Billing"
-        ],
+        "tags": ["Billing"],
         "operationId": "createBillingCheckout",
         "security": [
           {
@@ -4282,9 +4118,7 @@
     },
     "/api/v1/billing/checkout/cancel": {
       "post": {
-        "tags": [
-          "Billing"
-        ],
+        "tags": ["Billing"],
         "operationId": "cancelBillingCheckout",
         "security": [
           {
@@ -4315,9 +4149,7 @@
     },
     "/api/v1/billing/portal": {
       "post": {
-        "tags": [
-          "Billing"
-        ],
+        "tags": ["Billing"],
         "operationId": "createBillingPortal",
         "security": [
           {
@@ -4373,9 +4205,7 @@
     },
     "/api/v1/billing/credits/checkout": {
       "post": {
-        "tags": [
-          "Billing"
-        ],
+        "tags": ["Billing"],
         "operationId": "createCreditPackCheckout",
         "security": [
           {
@@ -4442,9 +4272,7 @@
     },
     "/api/v1/shares": {
       "post": {
-        "tags": [
-          "Shares"
-        ],
+        "tags": ["Shares"],
         "operationId": "createShareLink",
         "security": [
           {
@@ -4542,9 +4370,7 @@
     },
     "/api/v1/shares/documents/shared-ids": {
       "get": {
-        "tags": [
-          "Shares"
-        ],
+        "tags": ["Shares"],
         "operationId": "listSharedDocumentIds",
         "security": [
           {
@@ -4589,9 +4415,7 @@
     },
     "/api/v1/shares/documents/{documentId}": {
       "get": {
-        "tags": [
-          "Shares"
-        ],
+        "tags": ["Shares"],
         "operationId": "listShareLinksForDocument",
         "security": [
           {
@@ -4656,9 +4480,7 @@
     },
     "/api/v1/shares/documents/{documentId}/links/{shareLinkId}": {
       "delete": {
-        "tags": [
-          "Shares"
-        ],
+        "tags": ["Shares"],
         "operationId": "revokeShareLink",
         "security": [
           {
@@ -4730,9 +4552,7 @@
     },
     "/api/v1/shares/public/{username}/{slug}": {
       "get": {
-        "tags": [
-          "Shares"
-        ],
+        "tags": ["Shares"],
         "operationId": "getPublicShareLink",
         "summary": "Get Public Share Link",
         "description": "Returns the shared document's title and snapshot, unless the link is password-protected — in\nwhich case only `passwordRequired: true` is returned and the caller must call\n`POST /shares/public/{username}/{slug}/verify` with the password.\n\nNo user session is required, but the request is still gated: it must carry an API key, or\noriginate from a whitelisted first-party origin. A bare request from an unrecognised origin\nis rejected with `401`.\n",
@@ -4806,9 +4626,7 @@
     },
     "/api/v1/shares/public/{username}/{slug}/verify": {
       "post": {
-        "tags": [
-          "Shares"
-        ],
+        "tags": ["Shares"],
         "operationId": "verifyPublicShareLinkPassword",
         "summary": "Verify Public Share Link Password",
         "description": "Verifies a password-protected share link's password using a timing-safe comparison against\nthe stored scrypt hash, and returns the full snapshot on success.\n\nNo user session is required, but the request must carry an API key or originate from a\nwhitelisted first-party origin, same as the read endpoint.\n\n**Rate limited to 3 attempts per 5 minutes per IP** — considerably tighter than the rest of\nthe API, to make these links impractical to brute-force.\n",
@@ -4925,9 +4743,7 @@
     },
     "/api/v1/affiliates/click": {
       "post": {
-        "tags": [
-          "Affiliates"
-        ],
+        "tags": ["Affiliates"],
         "operationId": "trackAffiliateClick",
         "summary": "Track Affiliate Click",
         "description": "Public, unauthenticated endpoint. Records a click against an affiliate's referral code.\nEntire affiliate program is gated behind a feature flag (`config.growth.affiliateProgramEnabled`)\nthat defaults off in production until explicitly enabled — every route in this group,\nincluding this one, returns `503` while the flag is off.\n",
@@ -4976,9 +4792,7 @@
     },
     "/api/v1/affiliates/leaderboard": {
       "get": {
-        "tags": [
-          "Affiliates"
-        ],
+        "tags": ["Affiliates"],
         "operationId": "getAffiliateLeaderboard",
         "summary": "Get Affiliate Leaderboard",
         "description": "Public, unauthenticated endpoint. Top 50 affiliates ranked by commission earnings, for the current calendar month or all-time.",
@@ -4989,10 +4803,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": [
-                "monthly",
-                "all_time"
-              ],
+              "enum": ["monthly", "all_time"],
               "default": "monthly"
             }
           }
@@ -5016,9 +4827,7 @@
     },
     "/api/v1/affiliates/me": {
       "get": {
-        "tags": [
-          "Affiliates"
-        ],
+        "tags": ["Affiliates"],
         "operationId": "getMyAffiliateDashboard",
         "security": [
           {
@@ -5052,9 +4861,7 @@
     },
     "/api/v1/affiliates/enroll": {
       "post": {
-        "tags": [
-          "Affiliates"
-        ],
+        "tags": ["Affiliates"],
         "operationId": "enrollAsAffiliate",
         "security": [
           {
@@ -5088,9 +4895,7 @@
     },
     "/api/v1/affiliates/referral": {
       "post": {
-        "tags": [
-          "Affiliates"
-        ],
+        "tags": ["Affiliates"],
         "operationId": "applyAffiliateReferral",
         "security": [
           {
@@ -5169,9 +4974,7 @@
     },
     "/api/v1/affiliates/withdrawals": {
       "post": {
-        "tags": [
-          "Affiliates"
-        ],
+        "tags": ["Affiliates"],
         "operationId": "requestAffiliateWithdrawal",
         "security": [
           {
@@ -5243,9 +5046,7 @@
     },
     "/api/v1/ambassador/me": {
       "get": {
-        "tags": [
-          "Ambassador"
-        ],
+        "tags": ["Ambassador"],
         "operationId": "getAmbassadorStatus",
         "security": [
           {
@@ -5299,9 +5100,7 @@
     },
     "/api/v1/ambassador/apply": {
       "post": {
-        "tags": [
-          "Ambassador"
-        ],
+        "tags": ["Ambassador"],
         "operationId": "applyForAmbassador",
         "security": [
           {
@@ -5413,11 +5212,7 @@
     "schemas": {
       "ErrorResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "statusCode"
-        ],
+        "required": ["success", "message", "statusCode"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -5486,18 +5281,12 @@
           },
           "pagination": {
             "type": "object",
-            "required": [
-              "mode",
-              "nextOffset",
-              "nextCursor"
-            ],
+            "required": ["mode", "nextOffset", "nextCursor"],
             "properties": {
               "mode": {
                 "type": "string",
                 "const": "offset",
-                "enum": [
-                  "offset"
-                ]
+                "enum": ["offset"]
               },
               "nextOffset": {
                 "type": "integer",
@@ -5516,10 +5305,7 @@
       "HealthLivenessData": {
         "type": "object",
         "description": "Liveness payload. `GET /api/v1/health` deliberately touches no external dependency, so uptime\nchecks do not wake database compute — it reports only that the Node.js process is responding.\n",
-        "required": [
-          "status",
-          "timestamp"
-        ],
+        "required": ["status", "timestamp"],
         "properties": {
           "status": {
             "type": "string",
@@ -5534,11 +5320,7 @@
       },
       "HealthLivenessResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -5554,12 +5336,7 @@
       "HealthReadyData": {
         "type": "object",
         "description": "Readiness payload. Only `GET /api/v1/health/ready` verifies PostgreSQL and Redis connectivity.",
-        "required": [
-          "status",
-          "database",
-          "redis",
-          "timestamp"
-        ],
+        "required": ["status", "database", "redis", "timestamp"],
         "properties": {
           "status": {
             "type": "string",
@@ -5584,11 +5361,7 @@
       },
       "HealthReadyResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -5645,11 +5418,7 @@
           "_count": {
             "type": "object",
             "description": "Relational counts for the user's own records.",
-            "required": [
-              "apiKeys",
-              "shareLinks",
-              "resumes"
-            ],
+            "required": ["apiKeys", "shareLinks", "resumes"],
             "properties": {
               "apiKeys": {
                 "type": "integer"
@@ -5667,11 +5436,7 @@
       },
       "UserResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -5686,13 +5451,7 @@
       },
       "MasterProfile": {
         "type": "object",
-        "required": [
-          "id",
-          "userId",
-          "content",
-          "createdAt",
-          "updatedAt"
-        ],
+        "required": ["id", "userId", "content", "createdAt", "updatedAt"],
         "properties": {
           "id": {
             "type": "string",
@@ -5959,13 +5718,7 @@
           },
           "fluency": {
             "type": "string",
-            "enum": [
-              "elementary",
-              "limited",
-              "professional",
-              "fluent",
-              "native"
-            ]
+            "enum": ["elementary", "limited", "professional", "fluent", "native"]
           }
         }
       },
@@ -6314,11 +6067,7 @@
             "properties": {
               "displayMode": {
                 "type": "string",
-                "enum": [
-                  "icon",
-                  "url",
-                  "icon-username"
-                ]
+                "enum": ["icon", "url", "icon-username"]
               },
               "items": {
                 "type": "array",
@@ -6427,11 +6176,7 @@
       },
       "MasterProfileResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -6454,9 +6199,7 @@
       },
       "MasterProfileUpdateRequest": {
         "type": "object",
-        "required": [
-          "profile"
-        ],
+        "required": ["profile"],
         "properties": {
           "expectedUpdatedAt": {
             "type": "string",
@@ -6471,11 +6214,7 @@
       },
       "MasterProfileUpdateResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -6512,11 +6251,7 @@
       },
       "ProfileImportQuotaResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -6539,9 +6274,7 @@
       },
       "ImportGithubRequest": {
         "type": "object",
-        "required": [
-          "usernameOrUrl"
-        ],
+        "required": ["usernameOrUrl"],
         "properties": {
           "usernameOrUrl": {
             "type": "string",
@@ -6556,9 +6289,7 @@
       },
       "ImportLinkedinRequest": {
         "type": "object",
-        "required": [
-          "profileText"
-        ],
+        "required": ["profileText"],
         "properties": {
           "profileText": {
             "type": "string",
@@ -6574,11 +6305,7 @@
       },
       "ProfileImportResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -6594,14 +6321,7 @@
       },
       "RoadmapFeature": {
         "type": "object",
-        "required": [
-          "id",
-          "title",
-          "description",
-          "status",
-          "createdAt",
-          "updatedAt"
-        ],
+        "required": ["id", "title", "description", "status", "createdAt", "updatedAt"],
         "properties": {
           "id": {
             "type": "string"
@@ -6614,11 +6334,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "todo",
-              "in-progress",
-              "done"
-            ]
+            "enum": ["todo", "in-progress", "done"]
           },
           "eta": {
             "type": "string",
@@ -6662,9 +6378,7 @@
         "allOf": [
           {
             "type": "object",
-            "required": [
-              "items"
-            ],
+            "required": ["items"],
             "properties": {
               "items": {
                 "type": "array",
@@ -6681,11 +6395,7 @@
       },
       "RoadmapListResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -6720,11 +6430,7 @@
       },
       "RoadmapStatsResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -6797,11 +6503,7 @@
       },
       "RoadmapFeatureResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -6895,18 +6597,11 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "todo",
-              "in-progress",
-              "done"
-            ]
+            "enum": ["todo", "in-progress", "done"]
           },
           "kind": {
             "type": "string",
-            "enum": [
-              "issue",
-              "pull-request"
-            ]
+            "enum": ["issue", "pull-request"]
           },
           "url": {
             "type": "string"
@@ -6931,9 +6626,7 @@
         "allOf": [
           {
             "type": "object",
-            "required": [
-              "items"
-            ],
+            "required": ["items"],
             "properties": {
               "items": {
                 "type": "array",
@@ -6980,11 +6673,7 @@
       "NullDataResponse": {
         "type": "object",
         "description": "Success envelope for endpoints that acknowledge an action without returning a body.",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean",
@@ -7015,13 +6704,7 @@
       "ApiKeyListItem": {
         "type": "object",
         "description": "The trimmed shape returned by `GET /api-keys`. The secret is **not** included in any form —\nnot even masked. Use `keyPrefix` to identify a key in a list.\n",
-        "required": [
-          "id",
-          "name",
-          "keyPrefix",
-          "isActive",
-          "createdAt"
-        ],
+        "required": ["id", "name", "keyPrefix", "isActive", "createdAt"],
         "properties": {
           "id": {
             "type": "string"
@@ -7134,11 +6817,7 @@
       },
       "ApiKeyListResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -7168,11 +6847,7 @@
       },
       "ApiKeyCreateResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -7211,12 +6886,7 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "RESUME",
-              "COVER_LETTER",
-              "PORTFOLIO",
-              "LINK_IN_BIO"
-            ]
+            "enum": ["RESUME", "COVER_LETTER", "PORTFOLIO", "LINK_IN_BIO"]
           },
           "title": {
             "type": "string"
@@ -7254,11 +6924,7 @@
           },
           "visibility": {
             "type": "string",
-            "enum": [
-              "PRIVATE",
-              "UNLISTED",
-              "PUBLIC"
-            ]
+            "enum": ["PRIVATE", "UNLISTED", "PUBLIC"]
           },
           "lastSyncedAt": {
             "type": "string",
@@ -7283,11 +6949,7 @@
       },
       "DocumentListResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -7305,11 +6967,7 @@
       },
       "DocumentResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -7324,9 +6982,7 @@
       },
       "DocumentCreateRequest": {
         "type": "object",
-        "required": [
-          "type"
-        ],
+        "required": ["type"],
         "properties": {
           "id": {
             "type": "string",
@@ -7334,12 +6990,7 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "RESUME",
-              "COVER_LETTER",
-              "PORTFOLIO",
-              "LINK_IN_BIO"
-            ]
+            "enum": ["RESUME", "COVER_LETTER", "PORTFOLIO", "LINK_IN_BIO"]
           },
           "title": {
             "type": "string"
@@ -7367,19 +7018,13 @@
           },
           "visibility": {
             "type": "string",
-            "enum": [
-              "PRIVATE",
-              "UNLISTED",
-              "PUBLIC"
-            ]
+            "enum": ["PRIVATE", "UNLISTED", "PUBLIC"]
           }
         }
       },
       "DocumentUpdateRequest": {
         "type": "object",
-        "required": [
-          "revision"
-        ],
+        "required": ["revision"],
         "properties": {
           "title": {
             "type": "string"
@@ -7410,11 +7055,7 @@
           },
           "visibility": {
             "type": "string",
-            "enum": [
-              "PRIVATE",
-              "UNLISTED",
-              "PUBLIC"
-            ]
+            "enum": ["PRIVATE", "UNLISTED", "PUBLIC"]
           },
           "revision": {
             "type": "integer",
@@ -7434,11 +7075,7 @@
           },
           "severity": {
             "type": "string",
-            "enum": [
-              "info",
-              "warning",
-              "error"
-            ]
+            "enum": ["info", "warning", "error"]
           },
           "passed": {
             "type": "boolean"
@@ -7471,23 +7108,15 @@
         "properties": {
           "version": {
             "type": "string",
-            "enum": [
-              "ats-v2"
-            ]
+            "enum": ["ats-v2"]
           },
           "restricted": {
             "type": "boolean",
-            "enum": [
-              false
-            ]
+            "enum": [false]
           },
           "verdict": {
             "type": "string",
-            "enum": [
-              "strong",
-              "needs-work",
-              "weak"
-            ]
+            "enum": ["strong", "needs-work", "weak"]
           },
           "readinessScore": {
             "type": "integer"
@@ -7594,15 +7223,11 @@
         "properties": {
           "version": {
             "type": "string",
-            "enum": [
-              "ats-v2"
-            ]
+            "enum": ["ats-v2"]
           },
           "restricted": {
             "type": "boolean",
-            "enum": [
-              true
-            ]
+            "enum": [true]
           },
           "readinessScore": {
             "type": "integer"
@@ -7613,11 +7238,7 @@
           },
           "verdict": {
             "type": "string",
-            "enum": [
-              "strong",
-              "needs-work",
-              "weak"
-            ]
+            "enum": ["strong", "needs-work", "weak"]
           },
           "topFix": {
             "type": "string",
@@ -7684,11 +7305,7 @@
         "properties": {
           "tier": {
             "type": "string",
-            "enum": [
-              "anonymous",
-              "free",
-              "subscriber"
-            ]
+            "enum": ["anonymous", "free", "subscriber"]
           },
           "limit": {
             "type": "integer",
@@ -7757,11 +7374,7 @@
       },
       "AtsQuotaResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -7776,11 +7389,7 @@
       },
       "AtsExtractResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -7801,9 +7410,7 @@
       },
       "AtsCheckRequest": {
         "type": "object",
-        "required": [
-          "resume"
-        ],
+        "required": ["resume"],
         "properties": {
           "resume": {
             "description": "Resume text, or a JSON Resume-shaped object. Either is accepted.",
@@ -7825,11 +7432,7 @@
       },
       "AtsCheckResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -7848,9 +7451,7 @@
               },
               "creditsSpent": {
                 "type": "integer",
-                "enum": [
-                  0
-                ]
+                "enum": [0]
               },
               "quota": {
                 "$ref": "#/components/schemas/AtsQuotaSummary"
@@ -7861,10 +7462,7 @@
       },
       "AtsAnalyzeRequest": {
         "type": "object",
-        "required": [
-          "resume",
-          "requestId"
-        ],
+        "required": ["resume", "requestId"],
         "properties": {
           "resume": {
             "oneOf": [
@@ -7898,11 +7496,7 @@
       },
       "AtsAnalyzeResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -7932,10 +7526,7 @@
       },
       "AtsConvertResumeRequest": {
         "type": "object",
-        "required": [
-          "resume",
-          "requestId"
-        ],
+        "required": ["resume", "requestId"],
         "properties": {
           "resume": {
             "type": "string",
@@ -8024,11 +7615,7 @@
       },
       "AtsConvertResumeResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -8080,11 +7667,7 @@
       },
       "AiActionsResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -8117,21 +7700,14 @@
       },
       "AiGenerateRequest": {
         "type": "object",
-        "required": [
-          "action",
-          "input",
-          "requestId"
-        ],
+        "required": ["action", "input", "requestId"],
         "properties": {
           "action": {
             "$ref": "#/components/schemas/AiActionKey"
           },
           "mode": {
             "type": "string",
-            "enum": [
-              "standard",
-              "expert"
-            ],
+            "enum": ["standard", "expert"],
             "default": "standard",
             "description": "Expert mode uses a stronger model at a higher credit cost."
           },
@@ -8178,11 +7754,7 @@
       },
       "AiGenerateResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -8241,11 +7813,7 @@
       },
       "PortfolioPublicListResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -8272,12 +7840,7 @@
           },
           "templateId": {
             "type": "string",
-            "enum": [
-              "signal",
-              "atelier",
-              "nimbus",
-              "cipher"
-            ]
+            "enum": ["signal", "atelier", "nimbus", "cipher"]
           },
           "snapshot": {
             "type": "object",
@@ -8286,11 +7849,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "LIVE",
-              "GRACE",
-              "SUSPENDED"
-            ]
+            "enum": ["LIVE", "GRACE", "SUSPENDED"]
           },
           "updatedAt": {
             "type": "string",
@@ -8304,11 +7863,7 @@
       },
       "PortfolioPublicResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -8351,12 +7906,7 @@
           },
           "templateId": {
             "type": "string",
-            "enum": [
-              "signal",
-              "atelier",
-              "nimbus",
-              "cipher"
-            ]
+            "enum": ["signal", "atelier", "nimbus", "cipher"]
           },
           "snapshot": {
             "type": "object",
@@ -8364,11 +7914,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "LIVE",
-              "GRACE",
-              "SUSPENDED"
-            ]
+            "enum": ["LIVE", "GRACE", "SUSPENDED"]
           },
           "publishedRevision": {
             "type": "integer",
@@ -8396,11 +7942,7 @@
       },
       "PortfolioPublishResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -8415,9 +7957,7 @@
               },
               {
                 "type": "object",
-                "required": [
-                  "publicUrl"
-                ],
+                "required": ["publicUrl"],
                 "properties": {
                   "publicUrl": {
                     "type": "string",
@@ -8432,11 +7972,7 @@
       },
       "PortfolioUnpublishResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -8460,14 +7996,7 @@
       "PortfolioDraft": {
         "type": "object",
         "description": "A trimmed projection of the caller's PORTFOLIO-type Document — not a full `Document`. Only the\nfields below are selected.\n",
-        "required": [
-          "id",
-          "slug",
-          "templateId",
-          "content",
-          "revision",
-          "updatedAt"
-        ],
+        "required": ["id", "slug", "templateId", "content", "revision", "updatedAt"],
         "properties": {
           "id": {
             "type": "string"
@@ -8478,12 +8007,7 @@
           },
           "templateId": {
             "type": "string",
-            "enum": [
-              "signal",
-              "atelier",
-              "nimbus",
-              "cipher"
-            ]
+            "enum": ["signal", "atelier", "nimbus", "cipher"]
           },
           "content": {
             "type": "object",
@@ -8502,11 +8026,7 @@
       },
       "PortfolioDraftResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -8522,25 +8042,14 @@
       "PortfolioPreview": {
         "type": "object",
         "description": "Same projection as `PortfolioDraft` minus `slug`.",
-        "required": [
-          "id",
-          "templateId",
-          "content",
-          "revision",
-          "updatedAt"
-        ],
+        "required": ["id", "templateId", "content", "revision", "updatedAt"],
         "properties": {
           "id": {
             "type": "string"
           },
           "templateId": {
             "type": "string",
-            "enum": [
-              "signal",
-              "atelier",
-              "nimbus",
-              "cipher"
-            ]
+            "enum": ["signal", "atelier", "nimbus", "cipher"]
           },
           "content": {
             "type": "object",
@@ -8557,11 +8066,7 @@
       },
       "PortfolioPreviewResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -8597,11 +8102,7 @@
               },
               "status": {
                 "type": "string",
-                "enum": [
-                  "LIVE",
-                  "GRACE",
-                  "SUSPENDED"
-                ]
+                "enum": ["LIVE", "GRACE", "SUSPENDED"]
               },
               "publishedRevision": {
                 "type": "integer"
@@ -8626,11 +8127,7 @@
       },
       "PortfolioMeResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -8645,10 +8142,7 @@
       },
       "PortfolioSaveDraftRequest": {
         "type": "object",
-        "required": [
-          "subdomain",
-          "snapshot"
-        ],
+        "required": ["subdomain", "snapshot"],
         "properties": {
           "documentId": {
             "type": "string",
@@ -8671,11 +8165,7 @@
       },
       "PortfolioPublishRequest": {
         "type": "object",
-        "required": [
-          "documentId",
-          "subdomain",
-          "revision"
-        ],
+        "required": ["documentId", "subdomain", "revision"],
         "properties": {
           "documentId": {
             "type": "string"
@@ -8729,11 +8219,7 @@
       },
       "PortfolioAnalyticsResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -8748,11 +8234,7 @@
       },
       "PortfolioSubdomainAvailabilityResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -8775,27 +8257,15 @@
       },
       "PortfolioAssetUploadRequest": {
         "type": "object",
-        "required": [
-          "kind",
-          "mimeType",
-          "sizeBytes"
-        ],
+        "required": ["kind", "mimeType", "sizeBytes"],
         "properties": {
           "kind": {
             "type": "string",
-            "enum": [
-              "AVATAR",
-              "PROJECT_COVER",
-              "SOCIAL_IMAGE"
-            ]
+            "enum": ["AVATAR", "PROJECT_COVER", "SOCIAL_IMAGE"]
           },
           "mimeType": {
             "type": "string",
-            "enum": [
-              "image/jpeg",
-              "image/png",
-              "image/webp"
-            ]
+            "enum": ["image/jpeg", "image/png", "image/webp"]
           },
           "sizeBytes": {
             "type": "integer",
@@ -8806,11 +8276,7 @@
       },
       "PortfolioAssetUploadResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -8830,9 +8296,7 @@
               },
               "expiresInSeconds": {
                 "type": "integer",
-                "enum": [
-                  600
-                ]
+                "enum": [600]
               }
             }
           }
@@ -8840,9 +8304,7 @@
       },
       "PortfolioAssetCompleteRequest": {
         "type": "object",
-        "required": [
-          "assetId"
-        ],
+        "required": ["assetId"],
         "properties": {
           "assetId": {
             "type": "string"
@@ -8855,11 +8317,7 @@
       },
       "PortfolioAssetCompleteResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -8886,22 +8344,12 @@
         "properties": {
           "plan": {
             "type": "string",
-            "enum": [
-              "FREE",
-              "AI_CREDITS",
-              "PORTFOLIO_PRO",
-              "BUNDLE"
-            ]
+            "enum": ["FREE", "AI_CREDITS", "PORTFOLIO_PRO", "BUNDLE"]
           },
           "productKey": {
             "type": "string",
             "nullable": true,
-            "enum": [
-              "ai_credits",
-              "portfolio_pro",
-              "bundle",
-              null
-            ]
+            "enum": ["ai_credits", "portfolio_pro", "bundle", null]
           },
           "activeProductKeys": {
             "type": "array",
@@ -8916,13 +8364,7 @@
           "interval": {
             "type": "string",
             "nullable": true,
-            "enum": [
-              "one_day",
-              "seven_day",
-              "monthly",
-              "annual",
-              null
-            ]
+            "enum": ["one_day", "seven_day", "monthly", "annual", null]
           },
           "currentPeriodEnd": {
             "type": "string",
@@ -8951,11 +8393,7 @@
           },
           "publicationStatus": {
             "type": "string",
-            "enum": [
-              "LIVE",
-              "GRACE",
-              "SUSPENDED"
-            ]
+            "enum": ["LIVE", "GRACE", "SUSPENDED"]
           },
           "entitlements": {
             "type": "array",
@@ -8993,11 +8431,7 @@
       },
       "BillingSummaryResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -9035,11 +8469,7 @@
       },
       "BillingHistoryResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -9087,11 +8517,7 @@
       },
       "CreditWalletResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -9128,11 +8554,7 @@
       },
       "CreditHistoryResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -9150,28 +8572,17 @@
       },
       "CheckoutRequest": {
         "type": "object",
-        "required": [
-          "interval"
-        ],
+        "required": ["interval"],
         "properties": {
           "productKey": {
             "type": "string",
-            "enum": [
-              "ai_credits",
-              "portfolio_pro",
-              "bundle"
-            ],
+            "enum": ["ai_credits", "portfolio_pro", "bundle"],
             "default": "portfolio_pro",
             "description": "Validated against a fixed product/interval whitelist before being handed off to the Dodo Payments checkout API."
           },
           "interval": {
             "type": "string",
-            "enum": [
-              "one_day",
-              "seven_day",
-              "monthly",
-              "annual"
-            ]
+            "enum": ["one_day", "seven_day", "monthly", "annual"]
           },
           "redirectUrl": {
             "type": "string",
@@ -9181,11 +8592,7 @@
       },
       "CheckoutResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -9206,11 +8613,7 @@
       },
       "CancelCheckoutResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -9230,11 +8633,7 @@
       },
       "BillingPortalResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -9255,16 +8654,11 @@
       },
       "CreditPackCheckoutRequest": {
         "type": "object",
-        "required": [
-          "packKey"
-        ],
+        "required": ["packKey"],
         "properties": {
           "packKey": {
             "type": "string",
-            "enum": [
-              "credit_pack_250",
-              "credit_pack_500"
-            ]
+            "enum": ["credit_pack_250", "credit_pack_500"]
           },
           "redirectUrl": {
             "type": "string",
@@ -9274,11 +8668,7 @@
       },
       "CreditPackCheckoutResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -9361,10 +8751,7 @@
       },
       "ShareLinkCreateRequest": {
         "type": "object",
-        "required": [
-          "documentId",
-          "snapshot"
-        ],
+        "required": ["documentId", "snapshot"],
         "properties": {
           "documentId": {
             "type": "string"
@@ -9397,11 +8784,7 @@
       },
       "ShareLinkResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -9416,11 +8799,7 @@
       },
       "ShareLinkListResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -9432,9 +8811,7 @@
             "allOf": [
               {
                 "type": "object",
-                "required": [
-                  "items"
-                ],
+                "required": ["items"],
                 "properties": {
                   "items": {
                     "type": "array",
@@ -9453,11 +8830,7 @@
       },
       "SharedDocumentIdsResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -9504,11 +8877,7 @@
       },
       "PublicShareResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -9523,9 +8892,7 @@
       },
       "VerifySharePasswordRequest": {
         "type": "object",
-        "required": [
-          "password"
-        ],
+        "required": ["password"],
         "properties": {
           "password": {
             "type": "string",
@@ -9535,9 +8902,7 @@
       },
       "AffiliateClickRequest": {
         "type": "object",
-        "required": [
-          "code"
-        ],
+        "required": ["code"],
         "properties": {
           "code": {
             "type": "string",
@@ -9551,11 +8916,7 @@
       },
       "AffiliateClickResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -9606,11 +8967,7 @@
               },
               "affiliateTier": {
                 "type": "string",
-                "enum": [
-                  "TIER_1",
-                  "TIER_2",
-                  "TIER_3"
-                ]
+                "enum": ["TIER_1", "TIER_2", "TIER_3"]
               }
             }
           }
@@ -9618,11 +8975,7 @@
       },
       "AffiliateLeaderboardResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -9643,20 +8996,11 @@
         "properties": {
           "affiliateStatus": {
             "type": "string",
-            "enum": [
-              "NOT_ENROLLED",
-              "PENDING",
-              "ACTIVE",
-              "SUSPENDED"
-            ]
+            "enum": ["NOT_ENROLLED", "PENDING", "ACTIVE", "SUSPENDED"]
           },
           "affiliateTier": {
             "type": "string",
-            "enum": [
-              "TIER_1",
-              "TIER_2",
-              "TIER_3"
-            ]
+            "enum": ["TIER_1", "TIER_2", "TIER_3"]
           },
           "affiliateCode": {
             "type": "string",
@@ -9681,10 +9025,7 @@
                 },
                 "status": {
                   "type": "string",
-                  "enum": [
-                    "PENDING",
-                    "CONVERTED"
-                  ]
+                  "enum": ["PENDING", "CONVERTED"]
                 },
                 "createdAt": {
                   "type": "string",
@@ -9734,9 +9075,7 @@
           },
           "minimumWithdrawalCents": {
             "type": "integer",
-            "enum": [
-              2500
-            ]
+            "enum": [2500]
           },
           "tierProgress": {
             "type": "object",
@@ -9780,11 +9119,7 @@
       },
       "AffiliateDashboardResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -9799,9 +9134,7 @@
       },
       "AffiliateReferralRequest": {
         "type": "object",
-        "required": [
-          "code"
-        ],
+        "required": ["code"],
         "properties": {
           "code": {
             "type": "string",
@@ -9813,11 +9146,7 @@
       },
       "AffiliateReferralResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -9833,9 +9162,7 @@
       },
       "AffiliateWithdrawalRequest": {
         "type": "object",
-        "required": [
-          "amountCents"
-        ],
+        "required": ["amountCents"],
         "properties": {
           "amountCents": {
             "type": "integer",
@@ -9847,11 +9174,7 @@
       },
       "AffiliateWithdrawalResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -9868,13 +9191,7 @@
       },
       "AmbassadorApplicationRequest": {
         "type": "object",
-        "required": [
-          "collegeName",
-          "graduationYear",
-          "whyJoin",
-          "superpower",
-          "funFact"
-        ],
+        "required": ["collegeName", "graduationYear", "whyJoin", "superpower", "funFact"],
         "properties": {
           "collegeName": {
             "type": "string",
@@ -9913,11 +9230,7 @@
       },
       "AmbassadorApplicationResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"
@@ -9933,11 +9246,7 @@
               },
               "ambassadorStatus": {
                 "type": "string",
-                "enum": [
-                  "PENDING",
-                  "APPROVED",
-                  "REJECTED"
-                ]
+                "enum": ["PENDING", "APPROVED", "REJECTED"]
               },
               "collegeName": {
                 "type": "string"
@@ -9959,12 +9268,7 @@
           },
           "ambassadorStatus": {
             "type": "string",
-            "enum": [
-              "NONE",
-              "PENDING",
-              "APPROVED",
-              "REJECTED"
-            ]
+            "enum": ["NONE", "PENDING", "APPROVED", "REJECTED"]
           },
           "collegeName": {
             "type": "string",
@@ -9978,11 +9282,7 @@
       },
       "AmbassadorStatusResponse": {
         "type": "object",
-        "required": [
-          "success",
-          "message",
-          "data"
-        ],
+        "required": ["success", "message", "data"],
         "properties": {
           "success": {
             "type": "boolean"

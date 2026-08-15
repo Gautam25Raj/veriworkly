@@ -3,7 +3,7 @@
 **Scope:** `apps/studio` (Next.js 16 / React 19 / TypeScript / Zustand / Tailwind v4) — the resume, cover letter, ATS, billing, affiliate/ambassador, API key, and admin workspace app.
 **Method:** Every source file under `app/`, `components/`, `features/`, `templates/`, `hooks/`, `lib/`, `providers/`, `store/`, `utils/`, `types/`, and `tests/` was read in full (not sampled). Findings are grouped by area, each with file path, approximate line numbers, why it matters, and a concrete fix. Severity is noted where it materially changes priority.
 
-**How to read this document:** it is long by design — the request was to audit *everything*. If you only have time for one pass, read the **🔴 Critical / High** items in each section first, then the "Duplication & consolidation opportunities" call-outs, which are the highest-leverage code-quality wins.
+**How to read this document:** it is long by design — the request was to audit _everything_. If you only have time for one pass, read the **🔴 Critical / High** items in each section first, then the "Duplication & consolidation opportunities" call-outs, which are the highest-leverage code-quality wins.
 
 ---
 
@@ -19,7 +19,7 @@
 ### 🟠 High: dev-only PDF debug route is not gated in production
 
 - **Files:** `app/(main)/pdf-debug/[type]/[templateId]/page.tsx`, `PdfDebugClient.tsx`, `app/(main)/editor/[type]/[id]/preview/PreviewClient.tsx:80`
-- **Finding:** The link to `/pdf-debug/...` is hidden behind `process.env.NODE_ENV === "development"` in `PreviewClient.tsx`, but the route itself has no such guard — `page.tsx` only validates that `type` is `"resume" | "cover-letter"`. It is fully reachable in a production build by anyone who knows/guesses the URL. Impact is bounded because `loadResumeById`/`loadDocumentById` read from the *visiting browser's own* local storage (not a server-side lookup by arbitrary user), so it can't leak other users' data — but it still ships and exposes internal debug tooling in prod.
+- **Finding:** The link to `/pdf-debug/...` is hidden behind `process.env.NODE_ENV === "development"` in `PreviewClient.tsx`, but the route itself has no such guard — `page.tsx` only validates that `type` is `"resume" | "cover-letter"`. It is fully reachable in a production build by anyone who knows/guesses the URL. Impact is bounded because `loadResumeById`/`loadDocumentById` read from the _visiting browser's own_ local storage (not a server-side lookup by arbitrary user), so it can't leak other users' data — but it still ships and exposes internal debug tooling in prod.
 - **Fix:** Gate the page itself (`if (process.env.NODE_ENV !== "development") notFound();`), not just the link to it.
 
 ### 🟠 High: side effect invoked directly during render (not just in `useEffect`)
@@ -34,7 +34,7 @@
   Calling a side-effecting function (mutating `@react-pdf/renderer`'s global font registry) during render is not safe/idempotent — it can run extra times under React's Strict Mode double-invoke or on any re-render, and duplicates the effect call right above it.
 - **Fix:** Delete the render-body call; keep only the `useEffect` version.
 
-### 🟡 Medium: no validation that `productKey` and `interval` are a *valid combination*
+### 🟡 Medium: no validation that `productKey` and `interval` are a _valid combination_
 
 - **File:** `app/(main)/checkout/page.tsx:3-13`
 - **Finding:** `productKeys` (`ai_credits`, `portfolio_pro`, `bundle`) and `intervals` (`one_day`, `seven_day`, `monthly`, `annual`) are validated independently as whitelists, but nothing checks that, e.g., `productKey=ai_credits&interval=annual` is a sensible pairing for that product. Any product+interval combination that both individually pass the whitelist will reach `beginCheckout`.
@@ -44,7 +44,7 @@
 
 - **Files:** `app/(main)/(dashboard)/api-keys/page.tsx:22-54` (`fetchInitialApiKeys`), `app/(main)/(dashboard)/api-keys/[id]/page.tsx:17-40` (`fetchKeyDetails`)
 - **Finding:** Both wrap their fetch in `try { ... } catch { return <empty/null shape> }`. If the backend is down or throws a network error, the API Keys page silently renders "0 keys" and the key-detail page silently 404s (`notFound()`), rather than surfacing a real error via the route's `error.tsx` boundary. A user with keys will see an empty list and reasonably conclude their keys were deleted.
-- **Fix:** Only catch and degrade gracefully for *expected* non-OK statuses (401/404); let unexpected exceptions propagate so the Next.js error boundary can show a real "something went wrong, retry" state instead of a false empty state.
+- **Fix:** Only catch and degrade gracefully for _expected_ non-OK statuses (401/404); let unexpected exceptions propagate so the Next.js error boundary can show a real "something went wrong, retry" state instead of a false empty state.
 - **Related inconsistency:** `fetchInitialApiKeys` pre-checks `cookie?.includes("veriworkly-auth")` and short-circuits before hitting the backend at all; `fetchKeyDetails` has no equivalent check and always calls the backend. This is inconsistent auth-gating between two sibling pages in the same feature, and the cookie check itself is a fragile substring match rather than a parsed-cookie-name check.
 
 ### 🟡 Medium: optimistic sync-preference toggle has no rollback or user-visible failure
@@ -77,7 +77,7 @@
 
 ### Accessibility notes (app/ area)
 
-- `DocumentActionsMenu.tsx` (`app/(main)/(dashboard)/documents/components/`): menu items for anonymous users (Share, Sync Now, View sync details) are styled to *look* disabled (`opacity-50`) but are not actually `disabled`/`aria-disabled` — they remain focusable and clickable, firing a toast instead of performing the action. Screen reader users get no indication the item is unavailable until after activating it. Prefer `aria-disabled="true"` with a `title`/description, or a proper `disabled` attribute plus a tooltip explaining why.
+- `DocumentActionsMenu.tsx` (`app/(main)/(dashboard)/documents/components/`): menu items for anonymous users (Share, Sync Now, View sync details) are styled to _look_ disabled (`opacity-50`) but are not actually `disabled`/`aria-disabled` — they remain focusable and clickable, firing a toast instead of performing the action. Screen reader users get no indication the item is unavailable until after activating it. Prefer `aria-disabled="true"` with a `title`/description, or a proper `disabled` attribute plus a tooltip explaining why.
 - `ShowcaseCards.tsx` (login page carousel): auto-rotates every 5.5s indefinitely with no pause control and no `prefers-reduced-motion` handling — a vestibular-disorder/motion-sensitivity accessibility gap on a page every user sees.
 
 ---
@@ -96,11 +96,11 @@
 
 **🟡 Optimistic-success bug.** `ShareDocumentModal.tsx:94-97, 277-278`: `navigator.clipboard.writeText(url)` is called without awaiting/catching, yet `toast.success("Link copied to clipboard")` fires unconditionally right after — if the clipboard write is rejected (permissions, insecure context), the user is told it succeeded when it didn't.
 
-**🟠 Dead null-check bug.** `components/modals/SyncDetailsModal.tsx:47-51`: `isConflicted = document.sync.status === "conflicted"` executes *before* `if (!document) return null;`. If `document` could ever legitimately be null/undefined, this component already throws a `TypeError` before reaching its own guard — the check is unreachable/pointless as written. Move the null check to the top of the function body.
+**🟠 Dead null-check bug.** `components/modals/SyncDetailsModal.tsx:47-51`: `isConflicted = document.sync.status === "conflicted"` executes _before_ `if (!document) return null;`. If `document` could ever legitimately be null/undefined, this component already throws a `TypeError` before reaching its own guard — the check is unreachable/pointless as written. Move the null check to the top of the function body.
 
 **Duplicated markup.** `ImportProfileModal.tsx:14-43` and `NewDocumentModal.tsx:7-36` define byte-identical inline `LinkedinIcon`/`GithubIcon` SVG components — extract once. The "icon chip + title + uppercase subtitle" modal header pattern is hand-rolled independently in 5 different modals even though the shared UI package (`packages/ui/src/components/ui/Modal.tsx:145-155`) already exports `Modal.Header`/`Modal.Description` for exactly this — none of the studio's modals use them. `components/dashboard/WorkspaceSearchModal.tsx` doesn't use the shared `Modal` primitive at all, so it misses the focus trap, focus-restore-on-close, and scroll-lock that every other modal gets "for free," and reimplements Escape/backdrop-click handling inconsistently (`onMouseDown` vs `onClick` elsewhere).
 
-**Duplicate destructive-confirmation concepts.** `ConfirmationModal` has a `variant="destructive"` mode *and* a separate `DestructiveModal` requiring typed confirmation ("type DELETE") — there's no visible rule for which a given delete flow should use, so equally destructive operations can end up with inconsistent friction.
+**Duplicate destructive-confirmation concepts.** `ConfirmationModal` has a `variant="destructive"` mode _and_ a separate `DestructiveModal` requiring typed confirmation ("type DELETE") — there's no visible rule for which a given delete flow should use, so equally destructive operations can end up with inconsistent friction.
 
 **Code smell.** `ImportProfileModal.tsx:176-177, 208-209`: `window.dispatchEvent(new Event("storage"))` is used as an ad-hoc pub/sub signal. A bare `Event("storage")` is not a real `StorageEvent` (no `.key`/`.newValue`) — any listener inspecting those fields gets `undefined`. Prefer a custom event name, as is already done elsewhere (`open-import-profile`).
 
@@ -113,7 +113,7 @@
 - **`components/dashboard/AccountMenu.tsx`** uses `role="menu"`/`role="menuitem"` but implements none of the expected ARIA menu keyboard behavior (no arrow-key roving focus, Home/End, typeahead) — exposing the role without the interaction model is worse than not using it. It's also a **completely separate hand-rolled dropdown implementation** from `Navbar.tsx`'s `Menu`/`MenuItem` primitive (`@veriworkly/ui`) used for the same "account dropdown" concept — two different accessibility guarantees for one UI concept.
 - **Duplicate, both-flawed logout implementations:** `AccountMenu.tsx:61-68`'s `handleLogout` has no try/catch around `await signOutCurrentUser()` (unhandled throw from an onClick). `Navbar.tsx:24-35`'s version catches but only `console.error`s and redirects regardless. Should be a single `useLogout()` hook with real user-facing error feedback.
 - **`ThemeToggle.tsx`/`AccountMenuTheme.tsx`** duplicate the same dark/light toggle logic independently, and toggling only ever moves between explicit light/dark — there's no way back to `"system"` once left, silently discarding the user's original preference.
-- **`StudioShell.tsx:62-84`:** `createNewDocument`'s billing check treats *any* fetch failure (network error, timeout) the same as "not paid," and then blocks document creation past the free-tier limit — a transient network blip can incorrectly block a paying user. The free-tier limit (`1`) is a magic number duplicated between the check (line 75) and the user-facing message string (line 77) — should be one named constant. `STUDIO_VERSION = "v3.22.0"` (line 44) is hardcoded and will drift from `package.json`.
+- **`StudioShell.tsx:62-84`:** `createNewDocument`'s billing check treats _any_ fetch failure (network error, timeout) the same as "not paid," and then blocks document creation past the free-tier limit — a transient network blip can incorrectly block a paying user. The free-tier limit (`1`) is a magic number duplicated between the check (line 75) and the user-facing message string (line 77) — should be one named constant. `STUDIO_VERSION = "v3.22.0"` (line 44) is hardcoded and will drift from `package.json`.
 - **`components/layout/Footer.tsx`:** the same Tailwind class string is copy-pasted across ~15 `<Link>` elements instead of being data-driven the way `NavLinks.tsx`/`config/site.ts` already does it elsewhere in the app.
 
 ### Auth/session lib (`lib/`, `providers/`)
@@ -164,9 +164,10 @@ This is the largest and most architecturally significant part of the app (~90 fi
 **Inventory:** 8 of 15 section components (`Achievements`, `Awards`, `Certifications`, `Publications`, `Languages`, `Interests`, `Volunteer`, `References`) are already thin wrappers around `GenericCustomSection.tsx`. The other 7 (`Experience`, `Education`, `Projects`, `Skills`, `Links`, `Basics`, `Summary`) hand-duplicate an identical "own `useState(index)`, `&lt;select&gt;` picker, Add/Remove toolbar" skeleton with no shared list-CRUD hook — roughly 250 lines of copy-pasted picker/toolbar code across `EducationSection.tsx:29-78`, `ExperienceSection.tsx:30-79`, `ProjectsSection.tsx:30-79`, `SkillsSection.tsx:30-79`, `LinksSection.tsx:29-74`, differing only in renamed variables. `CustomSection.tsx` (140 lines) separately reimplements ~100 lines of `GenericCustomSection`'s own logic just to add one editable-title input, instead of parameterizing the generic component. **Overall estimate: of ~1,800 lines across the 15 section files, roughly 1,000–1,100 lines is mechanical, extractable duplication.**
 
 **The generic abstraction causes real data-modeling bugs, not just style debt.** `GenericCustomSection`/`ResumeAdditionalItem` forces every "custom" kind into one fixed shape (`name, issuer, date, link, referenceId, description, details`), and several sections repurpose these fields for unrelated meanings:
+
 - `ReferencesSection.tsx:58-71` relabels the field literally named **`date` as "Phone"** (with a phone-number regex mask applied to it) — so the zod schema types a phone number as a generic date-shaped string, and every renderer (`executive-clarity/web.tsx:57-61`, `pdf.tsx:457`) displays a reference's phone number in the exact date-column slot used for a certification's issue date.
 - `VolunteerSection.tsx:37-50` repurposes `issuer`→"Role", `referenceId`→"Location"; `ReferencesSection.tsx:43-48` repurposes `referenceId`→"Relationship" — meaning the single field `referenceId` means three different things depending which section you're looking at, with no way to tell from the field name.
-- `LanguagesSection.tsx:30-42` repurposes `referenceId` as "Proficiency," while the *separate* `master-profile-db-schema.ts`'s `languageSchema` (lines 12-16) already has a correctly-typed `fluency: enum(...)` field that the editor never actually writes to (see the dead-schema finding below).
+- `LanguagesSection.tsx:30-42` repurposes `referenceId` as "Proficiency," while the _separate_ `master-profile-db-schema.ts`'s `languageSchema` (lines 12-16) already has a correctly-typed `fluency: enum(...)` field that the editor never actually writes to (see the dead-schema finding below).
 - **Fix:** give each custom kind its own typed shape (the correct types already exist in `master-profile-db-schema.ts`, they're just unused — see below), or at minimum stop remapping real-world concepts like "phone number" onto a field named `date`.
 
 **Compounding UX bug shared by all 8 generic-wrapped sections + the 4 hand-rolled list sections:** `GenericCustomSection.tsx:51,55-56,84` — `selectedIndex` is local state that is never updated when a new item is added, so clicking "Add" a second time appends a blank item to the end of the list but the picker keeps showing whatever was previously selected — no visual feedback that anything happened unless the user manually opens the dropdown. Identical gap in `EducationSection.tsx:66`, `ExperienceSection.tsx:67`, `ProjectsSection.tsx:67`, `SkillsSection.tsx:67`. **Fix:** set the selected index to the new item's position on add.
@@ -200,7 +201,7 @@ This is the largest and most architecturally significant part of the app (~90 fi
 
 - **Files:** `features/resume/hooks/use-resume.ts:5-9`, `features/resume/editor/ResumeEditor.tsx:44,51`
 - **Finding:** `useResume()` calls `useResumeStore()` with no selector — subscribing to every state change — and its own code comment admits this ("Prefer narrow selectors in new high-frequency components"). `ResumeEditor.tsx` is exactly a high-frequency consumer (it's always mounted, and `resume` gets a new object identity on every keystroke via `withTimestamp`), so the whole editor + preview tree re-renders on every field edit anywhere in the form. `EditorSettingsPanel.tsx:59-67` already demonstrates the correct narrow-selector pattern elsewhere in the same codebase.
-- **Compounding:** `ResumeEditor.tsx:51`'s `useDeferredValue(resume)` defers the *entire* resume object as one unit rather than field-level, so React keeps scheduling low-priority re-renders of the whole template tree while typing, with no `React.memo` on the template components (`executive-clarity/web.tsx`, `precision-ats/web.tsx`) to stop it.
+- **Compounding:** `ResumeEditor.tsx:51`'s `useDeferredValue(resume)` defers the _entire_ resume object as one unit rather than field-level, so React keeps scheduling low-priority re-renders of the whole template tree while typing, with no `React.memo` on the template components (`executive-clarity/web.tsx`, `precision-ats/web.tsx`) to stop it.
 - **Compounding further:** `ResumePagedPreview.tsx:62-203` re-measures pagination via off-screen DOM cloning on every `children` change, with an O(n²) fitting loop (lines 151-164) over item counts within a section, no debouncing, and no caching between renders — a resume with a long Experience section will re-run this on every keystroke anywhere in the document.
 - **Fix:** replace `useResume()` in `ResumeEditor.tsx` with narrow per-field selectors; debounce the pagination-measurement effect (150-250ms) and memoize per-section fitted-item counts.
 
@@ -220,12 +221,12 @@ This is the largest and most architecturally significant part of the app (~90 fi
 ### Accessibility (resume/cover-letter editor)
 
 - `SectionAccordion.tsx:24-38`: the disclosure toggle button has no `aria-expanded`/`aria-controls`, and the content panel has no `id`/`role="region"` — used by all 15+ section accordions, and duplicated again in `EditorSettingsPanel.tsx`'s local `SettingsSectionAccordion` (lines 23-51).
-- Icon-only link display mode (`linkDisplayMode === "icon"`, `LinksSection.tsx:76-88`, `CoverLetterContentPanel.tsx:110-118`) renders social icons with `aria-hidden="true"` and no `sr-only` fallback text — in icon-only mode, the icon is the *only* content of the link, so a screen-reader user gets no accessible name for it at all. The PDF equivalent (`templates/pdf/SocialIcon.tsx`) has no accessibility concept at all for this mode.
+- Icon-only link display mode (`linkDisplayMode === "icon"`, `LinksSection.tsx:76-88`, `CoverLetterContentPanel.tsx:110-118`) renders social icons with `aria-hidden="true"` and no `sr-only` fallback text — in icon-only mode, the icon is the _only_ content of the link, so a screen-reader user gets no accessible name for it at all. The PDF equivalent (`templates/pdf/SocialIcon.tsx`) has no accessibility concept at all for this mode.
 - No section/list component moves focus to a newly-added item's first field, nor restores focus sensibly after removal.
 
 ### UX: destructive actions are inconsistently protected
 
-- Removing a single Experience/Education/Project/Skill-group/Link/Custom-item fires immediately with **no confirmation and no undo** (e.g. `ExperienceSection.tsx:71-78`), even though whole-document deletion *does* get a confirmation (`DestructiveModal` in `ResumeEditorModals.tsx:75-82` for resumes, a `window.confirm()` in `CoverLetterEditor.tsx:145-146` for cover letters). The app has an established "confirm before destroy" convention for document-level deletes that simply isn't applied to item-level removal, despite the aggregate loss often being larger (many resumes will have far more experience entries edited than whole documents deleted).
+- Removing a single Experience/Education/Project/Skill-group/Link/Custom-item fires immediately with **no confirmation and no undo** (e.g. `ExperienceSection.tsx:71-78`), even though whole-document deletion _does_ get a confirmation (`DestructiveModal` in `ResumeEditorModals.tsx:75-82` for resumes, a `window.confirm()` in `CoverLetterEditor.tsx:145-146` for cover letters). The app has an established "confirm before destroy" convention for document-level deletes that simply isn't applied to item-level removal, despite the aggregate loss often being larger (many resumes will have far more experience entries edited than whole documents deleted).
 - "Reset to defaults" / "Empty all fields" (`ResumeToolbar.tsx:178-185`, `CoverLetterToolbar.tsx:167-176`) wipe the entire document with **zero confirmation step** in either editor.
 - Resume delete uses a themed `DestructiveModal`; cover-letter delete uses a bare native `window.confirm()` — visibly inconsistent UI treatment for the same conceptual action across the app's two document types.
 - No undo/redo stack exists anywhere (`resume-store.ts` has no history array or `undo()`/`redo()` action) — the only recovery after an accidental destructive edit is manual re-entry.
@@ -248,6 +249,7 @@ This is the most architecturally significant section � the document-lifecycle 
 **File:** `features/documents/services/document-sync-service.ts:213-260` (`syncNow` method)
 
 **How it fails:**
+
 1. User types ? autosave persists content v1 to localStorage.
 2. Sync worker reads v1 into `item` variable, then calls `DocumentApi.update(...)` (network round trip, takes 100ms�several seconds).
 3. **While the network call is in flight**, user keeps typing ? autosave debounce fires again ? persists content **v2** to the same localStorage key.
@@ -261,7 +263,7 @@ This is the most architecturally significant section � the document-lifecycle 
 
 **Files:** `features/documents/services/document-workspace-service.ts` (editor autosave), `features/documents/services/document-sync.ts` (sync worker), `features/documents/services/document-library.ts` (collection loader)
 
-**Finding:** Three modules independently compute and target the identical `veriworkly:docs:v2:*` localStorage keys, each with their own `LocalStorageService` instance. Both autosave and sync target the same keys with zero coordination. Nothing enforces safe interleaving. **Multi-tab consequence:** each tab independently reads the entire collection blob, mutates it, writes it back. Whichever write lands second *silently discards* the first tab's edits to *any other document* in that collection.
+**Finding:** Three modules independently compute and target the identical `veriworkly:docs:v2:*` localStorage keys, each with their own `LocalStorageService` instance. Both autosave and sync target the same keys with zero coordination. Nothing enforces safe interleaving. **Multi-tab consequence:** each tab independently reads the entire collection blob, mutates it, writes it back. Whichever write lands second _silently discards_ the first tab's edits to _any other document_ in that collection.
 
 **Fix:** consolidate to one storage engine instance per document type, shared by both autosave and sync. Extract the key scheme into a single constant. Add a `BroadcastChannel` or `storage` event listener for true multi-tab safety.
 
@@ -277,7 +279,7 @@ This is the most architecturally significant section � the document-lifecycle 
 
 **File:** `features/documents/utils/formatters.ts:7-16` and replicated in all export files
 
-**Pattern:** `formatDateRange(startDate, endDate, current)` does `safeText(startDate) || "Start"` � a fallback meant for the *editor* empty state. When a user leaves both dates blank on a WIP entry, the exported PDF/DOCX/HTML/Markdown literally print `"Start - End"`, `"Role"`, `"Company"`, `"Degree"`, etc. as actual content.
+**Pattern:** `formatDateRange(startDate, endDate, current)` does `safeText(startDate) || "Start"` � a fallback meant for the _editor_ empty state. When a user leaves both dates blank on a WIP entry, the exported PDF/DOCX/HTML/Markdown literally print `"Start - End"`, `"Role"`, `"Company"`, `"Degree"`, etc. as actual content.
 
 This is a severe correctness bug for a resume builder.
 
@@ -397,6 +399,7 @@ This is a severe correctness bug for a resume builder.
 ## Summary & Action Items
 
 **Critical fixes (data integrity / security):**
+
 1. Fix sync data-loss race condition � `document-sync-service.ts`
 2. Consolidate document storage � eliminate duplicate writers
 3. Remove hardcoded email + enforce billing lockdown server-side
@@ -404,6 +407,7 @@ This is a severe correctness bug for a resume builder.
 5. Fix username edit modal's unverified submit guard
 
 **High-leverage refactors (code quality):**
+
 1. Eliminate ~1,000 lines of duplication in resume/cover-letter section editors
 2. Delete dead drag-and-drop code
 3. Stop placeholder text from leaking into exports
@@ -411,6 +415,7 @@ This is a severe correctness bug for a resume builder.
 5. Add defense-in-depth role checks
 
 **Deferred improvements (best-effort):**
+
 1. Fix emoji stripping Unicode ranges
 2. Add try/catch to export generation
 3. Validate link URL schemes

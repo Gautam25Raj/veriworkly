@@ -1,4 +1,8 @@
-import { type PrivateTemplateId, templatesRegistry } from "@/template-library/registry";
+import {
+  type PrivateTemplateId,
+  type TemplateRegistryEntry,
+  templatesRegistry,
+} from "@/template-library/registry";
 
 export type TemplateId = PrivateTemplateId;
 
@@ -15,18 +19,18 @@ export interface TemplateSummary {
   isPremium?: boolean;
 }
 
-export const templates: TemplateSummary[] = Object.entries(templatesRegistry).map(
-  ([id, entry]) => ({
-    id: id as TemplateId,
-    name: entry.name,
-    note: entry.note,
-    mood: entry.mood,
-    audience: entry.audience,
-    strengths: entry.strengths,
-    image: entry.image,
-    isPremium: entry.isPremium,
-  }),
-);
+export const templates: TemplateSummary[] = (
+  Object.entries(templatesRegistry) as [TemplateId, TemplateRegistryEntry][]
+).map(([id, entry]) => ({
+  id,
+  name: entry.name,
+  note: entry.note,
+  mood: entry.mood,
+  audience: entry.audience,
+  strengths: entry.strengths,
+  image: entry.image,
+  isPremium: Boolean(entry.isPremium),
+}));
 
 export function isTemplateId(value: string): value is TemplateId {
   return value in templatesRegistry;

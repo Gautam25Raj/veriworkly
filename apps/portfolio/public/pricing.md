@@ -1,6 +1,7 @@
 # VeriWorkly Portfolio — Hosting & Pricing Tiers
 
 ## Free Tier
+
 - **Price**: $0
 - **Includes**:
   - Full Portfolio Editor (3-pane workspace)
@@ -9,6 +10,7 @@
   - Floating "Built with VeriWorkly" Watermark
 
 ## Creator Pro Subdomain Plan
+
 - **Price**: $9.99 / month (or included in Sprint Pass $2.99, Hunt Pass $5.99, or Monthly Pro $14.99)
 - **Includes**:
   - Custom Subdomain Hosting (`your-slug.veriworkly.com`)

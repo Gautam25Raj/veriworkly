@@ -1,5 +1,179 @@
 [
   {
+    "id": "v3-23-1",
+    "version": "3.23.1",
+    "title": "Auth Callback Guest Redirection, Modular Editor & SSR Stability",
+    "summary": "This release delivers seamless guest authentication with cross-domain callback redirection, modular Studio editor form toolbars, portfolio layout SSR hydration, and PDF export parity verification.",
+    "type": "patch",
+    "publishedAt": "2026-08-16T14:15:00Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.23.1",
+    "added": [
+      "Login redirect with callbackURL parameter for unauthenticated visits",
+      "Shared-domain veriworkly-guest-mode cookie across root domain and subdomains",
+      "Modular resume and cover letter editor form primitives and specialized section toolbars",
+      "Automated PDF export contract tests across all resume templates",
+      "SSR-seeded workspace state store initialization preventing hydration layout shifts"
+    ],
+    "improved": [
+      "Local-first draft recovery during 401/404 responses without unneeded cloud sync",
+      "Template library font modules and design token synchronization",
+      "Portfolio layout routing and analytics store integration",
+      "Public OpenAPI documentation and changelog schemas"
+    ],
+    "fixed": [
+      "Blocked IPv6 SSRF parsing vulnerabilities in ATS document inspector",
+      "Resolved portfolio builder TypeScript type definitions in CI",
+      "Fixed template rendering mock coverage in test suite"
+    ],
+    "breaking": [],
+    "security": ["Hardened IPv6 loopback validation on ATS upload inspection routes"],
+    "prRefs": [
+      {
+        "number": 194,
+        "title": "[Feature] [Auth]: Require login redirect with callback for guest access",
+        "url": "https://github.com/VeriWorkly/veriworkly/pull/194",
+        "author": {
+          "login": "Gautam25Raj",
+          "avatarUrl": "https://avatars.githubusercontent.com/u/63155224?v=4",
+          "htmlUrl": "https://github.com/Gautam25Raj"
+        }
+      }
+    ],
+    "tags": ["auth", "security", "portfolio", "resume-editor", "export"]
+  },
+  {
+    "id": "v3-22-0",
+    "version": "3.22.0",
+    "title": "Document Exporter Parity, Profile Imports, Multi-Page Portfolios & Campus Ambassador Program",
+    "summary": "Major workspace update introducing dynamic section ordering for resume preview and PDF exports, LinkedIn and GitHub profile imports, multi-page portfolio support with Nimbus and Cipher templates, an ATS worker pool, and the Campus Ambassador portal.",
+    "type": "minor",
+    "publishedAt": "2026-08-06T12:30:00Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.22.0",
+    "added": [
+      "Dynamic section ordering synchronization across resume editor canvas, preview, and PDF export",
+      "LinkedIn and GitHub profile import options in resume creation modal",
+      "Headless visual parity test suite measuring DOM and PDF rendering consistency",
+      "Multi-format document export engine supporting PDF, Word docx, and styled HTML",
+      "Nimbus and Cipher portfolio templates with multi-page route management",
+      "Interactive Campus Ambassador portal with earnings calculator and share toolkit",
+      "ATS report shaping background worker pool and Redis time-series invalidation",
+      "Free public ATS resume scanner on marketing website",
+      "Live product roadmap and GitHub-synced changelog engine",
+      "Structured JSON-LD schema markup (Person, WebSite, ProfilePage) on portfolio subdomains"
+    ],
+    "improved": [
+      "Modularized server mail services with dedicated handlers for Welcome, OTP, and Login Alerts",
+      "Standardized backend error handling, logging, and Redis pooling in shared libraries",
+      "Added error and loading boundaries to Studio admin dashboard",
+      "Enhanced login page with feature showcase cards",
+      "Updated portfolio template documentation with styling guidelines and FAQs"
+    ],
+    "fixed": [
+      "Fixed dynamic section ordering sync issues in PDF generator",
+      "Fixed portfolio footer link height on mobile browsers",
+      "Fixed SSRF loopback validation in server file analysis routes",
+      "Resolved root monorepo build and lint configurations"
+    ],
+    "breaking": [],
+    "security": [
+      "Production-only administrator access controls for payment management",
+      "Role-based feature flag middleware"
+    ],
+    "prRefs": [
+      {
+        "number": 191,
+        "title": "[Feature] [Server/Studio]: add ambassador program and feature flag middleware",
+        "url": "https://github.com/VeriWorkly/veriworkly/pull/191",
+        "author": {
+          "login": "Gautam25Raj",
+          "avatarUrl": "https://avatars.githubusercontent.com/u/63155224?v=4",
+          "htmlUrl": "https://github.com/Gautam25Raj"
+        }
+      },
+      {
+        "number": 190,
+        "title": "[Refactor] [Server/Studio]: modularize affiliate service and studio components",
+        "url": "https://github.com/VeriWorkly/veriworkly/pull/190",
+        "author": {
+          "login": "Gautam25Raj",
+          "avatarUrl": "https://avatars.githubusercontent.com/u/63155224?v=4",
+          "htmlUrl": "https://github.com/Gautam25Raj"
+        }
+      },
+      {
+        "number": 189,
+        "title": "[Bug] [Studio]: dynamic section ordering in resume preview and PDF export (#135)",
+        "url": "https://github.com/VeriWorkly/veriworkly/pull/189",
+        "author": {
+          "login": "d3vpool",
+          "avatarUrl": "https://avatars.githubusercontent.com/u/10492823?v=4",
+          "htmlUrl": "https://github.com/d3vpool"
+        }
+      },
+      {
+        "number": 188,
+        "title": "[Feature] [Studio]: add profile imports and improve authentication-gated experiences",
+        "url": "https://github.com/VeriWorkly/veriworkly/pull/188",
+        "author": {
+          "login": "Gautam25Raj",
+          "avatarUrl": "https://avatars.githubusercontent.com/u/63155224?v=4",
+          "htmlUrl": "https://github.com/Gautam25Raj"
+        }
+      },
+      {
+        "number": 187,
+        "title": "[Feature] [Site]: enhance login experience with showcase section and SEO improvements",
+        "url": "https://github.com/VeriWorkly/veriworkly/pull/187",
+        "author": {
+          "login": "Gautam25Raj",
+          "avatarUrl": "https://avatars.githubusercontent.com/u/63155224?v=4",
+          "htmlUrl": "https://github.com/Gautam25Raj"
+        }
+      },
+      {
+        "number": 186,
+        "title": "[Refactor] [Server]: migrate services to new shared library structure",
+        "url": "https://github.com/VeriWorkly/veriworkly/pull/186",
+        "author": {
+          "login": "Gautam25Raj",
+          "avatarUrl": "https://avatars.githubusercontent.com/u/63155224?v=4",
+          "htmlUrl": "https://github.com/Gautam25Raj"
+        }
+      },
+      {
+        "number": 185,
+        "title": "[Feature] [Server]: modularize mail services and add dedicated email workflows",
+        "url": "https://github.com/VeriWorkly/veriworkly/pull/185",
+        "author": {
+          "login": "Gautam25Raj",
+          "avatarUrl": "https://avatars.githubusercontent.com/u/63155224?v=4",
+          "htmlUrl": "https://github.com/Gautam25Raj"
+        }
+      },
+      {
+        "number": 178,
+        "title": "[Fix] [Portfolio]: Constrain footer link height",
+        "url": "https://github.com/VeriWorkly/veriworkly/pull/178",
+        "author": {
+          "login": "Fahridanaa",
+          "avatarUrl": "https://avatars.githubusercontent.com/u/74889269?v=4",
+          "htmlUrl": "https://github.com/Fahridanaa"
+        }
+      },
+      {
+        "number": 166,
+        "title": "[Feature] [Portfolio]: enhance template details with FAQs, guidelines, and improved loading",
+        "url": "https://github.com/VeriWorkly/veriworkly/pull/166",
+        "author": {
+          "login": "Gautam25Raj",
+          "avatarUrl": "https://avatars.githubusercontent.com/u/63155224?v=4",
+          "htmlUrl": "https://github.com/Gautam25Raj"
+        }
+      }
+    ],
+    "tags": ["ambassador", "affiliate", "resume-editor", "export", "portfolio", "server", "ats"]
+  },
+  {
     "id": "v3-21-0",
     "version": "3.21.0",
     "title": "AI Experience Refresh, Resume Editor Enhancements & Platform Reliability",

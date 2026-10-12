@@ -20,6 +20,8 @@ function report(overrides: Partial<AtsFullReport> = {}): AtsFullReport {
       roles: [],
       education: [],
       skills: [],
+      certifications: [],
+      spokenLanguages: [],
       monthsOfExperience: null,
       highestIsced: null,
       highestDegree: null,
@@ -30,11 +32,16 @@ function report(overrides: Partial<AtsFullReport> = {}): AtsFullReport {
         roles: "none",
         education: "none",
         skills: "none",
+        certifications: "none",
+        spokenLanguages: "none",
       },
     },
 
     matchedKeywords: ["react", "typescript"],
     missingKeywords: ["kubernetes"],
+    matchedKeywordGroups: { hard: ["react", "typescript"], soft: [] },
+    missingKeywordGroups: { hard: ["kubernetes"], soft: [] },
+    advice: [],
     parsingWarnings: [],
     strengths: ["Contact details sit in the top 30%"],
 
@@ -107,7 +114,12 @@ describe("ATS report as clipboard text", () => {
 
   it("says 'none' rather than leaving an empty keyword line dangling", () => {
     const text = reportToPlainText(
-      report({ matchedKeywords: [], missingKeywords: [] }),
+      report({
+        matchedKeywords: [],
+        missingKeywords: [],
+        matchedKeywordGroups: { hard: [], soft: [] },
+        missingKeywordGroups: { hard: [], soft: [] },
+      }),
       "https://veriworkly.com",
     );
 
@@ -150,9 +162,35 @@ describe("ATS category presentation helpers", () => {
   });
 
   it("bands scores on the same thresholds the gauge and the bars share", () => {
-    expect(scoreTone(80)).toBe("good");
-    expect(scoreTone(79)).toBe("warn");
-    expect(scoreTone(55)).toBe("warn");
-    expect(scoreTone(54)).toBe("bad");
+    // The engine's verdict bands since 0.2.0, so a "good" tone is always a "strong" verdict.
+    expect(scoreTone(75)).toBe("good");
+    expect(scoreTone(74)).toBe("warn");
+    expect(scoreTone(45)).toBe("warn");
+    expect(scoreTone(44)).toBe("bad");
+  });
+});
+
+describe("0.3 report fields in the copied report", () => {
+  it("lists soft skills apart and the advice, marked as not scored", () => {
+    const text = reportToPlainText(
+      report({
+        jobMatchScore: 60,
+        missingKeywords: ["kubernetes", "communication"],
+        missingKeywordGroups: { hard: ["kubernetes"], soft: ["communication"] },
+        advice: [
+          {
+            id: "file.name",
+            kind: "file",
+            message: "The file name does not say whose resume it is.",
+            fix: "Name it Jane-Doe-Resume.pdf.",
+          },
+        ],
+      }),
+      "https://www.veriworkly.com",
+    );
+    expect(text).toContain("Missing: kubernetes");
+    expect(text).toContain("Soft skills mentioned (weigh less): communication");
+    expect(text).toContain("WORTH KNOWING (NOT SCORED)");
+    expect(text).toContain("* The file name does not say whose resume it is.");
   });
 });

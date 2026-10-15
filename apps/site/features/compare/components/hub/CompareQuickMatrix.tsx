@@ -93,7 +93,7 @@ export const CompareQuickMatrix = () => {
                   <td className="text-muted p-4 sm:p-5">
                     {comp.id === "rezi" && "Capped (3 downloads)"}
                     {comp.id === "teal" && "Unlimited PDF"}
-                    {comp.id === "kickresume" && "Limited styling"}
+                    {comp.id === "kickresume" && "Unlimited with free options"}
                     {comp.id === "novoresume" && "1-page PDF only"}
                     {comp.id === "zety" && "Plain text only (.txt)"}
                     {comp.id === "enhancv" && "Watermarked trial"}
@@ -122,10 +122,10 @@ export const CompareQuickMatrix = () => {
                   <td className="text-muted p-4 font-mono text-xs sm:p-5">
                     {comp.id === "rezi" && "$29/mo or $149"}
                     {comp.id === "teal" && "$13/7d or $29/30d"}
-                    {comp.id === "kickresume" && "$4-$9/mo"}
-                    {comp.id === "novoresume" && "$19.99/mo"}
+                    {comp.id === "kickresume" && "$24/mo or $96/yr"}
+                    {comp.id === "novoresume" && "$23.99 one-time"}
                     {comp.id === "zety" && "$1.95 trial → $25.95/4wks"}
-                    {comp.id === "enhancv" && "$13-$25/mo"}
+                    {comp.id === "enhancv" && "$39/mo or $99/6mo"}
                   </td>
 
                   <td className="p-4 text-right sm:p-5">

@@ -74,7 +74,7 @@ PDF is a container format. What goes inside it varies enormously.
 
 **Text-based PDFs** store glyphs, fonts, and positioning as structured objects. The word "Engineer" is stored as the characters E-n-g-i-n-e-e-r with a font reference and coordinates. Any parser can extract it. This is what Word, Google Docs, LaTeX, and browser print-to-PDF produce.
 
-**Image-based PDFs** store a bitmap. The word "Engineer" is a grid of pixels that happens to look like letters. There is no text to extract, because no text was stored. This is what a scanner produces — and, less obviously, what a certain class of web application produces.
+**Image-based PDFs** store a bitmap. The word "Engineer" is a grid of pixels that happens to look like letters. There is no text to extract, because no text was stored. A scanner produces this kind of file. So do some web applications.
 
 Both open identically in a PDF viewer. Only one survives contact with a resume parser.
 
@@ -82,10 +82,10 @@ Both open identically in a PDF viewer. Only one survives contact with a resume p
 
 Browsers have no native API for generating a structured PDF from arbitrary DOM. So the common workaround is a two-step pipeline:
 
-1. `html2canvas` (or similar) walks the DOM and paints it onto a `<canvas>` element — producing a raster image.
+1. `html2canvas` (or similar) walks the DOM and paints it onto a `<canvas>` element, producing a raster image.
 2. `jsPDF` takes that canvas image and embeds it in a PDF container.
 
-The output is pixel-accurate. Everything you designed appears exactly as designed. And the text layer does not exist, because step one destroyed it. The canvas never had characters — only colored pixels.
+The output is pixel-accurate. Everything you designed appears exactly as designed. The text layer does not exist because step one destroyed it. The canvas contains colored pixels, not characters.
 
 This approach is popular because it is genuinely easy and the visual fidelity is perfect. It works fine for charts, receipts, and dashboards. It is quietly catastrophic for a document whose entire purpose is being read by software.
 
@@ -115,7 +115,7 @@ The correct approach skips the DOM entirely and constructs the PDF from its own 
 </Document>
 ```
 
-The tradeoff is real and worth stating: you now maintain two rendering paths. The editor preview is HTML/CSS; the export is react-pdf. They share a data model but not a layout engine, so keeping them visually identical is ongoing work — flexbox support differs, some CSS has no equivalent, and fonts must be registered and embedded explicitly.
+The tradeoff is real: you now maintain two rendering paths. The editor preview is HTML/CSS; the export is react-pdf. They share a data model but not a layout engine. Keeping them visually identical takes work because flexbox support differs, some CSS has no equivalent, and fonts must be registered and embedded explicitly.
 
 That is the cost of a selectable text layer. For a resume builder it is not optional.
 
@@ -127,9 +127,9 @@ Whatever tool you used, verify the output rather than trusting it:
 2. Try to select your name with the cursor.
 3. Then press Ctrl/Cmd+F and search for a word you know is in the document.
 
-**Selects character by character, search finds it** — real text layer. Fine.
+**Selects character by character, search finds it:** real text layer. Fine.
 
-**Whole page selects as one block, or search finds nothing** — image-based PDF. Every parser will receive an empty document.
+**Whole page selects as one block, or search finds nothing:** image-based PDF. Every parser will receive an empty document.
 
 A second check worth doing: copy the whole document (Ctrl/Cmd+A, Ctrl/Cmd+C) and paste into a plain text editor. What you see is approximately what a parser sees. If the order is scrambled or sections are missing, that tells you something useful too.
 
@@ -139,15 +139,15 @@ Worth being precise, because this topic attracts overstatement.
 
 This is **not** a general argument that PDFs are risky. Text-based PDFs parse reliably, and format testing across major platforms in 2026 found [negligible difference between PDF and DOCX](https://www.rezi.ai/posts/ats-myths). The old "always send .docx" advice is outdated.
 
-This is **not** an argument that visual design breaks parsing. Colour and reasonable styling are handled fine by current systems, and two-column layouts frequently extract cleanly, though not always — the risk there is line ordering rather than rejection, and it varies by file rather than by design. [Which layout choices genuinely affect extraction](/ats-friendly-resume-format) is a narrower list than the folklore suggests: text rendered as image, information conveyed only through graphics, contact details placed in a header region, and inconsistent date formats.
+Visual design does not automatically break parsing. Current systems handle colour and reasonable styling well, and two-column layouts frequently extract cleanly. Their risk is line ordering rather than rejection, and it varies by file rather than by design. [Which layout choices genuinely affect extraction](/ats-friendly-resume-format) is a narrower list than the folklore suggests: text rendered as an image, information conveyed only through graphics, contact details placed in a header region, and inconsistent date formats.
 
-And it is **not** the main reason applications fail. Volume math and knockout questions cost far more candidates than parsing does — we covered that in [what applicant tracking systems actually do](/ats-resume-myths-what-the-evidence-shows). Image-based PDFs are simply the one failure that is total rather than probabilistic: not a weaker application, an empty one.
+Blank PDFs are not the main reason applications fail. Volume math and knockout questions cost far more candidates than parsing does, as we covered in [what applicant tracking systems actually do](/ats-resume-myths-what-the-evidence-shows). An image-based PDF is different because it creates a total failure: the application contains an empty document rather than a weaker one.
 
 ## Why we build it this way
 
-Every [VeriWorkly](https://veriworkly.com) template ships two renderers against one data model — a `web.tsx` for the live editor and a `pdf.tsx` built on react-pdf for export. Export runs entirely in the browser: no server round-trip, no headless Chromium, no rendering queue. Fonts are embedded by the renderer so layout holds regardless of what is installed on the viewing machine, and the resulting blob downloads directly.
+Every [VeriWorkly](https://veriworkly.com) template ships two renderers against one data model: a `web.tsx` for the live editor and a `pdf.tsx` built on react-pdf for export. Export runs entirely in the browser. It does not require a server round-trip, headless Chromium, or a rendering queue. The renderer embeds fonts so layout holds regardless of what is installed on the viewing machine, and the resulting blob downloads directly.
 
-The privacy property is a side effect we like — document content never has to leave the device to become a file — but the reason for the architecture is narrower than that. It is simply the only way to guarantee the export contains real text.
+The privacy property is a useful side effect. Document content never has to leave the device to become a file. The reason for the architecture is narrower: it guarantees the export contains real text.
 
 The code is [open source](https://github.com/VeriWorkly/veriworkly) if you want to read the export path rather than take our word for it. And if you use a different tool, the ten-second check above works on any file, from any source.
 

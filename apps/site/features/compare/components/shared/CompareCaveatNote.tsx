@@ -12,9 +12,9 @@ export const CompareCaveatNote = ({ competitorName }: CompareCaveatNoteProps) =>
       <Info className="text-muted mt-0.5 size-4 shrink-0" aria-hidden="true" />
       <p className="text-muted text-xs leading-relaxed">
         <span className="text-foreground font-medium">Pricing Note:</span> Pricing and feature
-        details for {competitorName} were checked in {PRICING_VERIFIED_AT} from their public pricing
-        pages and user reviews. Companies occasionally change their prices, so please check{" "}
-        {competitorName}&apos;s website for the most recent numbers.
+        details for {competitorName} were checked in {PRICING_VERIFIED_AT} against the
+        provider&apos;s public pricing or product pages. Companies occasionally change their prices,
+        so please check {competitorName}&apos;s website for the most recent numbers.
       </p>
     </div>
   );

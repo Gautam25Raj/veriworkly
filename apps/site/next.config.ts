@@ -112,6 +112,24 @@ const nextConfig: NextConfig = {
       { source: "/blog", destination: "https://blog.veriworkly.com", permanent: true },
       { source: "/docs", destination: "https://docs.veriworkly.com/docs", permanent: true },
       { source: "/dashboard", destination: "https://app.veriworkly.com", permanent: true },
+
+      // Older template URLs used unprefixed slugs. Send the known legacy paths to the
+      // current, canonical template detail pages instead of serving soft 404s.
+      {
+        source: "/templates/executive-clarity",
+        destination: "/templates/resume/resume-executive-clarity",
+        permanent: true,
+      },
+      {
+        source: "/templates/executive",
+        destination: "/templates/resume/resume-executive-clarity",
+        permanent: true,
+      },
+      {
+        source: "/templates/modern",
+        destination: "/templates/resume/resume-modern-minimal",
+        permanent: true,
+      },
     ];
   },
 

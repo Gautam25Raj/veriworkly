@@ -130,7 +130,7 @@ Use: Experience, Education, Skills, Projects, Certifications, Summary. This is o
 
 Dates are parsed with pattern matching, and the patterns are less flexible than you would expect. Consistency matters more than which convention you choose.
 
-Reliable: `Jan 2023 – Mar 2025`, `01/2023 – 03/2025`, `2023 – 2025`.
+Reliable: `Jan 2023 - Mar 2025`, `01/2023 - 03/2025`, `2023 - 2025`.
 
 Riskier: spelled-out months mixed with abbreviated ones, "to" instead of a dash, seasons (`Spring 2023`), and single dates with no range. `Present` and `Current` are both widely recognised.
 
@@ -172,12 +172,12 @@ Two or three lines positioning you for this specific role.
 EXPERIENCE
 
 Job Title
-Employer, Location · Jan 2023 – Present
+Employer, Location · Jan 2023 - Present
 · Bullet with action, scope, and outcome
 · Bullet with action, scope, and outcome
 
 Job Title
-Employer, Location · Mar 2020 – Dec 2022
+Employer, Location · Mar 2020 to Dec 2022
 · Bullet with action, scope, and outcome
 
 EDUCATION
@@ -187,19 +187,19 @@ SKILLS
 Grouped, comma separated, plain text.
 ```
 
-Single column, standard headings, contact in the body, consistent dates, no information locked in graphics. Every visual decision after that — typography, spacing, rules, restrained colour — is for the person reading it, and you should spend real effort there, because a document that clears extraction and then bores a human has only solved half the problem.
+Single column, standard headings, contact in the body, consistent dates, no information locked in graphics. Typography, spacing, rules, and restrained colour are for the person reading it. Spend real effort there, because a document that clears extraction and then bores a human has only solved half the problem.
 
 ## Where format stops being the problem
 
 Format is worth thirty minutes once. After that the returns collapse, and it is worth being honest about where the actual failures are.
 
-Applications fail mostly on relevance and volume. [Roughly 2–3% of cold applications reach an interview](/how-many-jobs-should-you-apply-to), and knockout questions configured by recruiters (work authorisation, required licence, location) filter more candidates than parsing ever will. A perfectly formatted resume that does not match the posting loses to a plainly formatted one that does.
+Applications fail mostly on relevance and volume. [Roughly 2 to 3% of cold applications reach an interview](/how-many-jobs-should-you-apply-to), and knockout questions configured by recruiters (work authorisation, required licence, location) filter more candidates than parsing ever will. A perfectly formatted resume that does not match the posting loses to a plainly formatted one that does.
 
 So: run the copy-paste test, fix anything it surfaces, then stop thinking about format and go [rewrite your bullets](/how-to-write-resume-bullet-points-that-get-read).
 
 ## How we test this
 
-We maintain an ATS checker that runs a deterministic rules engine over extracted resume text — word count bands, presence of contact details and required sections, where contact details fall in the document, quantified-achievement ratio, buzzword density, and keyword matching against a job description with a synonym map and light stemming so `managed`, `manages`, and `managing` fold together.
+We maintain an ATS checker that runs a deterministic rules engine over extracted resume text: word-count bands, presence of contact details and required sections, where contact details fall in the document, quantified-achievement ratio, buzzword density, and keyword matching against a job description with a synonym map and light stemming so `managed`, `manages`, and `managing` fold together.
 
 Two things we learned building it are worth passing on. Most resumes that score badly do so on content rather than structure, which matches what the parsing literature reports. And the rules that produce the most useful feedback are boring: contact position, missing sections, and unquantified bullets, not anything exotic.
 

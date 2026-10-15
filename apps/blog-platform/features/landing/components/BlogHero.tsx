@@ -65,6 +65,37 @@ export const BlogHero = ({ postCount }: BlogHeroProps) => {
               </Link>
             </div>
           </div>
+
+          <nav
+            aria-label="Career guides"
+            className="border-border/60 flex flex-wrap items-center gap-x-4 gap-y-2 border-t pt-5 text-sm"
+          >
+            <span className="text-muted font-semibold">Career guides:</span>
+            <Link
+              href="/ats-friendly-resume-format"
+              className="text-accent font-semibold hover:underline"
+            >
+              ATS-friendly resume format
+            </Link>
+            <Link
+              href="/how-long-should-a-resume-be"
+              className="text-accent font-semibold hover:underline"
+            >
+              How long should a resume be?
+            </Link>
+            <Link
+              href="/free-resume-builders-compared"
+              className="text-accent font-semibold hover:underline"
+            >
+              Free resume builders compared
+            </Link>
+            <Link
+              href="/why-some-resume-pdfs-parse-as-blank"
+              className="text-accent font-semibold hover:underline"
+            >
+              Fix a blank resume PDF
+            </Link>
+          </nav>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">

@@ -180,6 +180,10 @@ export async function GET(request: Request) {
           // runtime opts this route out of static generation, which makes an
           // explicit cache header the only thing preventing that.
           "Cache-Control": "public, immutable, no-transform, max-age=31536000",
+          // Social cards are fetchable by unfurlers, but query-string image endpoints are not
+          // search documents. Keeping them out of the index stops Search Console from treating
+          // every post's generated card as a crawl candidate.
+          "X-Robots-Tag": "noindex",
         },
       },
     );

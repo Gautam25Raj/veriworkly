@@ -106,19 +106,23 @@ export const COMPETITORS: Competitor[] = [
     positioning:
       "Teal is a job-search tracker and resume builder with a browser extension that saves job postings from LinkedIn, Indeed, and other job boards.",
     verdict:
-      "Teal is great if you want a Kanban board to bookmark jobs with a Chrome extension. But its in-depth ATS keyword matching costs ~$29/month with Teal+, and all your data lives on their servers. VeriWorkly is built for people who want private, local-first document creation, free ATS matching, and an online portfolio.",
+      "Teal is great if you want a Kanban board to bookmark jobs with a Chrome extension. Its free tier includes unlimited resumes and PDF exports, while deeper keyword matching, analysis, templates, and AI sit in Teal+. VeriWorkly is built for people who want private, local-first document creation, free ATS matching, and an online portfolio.",
     bestForCompetitor:
       "Job seekers who want an all-in-one bookmarking tool and tracker extension to organize dozens of job applications.",
     bestForVeriworkly:
       "People who want a private resume and portfolio maker with built-in ATS keyword matching and zero monthly fees.",
     pricingSummary:
-      "Basic tracking and simple resume downloads are free. Full ATS matching and AI writing require Teal+ for roughly $29/month.",
-    pricingModel: "~$29/month or ~$79/quarter for Teal+",
-    paidPlans: ["Teal+ Monthly: ~$29/month", "Teal+ Quarterly: ~$79/quarter (~$26.33/mo)"],
+      "The free tier includes unlimited resumes and PDF downloads, 10 templates, top-five keyword insights, and limited AI credits. Teal+ unlocks unlimited advanced features for $13 every 7 days, $29 every 30 days, or $79 every 90 days.",
+    pricingModel: "$13/7 days, $29/30 days, or $79/90 days for Teal+",
+    paidPlans: [
+      "Teal+ Weekly: $13 every 7 days",
+      "Teal+ Monthly: $29 every 30 days",
+      "Teal+ Quarterly: $79 every 90 days",
+    ],
     standoutFeature:
       "Job application tracker and Chrome extension that easily clips jobs from 50+ sites into an organized board.",
     knownLimitation:
-      "In-depth ATS keyword matching against job postings requires the Teal+ upgrade (~$29/month), and some multi-column templates can confuse older ATS scanners.",
+      "The free tier limits job-description keyword insights to the top five and reserves unlimited matching, advanced analysis, templates, and AI for Teal+.",
     whySwitch:
       "If you already organize your job hunt in a spreadsheet or Notion and just want a fast, private builder with full ATS checks and a personal website, VeriWorkly gives you that for free.",
     deepDive: [
@@ -150,10 +154,10 @@ export const COMPETITORS: Competitor[] = [
       loginRequired: "Required (free signup)",
       localFirst: false,
       openSource: false,
-      freePlan: "Free basic tier",
-      freeExport: "Unlimited basic PDFs",
+      freePlan: "Unlimited resumes and PDFs; 10 templates",
+      freeExport: "Unlimited PDFs",
       watermarkFree: true,
-      atsChecker: "Basic (Full matching in Teal+)",
+      atsChecker: "Top five keyword insights; unlimited in Teal+",
       coverLetterBuilder: true,
       portfolioBuilder: false,
       multiFormatExport: "PDF only",
@@ -164,7 +168,7 @@ export const COMPETITORS: Competitor[] = [
       {
         question: "Is Teal free to use?",
         answer:
-          "Teal has a helpful free plan for saving jobs and building basic resumes. However, full keyword matching against job descriptions and advanced AI features require Teal+ at around $29 per month.",
+          "Teal's free tier includes unlimited resumes and PDF exports, plus basic job tracking, analysis, and a limited set of keyword insights and AI credits. Teal+ costs $13 every 7 days, $29 every 30 days, or $79 every 90 days and removes those advanced-feature limits.",
       },
       {
         question: "How is VeriWorkly different from Teal?",
@@ -194,18 +198,18 @@ export const COMPETITORS: Competitor[] = [
     positioning:
       "Kickresume is a template-focused resume, cover letter, and website builder with thousands of sample bullet points and hired examples.",
     verdict:
-      "Kickresume offers nice visual templates and pre-written phrases, but locks fonts, colors, and premium designs behind monthly subscriptions ($4-$9/mo). VeriWorkly gives you clean typography, full styling freedom, and pay-as-you-go AI credits with no monthly commitments.",
+      "Kickresume offers visual templates and pre-written phrases. Its free plan has four basic templates and unlimited downloads when you stay with free customization options; Premium unlocks more templates, fonts, colors, AI, and checking tools. VeriWorkly offers a local-first builder with no account needed to start.",
     bestForCompetitor:
       "People who want to browse thousands of pre-written sample phrases and examples from hired candidates.",
     bestForVeriworkly:
       "Job seekers and developers who want clean designs, open-source privacy, zero sign-up friction, and easy GitHub syncing.",
     pricingSummary:
-      "The free plan has limited styling and template options. Premium plans cost between $4 and $9/month depending on your billing term.",
-    pricingModel: "$4 to $9/month depending on billing plan",
+      "The free plan has four basic resume templates, limited design control, and unlimited downloads. Premium is $24 monthly, $54 for three months, or $96 yearly.",
+    pricingModel: "$24/month, $54/3 months, or $96/year",
     paidPlans: [
-      "Monthly: ~$9/month",
-      "Quarterly: ~$6/month ($18 billed quarterly)",
-      "Yearly: ~$4/month ($48 billed annually)",
+      "Monthly: $24/month",
+      "Quarterly: $54 every 3 months ($18/month)",
+      "Yearly: $96 every 12 months ($8/month)",
     ],
     // Previously quoted "20,000+ bullet points" and "1,500+ real resumes" as fact,
     // with no source and no date. Third-party figures stated flatly are the highest-
@@ -249,13 +253,13 @@ export const COMPETITORS: Competitor[] = [
       loginRequired: "Required (free signup)",
       localFirst: false,
       openSource: false,
-      freePlan: "Limited templates & fonts",
-      freeExport: "Basic templates only",
+      freePlan: "4 basic templates; limited design control",
+      freeExport: "Unlimited downloads with free options",
       watermarkFree: true,
       atsChecker: "Basic check",
       coverLetterBuilder: true,
       portfolioBuilder: "Included (Paid themes)",
-      multiFormatExport: "PDF & DOCX (Premium)",
+      multiFormatExport: "PDF and Word export",
       linkedinImport: true,
       githubImport: false,
     },
@@ -278,7 +282,7 @@ export const COMPETITORS: Competitor[] = [
       {
         question: "How does VeriWorkly's pricing work compared to Kickresume?",
         answer:
-          "Kickresume charges a recurring subscription ($4-$9/month). VeriWorkly has no monthly builder fee; the core editor is completely free, and AI suggestions use small, one-time credit packs.",
+          "Kickresume Premium costs $24 monthly, $54 for three months, or $96 yearly. Its free plan has four basic templates, limited design choices, and unlimited downloads with free options. VeriWorkly has no monthly builder fee for the core editor; AI suggestions use small, one-time credit packs.",
       },
     ],
   },
@@ -293,30 +297,30 @@ export const COMPETITORS: Competitor[] = [
     positioning:
       "Novoresume is a minimalist, template-driven resume builder built for clean layouts and strict single-page resumes.",
     verdict:
-      "Novoresume makes neat 1-page resumes, but locks 2-page resumes and extra fonts behind a $19.99/month paywall and cannot match your resume against specific job postings. VeriWorkly gives you multi-page flexibility, true job-matching ATS checks, and PDF/Word/Markdown downloads for free.",
+      "Novoresume makes neat one-page resumes, but locks a second page and extra design controls behind Premium. Its published Premium prices are one-time purchases, not a recurring subscription. VeriWorkly gives you multi-page flexibility, true job-matching ATS checks, and PDF, Word, and Markdown downloads for free.",
     bestForCompetitor:
       "Students or entry-level candidates who want a strict 1-page template with rigid formatting rules.",
     bestForVeriworkly:
       "Experienced professionals, engineers, and career changers who need multi-page resumes, Word/Markdown downloads, and targeted ATS matching.",
     pricingSummary:
-      "The free plan limits you to 1 page and 3 fonts. Premium costs ~$19.99/month, ~$39.99/quarter, or ~$99.99/year.",
-    pricingModel: "$19.99/month or $99.99/year for Premium",
+      "The free plan permits one one-page resume with three fonts. Premium is a one-time purchase for $23.99 for a month, $49.99 for a quarter, or $199.99 for a year.",
+    pricingModel: "$23.99/month, $49.99/quarter, or $199.99/year",
     paidPlans: [
-      "Monthly: ~$19.99/month",
-      "Quarterly: ~$39.99/quarter (~$13.33/mo)",
-      "Annual: ~$99.99/year (~$8.33/mo)",
+      "Monthly: $23.99 one-time purchase",
+      "Quarterly: $49.99 one-time purchase",
+      "Annual: $199.99 one-time purchase",
     ],
     standoutFeature:
       "Smart 1-page layout engine that keeps text neatly balanced on a single page without accidental page breaks.",
     knownLimitation:
       "Free resumes cannot exceed 1 page. There is no Word (DOCX) export, and the built-in checker only grades general completeness rather than comparing your text to a real job post.",
     whySwitch:
-      "Novoresume charges $19.99/month as soon as your experience spills onto page two. VeriWorkly lets you write multi-page resumes and check them against real job descriptions for free.",
+      "Novoresume requires Premium once your experience spills onto page two. VeriWorkly lets you write multi-page resumes and check them against real job descriptions for free.",
     deepDive: [
       {
         title: "Page Length Limits",
         competitorApproach:
-          "Strict 1-page cap on the free plan; page 2 requires a $19.99/month Premium subscription.",
+          "Strict one-page cap on the free plan; page two requires a Premium purchase.",
         veriworklyApproach:
           "Create 1-page, 2-page, or longer resumes on the free tier with complete page controls.",
         takeaway:
@@ -355,7 +359,7 @@ export const COMPETITORS: Competitor[] = [
       {
         question: "Can I make a 2-page resume for free on Novoresume?",
         answer:
-          "No. Novoresume's free plan only permits a single page. Making a two-page resume requires the $19.99/month Premium plan. VeriWorkly supports multi-page resumes on its free plan.",
+          "No. Novoresume's free plan only permits a single page. Making a two-page resume requires Premium. VeriWorkly supports multi-page resumes on its free plan.",
       },
       {
         question: "Does Novoresume check my resume against a job posting?",
@@ -478,18 +482,18 @@ export const COMPETITORS: Competitor[] = [
     positioning:
       "Enhancv is a design-focused resume builder featuring modern layouts, personal branding sections, and real-time writing tips.",
     verdict:
-      "Enhancv offers sleek designs and unique personality sections, but puts an Enhancv watermark on free downloads and charges some of the highest subscription prices in the category ($13-$25/mo). VeriWorkly gives you modern typography, ATS checks, and clean unwatermarked exports without monthly fees.",
+      "Enhancv offers sleek designs and unique personality sections, but its seven-day free plan adds Enhancv branding to exports. The published Pro prices are $39 monthly, $69 for three months, or $99 for six months. VeriWorkly gives you modern typography, ATS checks, and clean unwatermarked exports without a monthly builder fee.",
     bestForCompetitor:
-      "Creatives who want unconventional resume sections (like 'Life Philosophy' or 'My Day') and are willing to pay $13 to $25 per month.",
+      "Creatives who want unconventional resume sections, job tailoring, and design controls and are willing to pay for Pro.",
     bestForVeriworkly:
       "Designers, developers, and professionals who want great typography and clean formatting with zero vendor watermarks and no recurring bills.",
     pricingSummary:
-      "The free plan is a 7-day trial with a watermark on downloads. Pro plans cost ~$19.99/month (monthly) or ~$13.33/month (quarterly).",
-    pricingModel: "$13.33 to $24.99/month depending on plan",
+      "The free plan lasts seven days, includes all templates and design tools, caps a resume at 12 section items, and adds Enhancv branding. Pro is $39 monthly, $69 for three months, or $99 for six months.",
+    pricingModel: "$39/month, $69/3 months, or $99/6 months",
     paidPlans: [
-      "Pro Weekly: $24.99/week",
-      "Pro Monthly: $19.99/month",
-      "Pro Quarterly: ~$39.99/quarter (~$13.33/mo)",
+      "Pro Monthly: $39/month",
+      "Pro Quarterly: $69 every 3 months ($23/month)",
+      "Pro Semiannual: $99 every 6 months ($16.50/month)",
     ],
     standoutFeature:
       "Real-time writing auditor that flags passive voice, repetitive words, and missing numbers as you type.",
@@ -509,8 +513,7 @@ export const COMPETITORS: Competitor[] = [
       },
       {
         title: "Subscription Costs",
-        competitorApproach:
-          "Plans cost between $13.33/month and $24.99/week, adding up to significant expenses over a job search.",
+        competitorApproach: "Plans cost $39 monthly, $69 for three months, or $99 for six months.",
         veriworklyApproach:
           "Core builder is free forever. AI credits are pay-as-you-go with no forced monthly subscriptions.",
         takeaway: "Save money during your job search while getting clean, professional results.",
@@ -543,7 +546,7 @@ export const COMPETITORS: Competitor[] = [
       {
         question: "Can I download an Enhancv resume for free without a watermark?",
         answer:
-          "No. Free and trial downloads on Enhancv have a watermark and logo on the page. Removing the watermark requires upgrading to Pro ($13.33-$24.99/mo). VeriWorkly never puts watermarks or logos on your documents.",
+          "No. Free and trial downloads on Enhancv have a watermark and logo on the page. Removing the watermark requires Pro, listed at $39 monthly, $69 for three months, or $99 for six months. VeriWorkly never puts watermarks or logos on your documents.",
       },
       {
         question: "Does Enhancv include an online portfolio builder?",

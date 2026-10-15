@@ -1,18 +1,19 @@
 ---
-title: "Why Some Resume PDFs Parse as Blank Pages"
-description: "A PDF can look perfect on screen and contain zero readable text. The cause is how the file was generated — and it is the one formatting failure that genuinely zeroes out an application."
+title: "Resume PDF Parses as Blank: Causes and Fixes"
+description: "A resume PDF can look perfect and still return no readable text to an ATS. Learn how to diagnose an image-only PDF, export a usable replacement, and check the result before you apply."
 author: VeriWorkly Engineering
 date: 2026-07-29
-updated: 2026-08-03
+updated: 2026-10-15
 category: Engineering
 cluster: engineering
-primaryKeyword: resume pdf not parsing
+primaryKeyword: resume pdf parses blank
 tags:
   - pdf generation
   - resume parsing
   - react-pdf
   - html2canvas
   - ats
+  - resume pdf blank
 faq:
   - question: How do I know if my resume PDF is text-based or image-based?
     answer: >-
@@ -32,13 +33,40 @@ faq:
       layers. The problem is specific to tools that rasterize a web page into an
       image before exporting. Scanning a printed resume also produces an
       image-only PDF.
+  - question: How do I fix a resume PDF that parses as blank?
+    answer: >-
+      Export again from the original document with a text-preserving PDF option,
+      then test the result by selecting text, searching for a known word, and
+      copying it into a plain text editor. If you only have a scanned copy, use
+      OCR as a recovery step and proofread every field before you upload it.
 ---
 
-# Why Some Resume PDFs Parse as Blank Pages
+# Resume PDF Parses as Blank: Causes and Fixes
 
 **A PDF can render perfectly on screen and contain no machine-readable text at all.** The file looks like a resume to you and looks like an empty page to every parser that receives it. This is the one formatting failure that genuinely zeroes out an application, and it is invisible unless you know to check.
 
 The cause is entirely in how the file was generated.
+
+## Quick diagnosis when your resume PDF parses blank
+
+**If you cannot select individual characters, search for a word you know is in the document, or copy readable text from the PDF, the file is probably an image inside a PDF container.** It may look fine to a person and still give an ATS nothing useful.
+
+| What happens in the PDF viewer             | Likely cause                                                   | What to do next                                                                   |
+| ------------------------------------------ | -------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| You cannot select any text                 | The page is an image                                           | Export again from the original document, not from a screenshot or scan.           |
+| The whole page selects as one object       | The resume was rasterized before PDF export                    | Use a text-preserving PDF export, then run the selection and search check again.  |
+| Search finds nothing                       | There is no usable text layer                                  | Re-export. If the original no longer exists, use OCR and proofread every field.   |
+| Text copies but arrives in the wrong order | The file has a reading-order problem, not a blank-text problem | Simplify the layout, then run the [PDF parser test](/ats-friendly-resume-format). |
+
+## How to fix a resume PDF that parses blank
+
+1. Return to the original Word file, Google Doc, resume builder, or design file. Do not edit the failed PDF if you can avoid it.
+2. Export a fresh PDF from that source. Word, Google Docs, LaTeX, browser print-to-PDF, and a proper PDF renderer create text objects rather than a page screenshot.
+3. Open the replacement and run three checks: select your name character by character, search for a word in a recent bullet, and paste the whole document into a plain text editor.
+4. If you only have a scanned PDF, OCR can recover text, but treat it as a draft. Check names, email addresses, phone numbers, dates, and employers before applying.
+5. Upload the replacement to the [ATS resume checker](https://veriworkly.com/ats-checker) or another parser. Use the result to inspect the extracted text, not to chase a score.
+
+Those steps solve the blank-PDF failure. If text is present but sections are scrambled, the problem is different and the [ATS-friendly resume format guide](/ats-friendly-resume-format) covers the next checks.
 
 ## Two ways to make a PDF
 

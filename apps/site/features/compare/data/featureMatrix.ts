@@ -1,6 +1,6 @@
 import type { CompetitorFeatureMatrix, FeatureRowItem } from "../types";
 
-export const PRICING_VERIFIED_AT = "August 2026";
+export const PRICING_VERIFIED_AT = "October 2026";
 
 export const VERIWORKLY_MATRIX: CompetitorFeatureMatrix = {
   loginRequired: "No login needed",

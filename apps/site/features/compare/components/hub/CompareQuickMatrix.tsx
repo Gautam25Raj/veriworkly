@@ -121,7 +121,7 @@ export const CompareQuickMatrix = () => {
 
                   <td className="text-muted p-4 font-mono text-xs sm:p-5">
                     {comp.id === "rezi" && "$29/mo or $149"}
-                    {comp.id === "teal" && "~$29/mo (Teal+)"}
+                    {comp.id === "teal" && "$13/7d or $29/30d"}
                     {comp.id === "kickresume" && "$4-$9/mo"}
                     {comp.id === "novoresume" && "$19.99/mo"}
                     {comp.id === "zety" && "$1.95 trial → $25.95/4wks"}

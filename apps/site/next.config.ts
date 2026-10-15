@@ -104,6 +104,17 @@ const nextConfig: NextConfig = {
     ],
   },
 
+  async redirects() {
+    return [
+      // Historical root-domain URLs appeared in Search Console as 404s. These have direct,
+      // durable homes on the public subdomains, so preserve their accumulated links instead of
+      // asking crawlers and visitors to rediscover them.
+      { source: "/blog", destination: "https://blog.veriworkly.com", permanent: true },
+      { source: "/docs", destination: "https://docs.veriworkly.com/docs", permanent: true },
+      { source: "/dashboard", destination: "https://app.veriworkly.com", permanent: true },
+    ];
+  },
+
   async headers() {
     return [
       {

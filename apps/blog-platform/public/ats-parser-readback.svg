@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">PDF read-back regression check</title>
+  <desc id="desc">A visual summary of VeriWorkly's PDF read-back regression check.</desc>
+  <rect width="1200" height="630" fill="#f5f4ef"/>
+  <rect x="42" y="42" width="1116" height="546" rx="24" fill="#ffffff" stroke="#d7d3ca" stroke-width="2"/>
+  <text x="96" y="128" fill="#171717" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700">PDF read-back regression check</text>
+  <text x="96" y="168" fill="#57534e" font-family="Arial, Helvetica, sans-serif" font-size="20">A release test for whether a generated resume PDF still returns the candidate's information as text.</text>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <rect x="96" y="236" width="280" height="176" rx="18" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="2"/>
+    <text x="132" y="290" fill="#0f172a" font-size="24" font-weight="700">1. Render PDF</text>
+    <text x="132" y="330" fill="#475569" font-size="18">Template and font</text>
+    <text x="132" y="358" fill="#475569" font-size="18">become a real export.</text>
+    <rect x="460" y="236" width="280" height="176" rx="18" fill="#eff6ff" stroke="#93c5fd" stroke-width="2"/>
+    <text x="496" y="290" fill="#0f172a" font-size="24" font-weight="700">2. Extract text</text>
+    <text x="496" y="330" fill="#475569" font-size="18">Read the file back as</text>
+    <text x="496" y="358" fill="#475569" font-size="18">a parser would.</text>
+    <rect x="824" y="236" width="280" height="176" rx="18" fill="#ecfdf5" stroke="#86efac" stroke-width="2"/>
+    <text x="860" y="290" fill="#0f172a" font-size="24" font-weight="700">3. Compare fields</text>
+    <text x="860" y="330" fill="#475569" font-size="18">Source data must match</text>
+    <text x="860" y="358" fill="#475569" font-size="18">the recovered values.</text>
+    <path d="M392 324 H444" fill="none" stroke="#64748b" stroke-width="4" stroke-linecap="round"/>
+    <path d="M440 314 L454 324 L440 334" fill="none" stroke="#64748b" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M756 324 H808" fill="none" stroke="#64748b" stroke-width="4" stroke-linecap="round"/>
+    <path d="M804 314 L818 324 L804 334" fill="none" stroke="#64748b" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="96" y="468" width="1008" height="70" rx="14" fill="#fafaf9" stroke="#e7e5e4" stroke-width="2"/>
+    <text x="132" y="512" fill="#171717" font-size="19" font-weight="700">Must recover:</text>
+    <text x="290" y="512" fill="#44403c" font-size="19">name, email, phone, roles, education, skills</text>
+    <text x="730" y="512" fill="#171717" font-size="19" font-weight="700">Must not contain:</text>
+    <text x="944" y="512" fill="#44403c" font-size="19">image-only pages or hidden text</text>
+  </g>
+</svg>

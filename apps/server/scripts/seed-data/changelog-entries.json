@@ -1,5 +1,49 @@
 [
   {
+    "id": "v3-26-0",
+    "version": "3.26.0",
+    "title": "ATS Writing Score, Certification & Language Parsing, Node 22.12+ Baseline",
+    "summary": "This release upgrades the ATS engine to 0.5.0, adds a dedicated resume writing category to ATS scoring, and displays spoken languages and certifications as structured rows in the parsed report. It also adds file advice for encrypted PDFs and Word revision marks, links the public scoring rubric directly from the checker, sets a Node.js 22.12+ baseline across the repository, and adds structured schema markup for search engines.",
+    "type": "minor",
+    "publishedAt": "2026-10-14T19:00:00Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.26.0",
+    "added": [
+      "Resume writing score category: added writing style evaluation (12 points out of 202) to the scoring model, balancing job matching with writing clarity.",
+      "Languages and certifications panels: the parsed resume view now shows dedicated panels for spoken languages and certifications, with Studio sending structured rows and CEFR-mapped fluency levels.",
+      "Non-scored file advice: the checker report now includes a Worth knowing section flagging encrypted PDFs and Word documents containing tracked changes or comments.",
+      "Open-source engine and rubric links: added direct links to the public @veriworkly/ats-engine repository and rubric inside the ATS pipeline section on the landing page.",
+      "Structured data for ATS checker: added JSON-LD WebApplication schema with a stable identifier to the ATS checker marketing page."
+    ],
+    "improved": [
+      "Upgraded @veriworkly/ats-engine to 0.5.0 across server, site, and Studio, improving parsing speed, PDF reading order detection, Word headers, and job matching accuracy.",
+      "Aligned display score tone with engine verdict thresholds (good from 75, warn from 45) across the gauge, breakdown bars, and Studio.",
+      "Enhanced checker reports: missing soft skills now appear on their own line, copied reports include writing scores, and the parser normalizer tolerates older API responses.",
+      "Clarified in landing page copy that resume scans run securely on the server without third-party browser proxies.",
+      "Updated llms.txt with links to the open-source engine package and rubric."
+    ],
+    "fixed": [
+      "Fixed template read-back on multi-page resumes where centered SKILLS headings on the final page of executive-clarity were read after their child items.",
+      "Dropped invalid cross-domain links from Studio and Site sitemaps, removed dynamic request timestamps so search engines only re-crawl updated content, added noindex to /ats-checker/scan, and removed it from sitemap.ts."
+    ],
+    "breaking": [],
+    "security": [],
+    "tags": ["ats-engine", "resume", "scoring", "node", "seo"],
+    "prRefs": [
+      {
+        "number": 213,
+        "title": "chore(ats): upgrade @veriworkly/ats-engine to 0.2.1"
+      },
+      {
+        "number": 214,
+        "title": "feat(ats): move to @veriworkly/ats-engine 0.3.0"
+      },
+      {
+        "number": 215,
+        "title": "chore(ats): Node 22.12+ baseline, link ATS engine rubric, JSON-LD schema, engine 0.5.0"
+      }
+    ]
+  },
+  {
     "id": "v3-25-1",
     "version": "3.25.1",
     "title": "Next.js 16.3.8 Security Patch, Dependency Advisories Cleared & Leaner Overrides",

@@ -1,9 +1,9 @@
 ---
 title: "ATS-Friendly Resume Format: What a Parser Actually Receives"
-description: "Most format advice is folklore because it describes what a resume looks like rather than what comes out of it. Here is what text extraction actually produces, which layout choices genuinely corrupt it, and a two-minute test that beats every rule of thumb."
+description: "Most ATS format advice describes how a resume looks instead of what its PDF actually returns to a parser. Use this two-minute test, a public PDF read-back artifact, and the few layout rules that have a real extraction mechanism behind them."
 author: VeriWorkly Engineering
 date: 2026-08-03
-updated: 2026-08-03
+updated: 2026-10-15
 category: Job Search
 cluster: ats
 pillar: true
@@ -47,7 +47,7 @@ faq:
       few format rules with a real mechanism behind it.
 ---
 
-# ATS-Friendly Resume Format
+# ATS-Friendly Resume Format: Test the PDF, Not the Template
 
 **A resume parses correctly when its text extracts in reading order, its section headings match labels the parser recognises, and its contact details sit in the document body.** Almost everything else you will read on this topic is folklore, repeated because it sounds cautious rather than because anyone tested it.
 
@@ -85,6 +85,16 @@ What you are looking at is approximately what the parser receives. Read it.
 This test takes less time than reading one listicle about ATS formatting, and unlike the listicle it is about your document.
 
 The blank-page case deserves its own treatment because it is the one total failure in the category, and it has a specific technical cause: [some tools export PDFs by screenshotting the page](/why-some-resume-pdfs-parse-as-blank), producing a file with no text layer at all.
+
+## A reproducible PDF read-back check
+
+**An "ATS-friendly" label means very little unless the exported PDF gives an extractor back the information that was put into it.** That is the test we use for VeriWorkly's shipped resume templates.
+
+![Diagram of the PDF read-back regression check. A PDF export is extracted to text, then the recovered name, contact details, roles, education, and skills are compared with the source document. The test also fails image-only pages and hidden text.](/ats-parser-readback.svg)
+
+The artifact above summarizes the [public read-back contract](https://github.com/VeriWorkly/veriworkly/blob/main/apps/studio/tests/contracts/template-ats.contract.test.tsx). For every template and supported font, the test renders a PDF, extracts it again, and compares the recovered name, email, phone number, roles, education, and skills with the source resume. It also fails an export with an image-only page or hidden text.
+
+That result is intentionally narrow. It does not claim that one template will rank better in every employer's system. It proves the more basic thing a resume template must get right: the PDF it produces still contains the candidate's information as readable text.
 
 ## What genuinely affects extraction
 
@@ -193,7 +203,7 @@ We maintain an ATS checker that runs a deterministic rules engine over extracted
 
 Two things we learned building it are worth passing on. Most resumes that score badly do so on content rather than structure, which matches what the parsing literature reports. And the rules that produce the most useful feedback are boring: contact position, missing sections, and unquantified bullets, not anything exotic.
 
-The engine is [open source](https://github.com/VeriWorkly/veriworkly), and the checker is free to run at [VeriWorkly](https://veriworkly.com). [Jobscan](https://www.jobscan.co) is the established option in this category and has a larger keyword database; [Teal](https://www.tealhq.com) bundles a checker into application tracking. Any of them will surface the same structural issues, and so will the copy-paste test, which costs nothing and requires no account.
+The engine is [open source](https://github.com/VeriWorkly/veriworkly), and the checker is free to run at the [VeriWorkly ATS resume checker](https://veriworkly.com/ats-checker). [Jobscan](https://www.jobscan.co) is the established option in this category and has a larger keyword database; [Teal](https://www.tealhq.com) bundles a checker into application tracking. Any of them will surface the same structural issues, and so will the copy-paste test, which costs nothing and requires no account.
 
 ## The short version
 

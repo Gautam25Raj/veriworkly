@@ -33,10 +33,6 @@ export default function robots(): MetadataRoute.Robots {
       },
     ],
 
-    sitemap: [
-      `${siteConfig.url}/sitemap.xml`,
-      "https://blog.veriworkly.com/sitemap.xml",
-      "https://docs.veriworkly.com/sitemap.xml",
-    ],
+    sitemap: `${siteConfig.url}/sitemap.xml`,
   };
 }

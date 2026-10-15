@@ -11,35 +11,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const routes: MetadataRoute.Sitemap = [
     {
       url: siteConfig.url,
-      lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 1,
     },
 
     {
       url: `${siteConfig.url}/pricing`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.8,
     },
 
     {
       url: `${siteConfig.url}/templates`,
-      lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 0.9,
     },
 
     {
       url: `${siteConfig.url}/faq`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.7,
     },
 
     ...templates.map((template) => ({
       url: `${siteConfig.url}/templates/${template.id}`,
-      lastModified: new Date(),
       changeFrequency: "monthly" as const,
       priority: 0.8,
     })),
@@ -59,12 +54,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     return [
       ...routes,
-      ...(payload.data ?? []).map((publication) => ({
-        url: portfolioPublicUrl(publication.subdomain),
-        lastModified: new Date(publication.updatedAt),
-        changeFrequency: "weekly" as const,
-        priority: 0.8,
-      })),
+      ...(payload.data ?? []).map((publication) => {
+        const updatedAt = new Date(publication.updatedAt);
+
+        return {
+          url: portfolioPublicUrl(publication.subdomain),
+          changeFrequency: "weekly" as const,
+          priority: 0.8,
+          ...(Number.isNaN(updatedAt.getTime()) ? {} : { lastModified: updatedAt }),
+        };
+      }),
     ];
   } catch {
     return routes;

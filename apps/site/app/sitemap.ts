@@ -150,16 +150,9 @@ const publicRoutes = [
     changeFrequency: "monthly" as const,
     priority: 0.5,
   },
-
-  { url: siteConfig.links.app, changeFrequency: "weekly", priority: 0.8 },
-  { url: siteConfig.links.docs, changeFrequency: "weekly", priority: 0.8 },
-  { url: siteConfig.links.blog, changeFrequency: "weekly", priority: 0.8 },
-  { url: siteConfig.links.portfolio, changeFrequency: "weekly", priority: 0.9 },
 ] satisfies MetadataRoute.Sitemap;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const lastModified = new Date();
-
   const templateRoutes = documentTypeSummaries
     .filter((docType) => docType.status === "available")
     .map((docType) => ({
@@ -187,7 +180,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${siteConfig.url}/roadmap/${entry.id}`,
       changeFrequency: "weekly" as const,
       priority: 0.65,
-      lastModified: Number.isNaN(updatedAt.getTime()) ? lastModified : updatedAt,
+      ...(Number.isNaN(updatedAt.getTime()) ? {} : { lastModified: updatedAt }),
     };
   });
 
@@ -198,7 +191,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${siteConfig.url}/changelog/${entry.id}`,
       changeFrequency: "yearly" as const,
       priority: 0.6,
-      lastModified: Number.isNaN(publishedAt.getTime()) ? lastModified : publishedAt,
+      ...(Number.isNaN(publishedAt.getTime()) ? {} : { lastModified: publishedAt }),
     };
   });
 
@@ -206,19 +199,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     url: `${siteConfig.url}/compare/${competitor.id}`,
     changeFrequency: "monthly" as const,
     priority: 0.7,
-    lastModified,
   }));
 
-  const changelogUrl = `${siteConfig.url}/changelog`;
+  const changelogIndexRoute = {
+    url: `${siteConfig.url}/changelog`,
+    changeFrequency: "weekly" as const,
+    priority: 0.7,
+    ...(changelogLastModified ? { lastModified: changelogLastModified } : {}),
+  };
 
   return [
-    ...publicRoutes.map((route) => ({
-      ...route,
-      lastModified:
-        route.url === changelogUrl ? (changelogLastModified ?? lastModified) : lastModified,
-    })),
-    ...templateRoutes.map((route) => ({ ...route, lastModified })),
-    ...templateDetailRoutes.map((route) => ({ ...route, lastModified })),
+    ...publicRoutes.filter((route) => route.url !== changelogIndexRoute.url),
+    changelogIndexRoute,
+    ...templateRoutes,
+    ...templateDetailRoutes,
     ...roadmapItemRoutes,
     ...changelogItemRoutes,
     ...compareRoutes,

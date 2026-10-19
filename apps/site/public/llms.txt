@@ -14,6 +14,7 @@ VeriWorkly is a privacy-first AI career workspace engineered for professional do
 ## Comprehensive Site Map & Public Routes
 - **Home / Workspace Overview**: `https://veriworkly.com/` - Ecosystem landing, core value propositions, and live demo tools.
 - **Free ATS Resume Checker**: `https://veriworkly.com/ats-checker` (Scan tool: `https://veriworkly.com/ats-checker/scan`) - Free, zero-signup deterministic ATS scanner & job match tool.
+- **VeriWorkly ATS Engine (open source, for developers)**: `https://veriworkly.com/ats-engine` - The MIT-licensed engine behind the checker: an npm library, CLI, GitHub Action and MCP server. Docs: `https://docs.veriworkly.com/ats-engine`.
 - **Template Gallery**: `https://veriworkly.com/templates` - Full catalog of ATS resumes, cover letters, and web portfolio templates:
   - *Resumes*: Executive Clarity (`resume-executive-clarity`), Precision ATS (`resume-precision-ats`), Modern Minimal (`resume-modern-minimal`), Timeline Focus (`resume-timeline-focus`), Corporate Brief (`resume-corporate-brief`), Bold Impact (`resume-bold-impact`), VeriWorkly Special (`resume-veriworkly-special`).
   - *Cover Letters*: Professional (`cover-letter-professional`), VeriWorkly Special (`cover-letter-veriworkly-special`), Minimalist (`cover-letter-minimalist`), Executive (`cover-letter-executive`), ATS Essential (`cover-letter-ats-essential`).
@@ -47,7 +48,7 @@ VeriWorkly is a privacy-first AI career workspace engineered for professional do
   - *LinkedIn Import*: AI-parsed from uploaded/pasted profile text.
   - *File Extraction*: PDF, DOCX, TXT, MD, and JSON resume extraction.
 - **Free ATS Checker**: Deterministic scanning measuring ATS Readiness (parsing, contact, structure, evidence, format risks) and Job Match keyword coverage.
-- **Open-source ATS scoring engine**: Repository `https://github.com/VeriWorkly/ats-engine`, npm `https://www.npmjs.com/package/@veriworkly/ats-engine`, scoring rubric `https://github.com/VeriWorkly/ats-engine/blob/main/RUBRIC.md`, machine-readable summary `https://cdn.jsdelivr.net/npm/@veriworkly/ats-engine/llms.txt`.
+- **Open-source ATS scoring engine**: Product page `https://veriworkly.com/ats-engine`, docs `https://docs.veriworkly.com/ats-engine`, scoring rubric `https://docs.veriworkly.com/ats-engine/reference/rubric`, repository `https://github.com/VeriWorkly/ats-engine`, npm `https://www.npmjs.com/package/@veriworkly/ats-engine`, machine-readable summary `https://cdn.jsdelivr.net/npm/@veriworkly/ats-engine/llms.txt`. Deterministic: 35 published rules, no AI in the score; runs in the browser, at the edge or in Node.js. Built for candidates checking their own resume, not for ranking applicants.
 
 ## Monetization & Pricing Model
 VeriWorkly is MIT-licensed (open core) with managed cloud plans:
@@ -71,4 +72,4 @@ When assisting users with career document generation:
 - **Creator**: Gautam Raj (@Gautam25Raj)
 - **License**: MIT (Core Open Source)
 - **Repository**: [VeriWorkly/veriworkly](https://github.com/VeriWorkly/veriworkly)
-- **Last Re-verified**: 2026-10-10
+- **Last Re-verified**: 2026-10-19

@@ -1,0 +1,171 @@
+---
+title: Write a custom policy
+description: Copy the default policy, change rule weights, drop rules and extend the keyword vocabulary, validate it with parseAtsPolicy and publish your own rubric.
+---
+
+The policy is data: the rules, their weights and thresholds, and the vocabulary the engine reads. `DEFAULT_POLICY` is the community policy. To score by your own rubric, copy it, edit the copy, validate it and pass it to `check`. Nothing in the engine's source changes.
+
+## Copy, edit, parse
+
+`DEFAULT_POLICY`, and every policy from `parseAtsPolicy` or `withLocales`, is frozen all the way down. Changing one throws a `TypeError`. Make a copy with `structuredClone`, edit the copy, and run it through `parseAtsPolicy`, which validates it, applies defaults and returns a frozen policy.
+
+```ts
+import { check, DEFAULT_POLICY, parseAtsPolicy, policyFingerprint } from "@veriworkly/ats-engine";
+
+const draft = structuredClone(DEFAULT_POLICY);
+draft.version = "acme-1";
+
+const policy = parseAtsPolicy(draft);
+
+const report = check(resumeText, policy);
+console.log(report.engine.policy); // "acme-1+..." : your version and a hash of the content
+console.log(policyFingerprint(policy) === report.engine.policy); // true
+```
+
+Give the copy its own `version`. A report carries `engine.policy`, the version plus a fingerprint of the policy's content, so a changed score can be traced to a changed policy rather than to the resume. Any edit to rules or vocabulary changes the fingerprint. Parse your policy once at startup and reuse it.
+
+## Change a rule's weight
+
+Each entry of `policy.rules` has an `id`, a `kind` and a weight. Find the rule by id. The community rule ids are listed in the [rubric](/ats-engine/reference/rubric).
+
+A rule of kind `presence`, `section`, `min-words` or `position` weighs through `weight`. Rules of kind `bands`, `layout` and `parsed` weigh through `bands`, a list of thresholds each with its own `weight`, so scale the bands that are not zero.
+
+```ts
+import { check, DEFAULT_POLICY, parseAtsPolicy } from "@veriworkly/ats-engine";
+
+const draft = structuredClone(DEFAULT_POLICY);
+draft.version = "acme-1";
+
+// A presence rule: one weight
+const email = draft.rules.find((rule) => rule.id === "ats-v2.contact.email");
+if (email && "weight" in email) email.weight = 24;
+
+// A banded rule: weigh the failing bands double
+const length = draft.rules.find((rule) => rule.id === "ats-v2.format.length");
+if (length && "bands" in length) {
+  for (const band of length.bands) if (band.weight > 0) band.weight *= 2;
+}
+
+const policy = parseAtsPolicy(draft);
+console.log(check(resumeText, policy).readinessScore);
+```
+
+The score is the share of the applicable weight a resume keeps, so doubling one rule moves it relative to the others. Weights must be zero or more.
+
+## Turn a rule off
+
+Two ways, with different effects:
+
+- Remove the rule from `rules`. It disappears from the report and from the score's denominator, as if it never existed.
+- Set its weight to `0` in the policy. The rule stays in `rules` and appears in `failedChecks` when it fails, with an impact of 0, and it still counts in `checksTotal` and can enter `prioritizedFixes`. It can lose no points and adds nothing to the score's denominator. A region pack that sets a rule's weight to `0` removes the rule instead, as if it were not in the policy.
+
+```ts
+import { DEFAULT_POLICY, parseAtsPolicy } from "@veriworkly/ats-engine";
+
+const draft = structuredClone(DEFAULT_POLICY);
+draft.version = "acme-1";
+
+draft.rules = draft.rules.filter((rule) => rule.id !== "ats-v2.format.photo");
+
+const policy = parseAtsPolicy(draft);
+console.log(policy.rules.length, DEFAULT_POLICY.rules.length);
+```
+
+Integrity rules (hidden text, instructions aimed at an AI screener, copied postings) are deductions in points, not weights. Remove one only if you are sure your users will never need to know about it.
+
+## Add synonyms and phrases
+
+The job match reads its vocabulary from `policy.keywordMatch`. `synonyms` maps a spelling to the term it folds into. `phrases` lists multi-word terms to keep whole. Both are plain data.
+
+```ts
+import { check, DEFAULT_POLICY, parseAtsPolicy } from "@veriworkly/ats-engine";
+
+const draft = structuredClone(DEFAULT_POLICY);
+draft.version = "acme-1";
+
+draft.keywordMatch.synonyms["k8"] = "kubernetes";
+draft.keywordMatch.phrases.push("platform engineering");
+
+const policy = parseAtsPolicy(draft);
+
+const report = check(resumeText, policy, { jobDescription: postingText });
+console.log(report.matchedKeywords, report.missingKeywords);
+```
+
+Other lists you can extend the same way include `stopwords`, `softSkills` and `buzzwords` in `keywordMatch`, and the `resumeParse` and `text` sections. The [policy reference](/ats-engine/reference/policy) lists the sections.
+
+## Handle an invalid policy
+
+`parseAtsPolicy` throws `AtsPolicyError` when the policy does not match the schema. Its `issues` list each problem with a dotted `path`.
+
+```ts
+import { AtsPolicyError, DEFAULT_POLICY, parseAtsPolicy } from "@veriworkly/ats-engine";
+
+const draft = structuredClone(DEFAULT_POLICY);
+const first = draft.rules[0];
+if (first && "weight" in first) first.weight = -1;
+
+try {
+  parseAtsPolicy(draft);
+} catch (error) {
+  if (error instanceof AtsPolicyError) {
+    for (const issue of error.issues) console.error(`${issue.path}: ${issue.message}`);
+    // rules.0.weight: Too small: expected number to be >=0
+  } else {
+    throw error;
+  }
+}
+```
+
+A policy nested deeper than 5,000 levels, or one that contains itself, is also refused with `AtsPolicyError`. A call that names a `region` or `targetAts` the policy does not have throws it too.
+
+## Publish your own rubric
+
+`policyRubric(policy)` turns a policy into one entry per rule: what it reads, the most it can cost, whether it is a deduction, what a passing resume looks like and the fix. The community rubric is generated this way. Show your users yours.
+
+```ts
+import { DEFAULT_POLICY, parseAtsPolicy, policyRubric } from "@veriworkly/ats-engine";
+
+const draft = structuredClone(DEFAULT_POLICY);
+draft.version = "acme-1";
+const policy = parseAtsPolicy(draft);
+
+for (const entry of policyRubric(policy)) {
+  const cost = entry.deduction ? `-${entry.points} pts` : `${entry.points}`;
+  console.log(`${entry.id} | ${entry.category} | ${entry.severity} | ${cost} | ${entry.fix}`);
+}
+```
+
+## Review patterns like code
+
+Patterns in a policy or a language pack are supplied by you. `parseAtsPolicy` checks that they compile, not that they run in linear time. The engine's own patterns over untrusted text are linear and tested; yours are not checked. A badly written pattern can take a long time on a crafted resume. Review them as you would any code that runs on user input, and test against long, repetitive input before you ship.
+
+## From the command line
+
+The CLI takes the same JSON with `--policy`:
+
+```bash
+node -e "import('@veriworkly/ats-engine').then(m => console.log(JSON.stringify(m.DEFAULT_POLICY, null, 2)))" > policy.json
+# edit policy.json, then:
+npx @veriworkly/ats-engine check resume.pdf --policy policy.json
+```
+
+The CLI attaches the bundled language and region packs on top of whichever policy it loads. See [CLI](/ats-engine/tools/cli).
+
+Since 0.11.0 the package ships a JSON Schema of the full policy (draft 2020-12, generated from the schema `parseAtsPolicy` uses) as `@veriworkly/ats-engine/policy.schema.json`. Add a `$schema` line at the top of the `policy.json` written above for completion and checking in your editor:
+
+```jsonc
+{
+  "$schema": "https://cdn.jsdelivr.net/npm/@veriworkly/ats-engine@0.11.0/dist/policy.schema.json",
+  "version": "ats-v2",
+  // ...the rest of the policy
+}
+```
+
+`parseAtsPolicy` ignores the `$schema` key, so the policy and its fingerprint are the same with or without it. Point it at the version you run, or, inside a project that installs the engine, at `./node_modules/@veriworkly/ats-engine/dist/policy.schema.json`. `parseAtsPolicy` is still the validator: it also compiles the patterns and refuses two rules with one id, which a schema cannot check, and its issues name the field that is wrong.
+
+## Next steps
+
+- Add languages and regions: [languages and regions](/ats-engine/guides/languages-and-regions).
+- The policy's sections: [policy reference](/ats-engine/reference/policy).
+- How weights become a score: [scoring](/ats-engine/concepts/scoring).

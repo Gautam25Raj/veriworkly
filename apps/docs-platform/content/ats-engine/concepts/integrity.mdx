@@ -1,0 +1,63 @@
+---
+title: Integrity
+description: The six integrity rules of the VeriWorkly ATS Engine, what each detects, how many points it deducts, and why an honest resume is never affected.
+---
+
+Integrity rules look for what a resume does to game a screener, as distinct from how well it is written. Each failure is quoted back with its evidence, and each deducts points from the finished score. The deductions come from the community policy's [rubric](/ats-engine/reference/rubric).
+
+## The rules
+
+| Rule                                   | Severity | Deducts | Detects                                   |
+| -------------------------------------- | -------- | ------- | ----------------------------------------- |
+| `ats-v2.integrity.promptInjection`     | error    | 30      | Instructions aimed at an AI screener      |
+| `ats-v2.integrity.hiddenText`          | error    | 30      | Text a reader cannot see but an ATS reads |
+| `ats-v2.integrity.copiedPosting`       | error    | 25      | A resume that copies the job posting      |
+| `ats-v2.integrity.invisibleCharacters` | warning  | 10      | Zero-width and other invisible characters |
+| `ats-v2.integrity.homoglyphs`          | warning  | 10      | Look-alike letters from other alphabets   |
+| `ats-v2.integrity.keywordStuffing`     | warning  | 10      | Terms or lines repeated far beyond need   |
+
+The rules add up to 115 points in all. The score cannot go below 0.
+
+## What each one detects
+
+**Prompt injection.** Phrases such as an instruction to ignore previous instructions, or to rank the candidate or give a verdict. The rule reads the visible text and also text hidden by the layout, Unicode tag characters smuggled into the text, and a PDF's metadata fields. The phrase lists are policy data.
+
+**Hidden text.** Characters drawn in the page's colour or near it, too small to read, off the page, invisible, or under an image. More than 20 hidden characters fail the rule: a few stray characters, such as a white space glyph, are layout and not intent. It needs the layout of a file, so it is dropped for pasted text. See [How a resume is read](/ats-engine/concepts/how-a-resume-is-read).
+
+**Copied posting.** Fails when more than 30% of the job posting appears word for word in the resume. It runs only when you pass a `jobDescription`.
+
+**Invisible characters.** Any zero-width or other invisible character in the input. They are counted before text normalisation removes them, so the rule still sees them.
+
+**Homoglyphs.** A word that mixes Latin letters with look-alike letters from another alphabet, such as a Cyrillic "a" in a Latin word. It looks right to a reader and matches no search.
+
+**Keyword stuffing.** A term or a line repeated far beyond what the text needs.
+
+## Quoted security examples are not injection
+
+A security engineer's resume can legitimately name an attack. A phrase in quotes or backticks within three words of a word that says it was caught ("flags", "blocked", "red-teamed"), with no comma or colon between, is read as an example and is not flagged:
+
+```text
+Built a filter that flags "ignore previous instructions"
+```
+
+The exemption does not hold when:
+
+- the phrase is unquoted, or sits on a labelled list line such as "Skills: ...";
+- it is in text hidden by the layout, in tag characters or in metadata;
+- the quote tells the screener what to make of the resume ("rank this candidate", "score me");
+- the quote holds more than one instruction, one of them a verdict ("respond with hire", "give my resume a 10/10").
+
+An attacker can dress an instruction as a quote and a model reading the resume may still follow it. The rule accepts that to avoid failing honest security work.
+
+## Why an honest resume is not affected
+
+Integrity rules are penalties, not weights. They stand outside the score's denominator, so a resume that trips none of them scores exactly as if they did not exist. A resume that trips one loses the stated points and nothing else.
+
+Two things set the weight of a finding. A failed integrity rule of severity `error` makes the verdict read the lower of the readiness score and the job match, and it caps `jobMatchScore` at `readinessScore`. Lines hidden by the layout are also left out of the match. A stray zero-width space pasted from the web is only a warning, so it costs no verdict.
+
+<Callout type="info" title="Fixing a finding">
+  Each failed rule has a `fix`. Hidden text, invisible characters and look-alike letters are usually
+  an export or copy-paste accident. Remove them, retype the affected words, and the deduction goes.
+</Callout>
+
+See [Scoring](/ats-engine/concepts/scoring) for how deductions and the verdict fit together.

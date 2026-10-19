@@ -1,0 +1,84 @@
+---
+title: Offer a free and a full report
+description: Use shapeReport to return a restricted report to some callers and the full report to others, decided on the server so withheld data is never sent.
+---
+
+A report can diagnose a resume without prescribing the fix. `shapeReport(report, detail)` returns either the whole report with a verdict or a restricted one: the score, a verdict, the single most costly fix, the main warning and counts in place of lists. Use it to give an anonymous visitor a diagnosis and a signed-in or paying user the details.
+
+The decision is yours. The engine only guarantees that a restricted report contains none of the withheld fields, so a client has nothing to un-hide and a network inspector has nothing to find.
+
+## The two levels
+
+```ts
+import { check, shapeReport } from "@veriworkly/ats-engine";
+
+const report = check(resumeText, undefined, { jobDescription: postingText });
+
+const full = shapeReport(report, "full");
+const restricted = shapeReport(report, "restricted");
+
+console.log(full.restricted); // false
+console.log(restricted.restricted); // true
+```
+
+`shapeReport` returns an `AtsShapedReport`, a union you tell apart with the `restricted` flag.
+
+|               | `"full"`                                                     | `"restricted"`                                                                                                                                                                 |
+| ------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Shape         | The whole `AtsReport` plus `restricted: false` and `verdict` | A small object with `restricted: true`                                                                                                                                         |
+| Scores        | `readinessScore`, `jobMatchScore`                            | `readinessScore`, `jobMatchScore`                                                                                                                                              |
+| Verdict       | `verdict`: `"strong"`, `"needs-work"` or `"weak"`            | `verdict`                                                                                                                                                                      |
+| Fixes         | `failedChecks`, `prioritizedFixes`                           | `topFix` (the single costliest fix, in full), `remainingFixCount`                                                                                                              |
+| Warning       | `parsingWarnings`                                            | `primaryWarning`: the evidence of one failed check, word for word. Integrity failures come first, then parsing and format failures, then any failed check; the costliest wins. |
+| Keywords      | The matched and missing lists, groups and `requirements`     | `matchedKeywordCount`, `missingKeywordCount`                                                                                                                                   |
+| Parsed fields | `parsed` in full                                             | `parsedRoleCount`                                                                                                                                                              |
+| Checks        | `rules`, `categories`, counts                                | `checksPassed`, `checksTotal`                                                                                                                                                  |
+| Advice        | Each item with its `evidence`, `fix` and `source`            | Each item as `id`, `kind` and `message` only                                                                                                                                   |
+
+The counts are the point. "7 keywords missing" and "3 roles recovered" are true and specific, and not actionable without the lists behind them. Advice never moves the score, so stating it gives away nothing the restricted report withholds. The keyword counts are the lengths of the lists, so neither goes past 12. What advice quotes (the file name, a year) stays with the full report.
+
+The verdict reads the job match score when there is a posting and the readiness score otherwise. See [scoring](/ats-engine/concepts/scoring).
+
+## A free and a paid tier, on the server
+
+Score once, keep the full report on the server, and shape it per caller. Never send the full report to the browser and hide parts of it in the interface.
+
+```ts
+import { check, shapeReport, type AtsReport, type AtsShapedReport } from "@veriworkly/ats-engine";
+
+type Plan = "anonymous" | "free" | "paid";
+
+/** Which level a plan gets. This is your policy, not the engine's. */
+function detailFor(plan: Plan) {
+  return plan === "paid" ? "full" : "restricted";
+}
+
+export function respond(report: AtsReport, plan: Plan): AtsShapedReport {
+  return shapeReport(report, detailFor(plan));
+}
+
+// In a request handler, after you have authenticated the caller:
+const report = check(resumeText, undefined, { jobDescription: postingText });
+const body = respond(report, "free");
+
+if (body.restricted) {
+  console.log(`Score ${body.readinessScore}, fix first: ${body.topFix}`);
+  console.log(`${body.remainingFixCount} more fixes, ${body.missingKeywordCount} missing keywords`);
+} else {
+  console.log(body.failedChecks.length, "failed checks in full");
+}
+```
+
+Things that keep the boundary sound:
+
+- Choose the level from your session or plan, never from a request parameter the caller controls.
+- Do not call `check` with `includeLines: true` for a restricted caller. `report.lines` is the resume's full text, and shaping a restricted report drops it, but you should not carry it around for callers who do not need it.
+- If a free user upgrades, shape the stored full report again, or score again. Do not return the restricted object and unlock it in the client.
+- Log or store the full report on your side if you need it later. It carries `engine.version` and the policy fingerprint, so you can reproduce it ([custom policy](/ats-engine/guides/custom-policy)).
+
+## Next steps
+
+- Keep the intended use in view: [responsible use](/ats-engine/project/responsible-use).
+- Return a shaped report from a route: [Next.js](/ats-engine/guides/nextjs).
+- Render either shape: [rendering](/ats-engine/guides/rendering).
+- The full report's fields: [report reference](/ats-engine/reference/report).

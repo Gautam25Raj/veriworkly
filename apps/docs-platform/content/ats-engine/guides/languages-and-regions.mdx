@@ -1,0 +1,155 @@
+---
+title: Languages and regions
+description: Attach language and region packs with withLocales, learn how language and country are detected, override them, and write a pack of your own.
+---
+
+English is the engine's base. Locale packs add a language's or a country's vocabulary to whatever policy you score with, so VeriWorkly ATS Engine reads a German resume's headings, a French CV's months and a Hindi resume's script, and applies a country's date order and rule adjustments. A pack is plain data.
+
+Built in: language packs `de`, `fr` and `hi`, and region packs `US` (verified), `GB`, `DE`, `FR` and `IN` (community). The [locales reference](/ats-engine/reference/locales) lists them with their status.
+
+## Attach the packs
+
+Call `withLocales` once at startup and reuse the policy. It lives in `@veriworkly/ats-engine/locales`, which is about 75.5 KB gzipped, with `withLocales` alone at 48.7 KB.
+
+```ts
+import { check, DEFAULT_POLICY } from "@veriworkly/ats-engine";
+import { BUILT_IN_LOCALES, withLocales } from "@veriworkly/ats-engine/locales";
+
+const policy = withLocales(DEFAULT_POLICY, BUILT_IN_LOCALES); // once, at startup
+
+const report = check(resumeText, policy);
+console.log(report.locale); // e.g. { languages: ["de"], region: "DE" }
+```
+
+To attach only some, import the packs by name:
+
+```ts
+import { DEFAULT_POLICY } from "@veriworkly/ats-engine";
+import { de, DE, GB, withLocales } from "@veriworkly/ats-engine/locales";
+
+export const policy = withLocales(DEFAULT_POLICY, { languages: [de], regions: [DE, GB] });
+```
+
+The pack exports are `de`, `fr`, `hi` for languages and `US`, `GB`, `DE`, `FR`, `IN` for regions. The policy's own vocabulary stays in effect for every resume; packs add to it and never replace it, because resumes everywhere carry English terms.
+
+## How the language is detected
+
+The engine decides per resume and per posting, separately. A pack applies when either is written in its language, so a long English posting cannot hide a German resume.
+
+- A pack with a `script` (Hindi, Devanagari) applies when that script covers a fair share of the letters.
+- A Latin-script pack applies when at least three different `detectionWords` appear and together make up 3% of the words. A German company name in an English resume does not make it German. Words inside email addresses and URLs do not count.
+- The resume's bullet lines decide which language its rules follow. A pack's words are attached whenever a resume holds three of them at 3%, but German bullets under English headings stay German, and English bullets under a French summary stay English with month-first dates and the English writing checks. Then `report.locale.languages` lists `fr` and `region` is `null`.
+
+A language without a pack is read in none, not as English. The policy knows common words of other languages and scripts, so a Spanish resume under a policy with no Spanish pack is told apart from an English one and the English-only rules drop out for it. The rubric's eight writing rules are English only: they are dropped for any resume read in another language, rather than judging it by English words.
+
+## How the region is chosen
+
+One region applies. It is chosen in this order:
+
+1. The `region` option, in any case. A region that is not attached throws `AtsPolicyError` naming the attached ones.
+2. The country of a phone number written with a country code.
+3. The `defaultRegion` of a language the resume is written in. A language only the posting is written in does not choose the region, so a US resume applying to a German posting keeps its month-first dates.
+
+Without a region, a national phone number is still recovered if any attached region reads it, but the region is not inferred from it.
+
+## Override detection
+
+If your host knows the user's country or language, say so.
+
+```ts
+import { check, DEFAULT_POLICY, AtsPolicyError } from "@veriworkly/ats-engine";
+import { BUILT_IN_LOCALES, withLocales } from "@veriworkly/ats-engine/locales";
+
+const policy = withLocales(DEFAULT_POLICY, BUILT_IN_LOCALES);
+
+const india = check(resumeText, policy, { region: "IN" });
+const german = check(resumeText, policy, { languages: ["de"], region: "DE" });
+console.log(india.locale, german.locale);
+
+try {
+  check(resumeText, withLocales(DEFAULT_POLICY, {}), { region: "DE" });
+} catch (error) {
+  if (error instanceof AtsPolicyError) console.error(error.message);
+  // Region "DE" is not attached to the policy (attached: none).
+}
+```
+
+`languages` takes ISO 639 codes of attached packs. `report.locale` tells you what was applied: `{ languages, region }`, with `region` `null` when none was.
+
+Regions change a few rules. The US and GB packs warn about a date of birth or a photo and adds age advice that never moves a score. The DE, FR and IN packs do not judge a date of birth or a photo, because their resumes customarily carry them. Details are in the [locales reference](/ats-engine/reference/locales).
+
+## Write a pack
+
+A pack is data. You add vocabulary; you do not write code.
+
+- A **language pack** needs an `id` (ISO 639), a `name`, a `status`, and either a `script` or at least ten `detectionWords`: words common in the language and rare in English. Everything else is optional: section headings, month names, level words, stopwords, soft skills, action verbs and more.
+- A **region pack** needs an `id` (ISO 3166-1 alpha-2, uppercase), a `name`, a `status`, a `phoneCountry` and a `dateOrder` of `"MDY"`, `"DMY"` or `"YMD"`. It can adjust rules by id (`weight` and `severity`; `weight: 0` turns a rule off for that region) and carry the credentials of the country, such as its school-leaving diploma.
+
+```ts
+import { check, DEFAULT_POLICY } from "@veriworkly/ats-engine";
+import { BUILT_IN_LOCALES, withLocales } from "@veriworkly/ats-engine/locales";
+
+const nl = {
+  id: "nl",
+  name: "Nederlands",
+  status: "community" as const,
+  defaultRegion: "NL",
+  detectionWords: [
+    "en",
+    "het",
+    "een",
+    "van",
+    "voor",
+    "met",
+    "bij",
+    "ervaring",
+    "opleiding",
+    "vaardigheden",
+  ],
+  sections: {
+    experience: "^(?:werkervaring|ervaring)",
+    education: "^opleiding",
+    skills: "^vaardigheden",
+  },
+  months: { januari: 1, februari: 2, maart: 3 },
+  openEnded: ["heden"],
+  rangeWords: ["tot"],
+  stopwords: ["en", "het", "een"],
+};
+
+const NL = {
+  id: "NL",
+  name: "Nederland",
+  status: "community" as const,
+  phoneCountry: "NL",
+  dateOrder: "DMY" as const,
+  rules: { "ats-v2.format.photo": { weight: 0 } },
+};
+
+const policy = withLocales(DEFAULT_POLICY, {
+  languages: [...BUILT_IN_LOCALES.languages, nl],
+  regions: [...BUILT_IN_LOCALES.regions, NL],
+});
+
+console.log(check(resumeText, policy).locale);
+```
+
+`withLocales` validates the packs and throws `AtsPolicyError` for a bad one, including a pattern that clashes with the policy's. That surfaces at startup, not when scoring. For a pack written as JSON, `atsLanguagePackJsonSchema` and `atsRegionPackJsonSchema` are exported from `/locales` as JSON Schemas you can validate against or feed to an editor.
+
+Things that decide whether a pack works:
+
+- Patterns compile in Unicode mode, so `\p{L}` works and an escape that needs no escaping is an error.
+- `\b` is ASCII-only in JavaScript. Word lists are wrapped in Unicode boundaries for you; in a raw pattern use `(?<![\p{L}\p{M}])…(?![\p{L}\p{M}])`.
+- Patterns in a pack are yours: `withLocales` checks that they compile, not that they run in linear time. Review them like code ([custom policy](/ats-engine/guides/custom-policy)).
+- A pack cannot change rules, weights or stemming. Only a region pack's `rules` and `ageAdvice` adjust named rules.
+- Put credentials such as "Abitur" in the region pack, not the language pack: the same word can be another level elsewhere.
+
+**Community or verified.** `verified` means a named maintainer reads the language natively and the pack meets the field-accuracy target of 0.95 on its fixture set. `community` means it was contributed and tested but not signed off. A pack cannot verify itself.
+
+The complete field list, with an example for each field, how to test a pack and how to contribute one, is in [LOCALES.md](https://github.com/VeriWorkly/ats-engine/blob/main/LOCALES.md) on GitHub.
+
+## Next steps
+
+- See every pack and its status: [locales reference](/ats-engine/reference/locales).
+- Pass a country for your users: [check options](/ats-engine/reference/check-options).
+- How resumes are read before scoring: [how a resume is read](/ats-engine/concepts/how-a-resume-is-read).

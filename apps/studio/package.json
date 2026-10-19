@@ -1,6 +1,6 @@
 {
   "name": "@veriworkly/studio",
-  "version": "3.26.0",
+  "version": "3.27.0",
   "private": true,
   "scripts": {
     "predev": "npm run build -w @veriworkly/profile-core",
@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.9.0",
-    "@veriworkly/ats-engine": "^0.10.0",
+    "@veriworkly/ats-engine": "^0.11.0",
     "@veriworkly/profile-core": "*",
     "@veriworkly/ui": "*",
     "better-auth": "~1.6.25",

@@ -1,12 +1,14 @@
 {
   "name": "@veriworkly/docs-platform",
-  "version": "3.26.0",
+  "version": "3.27.0",
   "private": true,
   "scripts": {
     "generate:api": "node scripts/generate-api-docs.mjs",
-    "predev": "npm run generate:api",
+    "generate:engine": "node scripts/generate-engine-docs.mjs",
+    "check:engine-samples": "node scripts/check-engine-samples.mjs",
+    "predev": "npm run generate:api && npm run generate:engine",
     "dev": "next dev",
-    "prebuild": "npm run generate:api",
+    "prebuild": "npm run generate:api && npm run generate:engine",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -14,6 +16,7 @@
     "format:write": "prettier --write ."
   },
   "dependencies": {
+    "@veriworkly/ats-engine": "0.11.0",
     "@veriworkly/ui": "*",
     "fumadocs-core": "16.13.0",
     "fumadocs-mdx": "15.2.0",

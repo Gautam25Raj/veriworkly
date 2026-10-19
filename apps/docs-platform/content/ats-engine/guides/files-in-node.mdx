@@ -1,0 +1,242 @@
+---
+title: Read files in Node
+description: Score PDF, DOCX, HTML and text resumes on a server, from a path or from bytes in memory, with extraction isolated in a child process you can kill.
+---
+
+PDF and DOCX extraction lives in `@veriworkly/ats-engine/node` and runs on Node only. It turns a file into the text the scorer reads and the layout signals the format rules grade (columns, tables, images, hidden text). Each format gives some of them: a PDF gives all of them, a DOCX gives tables, images and hidden text but no column ratio and no image-only pages, and HTML gives tables and hidden text. A rule whose signal is missing is left out. Pass both to `check` and the layout rules apply, which they cannot for [pasted text](/ats-engine/guides/pasted-text).
+
+## Install the optional peers
+
+The core needs no extra packages. Install only what you read:
+
+<Tabs items={["npm", "pnpm", "yarn"]}>
+<Tab value="npm">
+
+```bash
+npm install @veriworkly/ats-engine
+npm install pdf-parse@2 pdfjs-dist@5.4.296 mammoth
+```
+
+</Tab>
+<Tab value="pnpm">
+
+```bash
+pnpm add @veriworkly/ats-engine
+pnpm add pdf-parse@2 pdfjs-dist@5.4.296 mammoth
+```
+
+</Tab>
+<Tab value="yarn">
+
+```bash
+yarn add @veriworkly/ats-engine
+yarn add pdf-parse@2 pdfjs-dist@5.4.296 mammoth
+```
+
+</Tab>
+</Tabs>
+
+`pdf-parse` and `pdfjs-dist` read PDFs, `mammoth` reads DOCX. They load only when a file of that format arrives, so a host that reads one format can skip the other's packages. Node 22.12 or later, ESM only. HTML and plain text need no peer.
+
+## Score a file on disk
+
+`readResumeFile(path)` detects the format, enforces the size limit, extracts, and returns what `check` takes:
+
+```ts
+import { check } from "@veriworkly/ats-engine";
+import { AtsFileError, readResumeFile } from "@veriworkly/ats-engine/node";
+
+try {
+  const { input, layout, file } = await readResumeFile("./resume.pdf");
+  const report = check(input, undefined, { layout, file });
+  console.log(report.readinessScore, report.parsingWarnings);
+} catch (error) {
+  if (error instanceof AtsFileError) console.error(error.message);
+  else throw error;
+}
+```
+
+`layout` is `undefined` for formats whose geometry cannot be measured (plain text). The layout rules read `layout`; `file` (`name`, `bytes`, `format`) only feeds the file advice in `report.advice` and never changes a score.
+
+`readResumeFile` accepts `.pdf`, `.docx`, `.html`, `.txt`, `.md` and `.json`. A `.json` file must be a JSON Resume or an `ats-resume@1` document ([structured input](/ats-engine/guides/structured-input)); `input` is then the parsed object and `layout` is absent. Text with fewer than 50 characters is refused: for a PDF that nearly always means a scan or a flattened image, which an ATS cannot read either.
+
+Read a job posting the same way. `readJobFile(path)` takes `.txt`, `.md`, `.html`, `.pdf` or `.docx`, refuses anything else before opening it, and returns `{ text, company? }`:
+
+```ts
+import { check } from "@veriworkly/ats-engine";
+import { readJobFile, readResumeFile } from "@veriworkly/ats-engine/node";
+
+const { input, layout, file } = await readResumeFile("./resume.docx");
+const job = await readJobFile("./posting.html");
+
+const report = check(input, undefined, {
+  layout,
+  file,
+  jobDescription: job.text,
+  jobCompany: job.company,
+});
+console.log(report.jobMatchScore);
+```
+
+## Score an upload held in memory
+
+A web server has bytes and a file name, not a path. Detect the format from the name and declared MIME type, then extract:
+
+```ts
+import { check } from "@veriworkly/ats-engine";
+import { detectResumeFormat, extractResume } from "@veriworkly/ats-engine/node";
+
+export async function scoreUpload(bytes: Uint8Array, fileName: string, mimeType: string) {
+  const format = detectResumeFormat(fileName, mimeType);
+  if (!format) throw new Error("Use a PDF, DOCX, HTML or text file.");
+
+  const { text, layout } = await extractResume(bytes, format);
+  return check(text, undefined, {
+    ...(layout ? { layout } : {}),
+    file: { name: fileName, bytes: bytes.byteLength, format },
+  });
+}
+```
+
+`detectResumeFormat` returns `"pdf"`, `"docx"`, `"html"`, `"text"` or `null`. It ignores MIME parameters (`application/pdf; charset=binary`), treats `.rtf` as unsupported and `.json` as text.
+
+`extractResume` runs in your process and is CPU-bound. A pathological PDF can occupy the thread for seconds. Call it directly from a CLI or a batch job. In a server, use the child process below.
+
+## Limits
+
+| Limit                 | Value  | What happens                                                                               |
+| --------------------- | ------ | ------------------------------------------------------------------------------------------ |
+| `MAX_FILE_BYTES`      | 20 MB  | `readResumeFile` and `readJobFile` refuse a larger file before reading it                  |
+| `MAX_EXTRACTED_CHARS` | 50,000 | Extracted text is cut here, and the scorer reads no more                                   |
+| PDF pages read        | 100    | Text reading stops at the cap or at the 100th page; the page count still counts every page |
+| DOCX expansion        | 64 MB  | A DOCX that expands past it is refused                                                     |
+
+`readResumeFile` and `readJobFile` take `{ maxBytes }` to lower the file limit. `extractResume` does not check the size of the bytes you give it, so bound the request body in your own code. The full list of limits is in [errors and limits](/ats-engine/reference/errors-and-limits).
+
+## Run extraction in a child process
+
+A timeout on `extractResume` means nothing while it blocks the thread that would fire it. Run it in a separate process you can kill. `@veriworkly/ats-engine/node/child` is an extraction process made for this. It is plain JavaScript, so the parent needs no TypeScript loader.
+
+Use `child_process.fork`, not a worker thread. Worker threads share the parent's V8 process, and repeatedly starting threads that load pdf.js has crashed Node (the engine's authors reproduced it on Node 24 within a few spawns). A child process has its own heap, so a crash or a forced kill stays contained.
+
+The protocol is one message each way over the IPC channel. You send an `AtsExtractRequest`, `{ id, format, buffer }`, with the bytes base64-encoded because IPC messages are JSON. The child answers with an `AtsExtractResponse`: `{ id, ok: true, text, layout? }` or `{ id, ok: false, message }`. The `id` lets you drop a late reply from a job you already timed out. The child exits when the parent disconnects.
+
+```ts title="extract-in-child.ts"
+import { fork } from "node:child_process";
+import { createRequire } from "node:module";
+
+import type {
+  AtsExtraction,
+  AtsExtractRequest,
+  AtsExtractResponse,
+  AtsResumeFormat,
+} from "@veriworkly/ats-engine/node";
+
+const childPath = createRequire(import.meta.url).resolve("@veriworkly/ats-engine/node/child");
+let lastId = 0;
+
+/** One extraction in a fresh child process, killed when it answers or when time runs out. */
+export function extractInChild(
+  bytes: Uint8Array,
+  format: AtsResumeFormat,
+  timeoutMs = 30_000,
+): Promise<AtsExtraction> {
+  return new Promise((resolve, reject) => {
+    const id = ++lastId;
+    // An empty execArgv keeps a parent run with --inspect from passing the flag on, which would collide on the inspector port.
+    const child = fork(childPath, [], { execArgv: [] });
+    let settled = false;
+
+    const finish = (outcome: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.kill("SIGKILL");
+      outcome();
+    };
+    const timer = setTimeout(
+      () => finish(() => reject(new Error("Extraction timed out."))),
+      timeoutMs,
+    );
+
+    child.on("message", (response: AtsExtractResponse) => {
+      if (response.id !== id) return;
+      finish(() => {
+        if (!response.ok) return reject(new Error(response.message));
+        resolve(
+          response.layout
+            ? { text: response.text, layout: response.layout }
+            : { text: response.text },
+        );
+      });
+    });
+    child.on("error", (error) => finish(() => reject(error)));
+    child.on("exit", (code, signal) =>
+      finish(() => reject(new Error(`The extractor exited early (${signal ?? code}).`))),
+    );
+
+    const request: AtsExtractRequest = {
+      id,
+      format,
+      buffer: Buffer.from(bytes).toString("base64"),
+    };
+    child.send(request);
+  });
+}
+```
+
+Use it where you would call `extractResume`:
+
+```ts nocheck
+import { check } from "@veriworkly/ats-engine";
+import { detectResumeFormat } from "@veriworkly/ats-engine/node";
+
+import { extractInChild } from "./extract-in-child.js";
+
+export async function scoreUpload(bytes: Uint8Array, fileName: string, mimeType: string) {
+  const format = detectResumeFormat(fileName, mimeType);
+  if (!format) throw new Error("Use a PDF, DOCX, HTML or text file.");
+
+  const { text, layout } = await extractInChild(bytes, format);
+  return check(text, undefined, {
+    ...(layout ? { layout } : {}),
+    file: { name: fileName, bytes: bytes.byteLength, format },
+  });
+}
+```
+
+This starts one process per file and kills it afterwards, which keeps the example short. A busy server would keep a small pool and replace a child after a timeout or a crash. The protocol allows it: the `id` tells replies apart.
+
+### Cap memory in the operating system
+
+Node's `--max-old-space-size` bounds the JavaScript heap only. pdf.js decodes images outside it: a child started with `--max-old-space-size=256` reached 5.6 GB on a crafted file, and a 420 KB PDF with one 144-megapixel image held 1.8 GB. Set the limit where the operating system enforces it: a container or cgroup memory limit, `ulimit -v`, or a Windows Job object.
+
+On Linux, one way is to start the child through a shell that sets `ulimit -v` and then runs Node with `exec`. The IPC channel passes through `exec`, so `child.send` works as before:
+
+```ts nocheck
+import { spawn } from "node:child_process";
+
+const limitKb = 3 * 1024 * 1024; // choose from your largest legitimate file, and test it
+const child = spawn(
+  "sh",
+  ["-c", `ulimit -v ${limitKb} && exec "$0" "$@"`, process.execPath, childPath],
+  { stdio: ["ignore", "inherit", "inherit", "ipc"] },
+);
+```
+
+Replace the `fork(childPath, [], { execArgv: [] })` line in the helper with this and keep the rest. Choose the limit by measuring: Node reserves address space at start, so a value that is too low stops the child before it reads anything.
+
+Set the timeout with images in mind too. The engine waits for each page's images before reading the next, so memory stays at one page's worth and the cost is time: 60 pages with a 49-megapixel image each took 31 to 34 seconds.
+
+## What to watch for
+
+- Bound the request body before you read it. Extraction limits protect the scorer, not your memory.
+- Escape `report.advice` text when you render it as HTML. Advice can quote the file name as given ([rendering](/ats-engine/guides/rendering)).
+- An `AtsFileError` message is written for the person who named the file. The `message` of a failed child reply is an extraction failure such as "The document could not be read as DOCX." Decide what you show to end users.
+- `readResumeFile` refuses a path that starts with two slashes (a network share or device path). Mapped drives and mounted shares look local and are read over the network, so keep user-supplied paths away from it. Uploads belong in memory with `extractResume`, not on a path.
+
+## Next steps
+
+- Wire this into a route handler: [Next.js](/ats-engine/guides/nextjs).
+- Read the security notes on files: [security](/ats-engine/project/security).
+- Everything extraction can throw: [errors and limits](/ats-engine/reference/errors-and-limits).

@@ -1,11 +1,25 @@
 import { icons } from "lucide-react";
 import { createElement } from "react";
 import { loader } from "fumadocs-core/source";
-import { docs, api } from "collections/server";
+import { flattenTree } from "fumadocs-core/page-tree";
+import { docs, api, engine } from "collections/server";
 
 export const source = loader({
   baseUrl: "/docs",
   source: docs.toFumadocsSource(),
+
+  icon(icon) {
+    if (!icon) {
+      return;
+    }
+
+    if (icon in icons) return createElement(icons[icon as keyof typeof icons]);
+  },
+});
+
+export const engineSource = loader({
+  baseUrl: "/ats-engine",
+  source: engine.toFumadocsSource(),
 
   icon(icon) {
     if (!icon) {
@@ -112,4 +126,24 @@ export function getApiPageImage(page: (typeof apiSource)["$inferPage"]) {
     segments,
     url: `/og/api/${segments.join("/")}`,
   };
+}
+
+export function getEnginePageImage(page: (typeof engineSource)["$inferPage"]) {
+  const segments = [...page.slugs, "image.png"];
+
+  return {
+    segments,
+    url: `/og/ats-engine/${segments.join("/")}`,
+  };
+}
+
+/** The ATS Engine pages in sidebar order, for the llms.txt files. */
+export function getEnginePagesInOrder() {
+  const order = new Map(
+    flattenTree(engineSource.getPageTree().children).map((item, index) => [item.url, index]),
+  );
+
+  return engineSource
+    .getPages()
+    .sort((a, b) => (order.get(a.url) ?? Infinity) - (order.get(b.url) ?? Infinity));
 }

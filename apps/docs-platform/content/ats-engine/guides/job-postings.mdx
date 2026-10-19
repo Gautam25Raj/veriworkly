@@ -1,0 +1,91 @@
+---
+title: Match against job postings
+description: Turn a saved job page into posting text and an employer name with the job helpers, pass both to check, or let the CLI read Greenhouse, Lever and Ashby links.
+---
+
+A job match needs the posting's text. If you have it as text, pass it as `jobDescription` ([pasted text](/ats-engine/guides/pasted-text)). If you have the page's HTML, `@veriworkly/ats-engine/job` extracts the posting from it. The subpath is 3.5 KB gzipped, has no dependencies and runs in browsers, at the edge and on servers. It parses HTML only. It never fetches a page.
+
+## From saved HTML
+
+```ts
+import { check } from "@veriworkly/ats-engine";
+import { extractJobPosting, jobTextFromHtml } from "@veriworkly/ats-engine/job";
+
+export function matchToPage(resume: string, html: string) {
+  return check(resume, undefined, {
+    jobDescription: jobTextFromHtml(html),
+    jobCompany: extractJobPosting(html)?.company, // optional: the employer, never a keyword
+  });
+}
+```
+
+`jobTextFromHtml(html)` returns the text to match against. If the page publishes a schema.org `JobPosting` as JSON-LD with a real description (200 characters or more), it uses that: the employer's own title, company, description and requirement fields, without the navigation, cookie banner and "similar jobs" that make up most of a page's visible text. Otherwise it reads the page's visible text, from `<main>` or `<article>` when there is one.
+
+`jobCompany` keeps every word of the employer's name out of the missing-keywords list, so "Acme" is not reported as a skill you lack. `undefined` is fine when the page names no employer.
+
+## What each helper returns
+
+```ts
+import {
+  MAX_JOB_TEXT_CHARS,
+  extractJobPosting,
+  jobHtmlToText,
+  jobTextFromHtml,
+  normalizeJobText,
+} from "@veriworkly/ats-engine/job";
+
+export function inspect(html: string, pasted: string) {
+  // The JobPosting the page publishes, or null
+  const posting = extractJobPosting(html);
+  console.log(posting?.title, posting?.company, posting?.requirements);
+
+  // The page's visible text, one line per block, whether or not it has JSON-LD
+  const visible = jobHtmlToText(html);
+
+  // The text to match: JSON-LD when it is a real posting, else the visible text
+  const text = jobTextFromHtml(html);
+
+  // Pasted or file text, tidied the same way: trimmed lines, blanks dropped, capped
+  const tidy = normalizeJobText(pasted);
+
+  console.log(MAX_JOB_TEXT_CHARS, visible.length, text.length, tidy.length);
+}
+```
+
+| Export                              | What it does                                                                                                             |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `extractJobPosting(html)`           | The page's `JobPosting` as `{ title, company, description, requirements }`, or `null` when it has none or no description |
+| `jobTextFromHtml(html, maxChars?)`  | The text to match: the posting when the page publishes a real one, else its visible text                                 |
+| `jobHtmlToText(html, maxChars?)`    | The visible text, one line per block. Scripts, styles, navigation, forms and hidden elements are dropped                 |
+| `normalizeJobText(text, maxChars?)` | One trimmed line per non-blank line, capped. The shape every posting takes before matching                               |
+| `MAX_JOB_TEXT_CHARS`                | 12,000, the default cap of these helpers                                                                                 |
+
+Headings and bullets survive as separate lines, which the matcher uses to tell required skills from preferred ones and to leave out about-us and benefits blocks ([job matching](/ats-engine/concepts/job-matching)). `check` itself reads the first 20,000 characters of a `jobDescription`.
+
+## Fetching a page
+
+The core and `/job` make no network calls. If your server fetches a posting URL that a user typed, the request is yours to protect: an address a user chooses can point at a machine on your network. Allow only the hosts you mean to read, require `https`, do not follow redirects blindly, and bound the time and the size of the response, then pass the HTML to `jobTextFromHtml`.
+
+## From the command line
+
+The CLI can read a posting from Greenhouse, Lever and Ashby by link:
+
+```bash
+npx @veriworkly/ats-engine check resume.pdf --job-url https://job-boards.greenhouse.io/acme/jobs/123
+```
+
+This is the one network request `check` makes without `--ai`, and it lives in the CLI only. It asks the board's public JSON API, never the page, and only the API hosts it lists for the posting's host (`boards-api.greenhouse.io`, `api.lever.co`, `api.eu.lever.co`, `api.ashbyhq.com`), never the host in your link. It takes `https` addresses only, follows no redirect, waits at most 20 seconds and reads at most 20 MB. It sends no resume text and no key.
+
+It reads the posting's title and description and the employer's name. Greenhouse names the employer; Lever and Ashby do not, so the board's name in the link is used. A Greenhouse or Lever posting also adds that ATS's documented notes to the advice, as `--ats` does, unless `--ats` names another.
+
+Any other site, and Greenhouse's EU boards, are refused with a message to save the page and pass it with `--job`. `--job` and `--job-url` together are refused. See [CLI](/ats-engine/tools/cli) for every flag.
+
+## What to watch for
+
+- A posting that publishes only a teaser in its JSON-LD falls back to the page's visible text, which can include page furniture the helpers could not remove.
+- The match reads a posting for what it asks of the candidate. It does not judge the posting or the employer.
+
+## Next steps
+
+- How terms, requirements and the match score work: [job matching](/ats-engine/concepts/job-matching).
+- Read a posting from a file in Node: [files in Node](/ats-engine/guides/files-in-node).

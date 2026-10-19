@@ -1,0 +1,135 @@
+---
+title: Quick start
+description: Install the VeriWorkly ATS Engine, score pasted text, add a job description, read a PDF in Node, and know which part of the report to read first.
+---
+
+This page takes a resume from text to a report in a few minutes. You need Node 22.12 or later.
+
+## Install
+
+<Tabs items={["npm", "pnpm", "yarn"]}>
+  <Tab value="npm">
+
+```bash
+npm install @veriworkly/ats-engine
+```
+
+  </Tab>
+  <Tab value="pnpm">
+
+```bash
+pnpm add @veriworkly/ats-engine
+```
+
+  </Tab>
+  <Tab value="yarn">
+
+```bash
+yarn add @veriworkly/ats-engine
+```
+
+  </Tab>
+</Tabs>
+
+The package is ESM only. To read PDF and DOCX files on Node, also install the optional peers: `pdf-parse@2`, `pdfjs-dist@5.4.296` and `mammoth`.
+
+```bash
+npm install pdf-parse@2 pdfjs-dist@5.4.296 mammoth
+```
+
+## Score pasted text
+
+`check` takes resume text and returns a report. It scores with `DEFAULT_POLICY`, the community policy. The CLI and MCP server also attach the built-in language and region packs; to match them, pass `withLocales(DEFAULT_POLICY, BUILT_IN_LOCALES)` from `@veriworkly/ats-engine/locales`.
+
+```ts
+import { check, DEFAULT_POLICY } from "@veriworkly/ats-engine";
+
+const report = check(resumeText, DEFAULT_POLICY);
+
+console.log(report.readinessScore);
+for (const failed of report.failedChecks) {
+  console.log(`${failed.severity}: ${failed.evidence}\n  Fix: ${failed.fix}`);
+}
+```
+
+Pasted text has no page, so the layout rules (columns, tables, photo, hidden text, pages with no text layer) are left out of the report rather than guessed. See [How a resume is read](/ats-engine/concepts/how-a-resume-is-read).
+
+## Add a job description
+
+Pass the posting's text as `jobDescription`. The report gains a job match score, a status for each requirement, and the keywords the resume lacks.
+
+```ts
+import { check, DEFAULT_POLICY } from "@veriworkly/ats-engine";
+
+const report = check(resumeText, DEFAULT_POLICY, { jobDescription: postingText });
+
+console.log(report.jobMatchScore); // 0-100, or null without a posting
+for (const requirement of report.requirements) {
+  console.log(`[${requirement.status}] ${requirement.text}`);
+}
+console.log(report.missingKeywordGroups); // { hard: [...], soft: [...] }
+```
+
+## Read a PDF in Node
+
+`readResumeFile` reads a file from a path, extracts its text and layout, and returns what `check` needs. It needs the peers above for PDF and DOCX.
+
+```ts
+import { check, DEFAULT_POLICY } from "@veriworkly/ats-engine";
+import { readResumeFile } from "@veriworkly/ats-engine/node";
+
+const { input, layout, file } = await readResumeFile("resume.pdf");
+const report = check(input, DEFAULT_POLICY, { layout, file });
+
+console.log(report.readinessScore);
+```
+
+`layout` switches on the layout rules. `file` (name, size, format) only feeds the advice and never changes a score. For uploads in a web server, see [Files in Node](/ats-engine/guides/files-in-node).
+
+## Or use the CLI
+
+PDF and DOCX files need the optional readers, which `npx` does not install on its own, so name them:
+
+```bash
+npx -p @veriworkly/ats-engine -p pdf-parse@2 -p pdfjs-dist@5.4.296 -p mammoth ats-engine check resume.pdf
+```
+
+A `.txt`, `.md`, `.html` or `.json` resume needs none of them:
+
+```bash
+npx @veriworkly/ats-engine check resume.md --job posting.txt
+```
+
+See [CLI](/ats-engine/tools/cli) for every option.
+
+## What to read first
+
+1. `readinessScore` and `failedChecks`. Each failed check has a `severity` (`error`, `warning` or `info`), the `evidence` that was found, the points it cost in `scoreImpact`, and a `fix`.
+2. `prioritizedFixes`: the fixes of the failed checks, costliest first, at most 6.
+3. `parsingWarnings`: the failed checks that stop an ATS reading the file at all.
+4. `parsed`: the name, contact details, roles, education, skills, certifications and languages an ATS would store. An empty employer or a missing date range here is a column a recruiter's filter cannot match.
+5. `requirements` and `missingKeywordGroups`, when you passed a posting.
+6. `advice`, which is never scored.
+
+<Cards>
+  <Card
+    title="Choose a surface"
+    href="/ats-engine/choose-a-surface"
+    description="Library, CLI, GitHub Action, MCP server or hosted checker."
+  />
+  <Card
+    title="Scoring"
+    href="/ats-engine/concepts/scoring"
+    description="How the score is put together."
+  />
+  <Card
+    title="Report reference"
+    href="/ats-engine/reference/report"
+    description="Every field of AtsReport."
+  />
+  <Card
+    title="Check options"
+    href="/ats-engine/reference/check-options"
+    description="Every option check accepts."
+  />
+</Cards>

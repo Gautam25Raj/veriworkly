@@ -1,0 +1,195 @@
+---
+title: Command line
+description: Score a resume file from the terminal or a CI job with ats-engine check, with every flag, environment variable, output mode and exit code.
+---
+
+The `ats-engine` command scores a resume file with the VeriWorkly ATS Engine and prints the report. It reads PDF, DOCX, HTML, text, Markdown and JSON resume documents, optionally matches the resume against a job posting, and exits with a code a CI job can act on. It attaches the built-in language and region packs, so the library gives the same score when you call `check(input, withLocales(DEFAULT_POLICY, BUILT_IN_LOCALES))`. See [Scoring](/ats-engine/concepts/scoring) for how it is built.
+
+## Install and run
+
+PDF and DOCX files need the optional peers `pdf-parse@2`, `pdfjs-dist@5.4.296` and `mammoth`. `npx` does not install optional peers on its own, so name them.
+
+<Tabs items={["Global install", "npx, PDF or DOCX", "npx, text only"]}>
+  <Tab value="Global install">
+    ```bash
+    npm install -g @veriworkly/ats-engine pdf-parse@2 pdfjs-dist@5.4.296 mammoth
+    ats-engine check resume.pdf --job posting.txt
+    ```
+  </Tab>
+  <Tab value="npx, PDF or DOCX">
+    ```bash
+    npx -p @veriworkly/ats-engine -p pdf-parse@2 -p pdfjs-dist@5.4.296 -p mammoth \
+      ats-engine check resume.pdf
+    ```
+  </Tab>
+  <Tab value="npx, text only">
+    A `.txt`, `.md`, `.html` or `.json` resume needs none of the peers.
+
+    ```bash
+    npx @veriworkly/ats-engine check resume.md
+    ```
+
+  </Tab>
+</Tabs>
+
+Node 22.12 or later is required. `ats-engine --version` prints the engine version.
+
+## Usage
+
+```text
+ats-engine check <resume> [options]
+```
+
+Give exactly one resume file. A job posting is optional.
+
+| Flag              | Meaning                                                                                                                                                               |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--job <file>`    | Job posting to match against: `.txt`, `.md`, `.pdf`, `.docx`, or a saved `.html` page. A saved page's employer is left out of the keywords.                           |
+| `--job-url <url>` | Job posting on Greenhouse, Lever or Ashby (`https` only), read from the board's public API. Not combinable with `--job`. See [Job URLs](#job-urls).                   |
+| `--policy <file>` | Engine policy JSON, in place of the bundled default. The bundled language and region packs are attached to it. See [Custom policy](/ats-engine/guides/custom-policy). |
+| `--json`          | Print the full report as JSON, advice included, and nothing else on stdout.                                                                                           |
+| `--min-score <n>` | Exit with code 2 when the readiness score is below `n`. A number from 0 to 100.                                                                                       |
+| `--region <code>` | Read the resume as from this country: `US`, `GB`, `DE`, `FR` or `IN`. Case-insensitive. Default: inferred from the resume.                                            |
+| `--text`          | Also print the text as an ATS reads it, line by line. With `--json` the lines are the report's `lines` member.                                                        |
+| `--ats <name>`    | Add one ATS's documented notes to the advice, each with its source: `greenhouse`, `lever` or `taleo`. Advice only; the score does not change.                         |
+| `-h`, `--help`    | Show the help.                                                                                                                                                        |
+| `-v`, `--version` | Print the engine version.                                                                                                                                             |
+
+An unknown `--region` or `--ats` is a usage error that lists the accepted values. The accepted values come from the policy in use, so a custom `--policy` can define others.
+
+### AI analysis
+
+`--ai` asks a model to explain the report and suggest improvements, with your own API key. The score never depends on it. The other AI flags are rejected without `--ai`.
+
+| Flag                | Meaning                                                                                                                       |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `--ai`              | Turn the analysis on.                                                                                                         |
+| `--provider <name>` | One of `anthropic`, `openai`, `openrouter`, `gemini`, `groq`, `together`, `ollama`, or `openai-compatible` with `--base-url`. |
+| `--model <id>`      | A model id your provider lists. Required, from the flag or `ATS_AI_MODEL`.                                                    |
+| `--base-url <url>`  | A different API endpoint for the provider. An `http` or `https` URL.                                                          |
+| `--max-tokens <n>`  | Output budget, thinking included. A positive whole number. Default 8000.                                                      |
+| `--timeout <s>`     | Longest wait for the answer in seconds, retries included. More than 0 and at most 3600. Default 120.                          |
+
+Before anything leaves the machine, the CLI prints a notice on stderr naming the provider, host and model, and says that your name, email, phone number and links are replaced with placeholders first. Keyword suggestions are checked against the posting and the engine's keywords, and any that are not found there are dropped. The explanation, the fix order, the recommended improvements and the missing evidence are the model's own text and are not checked. See [AI features](/ats-engine/guides/ai).
+
+## Environment variables
+
+The API key is read from the environment only, never from a flag, so it stays out of shell history and the process list.
+
+| Variable             | Used for                                                                                                                                                                 |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ANTHROPIC_API_KEY`  | `--provider anthropic`.                                                                                                                                                  |
+| `OPENAI_API_KEY`     | `--provider openai`.                                                                                                                                                     |
+| `OPENROUTER_API_KEY` | `--provider openrouter`.                                                                                                                                                 |
+| `GEMINI_API_KEY`     | `--provider gemini`.                                                                                                                                                     |
+| `GROQ_API_KEY`       | `--provider groq`.                                                                                                                                                       |
+| `TOGETHER_API_KEY`   | `--provider together`.                                                                                                                                                   |
+| `ATS_AI_API_KEY`     | Any provider. The provider's own variable is read first.                                                                                                                 |
+| `ATS_AI_PROVIDER`    | Stands in for `--provider`.                                                                                                                                              |
+| `ATS_AI_MODEL`       | Stands in for `--model`.                                                                                                                                                 |
+| `ATS_AI_BASE_URL`    | Stands in for `--base-url`. Ignored when `--provider` is given as a flag, so an endpoint left in the environment for one provider never receives another provider's key. |
+| `ATS_AI_MAX_TOKENS`  | Stands in for `--max-tokens`.                                                                                                                                            |
+| `ATS_AI_TIMEOUT`     | Stands in for `--timeout`.                                                                                                                                               |
+| `NO_COLOR`           | Any non-empty value turns colour off everywhere.                                                                                                                         |
+| `FORCE_COLOR`        | Turns colour on, into a pipe too. `0` or `false` turns it off.                                                                                                           |
+| `CI`                 | When set (and not `false` or `0`), the banner is never printed.                                                                                                          |
+| `DEBUG`              | On an unexpected failure, also prints the error with its stack to stderr.                                                                                                |
+
+`ollama` and any server on `localhost`, `127.0.0.1` or `[::1]` need no key. For any other host the CLI refuses to send a key over plain `http`.
+
+## Output
+
+| Where                      | What you get                                                                                                |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| A terminal                 | Coloured report, opened by a VeriWorkly banner.                                                             |
+| A pipe, a file or a CI log | The same report as plain text, with no banner.                                                              |
+| `--json`                   | The full [`AtsReport`](/ats-engine/reference/report) as indented JSON on stdout. Colour and banner are off. |
+
+The text report shows the readiness score and verdict, the job match, requirements and missing keywords when there is a posting, the fields an ATS reads, each failed check with its fix, and the advice, which is never scored. Control characters in resume and posting text are removed before anything is printed.
+
+With `--json --ai`, the report gains an `ai` member:
+
+```json
+{
+  "ai": {
+    "provider": "anthropic",
+    "model": "your-model-id",
+    "insights": {
+      "explanation": "...",
+      "priorityOrder": ["..."],
+      "recommendedImprovements": ["..."],
+      "missingEvidence": ["..."],
+      "keywordOpportunities": ["..."]
+    },
+    "rejected": [],
+    "usage": { "inputTokens": 0, "outputTokens": 0 },
+    "attempts": 1,
+    "promptVersion": "default:..."
+  }
+}
+```
+
+`usage` is `null` when the provider did not report it. The member is absent when the analysis fails. See [AI options](/ats-engine/reference/ai-options) for `AtsAiResult`.
+
+## Exit codes
+
+| Code | Meaning                                                                                      |
+| ---- | -------------------------------------------------------------------------------------------- |
+| 0    | Done.                                                                                        |
+| 1    | Error: a usage mistake, an unreadable file, a failed job fetch, or a failed `--ai` analysis. |
+| 2    | The readiness score is below `--min-score`.                                                  |
+
+Code 2 wins over code 1 when both happen: a failed `--ai` analysis does not hide the gate's answer. The CLI prints `Readiness N is below --min-score M.` on stderr.
+
+## Job URLs
+
+`--job-url` reads a posting from the job board's public JSON API, never from the page. Only the board and the job id of your URL are used. The request goes to the board's fixed API host, redirects are not followed, the answer is capped at 20 MB and the wait at 20 seconds. This is the only request `check` makes without `--ai`.
+
+| Board      | Posting hosts                                      |
+| ---------- | -------------------------------------------------- |
+| Greenhouse | `boards.greenhouse.io`, `job-boards.greenhouse.io` |
+| Lever      | `jobs.lever.co`, `jobs.eu.lever.co`                |
+| Ashby      | `jobs.ashbyhq.com`                                 |
+
+Other sites are refused. Save the page and pass it with `--job`. A Greenhouse or Lever posting adds that ATS's notes to the advice unless `--ats` names another. Lever and Ashby name no employer, so the board's name stands in for it and is not suggested as a keyword.
+
+## Examples
+
+Score a resume:
+
+```bash
+ats-engine check resume.pdf
+```
+
+Match against a saved posting and read the resume as a UK one:
+
+```bash
+ats-engine check resume.pdf --job posting.txt --region GB
+```
+
+Match against a posting on a job board:
+
+```bash
+ats-engine check resume.pdf --job-url https://boards.greenhouse.io/acme/jobs/1234567
+```
+
+Pipe the JSON to `jq`:
+
+```bash
+ats-engine check resume.pdf --json | jq '{score: .readinessScore, fixes: .prioritizedFixes}'
+```
+
+Gate a CI job. The command exits with 2 below 80:
+
+```bash
+ats-engine check resume.pdf --job posting.txt --min-score 80
+```
+
+Add an AI analysis with your own key:
+
+```bash
+export ANTHROPIC_API_KEY=your-key
+ats-engine check resume.pdf --job posting.txt --ai --provider anthropic --model your-model-id
+```
+
+For a GitHub workflow, use the [GitHub Action](/ats-engine/tools/github-action), which wraps this command. To call the engine from code, see the [quick start](/ats-engine/quick-start).

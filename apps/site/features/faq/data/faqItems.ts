@@ -322,6 +322,48 @@ export const faqs: FaqItem[] = [
       "Yes. The core document builder and web engines are open-source under the MIT License on GitHub. You can view the source code, review our roadmap, or self-host the application.",
   },
   {
+    id: "ats-engine-what",
+    category: "developer",
+    question: "What is the VeriWorkly ATS Engine?",
+    answer:
+      "An open-source TypeScript library, MIT licensed, that reads a resume the way an applicant tracking system does, recovers the fields an ATS stores, scores it from 0 to 100 with a published rubric, and compares it with a job posting requirement by requirement. It is the engine behind the VeriWorkly ATS Checker, and it ships as an npm package, a command-line tool, a GitHub Action and an MCP server.",
+  },
+  {
+    id: "ats-engine-no-ai-score",
+    category: "developer",
+    question: "Does the ATS Engine use AI to score resumes?",
+    answer:
+      "No. The score comes from 35 published rules, each with its weight, the evidence it found and a fix. The same resume, policy and date always give the same report, and every report names the engine version and a fingerprint of the policy that produced it. AI is an optional add-on with your own API key: it can explain a report or fill gaps in a parse, and it never changes the score.",
+  },
+  {
+    id: "ats-engine-runtimes",
+    category: "developer",
+    question: "Where does the ATS Engine run?",
+    answer:
+      "The core makes no network calls, so it runs in the browser, at the edge (Cloudflare Workers, Vercel Edge) or in Node.js 22.12 and later. It is about 101 KB gzipped. Reading PDF and DOCX files needs Node.js and three optional packages: pdf-parse, pdfjs-dist and mammoth.",
+  },
+  {
+    id: "ats-engine-vendors",
+    category: "developer",
+    question: "Does the ATS Engine simulate Workday, Greenhouse or Taleo?",
+    answer:
+      "No. Vendors do not publish their parsers, so a per-vendor simulation would be guesswork. The engine measures what every ATS depends on: readable text, recoverable fields and clear sections. It can add the notes a vendor documents for Greenhouse, Lever or Taleo as advice, each linked to its source, and that advice is never scored.",
+  },
+  {
+    id: "ats-engine-screening",
+    category: "developer",
+    question: "Can I use the ATS Engine to rank or filter job applicants?",
+    answer:
+      "It is not built or validated for that. The engine is for candidates checking their own resume. Scoring applicants to screen them can bring legal duties, such as New York City's Local Law 144 and the EU AI Act, that a resume checker does not meet.",
+  },
+  {
+    id: "ats-engine-languages",
+    category: "developer",
+    question: "Which languages can the ATS Engine read?",
+    answer:
+      "English, German, French and Hindi, with region rules for the United States, the United Kingdom, Germany, France and India. A resume in a language without a pack drops the English-only writing rules instead of being judged on English words.",
+  },
+  {
     id: "report-bugs-suggest-features",
     category: "developer",
     question: "Where can I report bugs or suggest new features?",

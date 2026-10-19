@@ -14,6 +14,7 @@ import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 import { Callout } from "fumadocs-ui/components/callout";
 import { Card, Cards } from "fumadocs-ui/components/card";
 import { ImageZoom } from "fumadocs-ui/components/image-zoom";
+import { TypeTable } from "fumadocs-ui/components/type-table";
 import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
 
 export function getMDXComponents(components?: MDXComponents) {
@@ -26,6 +27,7 @@ export function getMDXComponents(components?: MDXComponents) {
     Accordions,
     Card,
     Cards,
+    TypeTable,
     CodeBlockTab,
     CodeBlockTabs,
     CodeBlockTabsList,

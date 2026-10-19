@@ -1,0 +1,119 @@
+---
+title: Score pasted text
+description: Call check on resume text, add a job description, fix the date for reproducible results, and read the score, failed checks, fixes and parsed fields.
+---
+
+The simplest way to use VeriWorkly ATS Engine is to hand `check` a string. It parses the text into the fields an applicant tracking system would store, scores it against the rubric and returns an `AtsReport`. The same text, policy and date always give the same report. The function does no I/O, so it runs in Node, a browser or an edge worker.
+
+## Score a resume
+
+```ts
+import { check } from "@veriworkly/ats-engine";
+
+const report = check(resumeText);
+
+console.log(report.readinessScore); // 0-100
+console.log(report.checksPassed, "of", report.checksTotal, "checks passed");
+```
+
+With no second argument, `check` uses `DEFAULT_POLICY`, the community policy. Pass your own policy as the second argument ([custom policy](/ats-engine/guides/custom-policy)) and options as the third.
+
+## Match it to a job description
+
+Pass the posting's text as `jobDescription`. The engine reads its first 20,000 characters.
+
+```ts
+import { check, DEFAULT_POLICY } from "@veriworkly/ats-engine";
+
+const report = check(resumeText, DEFAULT_POLICY, {
+  jobDescription: postingText,
+  jobCompany: "Acme", // optional: the employer's name is never a keyword
+  now: new Date("2026-10-01T00:00:00Z"),
+});
+
+console.log(report.jobMatchScore); // 0-100, or null without a posting
+console.log(report.missingKeywords); // terms the posting asks for and the resume never mentions
+console.log(report.requirements.map((r) => `${r.status}: ${r.text}`));
+```
+
+If you have the posting as a web page rather than text, see [job postings](/ats-engine/guides/job-postings). How the match works is in [job matching](/ats-engine/concepts/job-matching).
+
+## Fix the date
+
+Tenure of a current role and the check on implausible years are counted to `now`, which defaults to the current time. Pass a fixed `Date` in tests, snapshots and anywhere a result must be reproducible.
+
+```ts
+import { check } from "@veriworkly/ats-engine";
+
+const options = { now: new Date("2026-10-01T00:00:00Z") };
+
+const first = check(resumeText, undefined, options);
+const second = check(resumeText, undefined, options);
+
+console.log(JSON.stringify(first) === JSON.stringify(second)); // true
+```
+
+`report.engine` carries the engine version and the policy fingerprint, so you can tell a changed score from a changed rubric. See [scoring](/ats-engine/concepts/scoring).
+
+## Read the report
+
+These fields answer most questions. The full type is in the [report reference](/ats-engine/reference/report).
+
+```ts
+import { check } from "@veriworkly/ats-engine";
+
+const report = check(resumeText, undefined, { includeLines: true });
+
+// The score and what cost points
+console.log(report.readinessScore);
+for (const rule of report.failedChecks) {
+  console.log(`${rule.severity} ${rule.id}: ${rule.evidence} (-${rule.scoreImpact})`);
+}
+
+// What to do about it, most costly first
+report.prioritizedFixes.forEach((fix, index) => console.log(`${index + 1}. ${fix}`));
+
+// What an ATS would store
+const { parsed } = report;
+console.log(parsed.name, parsed.email, parsed.phone);
+for (const role of parsed.roles) {
+  console.log(role.title, "at", role.employer, role.current ? "(current)" : "");
+}
+console.log(parsed.skills);
+
+// How each recovered field was read: "parser", "structured", "ai" or "none"
+console.log(parsed.provenance);
+
+// The text as the engine read it, one entry per line (only with includeLines)
+console.log(report.lines?.slice(0, 5));
+```
+
+| Field              | What it holds                                                                                       |
+| ------------------ | --------------------------------------------------------------------------------------------------- |
+| `readinessScore`   | 0 to 100: the share of the applicable rubric weight the resume keeps, less any integrity deductions |
+| `failedChecks`     | The rules that lost points, each with `evidence`, `fix`, `severity` and `scoreImpact`               |
+| `prioritizedFixes` | The fixes of the costliest failed checks, up to six, most costly first                              |
+| `parsed`           | Name, contact details, roles, education, skills, certifications and spoken languages as recovered   |
+| `categories`       | Score per category (parsing, contact, structure, evidence, format, writing, integrity)              |
+| `advice`           | Notes about the file or the target ATS that never move the score                                    |
+
+## Which rules drop out for pasted text
+
+Pasted text has no page geometry. Rules that read it are left out of the report and out of the score's denominator, so pasting neither passes nor fails them:
+
+- `ats-v2.format.columns`, `ats-v2.format.tables` and `ats-v2.format.photo`, which measure the page.
+- `ats-v2.parse.imageOnly`, which asks whether every page has a text layer.
+- `ats-v2.integrity.hiddenText`, which reads text a layout draws invisibly.
+
+A score for pasted text is therefore a score on what the text alone can show. The same resume uploaded as a PDF can score differently, because a two-column layout reads fine as pasted text and badly as a file. To grade layout, pass `layout` and `file` from an extraction ([files in Node](/ats-engine/guides/files-in-node)). Other rules drop out for their own reasons: the copied-posting check needs a `jobDescription`, and the section checks need more than one line of text.
+
+<Callout type="info" title="Pasted text is a lower bound on what a file reveals">
+  Tell users that a pasted score cannot see columns, tables, photos or hidden text. The
+  [rubric](/ats-engine/reference/rubric) lists every rule and what it reads.
+</Callout>
+
+## Next steps
+
+- Read [other languages and regions](/ats-engine/guides/languages-and-regions) by attaching locale packs.
+- Show the report with the helpers in [rendering](/ats-engine/guides/rendering).
+- Withhold part of it for a free tier with [restricted reports](/ats-engine/guides/restricted-reports).

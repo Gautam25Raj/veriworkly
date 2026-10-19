@@ -34,6 +34,7 @@ export const siteConfig = {
 
   navigation: [
     { href: "/docs", label: "Docs" },
+    { href: "/ats-engine", label: "ATS Engine" },
     { href: "/api-reference", label: "API Reference" },
     { href: links.blog, label: "Blog" },
   ],

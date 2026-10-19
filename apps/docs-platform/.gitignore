@@ -51,4 +51,6 @@ next-env.d.ts
 /test-results
 /app/test
 /app/og-generator
-/api-index
+/api-index
+# ATS Engine docs sample check (scripts/check-engine-samples.mjs)
+/.engine-samples

@@ -1,0 +1,203 @@
+---
+title: Package exports
+description: Every subpath of @veriworkly/ats-engine, with what it exports, where it runs, its gzipped size and the peers it needs.
+---
+
+`@veriworkly/ats-engine` is ESM only and needs Node 22.12 or later. Each subpath below is a separate entry point, so a browser bundle takes only what it imports. Sizes are gzipped, for version 0.11.0.
+
+## Summary
+
+| Subpath                  | Holds                                                             | Runs in                                                | Gzipped                               | Peer needed                                                     |
+| ------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------- | --------------------------------------------------------------- |
+| `.`                      | Scoring, policy, input, report shaping, grounding, document types | Browser, edge, Node                                    | about 101 KB                          | None                                                            |
+| `./document`             | Structured resume input                                           | Browser, edge, Node                                    | 2.1 KB                                | None                                                            |
+| `./format`               | Display helpers                                                   | Browser, edge, Node                                    | 1.2 KB                                | None                                                            |
+| `./job`                  | Job posting text from HTML                                        | Browser, edge, Node                                    | 3.5 KB                                | None                                                            |
+| `./locales`              | Language and region packs                                         | Browser, edge, Node                                    | 75.5 KB (`withLocales` alone 48.7 KB) | None                                                            |
+| `./ai`                   | Model-backed tasks                                                | Wherever `fetch` exists, with the key kept server-side | 73.0 KB                               | None                                                            |
+| `./ai/openai-compatible` | Chat Completions provider                                         | Same as `./ai`                                         | 1.9 KB                                | None                                                            |
+| `./ai/anthropic`         | Anthropic Messages provider                                       | Same as `./ai`                                         | 1.9 KB                                | None                                                            |
+| `./ai/testing`           | Test doubles and an eval harness                                  | Anywhere                                               | 1.2 KB                                | None                                                            |
+| `./node`                 | Reading PDF, DOCX and text files                                  | Node only                                              | 21.1 KB                               | `pdf-parse@2`, `pdfjs-dist@5.4.296` for PDF; `mammoth` for DOCX |
+| `./node/child`           | A forkable extraction process                                     | Node only                                              |                                       | Same as `./node`                                                |
+| `./policy.schema.json`   | The JSON Schema of a scoring policy (a file, not a module)        | An editor, from a policy file's `$schema`              |                                       |                                                                 |
+| `./package.json`         | The package manifest                                              |                                                        |                                       |                                                                 |
+
+The core, `./document`, `./format`, `./job` and `./locales` make no network calls. The `ats-engine` command is the package's `bin`; see [Command line](/ats-engine/tools/cli).
+
+Install the optional peers for PDF and DOCX on Node:
+
+```bash
+npm install pdf-parse@2 pdfjs-dist@5.4.296 mammoth
+```
+
+## `.` (core)
+
+The main entry. It also re-exports everything in `./document`.
+
+Functions and values:
+
+| Export                                                           | Purpose                                                                                                                        |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `check`                                                          | Scores resume input and returns an `AtsReport`. See [Check options](/ats-engine/reference/check-options).                      |
+| `AtsScoringService`                                              | The class behind `check`, with the same `check` method.                                                                        |
+| `prepareResume`                                                  | Reads a resume input once, for a report and an AI pass to share.                                                               |
+| `parseResume`, `parseQuality`                                    | The parser's fields, and how well the parse went.                                                                              |
+| `computeVerdict`, `VERDICT_BANDS`                                | The verdict (`strong`, `needs-work`, `weak`) for a report, and its bands.                                                      |
+| `policyRubric`                                                   | Describes each rule of a policy for publication.                                                                               |
+| `shapeReport`                                                    | Reduces a report for display, including the restricted shape. See [Restricted reports](/ats-engine/guides/restricted-reports). |
+| `parseAtsPolicy`                                                 | Validates a policy and returns it frozen, or throws `AtsPolicyError`.                                                          |
+| `DEFAULT_POLICY`                                                 | The bundled community policy.                                                                                                  |
+| `policyFingerprint`                                              | Names the exact policy a report was scored with.                                                                               |
+| `ENGINE_VERSION`                                                 | The engine version string.                                                                                                     |
+| `findGroundingViolations`, `isGrounded`, `normalizeForGrounding` | Check model output against the source text.                                                                                    |
+| `mergeGrounded`, `needsRepair`                                   | Merge grounded repair candidates into a parse.                                                                                 |
+| `AtsInputError`, `AtsPolicyError`                                | Error classes. See [Errors and limits](/ats-engine/reference/errors-and-limits).                                               |
+
+Types:
+
+- Report: `AtsReport`, `AtsRuleResult`, `AtsCategoryScore`, `AtsSeverity`, `AtsRequirement`, `AtsKeywordGroups`, `AtsAdvice`, `AtsProvenance`, `AtsVerdict`. See [Report](/ats-engine/reference/report).
+- Parsed resume: `AtsParsedResume`, `AtsParsedRole`, `AtsParsedEducation`, `AtsParsedCertification`, `AtsParsedLanguage`, `AtsParsedDate`, `AtsParsedField`, `AtsCefrLevel`, `AtsDegreeLevel`, `AtsIscedLevel`.
+- Input: `AtsResumeInput`, `PreparedResume`, `AtsFileInfo`, `AtsLayoutSignals`, `HiddenCharacters`, `AtsCheckOptions`.
+- Policy: `AtsEnginePolicy`, `AtsEnginePolicyInput`, `AtsEngineRule`, `AtsPolicyIssue`, `AtsRubricEntry`. See [Policy](/ats-engine/reference/policy).
+- Locale: `AtsLocale`, `AtsLocaleOptions`.
+- Shaped reports: `AtsFullReport`, `AtsRestrictedReport`, `AtsShapedReport`, `AtsReportDetail`.
+- Grounding: `GroundingViolation`, `AtsRepairCandidate`, `MergeOptions`, `MergeResult`.
+
+## `./document`
+
+Dependency-free, so an editor can build structured input in the browser without bundling the scorer. Validation happens when the document is scored. See [Structured input](/ats-engine/guides/structured-input).
+
+| Export                           | Purpose                                                                             |
+| -------------------------------- | ----------------------------------------------------------------------------------- |
+| `ATS_DOCUMENT_FORMAT`            | The format marker, `"ats-resume@1"`.                                                |
+| `DOCUMENT_LIMITS`                | The size limits of a structured document.                                           |
+| `isResumeDocument`               | Type guard for `AtsResumeDocument`.                                                 |
+| `renderResumeDocument`           | Renders a document to the text the scorer reads.                                    |
+| `fromJsonResume`, `isJsonResume` | Converts a [JSON Resume](https://jsonresume.org) to a document, and recognises one. |
+
+Types: `AtsResumeDocument`, `AtsDocumentBasics`, `AtsDocumentSection`, `AtsDocumentEntry`, `AtsDocumentRole`, `AtsDocumentEducation`, `AtsDocumentProject`, `AtsDocumentSkillGroup`, `AtsDocumentCertification`, `AtsDocumentLanguage`.
+
+## `./format`
+
+Presentation helpers for reports. Dependency-free and policy-free. English only. Nothing here changes a score. See [Rendering](/ats-engine/guides/rendering).
+
+| Export                                                        | Purpose                                                                                        |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `scoreTone`, `SCORE_BANDS`                                    | The display band of a score (`good`, `warn`, `bad`), and its bounds.                           |
+| `CATEGORY_ORDER`, `CATEGORY_LABELS`                           | Category ids in reading order, and their labels.                                               |
+| `categoryLabel`, `sortByCategoryOrder`                        | Label a category, and sort items by it.                                                        |
+| `adviceLabel`, `ADVICE_LABELS`                                | Labels of the advice kinds.                                                                    |
+| `formatParsedDate`, `formatRoleDates`, `roleSpanMonths`       | Dates and spans of roles.                                                                      |
+| `formatCertification`, `formatSpokenLanguage`, `formatTenure` | One-line forms of parsed fields.                                                               |
+| `ISCED_LABELS`                                                | Names of the ISCED levels.                                                                     |
+| `DEGREE_LABELS`                                               | Deprecated; use `ISCED_LABELS`. Removed in 1.0.                                                |
+| `printable`                                                   | Removes control characters from every string in a value, so it is safe to print in a terminal. |
+
+Types: `AtsScoreTone`.
+
+## `./job`
+
+Job posting text from a web page. Parsing only: it does not fetch. Fetching an untrusted URL safely is the host's job. See [Job postings](/ats-engine/guides/job-postings).
+
+| Export               | Purpose                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| `jobTextFromHtml`    | The posting text of a page: its `JobPosting` data when it has some, else its visible text. |
+| `extractJobPosting`  | The schema.org `JobPosting` a page publishes, or `null`.                                   |
+| `jobHtmlToText`      | The visible text of HTML, one line per block.                                              |
+| `normalizeJobText`   | Trims lines and caps the text.                                                             |
+| `MAX_JOB_TEXT_CHARS` | The default cap, 12,000 characters.                                                        |
+
+Types: `AtsJobPosting`.
+
+## `./locales`
+
+Language packs (German, French, Hindi) and region packs (US, GB, DE, FR, IN). See [Languages and regions](/ats-engine/guides/languages-and-regions) and [Locales](/ats-engine/reference/locales).
+
+| Export                                                 | Purpose                                                        |
+| ------------------------------------------------------ | -------------------------------------------------------------- |
+| `withLocales`                                          | Returns a policy with locale packs attached.                   |
+| `localizePolicy`                                       | Applies the packs to a policy for a given language and region. |
+| `BUILT_IN_LOCALES`                                     | All bundled packs.                                             |
+| `de`, `fr`, `hi`                                       | Language packs.                                                |
+| `US`, `GB`, `DE`, `FR`, `IN`                           | Region packs.                                                  |
+| `atsLanguagePackJsonSchema`, `atsRegionPackJsonSchema` | JSON Schemas for contributing a pack.                          |
+
+Types: `AtsLanguagePack`, `AtsLanguagePackInput`, `AtsRegionPack`, `AtsRegionPackInput`, `AtsLocale`, `AtsLocaleOptions`.
+
+## `./ai`
+
+Model-backed tasks with any provider. It needs `fetch` and a key kept server-side. See [AI features](/ats-engine/guides/ai) and [AI options](/ats-engine/reference/ai-options).
+
+| Export                                                                      | Purpose                                                                       |
+| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `createAtsAi`                                                               | Creates the `AtsAi` object with `analyze`, `repairParse` and `convertResume`. |
+| `AtsAiError`                                                                | Error for a task that produced no result, with a `code`.                      |
+| `LlmProviderError`                                                          | Error for a failed provider call.                                             |
+| `DEFAULT_ANALYZE_PROMPT`, `DEFAULT_REPAIR_PROMPT`, `DEFAULT_CONVERT_PROMPT` | The system prompts, for overriding.                                           |
+| `CONVERT_GROUNDING_SKIP`                                                    | Paths of a converted resume that grounding leaves unchecked.                  |
+
+Types: `AtsAi`, `AtsAiOptions`, `AtsAiCallOptions`, `AtsAiResult`, `AtsAiErrorCode`, `AtsAiRetryEvent`, `AtsAiTask`, `TaskRoute`, `AtsAiInsights`, `AnalyzeInput`, `RepairParseInput`, `ConvertResumeInput`, `AtsConvertedResume`, `LlmProvider`, `LlmRequest`, `LlmResponse`, `LlmMessage`, `LlmOutputFormat`, `LlmUsage`, `FetchLike`, `FetchResponseLike`, `AbortSignalLike`, `HttpOptions`.
+
+## `./ai/openai-compatible`
+
+| Export               | Purpose                                                                                                                                                                                                    |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `openAiCompatible`   | A provider for any service that serves `POST {baseUrl}/chat/completions`: OpenAI, OpenRouter, Gemini, Groq, Together, Ollama, vLLM and others. One HTTP call per completion, never retried by the adapter. |
+| `chatCompletionBody` | The request body for one call, exported for tests that pin the wire format.                                                                                                                                |
+
+Types: `OpenAiCompatibleOptions`.
+
+## `./ai/anthropic`
+
+| Export         | Purpose                                                                                                |
+| -------------- | ------------------------------------------------------------------------------------------------------ |
+| `anthropic`    | A provider for the Anthropic Messages API. One HTTP call per completion, never retried by the adapter. |
+| `messagesBody` | The request body for one call, exported for tests.                                                     |
+
+Types: `AnthropicOptions`.
+
+## `./ai/testing`
+
+| Export              | Purpose                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `scriptedProvider`  | A provider that replays canned replies and records every request.                                                  |
+| `runAiEval`         | Measures schema validity, grounding, fabricated numbers, consistency and injection leaks of a provider and prompt. |
+| `fabricatedNumbers` | Numbers in an output that the source never states.                                                                 |
+
+Types: `ScriptedProvider`, `ScriptedReply`, `AiEvalCase`, `AiEvalReport`.
+
+## `./node`
+
+Reads resume files on Node. PDF support needs `pdf-parse` and `pdfjs-dist`; DOCX needs `mammoth`. See [Files in Node](/ats-engine/guides/files-in-node).
+
+| Export                   | Purpose                                                                                                  |
+| ------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `extractResume`          | Turns a PDF, DOCX, HTML or text upload into the text the scorer reads, plus layout signals.              |
+| `detectResumeFormat`     | Names the format of an upload.                                                                           |
+| `normalizeExtractedText` | Normalises extracted text the way the scorer expects.                                                    |
+| `MAX_EXTRACTED_CHARS`    | The most text kept from a file.                                                                          |
+| `readResumeFile`         | Reads a resume from a path with the limits and messages of the command line, and says what the file was. |
+| `readJobFile`            | Reads a job posting from a path.                                                                         |
+| `AtsFileError`           | Error for a file that cannot be read as asked.                                                           |
+| `MAX_FILE_BYTES`         | The largest file read, 20 MB.                                                                            |
+
+Types: `AtsExtraction`, `AtsResumeFormat`, `AtsJobFile`, `AtsReadFileOptions`, `AtsExtractRequest`, `AtsExtractResponse`.
+
+## `./node/child`
+
+A process a server can fork and kill, which wraps `extractResume`. It has no `types` entry in the package exports, because it is a fork target rather than an import. Run it as a separate OS process, not a worker thread, so a crash or a forced kill on timeout stays contained.
+
+It reads `{ id, format, buffer }` requests over the IPC channel of `fork` and answers each with one `{ id, ok, ... }` response, for as many requests as you send. It does not exit after a reply: kill it or disconnect from it when you are done, and it exits by itself when the parent disconnects. The buffer travels base64-encoded. `AtsExtractRequest` and `AtsExtractResponse` from `./node` type the messages.
+
+```ts
+import { fork } from "node:child_process";
+import { createRequire } from "node:module";
+
+const child = fork(createRequire(import.meta.url).resolve("@veriworkly/ats-engine/node/child"));
+child.on("message", (response) => {
+  console.log(response);
+  child.disconnect(); // the child exits once the parent disconnects
+});
+child.send({ id: 1, format: "text", buffer: Buffer.from(resumeText).toString("base64") });
+```

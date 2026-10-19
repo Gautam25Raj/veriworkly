@@ -1,4 +1,5 @@
-import { BookOpen, KeyRound, ExternalLink } from "lucide-react";
+import Link from "next/link";
+import { BookOpen, Gauge, KeyRound, ExternalLink, ArrowRight } from "lucide-react";
 
 import { GithubIcon, Card } from "@veriworkly/ui";
 
@@ -24,7 +25,7 @@ export const DeveloperEcosystemSection = () => {
         </p>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <Reveal>
           <Card className="border-border/60 bg-card/40 hover:border-accent/40 relative flex h-full flex-col justify-between overflow-hidden p-6 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
             <div className="space-y-4">
@@ -108,12 +109,41 @@ export const DeveloperEcosystemSection = () => {
               <a
                 target="_blank"
                 rel="noreferrer"
-                href={`${siteConfig.links.docs}/api`}
+                href={`${siteConfig.links.docs}/api-reference`}
                 className="text-accent inline-flex items-center gap-1.5 text-xs font-bold hover:underline"
               >
                 <span>API Reference</span>
                 <ExternalLink className="size-3" />
               </a>
+            </div>
+          </Card>
+        </Reveal>
+
+        <Reveal delay={0.18}>
+          <Card className="border-border/60 bg-card/40 hover:border-accent/40 relative flex h-full flex-col justify-between overflow-hidden p-6 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
+            <div className="space-y-4">
+              <div className="bg-accent/10 text-accent ring-accent/20 flex size-10 items-center justify-center rounded-xl ring-1">
+                <Gauge className="size-5" />
+              </div>
+
+              <div className="space-y-1.5">
+                <h3 className="text-foreground text-base font-bold">ATS Engine</h3>
+
+                <p className="text-muted text-xs leading-relaxed">
+                  The open-source engine behind our ATS checker. Parse, score and match resumes in
+                  your own product with one npm install.
+                </p>
+              </div>
+            </div>
+
+            <div className="border-border/40 mt-5 border-t pt-3">
+              <Link
+                href="/ats-engine"
+                className="text-accent inline-flex items-center gap-1.5 text-xs font-bold hover:underline"
+              >
+                <span>Explore the engine</span>
+                <ArrowRight className="size-3" />
+              </Link>
             </div>
           </Card>
         </Reveal>

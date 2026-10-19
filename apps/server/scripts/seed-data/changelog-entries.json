@@ -1,5 +1,43 @@
 [
   {
+    "id": "v3-27-0",
+    "version": "3.27.0",
+    "title": "ATS Engine Docs, Developer Page & Engine 0.11.0",
+    "summary": "This release gives the open-source ATS engine its own documentation at docs.veriworkly.com/ats-engine and a developer page at veriworkly.com/ats-engine, and moves the server, site and Studio to @veriworkly/ats-engine 0.11.0. Since 3.26.0 the checker reads French CVs and UK resumes in their own conventions, no longer judges a resume in a language without a pack by English writing rules, and caps what a crafted PDF or Word upload can cost.",
+    "type": "minor",
+    "publishedAt": "2026-10-19T15:00:00Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.27.0",
+    "added": [
+      "ATS Engine documentation: a new docs tree at docs.veriworkly.com/ats-engine with a quick start, concepts, guides for Node.js, Next.js, the edge and the browser, the CLI, the GitHub Action, the MCP server, and a reference generated from the installed engine.",
+      "ATS Engine developer page: /ats-engine on the marketing site, with an in-browser demo that scores invented sample resumes with the real engine, the four ways to run it, runtimes, bundle sizes, benchmarks and the hosted API's quotas.",
+      "French and UK resumes: French CVs are read in French, and a resume with a +44 number is read in UK conventions (day-first dates, GCSEs, HNDs, PGCEs).",
+      "Six developer FAQ entries about the ATS engine, and links to it from the footer, the ATS checker, the features page, llms.txt and agent.json."
+    ],
+    "improved": [
+      "Upgraded @veriworkly/ats-engine from 0.5.0 to 0.10.0 and then 0.11.0 across server, site and Studio; reading fixes from 0.6 to 0.9 improve recovered fields and scores for the same file.",
+      "A resume in a language the engine has no pack for no longer gets the English-only writing checks.",
+      "Docs CI type-checks every ATS Engine code sample and fails if the generated reference pages fall behind the installed engine.",
+      "Re-checked Kickresume, Novorésumé and Enhancv pricing in the comparison matrix, and linked the four career guides from the blog's front page."
+    ],
+    "fixed": [
+      "Uploads: PDF reading stops after 100 pages, a DOCX's headers and footers share one 2 MB budget, and PDF images are decoded a page at a time, so a padded or image-heavy file can no longer tie up the checker.",
+      "Old unprefixed template URLs such as /templates/executive-clarity now redirect permanently to their current pages instead of serving soft 404s, and /stats pages after the first are no longer indexed."
+    ],
+    "breaking": [],
+    "security": [],
+    "tags": ["ats-engine", "docs", "resume", "seo"],
+    "prRefs": [
+      {
+        "number": 216,
+        "title": "chore(ats): move to @veriworkly/ats-engine 0.10.0"
+      },
+      {
+        "number": 217,
+        "title": "ATS Engine docs and developer page, engine 0.11.0, release 3.27.0"
+      }
+    ]
+  },
+  {
     "id": "v3-26-0",
     "version": "3.26.0",
     "title": "ATS Writing Score, Certification & Language Parsing, Node 22.12+ Baseline",

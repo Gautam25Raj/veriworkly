@@ -1,0 +1,82 @@
+---
+title: Security
+description: What the VeriWorkly ATS Engine defends against, the limits it enforces, and what an integrator must still do around hostile files, model calls and report text.
+---
+
+The engine is built to take input from anyone: a resume, a posting, a web page, an uploaded file. This page condenses the [SECURITY.md](https://github.com/VeriWorkly/ats-engine/blob/main/SECURITY.md) for people embedding it. The full file has the detail and the test that holds each guarantee.
+
+## Reporting a vulnerability
+
+Email **grievance@veriworkly.com** with a description, a reproducing input, the potential impact and the version (`ENGINE_VERSION`). Please do not open a public issue. Reports are acknowledged within 24 to 48 hours. Good-faith research under the policy is authorised. There is no paid bug bounty. While the package is 0.x, only the latest minor release receives security fixes.
+
+## Input limits
+
+| Input                                     | Limit                                                                                              |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Resume text                               | Cut at 50,000 characters                                                                           |
+| Job posting                               | Cut at 20,000 characters                                                                           |
+| Structured document                       | Bounded in depth, array length and node count before validation                                    |
+| Policy or locale pack                     | Nested deeper than 5,000 levels, or containing itself: refused with `AtsPolicyError`               |
+| DOCX                                      | Expands to at most 64 MB; at most 2 MB of the XML `mammoth` parses and 2 MB of headers and footers |
+| PDF text                                  | Stops at the cap or after the first 100 pages                                                      |
+| File on disk (CLI, MCP, `readResumeFile`) | A regular file at most 20 MB; a network path is refused, but only the path's form is checked       |
+| File name                                 | Read to its first 255 characters                                                                   |
+| MCP pasted text                           | Refused over 200,000 characters                                                                    |
+
+A host should still bound request bodies. PDF images have no size cap: pdf.js decodes every image in full, so a small file with one huge image can hold gigabytes of memory.
+
+## Linear-time patterns
+
+Every pattern over untrusted text is linear. A 50 KB adversarial input in any of 110 shapes scores in tens to a few hundred milliseconds on a developer machine, and the test fails any shape past 1.5 seconds. Patterns in a policy or a locale pack are operator-supplied: `parseAtsPolicy` checks that they compile, not that they are linear. Review a policy's patterns as you would code.
+
+## Hostile files
+
+PDF parsing (pdf.js) and DOCX parsing (`mammoth`) are CPU-bound. A malformed DOCX can hold its XML parser for minutes, and a PDF with large images can use gigabytes. The engine refuses the known shapes before parsing, but extraction on a server should still run in a process you can kill.
+
+Run `/node` extraction in `@veriworkly/ats-engine/node/child`, a forkable process, with a timeout and an operating-system memory cap. Use a process, not a worker thread: repeatedly starting worker threads that load pdf.js has crashed Node. A child process has its own heap, so a crash or a forced kill stays contained.
+
+[Files in Node](/ats-engine/guides/files-in-node#run-extraction-in-a-child-process) has a complete `extractInChild` helper that does this: it enforces a timeout, kills the child, handles a crash and checks each reply's `ok` and `id`.
+
+Cap the child's memory in the operating system (a cgroup, `ulimit -v`, a Windows Job object). Decoded images live outside the V8 heap, so `--max-old-space-size` does not bound them. Set the timeout with images in mind too: the extractor waits for each page's images before reading the next, which keeps memory to a page at a time and costs time instead.
+
+## What leaves the machine
+
+The core holds no global state, does no I/O and makes no network calls. Only `/ai` calls the provider you configure, only `/node` reads files you pass it, and the CLI's `--job-url` makes one request to a job board's API host (below). Nothing else leaves the machine.
+
+- `/ai` sends resume text to your provider, with the key you give it, and nowhere else. The adapters never follow a redirect, so a key is not forwarded to another origin.
+- Keep API keys on your server. The AI code can run in a browser, but a key sent there is visible to anyone using the page.
+- `analyze` redacts contact details before the request leaves. This is best effort and covers only specific forms, so read the full SECURITY.md before you promise a user that a number or a name never leaves.
+- Without `--ai`, the CLI makes a request only for `--job-url`, and only to a job board's public API host. It sends no resume text and no key.
+- The MCP server runs over stdio, makes no network requests and calls no model. Its answers include resume text, which the assistant sends to its own model provider.
+
+## Model output
+
+Resume and posting text are passed to a model as JSON data, with a system prompt that says so. That lowers the risk of prompt injection; no prompt removes it. What does not depend on the model:
+
+- Every identity value a task returns (names, employers, titles, schools, emails, URLs, skills) must occur in the resume text. It is dropped and reported in `rejected` if it does not.
+- Free text a model writes is advice and is not grounded. Show it as the model's words, not as facts about the candidate.
+
+## Escaping advice and report text
+
+Advice quotes the file name as given, and failed checks quote text from the resume. Escape both as you escape any other untrusted text before you show it in a page. The CLI and the MCP server strip control characters from everything they print. The `file` option and the file name are read only for `report.advice` and never for a score.
+
+## Integrator checklist
+
+1. Bound request bodies before they reach the engine.
+2. Extract PDF and DOCX in `/node/child` with a timeout and an OS memory cap.
+3. Review the patterns of any policy or locale pack you did not write.
+4. Keep AI keys server-side and show model text as the model's words.
+5. Escape resume text and advice in every page you render.
+
+<Cards>
+  <Card
+    title="Full SECURITY.md"
+    href="https://github.com/VeriWorkly/ats-engine/blob/main/SECURITY.md"
+    description="Every guarantee, limit and test, on GitHub."
+  />
+  <Card
+    title="Errors and limits"
+    href="/ats-engine/reference/errors-and-limits"
+    description="The errors the engine throws and the limits it applies."
+  />
+</Cards>

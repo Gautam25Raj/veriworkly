@@ -1,6 +1,7 @@
 import { source } from "@/lib/source";
-import { notFound } from "next/navigation";
+
 import { ImageResponse } from "next/og";
+import { notFound } from "next/navigation";
 
 export const runtime = "nodejs";
 
@@ -12,7 +13,9 @@ export async function GET(request: Request, { params }: RouteContext) {
   try {
     const { searchParams } = new URL(request.url);
     const { slug } = await params;
+
     const page = source.getPage(slug.slice(0, -1));
+
     if (!page) notFound();
 
     const title = page.data.title ?? "VeriWorkly Docs";
@@ -31,25 +34,25 @@ export async function GET(request: Request, { params }: RouteContext) {
     return new ImageResponse(
       <div
         style={{
-          height: "100%",
           width: "100%",
+          height: "100%",
           display: "flex",
-          color: isDark ? "#ffffff" : "#171717",
           alignItems: "center",
           position: "relative",
           flexDirection: "column",
           fontFamily: "sans-serif",
           justifyContent: "center",
+          color: isDark ? "#ffffff" : "#171717",
           backgroundColor: isDark ? "#0a0a0a" : "#f5f4ef",
         }}
       >
         <div
           style={{
-            position: "absolute",
             top: 0,
             left: 0,
             right: 0,
             bottom: 0,
+            position: "absolute",
             backgroundImage: isDark
               ? "radial-gradient(circle at top left, rgba(37, 99, 235, 0.2), transparent 40%)"
               : "radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 28%)",
@@ -58,11 +61,11 @@ export async function GET(request: Request, { params }: RouteContext) {
 
         <div
           style={{
-            position: "absolute",
             top: 0,
             left: 0,
             right: 0,
             bottom: 0,
+            position: "absolute",
             backgroundImage: isDark
               ? "radial-gradient(circle at top right, rgba(96, 165, 250, 0.15), transparent 30%)"
               : "radial-gradient(circle at top right, rgba(96, 165, 250, 0.08), transparent 22%)",
@@ -71,11 +74,11 @@ export async function GET(request: Request, { params }: RouteContext) {
 
         <svg
           style={{
-            position: "absolute",
             top: 0,
             left: 0,
             width: "100%",
             height: "100%",
+            position: "absolute",
           }}
           xmlns="http://www.w3.org/2000/svg"
         >
@@ -95,19 +98,19 @@ export async function GET(request: Request, { params }: RouteContext) {
         <div
           style={{
             display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
             padding: "80px",
             textAlign: "center",
+            alignItems: "center",
+            flexDirection: "column",
+            justifyContent: "center",
           }}
         >
           <div
             style={{
               fontSize: 24,
+              display: "flex",
               fontWeight: 600,
               marginBottom: 48,
-              display: "flex",
               alignItems: "center",
               padding: "6px 12px",
               borderRadius: "100px",
@@ -120,9 +123,9 @@ export async function GET(request: Request, { params }: RouteContext) {
                 width: 38,
                 height: 38,
                 marginRight: 10,
-                backgroundImage: `url(${logoUrl})`,
                 backgroundSize: "contain",
                 backgroundRepeat: "no-repeat",
+                backgroundImage: `url(${logoUrl})`,
               }}
             />
             <span style={{ fontWeight: 700 }}>VeriWorkly Docs</span>
@@ -130,18 +133,18 @@ export async function GET(request: Request, { params }: RouteContext) {
 
           <div
             style={{
-              fontSize: title.length > 40 ? 60 : 84,
               fontWeight: 900,
-              lineHeight: 1.05,
-              letterSpacing: "-0.05em",
-              marginBottom: showDescription ? 32 : 0,
-              maxWidth: "1100px",
               display: "flex",
+              lineHeight: 1.05,
+              maxWidth: "1100px",
+              color: "transparent",
+              backgroundClip: "text",
+              letterSpacing: "-0.05em",
+              fontSize: title.length > 40 ? 60 : 84,
+              marginBottom: showDescription ? 32 : 0,
               backgroundImage: isDark
                 ? "linear-gradient(to bottom, #ffffff, #a3a3a3)"
                 : "linear-gradient(to bottom, #000000, #4b5563)",
-              backgroundClip: "text",
-              color: "transparent",
             }}
           >
             {title}
@@ -151,11 +154,11 @@ export async function GET(request: Request, { params }: RouteContext) {
             <div
               style={{
                 fontSize: 32,
-                color: isDark ? "#a3a3a3" : "#4b5563",
-                maxWidth: "850px",
+                display: "flex",
                 lineHeight: 1.4,
                 fontWeight: 500,
-                display: "flex",
+                maxWidth: "850px",
+                color: isDark ? "#a3a3a3" : "#4b5563",
               }}
             >
               {displayDescription}
@@ -165,15 +168,15 @@ export async function GET(request: Request, { params }: RouteContext) {
 
         <div
           style={{
-            position: "absolute",
             bottom: 40,
-            width: "100%",
-            display: "flex",
-            justifyContent: "center",
             opacity: 0.5,
             fontSize: 18,
+            width: "100%",
+            display: "flex",
             fontWeight: 700,
+            position: "absolute",
             letterSpacing: "0.2em",
+            justifyContent: "center",
             textTransform: "uppercase",
           }}
         >

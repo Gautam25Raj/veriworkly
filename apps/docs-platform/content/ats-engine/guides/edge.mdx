@@ -1,0 +1,110 @@
+---
+title: Run at the edge
+description: Score resumes in Cloudflare Workers and Vercel Edge Functions, which entry points work there, which do not, and what the bundles weigh.
+---
+
+The core of VeriWorkly ATS Engine holds no I/O, no global state and makes no network calls, so it runs in Cloudflare Workers, Vercel Edge Functions and other runtimes that provide the standard `Request`, `Response` and `fetch`. This guide shows a Worker that scores JSON input and lists what is safe to import there.
+
+## What works at the edge
+
+| Import                                       | Edge         | Notes                                                                                                      |
+| -------------------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------- |
+| `@veriworkly/ats-engine`                     | Yes          | Scoring, parsing, policy, report shaping. About 101 KB gzipped                                             |
+| `@veriworkly/ats-engine/document`            | Yes          | Structured input and JSON Resume. About 2.1 KB gzipped                                                     |
+| `@veriworkly/ats-engine/format`              | Yes          | Display helpers. About 1.2 KB gzipped                                                                      |
+| `@veriworkly/ats-engine/job`                 | Yes          | Job text from saved page HTML. About 3.5 KB gzipped                                                        |
+| `@veriworkly/ats-engine/locales`             | Yes          | Language and region packs. About 75.5 KB gzipped; `withLocales` alone is 48.7 KB                           |
+| `@veriworkly/ats-engine/ai` and its adapters | With `fetch` | About 73.0 KB gzipped, plus 1.9 KB per adapter. Keep the API key in a secret binding, never in client code |
+| `@veriworkly/ats-engine/node`, `/node/child` | No           | Node only: file reads, `node:child_process`, pdf.js and mammoth                                            |
+
+Sizes are for 0.11.0 and are not additive: the core is shared between entry points. Check the figures against your own bundler's output before you pick a plan tier. Workers and Edge Functions have size limits of their own.
+
+Reading PDF and DOCX is the one thing you cannot do at the edge. Send the file to a Node route instead ([Next.js](/ats-engine/guides/nextjs)) or score text the user pasted.
+
+## A Worker that scores JSON
+
+This Worker takes `POST /` with `{ "text": "..." }` or `{ "document": { "format": "ats-resume@1", ... } }`, with an optional `job` string, and returns a report. It scores with the community policy and pins nothing but the input.
+
+```ts title="src/worker.ts"
+import {
+  AtsInputError,
+  check,
+  isResumeDocument,
+  shapeReport,
+  type AtsResumeDocument,
+} from "@veriworkly/ats-engine";
+
+const MAX_BODY_BYTES = 256 * 1024;
+
+type Body = { text?: unknown; document?: unknown; job?: unknown };
+
+export default {
+  async fetch(request: Request): Promise<Response> {
+    if (request.method !== "POST") {
+      return Response.json({ error: "Use POST." }, { status: 405 });
+    }
+
+    // Refuse early when the client declares a large body. Content-Length can be missing or wrong.
+    if (Number(request.headers.get("content-length")) > MAX_BODY_BYTES) {
+      return Response.json({ error: "The body is too large." }, { status: 413 });
+    }
+
+    // text() has already buffered the body, and length counts UTF-16 units, not bytes.
+    const raw = await request.text();
+    if (raw.length > MAX_BODY_BYTES) {
+      return Response.json({ error: "The body is too large." }, { status: 413 });
+    }
+
+    let body: Body;
+    try {
+      body = JSON.parse(raw) as Body;
+    } catch {
+      return Response.json({ error: "The body is not valid JSON." }, { status: 400 });
+    }
+
+    const resume: string | AtsResumeDocument | undefined =
+      typeof body.text === "string"
+        ? body.text
+        : isResumeDocument(body.document)
+          ? body.document
+          : undefined;
+    if (resume === undefined) {
+      return Response.json(
+        { error: "Send { text } or { document } with format ats-resume@1." },
+        { status: 400 },
+      );
+    }
+
+    try {
+      const report = check(resume, undefined, {
+        ...(typeof body.job === "string" ? { jobDescription: body.job } : {}),
+      });
+      return Response.json(shapeReport(report, "full"));
+    } catch (error) {
+      if (error instanceof AtsInputError) {
+        return Response.json({ error: error.message, issues: error.issues }, { status: 422 });
+      }
+      throw error;
+    }
+  },
+};
+```
+
+`isResumeDocument` only checks the `format` field. A document that claims `ats-resume@1` but breaks the schema makes `check` throw `AtsInputError`, whose `issues` list each failing path. The Worker returns them as a 422. See [structured input](/ats-engine/guides/structured-input).
+
+## On Vercel
+
+A Next.js route with `export const runtime = "edge"` runs the same code. The route in [Next.js](/ats-engine/guides/nextjs#pasted-text-needs-no-server) shows it with `NextResponse`.
+
+## What to watch for
+
+- A score from text or a structured document has no layout signals, so the layout rules drop out ([pasted text](/ats-engine/guides/pasted-text)).
+- Locale packs cost 48.7 KB (`withLocales` alone) to 75.5 KB (`/locales`) gzipped. Attach them once at module scope with `withLocales` and reuse the policy across requests ([languages and regions](/ats-engine/guides/languages-and-regions)).
+- Bound the body yourself, as above. The check on `raw.length` runs after `request.text()` has buffered the body and counts UTF-16 units, not bytes, so the `Content-Length` check is what refuses early. The engine cuts resume text at 50,000 characters and a job posting at 20,000, but it reads the whole string first.
+- Do not import `@veriworkly/ats-engine/node` in an edge bundle. Keep file handling in a separate Node route.
+
+## Next steps
+
+- Run the same call in the page: [browser](/ats-engine/guides/browser).
+- Choose between the surfaces: [choose a surface](/ats-engine/choose-a-surface).
+- Call a model from a server: [AI](/ats-engine/guides/ai).

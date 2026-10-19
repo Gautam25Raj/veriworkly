@@ -1,0 +1,180 @@
+---
+title: Score structured resumes
+description: Pass an ats-resume@1 document or a JSON Resume to check so the engine reads fields instead of parsing text, with the format, limits and errors.
+---
+
+If your app holds a resume as data, hand the engine the data. It then reads names, dates, titles and skills from typed fields and does not have to guess them from text. VeriWorkly ATS Engine accepts two structured shapes: its own `ats-resume@1` document and a [JSON Resume](https://jsonresume.org). Both come from `@veriworkly/ats-engine/document`, which is 2.1 KB gzipped and has no dependencies. The main entry re-exports it.
+
+## A minimal document
+
+Dates are `YYYY-MM` or `YYYY`. `current: true` marks a role you still hold.
+
+```ts
+import { check } from "@veriworkly/ats-engine";
+import { ATS_DOCUMENT_FORMAT, type AtsResumeDocument } from "@veriworkly/ats-engine/document";
+
+const document: AtsResumeDocument = {
+  format: ATS_DOCUMENT_FORMAT, // "ats-resume@1"
+  basics: {
+    name: "Jane Doe",
+    email: "jane@example.com",
+    phone: "+1 415 555 0142",
+    location: "Austin, TX",
+    links: ["https://github.com/janedoe"],
+  },
+  sections: [
+    { kind: "summary", title: "Summary", text: "Backend engineer focused on data pipelines." },
+    {
+      kind: "experience",
+      title: "Experience",
+      items: [
+        {
+          title: "Senior Engineer",
+          employer: "Acme",
+          start: "2021-03",
+          current: true,
+          highlights: ["Cut p95 latency by 40% by rebuilding the cache layer"],
+        },
+      ],
+    },
+    {
+      kind: "education",
+      title: "Education",
+      items: [
+        {
+          school: "University of Texas at Austin",
+          credential: "B.S. Computer Science",
+          end: "2016",
+        },
+      ],
+    },
+    {
+      kind: "skills",
+      title: "Skills",
+      items: [{ name: "Languages", keywords: ["Go", "TypeScript"] }],
+    },
+  ],
+};
+
+const report = check(document, undefined, { now: new Date("2026-10-01T00:00:00Z") });
+
+console.log(report.readinessScore);
+console.log(report.parsed.provenance.roles); // "structured"
+```
+
+Only `format`, `basics.name` and `sections` are required. A section is one of eight kinds, each with a `title` the reader sees:
+
+| `kind`           | Holds                                                                                                       |
+| ---------------- | ----------------------------------------------------------------------------------------------------------- |
+| `summary`        | `text`                                                                                                      |
+| `experience`     | `items`: `title`, `employer`, and optionally `location`, `start`, `end`, `current`, `summary`, `highlights` |
+| `education`      | `items`: `school`, and optionally `credential`, `field`, `start`, `end`, `current`, `summary`               |
+| `projects`       | `items`: `name`, and optionally `role`, `url`, `summary`, `highlights`, `skills`                            |
+| `skills`         | `items`: `keywords`, and optionally a group `name`                                                          |
+| `certifications` | `items`: `name`, and optionally `issuer`, `date`, `expires`, `url`                                          |
+| `languages`      | `items`: `language`, and optionally `level`                                                                 |
+| `other`          | `items`: optionally a `heading` and `lines`                                                                 |
+
+## Provenance
+
+Each group of recovered fields in `report.parsed.provenance` says how it was read: `parser` for text, `structured` for a document or JSON Resume, `ai` after a model repair, and `none` when the resume had nothing for that group. A structured resume has `structured` for the groups it filled. Nothing was parsed, so parser mistakes cannot lower those fields. The text rules still run, on the document rendered to text.
+
+## Use a JSON Resume
+
+Pass a JSON Resume object straight to `check`. The engine recognises it by shape (a `basics` object plus a `work` array or an education entry with an `institution`), converts it to a document and scores it.
+
+```ts
+import { check } from "@veriworkly/ats-engine";
+import { fromJsonResume, isJsonResume } from "@veriworkly/ats-engine/document";
+
+const jsonResume = {
+  basics: { name: "Jane Doe", email: "jane@example.com" },
+  work: [
+    {
+      name: "Acme",
+      position: "Senior Engineer",
+      startDate: "2021-03-01",
+      highlights: ["Cut p95 latency by 40% by rebuilding the cache layer"],
+    },
+  ],
+  skills: [{ name: "Languages", keywords: ["Go", "TypeScript"] }],
+};
+
+console.log(isJsonResume(jsonResume)); // true
+
+const report = check(jsonResume); // read as structure
+const converted = fromJsonResume(jsonResume); // the same data as an AtsResumeDocument
+console.log(report.parsed.provenance.roles, converted.sections.length);
+```
+
+`fromJsonResume` reads every field defensively: a value of the wrong type counts as absent and nothing throws. It uses English section titles, cuts lists to the document limits, and treats "present" or a missing end date after a start as a current role. Call it yourself when you want the document to store or edit.
+
+## See the text the engine reads
+
+`renderResumeDocument(document)` returns the plain text a document becomes, which is the text the rules read. Use it to show a user how their structured resume reads.
+
+```ts
+import { ATS_DOCUMENT_FORMAT, renderResumeDocument } from "@veriworkly/ats-engine/document";
+
+const text = renderResumeDocument({
+  format: ATS_DOCUMENT_FORMAT,
+  basics: { name: "Jane Doe", email: "jane@example.com" },
+  sections: [{ kind: "summary", title: "Summary", text: "Backend engineer." }],
+});
+
+console.log(text);
+```
+
+## Prepare once, use twice
+
+`prepareResume(input)` reads an input once and returns a `PreparedResume`: the canonical `text`, the validated `document` (or `null`), and a count of hidden characters. Pass it to `check` anywhere a resume is accepted. Do this when you score a large document and also need its text elsewhere, for instance as the `resumeText` of an AI task ([AI](/ats-engine/guides/ai)): the document is walked once.
+
+```ts
+import { check, prepareResume } from "@veriworkly/ats-engine";
+
+const prepared = prepareResume(resumeText);
+
+const report = check(prepared);
+console.log(report.readinessScore, prepared.text.length, prepared.document);
+```
+
+## Limits and errors
+
+A document is bounded before it is validated, so an oversized one is refused cheaply. `DOCUMENT_LIMITS` gives the per-field caps:
+
+```ts
+import { DOCUMENT_LIMITS } from "@veriworkly/ats-engine/document";
+
+console.log(DOCUMENT_LIMITS);
+// { sections: 40, items: 200, lines: 100, keywords: 200, links: 50,
+//   field: 500, line: 5000, text: 10000 }
+```
+
+Resume text is cut at 50,000 characters after rendering.
+
+A value that declares `format: "ats-resume@1"` but breaks the schema, or has an array past its limit or too many nodes, throws `AtsInputError`. A string past its limit is cut, not refused. Its `issues` list each failing `path` and `message`:
+
+```ts
+import { AtsInputError, check } from "@veriworkly/ats-engine";
+
+function scoreOrExplain(input: Record<string, unknown>) {
+  try {
+    return { ok: true as const, report: check(input) };
+  } catch (error) {
+    if (error instanceof AtsInputError) {
+      return { ok: false as const, issues: error.issues }; // [{ path: "basics.name", message: "..." }]
+    }
+    throw error;
+  }
+}
+
+console.log(scoreOrExplain({ format: "ats-resume@1", basics: {}, sections: [] }));
+```
+
+Any other object that is neither a document nor a JSON Resume is flattened to text with its keys on their own lines. That keeps old callers working, but send a document or a JSON Resume when you can.
+
+## Next steps
+
+- Score a document in a page: [browser](/ats-engine/guides/browser), or at the edge: [edge](/ats-engine/guides/edge).
+- Check what the report holds: [report reference](/ats-engine/reference/report).
+- Read how fields are recovered from text: [how a resume is read](/ats-engine/concepts/how-a-resume-is-read).

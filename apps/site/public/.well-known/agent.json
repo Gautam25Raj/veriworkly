@@ -63,7 +63,7 @@
     },
     {
       "name": "ATS Resume Checker",
-      "description": "Deterministic ATS readiness scanning and job-description keyword match analysis.",
+      "description": "Deterministic ATS readiness scanning and job-description keyword match analysis, run by the open-source VeriWorkly ATS Engine (https://veriworkly.com/ats-engine, docs at https://docs.veriworkly.com/ats-engine).",
       "endpoints": ["/api/v1/ats/check", "/api/v1/ats/analyze", "/api/v1/ats/quota"]
     },
     {

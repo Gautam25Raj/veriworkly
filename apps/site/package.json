@@ -1,6 +1,6 @@
 {
   "name": "@veriworkly/site",
-  "version": "3.26.0",
+  "version": "3.27.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -15,7 +15,7 @@
     "test:contracts": "vitest run"
   },
   "dependencies": {
-    "@veriworkly/ats-engine": "^0.10.0",
+    "@veriworkly/ats-engine": "^0.11.0",
     "@veriworkly/ui": "*",
     "clsx": "^2.1.1",
     "framer-motion": "^12.43.0",

@@ -6,9 +6,15 @@ import type { FaqItem } from "@/features/faq/data/faqItems";
 
 interface AtsFaqSectionProps {
   faqs: FaqItem[];
+  title?: string;
+  intro?: string;
 }
 
-export function AtsFaqSection({ faqs }: AtsFaqSectionProps) {
+export function AtsFaqSection({
+  faqs,
+  title = "Frequently asked questions about ATS checking",
+  intro = "Common questions about how resume parsing works, scoring methods, keyword match calculations, and privacy boundaries.",
+}: AtsFaqSectionProps) {
   return (
     <section className="border-border/40 space-y-10 border-t pt-16">
       <div className="space-y-2 text-left">
@@ -21,12 +27,9 @@ export function AtsFaqSection({ faqs }: AtsFaqSectionProps) {
           </span>
         </div>
         <h2 className="text-foreground text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">
-          Frequently asked questions about ATS checking
+          {title}
         </h2>
-        <p className="text-muted max-w-2xl text-xs leading-relaxed sm:text-sm">
-          Common questions about how resume parsing works, scoring methods, keyword match
-          calculations, and privacy boundaries.
-        </p>
+        <p className="text-muted max-w-2xl text-xs leading-relaxed sm:text-sm">{intro}</p>
       </div>
 
       <Reveal>

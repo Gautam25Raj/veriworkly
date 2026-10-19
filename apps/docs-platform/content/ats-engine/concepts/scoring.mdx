@@ -1,0 +1,106 @@
+---
+title: Scoring
+description: How the VeriWorkly ATS Engine builds the 0 to 100 readiness score, which rules drop out, how integrity deductions work, and what makes a report reproducible.
+---
+
+The readiness score in the VeriWorkly ATS Engine is arithmetic over a published rubric. No model takes part in it, and the same input, policy and reference date always give the same number. The [rubric reference](/ats-engine/reference/rubric) lists every rule, weight and fix, generated from the installed engine.
+
+## Categories and weights
+
+The community policy (`DEFAULT_POLICY`) has 35 rules in seven categories. Six carry weight in the score. Integrity does not.
+
+| Category          | Report id   | Weight                       |
+| ----------------- | ----------- | ---------------------------- |
+| Parsing           | `parse`     | 68                           |
+| Contact and links | `contact`   | 20                           |
+| Structure         | `structure` | 28                           |
+| Evidence          | `content`   | 29                           |
+| Format risk       | `format`    | 45                           |
+| Writing           | `writing`   | 12                           |
+| Integrity         | `integrity` | deductions, up to 115 points |
+
+Writing rules carry 12 points against 190 for the rest, so the score mostly says whether an ATS can read the resume. They read English only and are dropped for a resume read in another language.
+
+## How the score is computed
+
+Each rule that applies can lose up to its weight. The score is the share of the applicable weight the resume kept, rounded, from 0 to 100:
+
+```text
+quality   = round((1 - lost / possible) * 100)
+readiness = max(0, quality - integrity deductions)
+```
+
+`possible` is what the applicable rules could have taken away. Normalising against it means the score spans 0 to 100 and means the same whether or not layout geometry was available.
+
+## Dropped rules
+
+A rule whose evidence is absent is left out of the report and the score. It is never passed or failed.
+
+- The layout rules, when `layout` was not passed (pasted text, structured input). See [How a resume is read](/ats-engine/concepts/how-a-resume-is-read).
+- The copied-posting check, when no `jobDescription` was given.
+- The writing rules, for a resume read in a language other than English.
+- The position rule (`ats-v2.contact.position`), when no contact detail was found to measure.
+- The section rules, when the text has a single line and so no headings to find.
+- The role completeness and dated role rules, when no role was recovered. The roles-detected rule reports that case once.
+- Layout rules for a metric the extraction did not measure: the column rule when there is no column ratio (a DOCX gives none), the image and hidden-text rules without those counts, and the image-only page rule without a page count (a DOCX has no pages to measure).
+- Any rule a region pack sets to weight 0.
+
+`checksPassed` and `checksTotal` count only the rules that applied.
+
+## Integrity deductions
+
+Integrity rules are penalties. Their points come off the finished score and are never part of the weighing, so an honest resume scores exactly as if they did not exist. See [Integrity](/ats-engine/concepts/integrity).
+
+## Severities
+
+Every rule has a severity: `error`, `warning` or `info`. It says how much a failed rule matters to an ATS. The points a rule can cost come from its weight. Severity has one further effect: a failed integrity rule of severity `error` changes the verdict, below.
+
+## Verdict
+
+`computeVerdict(report)` gives `strong`, `needs-work` or `weak`. `VERDICT_BANDS` holds the lower bounds, 75 for `strong` and 45 for `needs-work`. The CLI and `/format` use the same bands, so read them from the package rather than keeping your own.
+
+```ts
+import { check, computeVerdict, DEFAULT_POLICY, VERDICT_BANDS } from "@veriworkly/ats-engine";
+
+const report = check(resumeText, DEFAULT_POLICY, { jobDescription: postingText });
+
+console.log(computeVerdict(report)); // "strong" | "needs-work" | "weak"
+console.log(VERDICT_BANDS); // { strong: 75, needsWork: 45 }
+```
+
+The verdict reads the job match score when there is one, and the readiness score otherwise. If an integrity rule of severity `error` failed, the verdict reads the lower of the two, and `jobMatchScore` itself is capped at `readinessScore`. Lines hidden by the layout are left out of the match. A pasted posting or an instruction to an AI is what produced a high match, so the match is no evidence of fit.
+
+## Determinism
+
+A report is a function of the resume, the policy and the options. Three things make a result reproducible:
+
+- `now`. Tenure of a current role and the plausible-year ceiling are counted to this date. It defaults to the current time, so pass a fixed `Date` wherever a result must repeat.
+- `report.engine.version`, the engine version.
+- `report.engine.policy`, a fingerprint of the policy as applied, after locale packs. `report.version` is the policy's own declared version, `ats-v2` for the community policy.
+
+```ts
+import { check, DEFAULT_POLICY, policyFingerprint, policyRubric } from "@veriworkly/ats-engine";
+
+const report = check(resumeText, DEFAULT_POLICY, { now: new Date("2026-10-01") });
+
+console.log(report.engine); // { version: "0.11.0", policy: "ats-v2+7c1a4fd7" }
+console.log(policyFingerprint(DEFAULT_POLICY));
+
+for (const rule of policyRubric(DEFAULT_POLICY)) {
+  console.log(`${rule.id}: ${rule.deduction ? "-" : ""}${rule.points}`);
+}
+```
+
+Two reports with the same input, `now`, engine version and policy fingerprint are identical. A score that moved while those stayed the same was not the engine's doing. When the fingerprint changes, the policy changed, not the resume.
+
+`policyRubric(policy)` returns the same table as the rubric reference, for a policy of your own. See [Custom policy](/ats-engine/guides/custom-policy).
+
+## Advice is never scored
+
+`report.advice` holds file hygiene, age signals where a region calls for them, and a named ATS's documented notes. It is read after the score is final and is never part of `readinessScore`, `categories`, `failedChecks` or `prioritizedFixes`. The same resume scores the same with or without it.
+
+<Callout type="info" title="Policy changes are breaking in 0.x">
+  While the package is 0.x, any change to the score for the same input is a minor release marked
+  Breaking in the [changelog](/ats-engine/project/changelog). Pin the engine version when a score
+  must not move.
+</Callout>

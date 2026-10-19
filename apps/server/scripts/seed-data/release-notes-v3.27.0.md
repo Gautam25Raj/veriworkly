@@ -51,9 +51,9 @@ This release gives the open-source ATS engine its own documentation at docs.veri
 
 ## 🔀 Pull Requests
 
-- **#218** - `docs(release): 3.27.0 release notes and changelog` by @Gautam25Raj
-- **#217** - `feat(ats-engine): docs tree, developer page, engine 0.11.0 and release 3.27.0` by @Gautam25Raj
-- **#216** - `chore(ats): move to @veriworkly/ats-engine 0.10.0` by @Gautam25Raj
+- **#218** - `[Docs] [Release]: add engine matching and ai privacy changes to the 3.27.0 notes` by @Gautam25Raj
+- **#217** - `[Feature] [Docs/Site]: add ats-engine docs and developer page, move to engine 0.11.0 and release 3.27.0` by @Gautam25Raj
+- **#216** - `[Chore] [Server/Site/Studio]: move to @veriworkly/ats-engine 0.10.0` by @Gautam25Raj
 
 ## ❤️ Contributors
 

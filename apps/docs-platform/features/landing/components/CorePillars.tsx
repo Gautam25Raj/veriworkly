@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Code, Cpu, Shield } from "lucide-react";
+import { ArrowRight, Code, Cpu, Gauge, Shield } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Card } from "@veriworkly/ui";
@@ -25,6 +25,15 @@ const pillars = [
   },
 
   {
+    title: "Open-Source ATS Engine",
+    desc: "Parse, score and match resumes in your own product with the MIT-licensed engine behind our ATS checker.",
+    icon: Gauge,
+    href: "/ats-engine",
+    bg: "bg-amber-500/10",
+    text: "text-amber-600",
+  },
+
+  {
     title: "Privacy & Security",
     desc: "Data ownership is at the heart of VeriWorkly. Explore our security model and local-first encryption.",
     icon: Shield,
@@ -45,11 +54,11 @@ export const CorePillars = () => {
         </h2>
 
         <p className="text-muted mx-auto max-w-2xl text-lg">
-          Our documentation is structured around the three core values that drive VeriWorkly.
+          Our documentation is structured around the values that drive VeriWorkly.
         </p>
       </div>
 
-      <div className="grid gap-8 md:grid-cols-3">
+      <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
         {pillars.map((item) => (
           <Link key={item.title} href={item.href} className="group">
             <Card className="border-border/50 hover:border-accent/40 h-full transition-all duration-300 hover:shadow-xl">

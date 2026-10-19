@@ -20,6 +20,12 @@ The ATS module scores a resume's readiness for applicant tracking systems in two
   billing period. Check current usage with `GET /ats/quota`.
 </Callout>
 
+<Callout type="info" title="The same engine is open source">
+  These endpoints run the [VeriWorkly ATS Engine](/ats-engine), published on npm as
+  `@veriworkly/ats-engine` under the MIT licence. To score resumes in your own product without these
+  quotas, run the library yourself: see the [quick start](/ats-engine/quick-start).
+</Callout>
+
 Two supporting endpoints round out the module:
 
 - `POST /ats/extract` pulls plain text out of an uploaded PDF/DOCX/TXT/Markdown/JSON resume file

@@ -1,12 +1,18 @@
 import type { MetadataRoute } from "next";
 
 import { siteConfig } from "@/config/site";
-import { source, apiSource } from "@/lib/source";
+import { source, apiSource, engineSource } from "@/lib/source";
 
 export const revalidate = 86400;
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const docPages = source.getPages().map((page) => ({
+    url: `${siteConfig.url}${page.url}`,
+    changeFrequency: "weekly" as const,
+    priority: 0.8,
+  }));
+
+  const enginePages = engineSource.getPages().map((page) => ({
     url: `${siteConfig.url}${page.url}`,
     changeFrequency: "weekly" as const,
     priority: 0.8,
@@ -25,6 +31,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 1,
     },
     ...docPages,
+    ...enginePages,
     ...apiPages,
   ];
 }

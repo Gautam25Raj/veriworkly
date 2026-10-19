@@ -1,0 +1,107 @@
+---
+title: Job matching
+description: How the VeriWorkly ATS Engine compares a resume with a posting requirement by requirement, and how the job match score and keyword lists are built.
+---
+
+Pass a posting as `jobDescription` and the report gains `jobMatchScore`, `requirements`, and matched and missing keywords. The match is deterministic and explainable. It does not use a model, so it reports what it can point to in the resume and nothing more.
+
+```ts
+import { check, DEFAULT_POLICY } from "@veriworkly/ats-engine";
+
+const report = check(resumeText, DEFAULT_POLICY, { jobDescription: postingText });
+
+console.log(report.jobMatchScore); // 0-100, or null without a usable posting
+for (const requirement of report.requirements) {
+  console.log(`[${requirement.status}] ${requirement.kind}: ${requirement.text}`);
+  if (requirement.detail) console.log(`  ${requirement.detail}`);
+}
+```
+
+The posting is read up to its first 20,000 characters. If you have a saved page instead of text, `/job` pulls the posting out of the HTML. See [Job postings](/ats-engine/guides/job-postings).
+
+## Requirements
+
+Each requirement under the posting's requirements or preferred headings is judged on its own. `report.requirements` holds at most 25.
+
+| Field        | Values                                                                        |
+| ------------ | ----------------------------------------------------------------------------- |
+| `kind`       | `skills`, `experience`, `education`, `authorization`, `clearance`, `language` |
+| `status`     | `met`, `partial`, `missing`, `unverifiable`                                   |
+| `importance` | `required`, `preferred`                                                       |
+| `terms`      | The skills or languages the requirement names, each with `found`              |
+| `evidence`   | Resume lines that show it, quoted, work history first                         |
+| `detail`     | What was compared: "6 years in the work history, 5 asked"                     |
+
+`importance` is `preferred` under a preferred heading and for a clause the posting calls a plus.
+
+`unverifiable` means the resume does not settle the question. The right to work and a clearance are usually asked in the application and often filter there, so a resume that says nothing about them is `unverifiable`, not `missing`.
+
+## Values, not keywords
+
+**Years of experience.** Counted from dated roles. A years ask that names a skill or a field is compared with the roles that name it. "Or equivalent experience" can stand in for a degree once the work history covers 24 months.
+
+**Education.** Degrees are compared by level on the ISCED scale, so a B.Tech meets "Bachelor's degree". The scale runs 2 (lower secondary) through 3 (upper secondary), 4, 5 (associate), 6 (bachelor's), 7 (master's) to 8 (doctoral). The resume's `parsed.highestIsced` is the level compared.
+
+**Languages.** "Fluent German" asks for CEFR C1 and is met by German at C1 or above. A lower level gives `partial`, with a detail such as "Spanish: B1 read, C1 asked". A line that calls the language beginner, basic or A1/A2 is not evidence of it.
+
+**Credentials.** The judge reads `parsed.certifications` first, so "AWS certification" needs a certification row that names AWS.
+
+**Clearances.** Compared by level, lowest first. A level asked is met by that level or one above it. In the community policy the US levels are Confidential, Secret, Top Secret and TS/SCI, and the UK levels are BPSS, CTC, SC and DV. Secret partly meets Top Secret and meets Confidential, as SC partly meets DV. A word saying a clearance is not held yet or any more ("eligible for", "expired", "lapsed") does not count as held. "Customs clearance" is logistics and is not read as vetting.
+
+**Right to work and sponsorship.** A statement is read for what it says. "Requires H-1B visa sponsorship" never meets "Authorized to work without sponsorship". A green card does not meet "Must be a U.S. citizen", because US citizenship is the only citizenship the community policy names. A posting that offers sponsorship does not rule it out.
+
+## The job match score
+
+The score is the weight of what the resume holds over the weight of what the posting asks, from 0 to 100.
+
+- A posting's sections are weighted: required 2, preferred 0.5, responsibilities 0.5, anything else 1. "About us", benefits and equal-opportunity copy are dropped.
+- Named skills count in full. An ordinary word counts a quarter. This keeps "dental" and "stipend" from counting like "Kubernetes".
+- A degree is matched by ISCED level and counted once.
+- Alternatives are one ask: "Go or Java" is met by either, and counts once.
+
+The weights are the community policy's `keywordMatch` values, so a policy of your own can change them.
+
+## Keywords: hard and soft
+
+`matchedKeywords` and `missingKeywords` list terms from the posting, hard skills first, at most 12. `matchedKeywordGroups` and `missingKeywordGroups` split them as `{ hard, soft }`, at most 12 each.
+
+Soft skills ("communication", "teamwork", "attention to detail") come from the policy's `keywordMatch.softSkills` and the language packs. A resume claims a soft skill more often than it shows one, so each weighs `softSkillWeight` (0.4) of an ordinary word, which is a tenth of a named skill.
+
+```ts
+import { check, DEFAULT_POLICY } from "@veriworkly/ats-engine";
+
+const report = check(resumeText, DEFAULT_POLICY, { jobDescription: postingText });
+
+console.log(report.missingKeywordGroups.hard); // act on these first
+console.log(report.missingKeywordGroups.soft); // these weigh less
+```
+
+## Hidden text and integrity
+
+When the policy's hidden-text rule fails, lines the layout marks as hidden are left out of the match and of the requirements, because hidden text is no evidence of fit. When an integrity rule of severity `error` fails, `jobMatchScore` is capped at `readinessScore`, so a resume caught gaming the screener cannot match high. See [Integrity](/ats-engine/concepts/integrity).
+
+## Names are left out
+
+The employer's name is never a keyword. Pass it as `jobCompany` and every word of it is left out. The engine also leaves out words the posting writes only as names in its prose, and the name in an "About Acme" heading, unless a requirement itself names the word ("Experience with GitLab CI").
+
+```ts
+import { check, DEFAULT_POLICY } from "@veriworkly/ats-engine";
+import { extractJobPosting, jobTextFromHtml } from "@veriworkly/ats-engine/job";
+
+declare const postingHtml: string;
+
+const report = check(resumeText, DEFAULT_POLICY, {
+  jobDescription: jobTextFromHtml(postingHtml),
+  jobCompany: extractJobPosting(postingHtml)?.company,
+});
+```
+
+## Synonyms, phrases and stemming
+
+Matching is not exact-string. The policy holds a synonym map ("k8s" is Kubernetes, "golang" is Go, "postgres" is PostgreSQL), a list of multi-word phrases kept whole, and stemming rules, so "experiences" is read as "experience". A name written with a slash ("CI/CD", "TCP/IP") stays whole, while a slash that joins skills asks for both ("HTML/CSS": HTML alone is partial). Beside an "or", each part is one choice. Stopwords, soft skills and all of this vocabulary live in the policy and the locale packs, so another language is data, not code.
+
+<Callout type="info" title="Matching is not a model's judgement">
+  A model can read nuance this cannot, such as "leadership". What the engine reports, it can point
+  to in the resume. See the [AI guide](/ats-engine/guides/ai) for optional model analysis, which
+  never changes the score.
+</Callout>

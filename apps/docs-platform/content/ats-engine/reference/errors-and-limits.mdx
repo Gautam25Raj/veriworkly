@@ -1,0 +1,136 @@
+---
+title: Errors and limits
+description: Every error class @veriworkly/ats-engine exports, when it is thrown and what it carries, and every size and count limit the engine applies.
+---
+
+The VeriWorkly ATS Engine throws typed errors you can catch with `instanceof`, and applies fixed limits so a hostile or oversized input costs a bounded amount of work. Most limits cut the input and carry on. A few refuse it.
+
+## Error classes
+
+| Class              | Import from                   | Thrown when                                                                                                                                             |
+| ------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AtsInputError`    | `@veriworkly/ats-engine`      | An input declares the structured `ats-resume@1` format, or is a JSON Resume, but does not satisfy it; or a structured document exceeds its size limits. |
+| `AtsPolicyError`   | `@veriworkly/ats-engine`      | A policy or locale pack does not satisfy the schema, or a call names a region or target ATS the policy does not have.                                   |
+| `AtsFileError`     | `@veriworkly/ats-engine/node` | A file cannot be read as asked. The message is written for the person who named the file.                                                               |
+| `AtsAiError`       | `@veriworkly/ats-engine/ai`   | An AI task produced no result.                                                                                                                          |
+| `LlmProviderError` | `@veriworkly/ats-engine/ai`   | A call to a model provider failed.                                                                                                                      |
+
+All extend `Error`. Plain text of any length never throws `AtsInputError`: text is cut at the limit.
+
+### AtsInputError
+
+Fields: `issues`, an array of `{ path, message }`. At most 20 issues are listed. `path` is dotted, such as `basics.name`; it is empty for a whole-document problem such as size. Thrown by `prepareResume`, and so by `check` and `AtsScoringService.check`.
+
+### AtsPolicyError
+
+Fields: `issues`, an array of `{ path, message }` (`AtsPolicyIssue`), where `path` is the dotted path of the offending field, such as `rules.3.weight`. Thrown by `parseAtsPolicy` and `withLocales` for an invalid policy or pack. Also thrown by a check that names a `region` or `targetAts` the policy does not have. The package does not decide what that means for a server; map it to the response you want.
+
+### AtsFileError
+
+No extra fields. Thrown by `readResumeFile` and `readJobFile` for a missing file, a folder, a pipe or device, a network share (`\\host\share`), a file over 20 MB, an unsupported extension, a file that is not a regular file, invalid JSON, a `.json` that is neither a JSON Resume nor an `ats-resume` document, and a file with too little text to read (for a PDF, a scan or flattened image; for other formats, fewer than 50 characters). The command line and the [MCP server](/ats-engine/tools/mcp) print its message as is.
+
+### AtsAiError
+
+Fields: `code`, `status` (the provider's HTTP status, when there was one), `usage`, `attempts` (what was spent before it failed), and `cause`.
+
+| `code`           | Meaning                                                                                                   |
+| ---------------- | --------------------------------------------------------------------------------------------------------- |
+| `config`         | The task has no model, `maxTokens` is not a positive integer, or `retries` is not an integer from 0 to 5. |
+| `provider`       | The provider call failed. `status` holds the HTTP status when there was one.                              |
+| `refused`        | The model declined.                                                                                       |
+| `truncated`      | The reply hit `maxTokens` before it was complete. Not retried: raise `maxTokens`.                         |
+| `invalid_output` | The reply was empty, not valid JSON, or did not match the schema.                                         |
+| `aborted`        | Your own `signal` aborted the request, including an `AbortSignal.timeout` you passed.                     |
+
+### LlmProviderError
+
+Fields: `status` (HTTP status, when there was one) and `retryable`, the adapter's verdict. Thrown by `openAiCompatible` and `anthropic` without an API key, and for a network error, a timeout, a non-2xx answer, or a body that is not JSON. Inside a task, it is wrapped as an `AtsAiError` with code `provider`. The adapter's own `timeoutMs` ends a slow call this way, as a retryable `LlmProviderError`, not as `aborted`. Rate limits (429), server faults, timeouts and unreadable bodies are retryable; a rejection of the request itself (another 4xx) is not.
+
+### Catching them
+
+```ts
+import { AtsInputError, AtsPolicyError, check } from "@veriworkly/ats-engine";
+import { AtsAiError, LlmProviderError } from "@veriworkly/ats-engine/ai";
+import { AtsFileError, readResumeFile } from "@veriworkly/ats-engine/node";
+
+try {
+  const { input, layout, file } = await readResumeFile("resume.pdf");
+  console.log(check(input, undefined, { layout, file }).readinessScore);
+} catch (error) {
+  if (error instanceof AtsFileError) console.error(error.message);
+  else if (error instanceof AtsInputError) console.error(error.issues);
+  else if (error instanceof AtsPolicyError) console.error(error.issues);
+  else throw error;
+}
+
+function describe(error: unknown): string {
+  if (error instanceof AtsAiError) return `${error.code} after ${error.attempts} attempt(s)`;
+  if (error instanceof LlmProviderError) return `provider: ${error.status ?? "no status"}`;
+  return String(error);
+}
+```
+
+## Limits
+
+Limits marked "cut" shorten the input and continue. Limits marked "refuse" stop with an error.
+
+### Text and postings
+
+| Limit                           | Value             | What happens                                                                                                         |
+| ------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Resume text                     | 50,000 characters | Cut. Applies to text, a structured document's rendered text, and text extracted from a file (`MAX_EXTRACTED_CHARS`). |
+| Job description in `check`      | 20,000 characters | Cut.                                                                                                                 |
+| `MAX_JOB_TEXT_CHARS` in `./job` | 12,000 characters | The default cap of `normalizeJobText`, `jobHtmlToText` and `jobTextFromHtml`. Pass `maxChars` to change it.          |
+| Requirements                    | 25                | At most 25 requirements are judged per posting.                                                                      |
+| Keyword groups                  | 12                | Each of the matched and missing keyword lists is at most 12.                                                         |
+| `prioritizedFixes`              | 6                 | The report keeps the six failed checks that cost the most.                                                           |
+| `strengths`                     | 5                 | The report keeps five.                                                                                               |
+| `lines`                         | 500               | With `includeLines`, the report holds at most 500 lines.                                                             |
+
+### Files
+
+| Limit                    | Value                    | What happens                                                                                      |
+| ------------------------ | ------------------------ | ------------------------------------------------------------------------------------------------- |
+| File size                | 20 MB (`MAX_FILE_BYTES`) | Refuse, before the file is read into memory.                                                      |
+| PDF pages                | First 100                | Cut. Reading also stops once the text reaches the character limit.                                |
+| DOCX expanded size       | 64 MB                    | Refuse, before `mammoth` sees it. A larger expansion is treated as a zip bomb.                    |
+| DOCX XML parsed          | 2 MB                     | Refuse. The most XML `mammoth` is given to parse, counted for each part as often as it is parsed. |
+| DOCX headers and footers | 2 MB between them        | A part past the budget is neither read nor measured. The budget is the same 2 MB.                 |
+
+### Structured documents
+
+`DOCUMENT_LIMITS` from `@veriworkly/ats-engine/document` holds the limits of an `AtsResumeDocument`. An array past its limit, or a document with too many nodes, throws `AtsInputError`. A string past its limit is cut, not refused. The values are set at or above what the VeriWorkly editor allows.
+
+```ts
+import { DOCUMENT_LIMITS } from "@veriworkly/ats-engine/document";
+
+console.log(DOCUMENT_LIMITS);
+```
+
+| Key        | Value |
+| ---------- | ----- |
+| `sections` | 40    |
+| `items`    | 200   |
+| `lines`    | 100   |
+| `keywords` | 200   |
+| `links`    | 50    |
+| `field`    | 500   |
+| `line`     | 5000  |
+| `text`     | 10000 |
+
+A JSON Resume is cut to the same limits when it is converted instead of refused.
+
+### AI and tools
+
+| Limit                         | Value                   | What happens                                   |
+| ----------------------------- | ----------------------- | ---------------------------------------------- |
+| AI `analyze`, resume          | 50,000 characters       | Cut.                                           |
+| AI `analyze`, job description | 20,000 characters       | Cut.                                           |
+| AI `convertResume`            | 50,000 characters       | Cut.                                           |
+| AI `repairParse`              | 40,000 characters       | Cut.                                           |
+| Provider request timeout      | 120 seconds per attempt | Default of the HTTP adapters; set `timeoutMs`. |
+| MCP `text` and `job_text`     | 200,000 characters      | The tool call is refused.                      |
+| MCP and CLI files             | 20 MB                   | Refused, as above.                             |
+| CLI `--job-url` answer        | 20 MB, 20 seconds       | Refused.                                       |
+
+See [Check options](/ats-engine/reference/check-options) for the options that interact with these limits, and the [MCP server](/ats-engine/tools/mcp) for its refused paths.

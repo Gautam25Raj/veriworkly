@@ -51,6 +51,7 @@ export default async function Page(props: PageProps) {
     >
       <DocsTitle>{pageData.title}</DocsTitle>
       <DocsDescription>{pageData.description}</DocsDescription>
+
       <DocsBody>
         <MDX
           components={getMDXComponents({

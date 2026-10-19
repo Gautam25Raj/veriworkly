@@ -1,0 +1,42 @@
+---
+title: Responsible use
+description: The VeriWorkly ATS Engine is for candidates checking their own resume, not for screening or ranking applicants. Why, and what to tell your users.
+---
+
+The VeriWorkly ATS Engine is a tool for candidates who want to see their own resume as software sees it. It is not built or validated for decisions about other people.
+
+<Callout type="warn" title="Intended use">
+  Using it to screen, rank or reject applicants may make it an automated employment decision tool
+  under laws such as New York City Local Law 144, the EU AI Act (which treats recruitment as high
+  risk), Illinois HB 3773 and Colorado SB 26-189. Those laws carry bias-audit, notice and
+  documentation duties that this package does not meet for you.
+</Callout>
+
+## What a score means
+
+A score measures how well a resume parses and reads. It says nothing about the person. The rubric tests whether an ATS can find a name, a contact line, dated roles and standard headings, and whether the layout survives extraction. It does not test ability, fit or potential.
+
+## Why it is not for screening
+
+- **No validation for hiring.** The rubric was built to explain how a document reads. It has not been validated for decisions about other people.
+- **Format is not merit.** Layout, language and convention differ by country, field and career stage. A candidate with a perfectly good resume in a layout the parser reads badly would be ranked down for the wrong reason.
+- **No audit.** Laws that cover automated employment decisions ask for bias audits, notices to candidates and records. The engine does none of that for you.
+- **No ranking.** The engine scores one resume at a time. Comparing candidates by score is the use the intended-use notice rules out, and it is not something the engine plans to support. See the [roadmap](/ats-engine/project/roadmap).
+
+## What a host should tell users
+
+If you build a product on the engine, say these things where the score is shown:
+
+1. The score is about how software reads the document. It is not a judgement of the person.
+2. The score comes from a published, deterministic rubric. Link to the [rubric](/ats-engine/reference/rubric) so a user can see every rule.
+3. The engine does not simulate any ATS vendor. Where the report shows a named ATS's notes, they are what the vendor documents on its own public pages, each with its source.
+4. Resume text goes where your product sends it. Say whether it stays on your server, and whether any of it goes to a model provider (see [Security](/ats-engine/project/security)).
+5. The score is for the candidate. Do not show it to a recruiter as a judgement of an applicant, and do not use it to filter or order applicants.
+
+## AI output is the model's words
+
+The optional `/ai` tasks run on your own API key and never change a score. A model's explanation or recommendation is not grounded in the resume and is not a fact about the candidate. Label it as the model's words wherever you show it. Identity values a model returns (names, employers, titles, schools, emails, URLs, skills) are checked against the resume text and dropped if they are not there, and `parsed.provenance` records which fields a model recovered. See the [AI guide](/ats-engine/guides/ai).
+
+## Restricting what a client sees
+
+`shapeReport(report, "restricted")` trims a report before you send it to a client: scores, verdict and the top fix, with counts in place of keyword and role lists. See [Restricted reports](/ats-engine/guides/restricted-reports).

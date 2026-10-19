@@ -1,0 +1,94 @@
+---
+title: Run in the browser
+description: Score pasted text or a structured resume in the page, lazy-load the engine, and know what a browser cannot read yet.
+---
+
+`check` runs in a browser. It makes no network calls and keeps no state, so the resume never leaves the page. That suits a resume builder that scores as the user types and a checker that promises it uploads nothing.
+
+## Bundle it and load it on demand
+
+Install the package and import it from your own code. Your bundler includes it; there is no script to load from a CDN. The core is about 101 KB gzipped, so import it dynamically and the cost lands when the user first asks for a score, not on page load.
+
+```ts title="score.ts"
+import type { AtsReport } from "@veriworkly/ats-engine";
+
+let enginePromise: Promise<typeof import("@veriworkly/ats-engine")> | undefined;
+
+/** Loads the engine on first use and reuses it after that. */
+export function loadEngine() {
+  enginePromise ??= import("@veriworkly/ats-engine");
+  return enginePromise;
+}
+
+export async function scoreText(text: string, jobDescription?: string): Promise<AtsReport> {
+  const { check, DEFAULT_POLICY } = await loadEngine();
+  return check(text, DEFAULT_POLICY, {
+    ...(jobDescription ? { jobDescription } : {}),
+  });
+}
+```
+
+`import type` costs nothing at runtime. A bundler such as Vite, webpack, Rollup or esbuild turns the dynamic `import()` into a separate chunk.
+
+## Score a structured resume
+
+If your app already holds the resume as data, as a builder does, pass it as an `ats-resume@1` document and the engine reads the fields instead of parsing text. `/document` is 2.1 KB and carries no dependencies.
+
+```ts
+import { ATS_DOCUMENT_FORMAT, type AtsResumeDocument } from "@veriworkly/ats-engine/document";
+
+export async function scoreDocument(basics: AtsResumeDocument["basics"], summary: string) {
+  const { check } = await import("@veriworkly/ats-engine");
+
+  const document: AtsResumeDocument = {
+    format: ATS_DOCUMENT_FORMAT,
+    basics,
+    sections: [{ kind: "summary", title: "Summary", text: summary }],
+  };
+  return check(document);
+}
+```
+
+The full format, JSON Resume support and the limits are in [structured input](/ats-engine/guides/structured-input).
+
+## Use it in a component
+
+```tsx title="Checker.tsx"
+import { useState } from "react";
+
+import { scoreText } from "./score";
+
+export function Checker() {
+  const [text, setText] = useState("");
+  const [score, setScore] = useState<number | null>(null);
+
+  return (
+    <div>
+      <textarea value={text} onChange={(event) => setText(event.target.value)} />
+      <button onClick={async () => setScore((await scoreText(text)).readinessScore)}>Check</button>
+      {score !== null && <p>Readiness score: {score}</p>}
+    </div>
+  );
+}
+```
+
+`check` is synchronous and runs on the main thread. If you score on every keystroke, debounce the call or run it in a Web Worker.
+
+## What a browser cannot do yet
+
+PDF and DOCX extraction is Node only today, so the browser cannot turn a file into text. Reading files in the browser is on the [roadmap](/ats-engine/project/roadmap). Until then you have two options:
+
+- Send the file to a server route that extracts and scores it, as in [Next.js](/ats-engine/guides/nextjs). Say so in your privacy notice: the file leaves the page.
+- Ask the user to paste the text, and score that. Tell them the layout rules do not apply to pasted text ([pasted text](/ats-engine/guides/pasted-text)).
+
+## What to watch for
+
+- Do not put an AI provider key in the page. `/ai` can run in a browser, but a key sent to the browser is visible to everyone who uses it ([AI](/ats-engine/guides/ai)).
+- Pin `now` in tests so tenure and date checks are reproducible.
+- Attach locale packs once and reuse the policy. `withLocales` alone is 48.7 KB gzipped; load it with the same dynamic import ([languages and regions](/ats-engine/guides/languages-and-regions)).
+- If you render advice text into HTML, escape it ([rendering](/ats-engine/guides/rendering)).
+
+## Next steps
+
+- Show the report: [rendering](/ats-engine/guides/rendering).
+- Run the same code at the edge: [edge](/ats-engine/guides/edge).

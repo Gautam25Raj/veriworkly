@@ -4,8 +4,9 @@
 ## Documentation Overview
 VeriWorkly Docs (`docs.veriworkly.com`) is built on Fumadocs and serves as the single source of truth for developer integrations, system architecture, data models, and API specifications.
 
-Two content trees:
+Three content trees:
 - `/docs` — hand-written product, architecture, operations, and contribution guides.
+- `/ats-engine` — the open-source VeriWorkly ATS Engine (`@veriworkly/ats-engine`): install, guides, CLI, GitHub Action, MCP server, and a reference generated from the installed package. Its own index: `https://docs.veriworkly.com/ats-engine/llms.txt`; every page as Markdown: `https://docs.veriworkly.com/ats-engine/llms-full.txt`.
 - `/api-reference` — generated from the OpenAPI specification; never edited by hand.
 
 ## Machine-Readable Resources

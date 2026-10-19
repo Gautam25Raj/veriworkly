@@ -1,0 +1,51 @@
+---
+title: Roadmap
+description: The VeriWorkly ATS Engine's 0.x stability policy, the API changes planned before 1.0, what is planned without dates, and what will not be built.
+---
+
+The VeriWorkly ATS Engine is 0.x. This page says what that means for upgrades, what is deprecated, and what the project plans and refuses to build. There are no dates.
+
+## Stability in 0.x
+
+Any change to the report's shape, to the policy schema, or to the score or recovered fields for the same input and policy is **breaking**. While the package is 0.x, a breaking change is a minor release and its changelog entry starts with **Breaking:**. From 1.0 it is a major release. The same rule applies to the MCP server's tool results.
+
+So a patch release never moves a score, and a minor release can. Pin an exact version where a score must not change, and read the [changelog](/ats-engine/project/changelog) before a minor upgrade. Every report carries `engine.version` and `engine.policy`, so you can tell whether a changed score came from the engine or from the resume. See [Scoring](/ats-engine/concepts/scoring). The rule is written in the repository's `.changeset/README.md`.
+
+Only the latest minor release receives security fixes while the package is 0.x.
+
+## Before 1.0
+
+Everything exported today stays until 1.0, with these exceptions.
+
+**Removed in 1.0:** `level` on `AtsParsedEducation`, `highestDegree` on `AtsParsedResume`, `AtsDegreeLevel` and `DEGREE_LABELS`. Use `isced`, `highestIsced` and `ISCED_LABELS` instead.
+
+**Candidates to rename or make internal at 1.0**, decided then rather than changed now:
+
+- `AtsScoringService`, the class the documented `check()` function calls. `check()` is the supported entry point.
+- `TaskRoute`, which may become `AtsAiRoute`.
+- `AiEvalCase` and `AiEvalReport`, which may gain an `Ats` prefix.
+- Accidental exports: `chatCompletionBody`, `messagesBody`, `localizePolicy`, `parseQuality` and the grounding helpers.
+
+Do not build on those last exports.
+
+## Planned
+
+No dates, and nothing here is promised for a release.
+
+- **OCR for scanned PDFs**, as an optional Node subpath. It would never raise the score: a scan stays a parsing problem the candidate should fix.
+- **Spelling and grammar**, as advice only, in an optional subpath.
+- **A skills taxonomy**, as policy data.
+- **Reading PDF and DOCX in the browser.** Today `/node` is Node only.
+- **More language packs**, starting with Spanish and Brazilian Portuguese, and native-speaker review of the community packs. See the [pack status](/ats-engine/reference/locales).
+
+## Will not be built
+
+- **A simulation per ATS vendor.** The engine states only what a vendor documents publicly, each note with its source.
+- **Ranking multiple candidates.** The engine is for a candidate checking their own resume. See [Responsible use](/ats-engine/project/responsible-use).
+- **OCR, grammar or a taxonomy in the core bundle.** They stay optional so the core stays small.
+- **A model-produced score.** The score is deterministic and never depends on a model.
+- **A hosted MCP server.** The MCP server runs on your machine, so a resume stays there.
+
+## Asking for something
+
+Open an issue on [GitHub](https://github.com/VeriWorkly/ats-engine/issues) to request a feature, a language pack or a rule change. For a security problem, use the address in [Security](/ats-engine/project/security) instead of a public issue.

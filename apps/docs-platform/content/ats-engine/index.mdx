@@ -1,0 +1,78 @@
+---
+title: Overview
+description: What the VeriWorkly ATS Engine reads, recovers, scores and matches, who it is for, and the five ways to run it.
+---
+
+The VeriWorkly ATS Engine reads a resume the way an applicant tracking system (ATS) does, shows what the system would store, and gives a score with a reason behind every point. It is an open-source npm package, `@veriworkly/ats-engine`, from [VeriWorkly](https://veriworkly.com). The same input always produces the same report.
+
+## What it does
+
+**Reads.** PDF, DOCX, saved HTML, plain text, Markdown, a [JSON Resume](https://jsonresume.org) document, and the engine's own `ats-resume@1` structured format. PDF files also give layout signals: columns, tables, photos, hidden text and pages with no text layer. DOCX gives tables, photos and hidden text but no column ratio and no image-only pages, so the column and image-only rules are left out for it. HTML gives tables and hidden text.
+
+**Recovers.** The fields an ATS stores: name, email, phone, links, each job (title, employer, dates), education on the ISCED scale, skills, certifications, and spoken languages with their CEFR level. Each group says where it came from: the parser, structured input, a model, or nowhere.
+
+**Scores.** Readiness from 0 to 100 against a published rubric. The score is deterministic and no model takes part in it. Every failed check carries evidence and a fix. See [Scoring](/ats-engine/concepts/scoring) and the [full rubric](/ats-engine/reference/rubric).
+
+**Matches.** A job posting is compared with the resume requirement by requirement. Each requirement is met, partly met, missing or unverifiable, with the resume lines that support it. Years, degrees, languages and clearances are compared as values, not as keywords. See [Job matching](/ats-engine/concepts/job-matching).
+
+**Advises.** A file name like `Resume_final_v3 (2).pdf`, an oversized file, tracked changes left in a Word document, and what a named ATS documents on its own public pages. Advice is never part of a score.
+
+## A first report
+
+```ts
+import { check, DEFAULT_POLICY } from "@veriworkly/ats-engine";
+
+const report = check(resumeText, DEFAULT_POLICY, { jobDescription: postingText });
+
+console.log(report.readinessScore); // 0-100
+console.log(report.jobMatchScore); // 0-100, or null without a posting
+for (const failed of report.failedChecks) {
+  console.log(`${failed.severity}: ${failed.evidence}\n  Fix: ${failed.fix}`);
+}
+```
+
+## Who it is for
+
+Developers building resume builders, candidate-side job boards, career-centre tools and AI agents that help a person improve their own resume. Developers who want to check their own resume from a terminal or a CI job.
+
+<Callout type="warn" title="Intended use">
+  The engine is for candidates who want to see their own resume as software sees it. It is not built
+  or validated for screening, ranking or rejecting applicants. The score is for the candidate: do
+  not show it to a recruiter as a judgement of an applicant. Read [Responsible
+  use](/ats-engine/project/responsible-use) before you build anything around it.
+</Callout>
+
+## Where it runs
+
+| Surface        | Use it for                                                           |
+| -------------- | -------------------------------------------------------------------- |
+| Library        | Your own app, in Node, a browser or at the edge                      |
+| CLI            | Checking a file from a terminal or a CI step                         |
+| GitHub Action  | Checking a resume kept in a repository on every push                 |
+| MCP server     | Checking a resume from Claude, Cursor, VS Code or another MCP client |
+| Hosted checker | Trying it with no install, or calling the VeriWorkly API             |
+
+[Choose a surface](/ats-engine/choose-a-surface) compares them. The package is ESM only. Its core makes no network calls and keeps no state, so it runs in a browser, at the edge or on a server; in Node it needs version 22.12 or later.
+
+<Cards>
+  <Card
+    title="Quick start"
+    href="/ats-engine/quick-start"
+    description="Install, score text, add a job description and read a PDF."
+  />
+  <Card
+    title="Choose a surface"
+    href="/ats-engine/choose-a-surface"
+    description="Library, CLI, GitHub Action, MCP server or the hosted checker."
+  />
+  <Card
+    title="Scoring"
+    href="/ats-engine/concepts/scoring"
+    description="How the 0 to 100 score is put together and why it is reproducible."
+  />
+  <Card
+    title="Scoring rubric"
+    href="/ats-engine/reference/rubric"
+    description="Every rule with its weight, severity, passing condition and fix."
+  />
+</Cards>

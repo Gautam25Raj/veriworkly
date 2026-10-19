@@ -1,0 +1,160 @@
+---
+title: Render a report
+description: Turn an AtsReport into a summary with the format helpers, score bands, category labels and date formatters, and escape text that can quote a file name.
+---
+
+`@veriworkly/ats-engine/format` holds display helpers for reports. It is 1.2 KB gzipped, has no dependencies, depends on no framework and changes no score. It runs anywhere. The labels are English.
+
+## Score tone and bands
+
+`scoreTone(score)` returns `"good"` from 75, `"warn"` from 45 and `"bad"` below, the same bands as the report's verdict (`"strong"`, `"needs-work"`, `"weak"`). `SCORE_BANDS` exposes the two lower bounds.
+
+```ts
+import { SCORE_BANDS, scoreTone } from "@veriworkly/ats-engine/format";
+
+console.log(SCORE_BANDS); // { good: 75, warn: 45 }
+console.log(scoreTone(82), scoreTone(60), scoreTone(20)); // good warn bad
+```
+
+Map the three tones to your own colours and labels.
+
+## Categories and advice
+
+Rules and category scores carry a category id. `CATEGORY_LABELS` names them, `CATEGORY_ORDER` is the order a report reads best (can it be trusted, read, found, navigated, believed, and then how well it reads), and `sortByCategoryOrder` sorts anything with a `category`. A policy can define categories the lists do not know: `categoryLabel` title-cases them, and they sort last.
+
+```ts
+import { check } from "@veriworkly/ats-engine";
+import {
+  ADVICE_LABELS,
+  CATEGORY_LABELS,
+  CATEGORY_ORDER,
+  adviceLabel,
+  categoryLabel,
+  sortByCategoryOrder,
+} from "@veriworkly/ats-engine/format";
+
+const report = check(resumeText);
+
+console.log(CATEGORY_ORDER); // integrity, parse, contact, structure, content, format, writing
+console.log(CATEGORY_LABELS.content, categoryLabel("content")); // Evidence Evidence
+console.log(ADVICE_LABELS, adviceLabel("ats")); // { file: "File", age: "Age", ats: "ATS" } ATS
+
+for (const category of sortByCategoryOrder(report.categories)) {
+  console.log(`${categoryLabel(category.category)}: ${category.score}`);
+}
+```
+
+## Parsed fields
+
+The formatters turn recovered values into the strings a candidate expects to see.
+
+```ts
+import { check } from "@veriworkly/ats-engine";
+import {
+  ISCED_LABELS,
+  formatCertification,
+  formatParsedDate,
+  formatRoleDates,
+  formatSpokenLanguage,
+  formatTenure,
+} from "@veriworkly/ats-engine/format";
+
+const { parsed } = check(resumeText);
+
+for (const role of parsed.roles) {
+  console.log(`${role.title}, ${role.employer}`, formatRoleDates(role)); // "Mar 2021 – Present"
+}
+for (const school of parsed.education) {
+  console.log(school.school, school.isced ? ISCED_LABELS[school.isced] : school.credential);
+  console.log(formatParsedDate(school.end)); // "2016", "Jun 2016" or null
+}
+console.log(parsed.certifications.map(formatCertification)); // "PMP, PMI, Mar 2021, expires 2027"
+console.log(parsed.spokenLanguages.map(formatSpokenLanguage)); // "German (B2)"
+console.log(
+  parsed.monthsOfExperience === null ? "unknown" : formatTenure(parsed.monthsOfExperience),
+); // "3 yr 2 mo"
+```
+
+| Helper                       | Gives                                                                                   |
+| ---------------------------- | --------------------------------------------------------------------------------------- |
+| `formatParsedDate(date)`     | `"Mar 2021"`, `"2021"` when only the year is known, or `null`                           |
+| `formatRoleDates(role)`      | `"Mar 2021 – Present"`, `"2018 – 2020"`, or `null` when the role has no start           |
+| `formatCertification(row)`   | `"PMP, PMI, Mar 2021, expires 2027"`: one line per certification                        |
+| `formatSpokenLanguage(row)`  | `"German (B2)"`, or the language alone when no level was read                           |
+| `formatTenure(months)`       | `"3 yr 2 mo"`, `"3 yr"`, `"7 mo"`                                                       |
+| `roleSpanMonths(role, now?)` | Calendar months a role spans, to `now` for a current role                               |
+| `ISCED_LABELS`               | A name for each ISCED 2011 level 2 to 8, such as `"Bachelor's or equivalent"`           |
+| `printable(value)`           | The value with control characters removed from every string, for printing in a terminal |
+
+`DEGREE_LABELS` is deprecated and goes in 1.0. Read `isced` and `ISCED_LABELS`.
+
+## A summary, in any framework
+
+This function returns an HTML string. The same data feeds a React component, a template or a PDF just as well: the helpers return plain strings.
+
+```ts
+import type { AtsReport } from "@veriworkly/ats-engine";
+import {
+  categoryLabel,
+  formatRoleDates,
+  scoreTone,
+  sortByCategoryOrder,
+} from "@veriworkly/ats-engine/format";
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+export function summaryHtml(report: AtsReport): string {
+  const categories = sortByCategoryOrder(report.categories)
+    .map((c) => `<li>${escapeHtml(categoryLabel(c.category))}: ${c.score}</li>`)
+    .join("");
+
+  const fixes = report.prioritizedFixes.map((fix) => `<li>${escapeHtml(fix)}</li>`).join("");
+
+  const roles = report.parsed.roles
+    .map(
+      (role) =>
+        `<li>${escapeHtml(role.title)}, ${escapeHtml(role.employer)} ${escapeHtml(formatRoleDates(role) ?? "")}</li>`,
+    )
+    .join("");
+
+  const advice = report.advice
+    .map((item) => `<li>${escapeHtml(item.message)} ${escapeHtml(item.evidence ?? "")}</li>`)
+    .join("");
+
+  return [
+    `<p class="score score-${scoreTone(report.readinessScore)}">${report.readinessScore}</p>`,
+    `<ul>${categories}</ul>`,
+    `<h3>Fix first</h3><ol>${fixes}</ol>`,
+    `<h3>What an ATS stores</h3><ul>${roles}</ul>`,
+    advice && `<h3>Notes</h3><ul>${advice}</ul>`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+```
+
+## Escape what you print
+
+Text in a report comes from the resume, the posting and the file name. The `evidence` of a failed check and of advice can quote them, and advice can quote the file name as the user sent it, which is arbitrary text. Escape every string you put into HTML, as `summaryHtml` does. A framework's default text rendering (React, Vue, Svelte) does this for you; `dangerouslySetInnerHTML` and `v-html` do not.
+
+For a terminal, run the report through `printable` first. It strips the control characters a name or a posting can carry, and an unstripped escape sequence can recolour the terminal, clear it or set its title:
+
+```ts
+import { check } from "@veriworkly/ats-engine";
+import { printable } from "@veriworkly/ats-engine/format";
+
+const report = printable(check(resumeText));
+for (const rule of report.failedChecks) console.log(rule.id, rule.evidence);
+```
+
+## Next steps
+
+- Restrict what you show: [restricted reports](/ats-engine/guides/restricted-reports).
+- Every report field: [report reference](/ats-engine/reference/report).
+- Read the rubric your rules come from: [rubric](/ats-engine/reference/rubric).

@@ -38,12 +38,9 @@ export default async function Page(props: PageProps) {
 
   const MDX = pageData.body;
 
-  // Generated pages declare the schemas they need in `_openapi.preload`; resolve them here so the
-  // client renderer receives the bundled document instead of fetching it.
   const { preloaded } = await openapi.preloadOpenAPIPage(page);
 
   const components = getMDXComponents({
-    // The generated MDX supplies `document` and `operations`; `preloaded` is bound here.
     OpenAPIPage: (props: Omit<OpenAPIPageProps_Preloaded, "preloaded">) => (
       <OpenAPIPage {...props} preloaded={preloaded} />
     ),
@@ -64,6 +61,7 @@ export default async function Page(props: PageProps) {
     >
       <DocsTitle>{pageData.title}</DocsTitle>
       <DocsDescription>{pageData.description}</DocsDescription>
+
       <DocsBody>
         <MDX components={components} />
       </DocsBody>

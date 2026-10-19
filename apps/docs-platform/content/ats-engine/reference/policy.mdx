@@ -1,0 +1,113 @@
+---
+title: Policy reference
+description: The scoring policy as data, with its sections, rule kinds and rule fields, how it is frozen, and the functions that validate and fingerprint it.
+---
+
+The VeriWorkly ATS Engine holds its rules, weights, thresholds and language-bound vocabularies in a policy: plain data, not code. `DEFAULT_POLICY` is the bundled community policy. This page lists what a policy contains. To write or change one, follow [Custom policy](/ats-engine/guides/custom-policy). For every rule in the default policy with its weight and fix, see the [rubric](/ats-engine/reference/rubric).
+
+A JSON Schema for the full policy (draft 2020-12, generated from the schema `parseAtsPolicy` uses) ships in the release after 0.10.0 as `@veriworkly/ats-engine/policy.schema.json`, usable as a policy file's `$schema`. Until then, the TypeScript type `AtsEnginePolicy` and `DEFAULT_POLICY` are the reference. `AtsEnginePolicyInput` is the type of a policy as you write it, where fields with defaults may be omitted; `AtsEngineRule` is one rule.
+
+## Top-level sections
+
+| Section        | Holds                                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `version`      | A non-empty string naming the policy. It is part of the [fingerprint](#functions-and-values).                                                                                                                                                                                                                                                                                                     |
+| `rules`        | The list of rules, at least one. Rule ids must be unique.                                                                                                                                                                                                                                                                                                                                         |
+| `keywordMatch` | How a posting is read and matched: weights for required, preferred, responsibilities and other terms, `generalTermWeight`, `softSkillWeight` and `softSkills`, the posting's section headings, `alternationWords`, stemming, `synonyms`, `implies`, `phrases`, `stopwords`, `buzzwords`, and the vocabulary of requirements such as years, degrees, clearances, work authorisation and languages. |
+| `resumeParse`  | The parser's vocabulary: section headings, language levels, credential words, month names, date order, phone regions, title, employer and school words, degree spellings and similar word lists.                                                                                                                                                                                                  |
+| `text`         | Text-shape vocabulary the scorer reads: the policy's own `language` and `detectionWords`, `otherLanguages`, `contentLineVerbs`, `actionVerbs`, and the phrases that mark an instruction aimed at an AI screener.                                                                                                                                                                                  |
+| `writing`      | What the writing rules read: first-person pronouns, passive auxiliaries, weak openers, the bullet-length and bullets-per-role limits, and the repeated-opener run. English vocabulary.                                                                                                                                                                                                            |
+| `advice`       | What the advice says, which is never scored: the file-name notes, the age-bias notes and their thresholds, and the documented notes per ATS in `targets` (`greenhouse`, `lever`, `taleo`, each note with its source).                                                                                                                                                                             |
+| `locales`      | Attached language and region packs, as `languages` and `regions`. Both default to empty. `withLocales` fills them.                                                                                                                                                                                                                                                                                |
+
+`keywordMatch` and `resumeParse` are required. The other sections have defaults, so a policy written before a field existed still parses.
+
+## Rules
+
+Each rule has a `kind`. There are seven.
+
+| Kind        | What it scores                                                | Kind-specific fields                                                                                                                       |
+| ----------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `min-words` | A minimum length.                                             | `min`, `weight`                                                                                                                            |
+| `presence`  | Whether a pattern appears.                                    | `pattern`, `flags`, `invert`, `scope` (`document`, `line` or `heading`), `weight`                                                          |
+| `position`  | Whether the contact details sit near the top.                 | `windowFraction` (0 to 1), `emailPattern`, `phonePattern`, `weight`                                                                        |
+| `bands`     | A measured metric, in bands.                                  | `metric`, optional `pattern` and `flags`, `bands`                                                                                          |
+| `layout`    | A signal from the file's geometry, such as columns or tables. | `metric` (`columnRatio`, `tableCount`, `imageCount`, `hiddenTextChars`, `imageOnlyPages`), `appliesWhen: "layout"`, `bands`                |
+| `parsed`    | How much of the resume the parser recovered.                  | `metric` (`rolesDetected`, `roleCompleteness`, `datedRoleRatio`, `contactCompleteness`, `educationDetected`, `dateOfBirthStated`), `bands` |
+| `section`   | Whether a heading exists for a section.                       | `section` (`experience`, `education`, `skills` or `projects`), `weight`                                                                    |
+
+A `layout` rule is dropped from the report for pasted text and structured documents, because there is no geometry to measure. It is neither passed nor failed and leaves the score's denominator.
+
+The `bands` metrics are `wordCount`, `metricsRatio`, `actionVerbRatio`, `buzzwordCount`, `letterSpacedLines`, `injectionPhrases`, `invisibleCharacters`, `homoglyphWords`, `copiedPostingRatio`, `stuffedTerms`, `timelineIssues`, `unsupportedSkills`, `firstPersonLines`, `passiveVoiceRatio`, `weakOpeners`, `tenseMismatches`, `longBullets`, `bulletsPerRole`, `repeatedOpeners` and `dateFormats`.
+
+### Fields every rule has
+
+| Field          | Meaning                                                                                                                                                                                                        |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`           | Unique, non-empty. Region packs and reports refer to the rule by it.                                                                                                                                           |
+| `kind`         | One of the seven kinds above.                                                                                                                                                                                  |
+| `category`     | A non-empty string. The default policy uses `integrity`, `parse`, `contact`, `structure`, `content`, `format` and `writing`.                                                                                   |
+| `severity`     | `info`, `warning` or `error`.                                                                                                                                                                                  |
+| `passEvidence` | What the report says when the rule passes.                                                                                                                                                                     |
+| `failEvidence` | What the report says when it fails.                                                                                                                                                                            |
+| `fix`          | What to do about a failure.                                                                                                                                                                                    |
+| `penalty`      | Optional, default `false`. A penalty is a deduction: its weight is taken off the finished score in points and left out of the denominator. The default policy uses it for integrity rules such as hidden text. |
+| `languages`    | Optional list of ISO 639 codes the rule can judge. For a resume read in any other language the rule is dropped, neither passed nor failed.                                                                     |
+
+### Weights and bands
+
+A `min-words`, `presence`, `position` or `section` rule has one `weight`, a number of at least 0. A `bands`, `layout` or `parsed` rule has `bands`, a list in which each band has:
+
+| Field          | Meaning                                                                                                                                       |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `upTo`         | The band's upper bound, or `null` for the last band, which is open-ended. Bounds must be strictly ascending, and only the last may be `null`. |
+| `weight`       | The weight earned in this band, at least 0.                                                                                                   |
+| `failEvidence` | Optional. What a result in this band says, in place of the rule's own. For a rule that fails on both sides, such as too short and too long.   |
+| `fix`          | Optional. The fix for this band, in place of the rule's own.                                                                                  |
+
+## Region packs adjust rules by id
+
+A region pack's `rules` is a record keyed by rule id, each entry with an optional `weight` and `severity`. Because it adjusts by id, a policy that reuses an id across rules is invalid. A pack never adds a rule. See [Languages and regions](/ats-engine/guides/languages-and-regions) and [Locales](/ats-engine/reference/locales).
+
+## Frozen and copied
+
+`DEFAULT_POLICY`, every policy from `parseAtsPolicy` or `withLocales`, and every other object the package exports are frozen. Changing one throws a `TypeError` in strict mode. To change a policy, copy it with `structuredClone`, edit the copy and parse it again.
+
+```ts
+import { DEFAULT_POLICY, check, parseAtsPolicy, policyFingerprint } from "@veriworkly/ats-engine";
+
+const copy = structuredClone(DEFAULT_POLICY);
+const rule = copy.rules.find((candidate) => candidate.id === "ats-v2.format.columns");
+if (rule) rule.severity = "warning";
+
+const policy = parseAtsPolicy(copy);
+const report = check(resumeText, policy);
+
+console.log(policyFingerprint(policy), report.engine.policy);
+```
+
+If no rule has that id, the edit is skipped. The default policy's ids look like `ats-v2.format.columns`; the [rubric](/ats-engine/reference/rubric) lists them all.
+
+## Functions and values
+
+| Export                      | Purpose                                                                                                                                                                                                              |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `parseAtsPolicy(json)`      | Validates a policy, applies the defaults and returns it deep-frozen. Throws `AtsPolicyError` with the offending `issues`. Pure: it does no caching.                                                                  |
+| `AtsPolicyError`            | Thrown for an invalid policy or locale pack, and for a region or target ATS the policy does not have. Has `issues`, a list of `{ path, message }`.                                                                   |
+| `policyFingerprint(policy)` | `version+hash`, where the hash covers the policy as applied, after locale packs. A report carries it in `engine.policy`. The same fingerprint and engine version, input and reference date give an identical report. |
+| `policyRubric(policy)`      | One `AtsRubricEntry` per rule: `id`, `category`, `severity`, `measures`, `points`, `deduction`, `passes` and `fix`. The [rubric page](/ats-engine/reference/rubric) is generated from it.                            |
+| `DEFAULT_POLICY`            | The bundled community policy.                                                                                                                                                                                        |
+| `ENGINE_VERSION`            | The engine version, such as `0.10.0`.                                                                                                                                                                                |
+
+```ts
+import { AtsPolicyError, parseAtsPolicy } from "@veriworkly/ats-engine";
+
+try {
+  parseAtsPolicy({ version: "", rules: [] });
+} catch (error) {
+  if (error instanceof AtsPolicyError)
+    for (const issue of error.issues) console.log(`${issue.path}: ${issue.message}`);
+}
+```
+
+The error cases are collected in [Errors and limits](/ats-engine/reference/errors-and-limits).

@@ -1,0 +1,254 @@
+---
+title: Add AI features
+description: Bring your own model and key to explain a report, repair a failed parse or convert free text, with grounding, redaction, errors and test doubles.
+---
+
+Scoring never needs a model. The AI tasks in `@veriworkly/ats-engine/ai` are optional extras that run on your own API key. The score and the recovered fields stay deterministic: a model never changes `readinessScore`, and a model-filled field is marked `ai` in `parsed.provenance`.
+
+<Callout type="warn" title="Keep the key on your server">
+  The AI code runs in a browser, but a key sent to the browser is visible to everyone who uses the
+  page. Call these tasks from a server route, a worker or a job. Read the key from the environment,
+  as the examples do.
+</Callout>
+
+## Create the client
+
+`createAtsAi({ provider, routes })` binds the three tasks to one provider. A route sets the model and budget for a task. Nothing is sent until a task is called.
+
+```ts
+import { createAtsAi } from "@veriworkly/ats-engine/ai";
+import { anthropic } from "@veriworkly/ats-engine/ai/anthropic";
+
+export const ai = createAtsAi({
+  provider: anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! }),
+  routes: {
+    analyze: { model: "claude-sonnet-5-5", maxTokens: 4000 },
+  },
+});
+```
+
+Two adapters cover most providers. `anthropic` talks to the Anthropic Messages API. `openAiCompatible` talks to any service that serves `POST {baseUrl}/chat/completions`. To switch providers, change the `provider` line; the rest of the code stays the same.
+
+| Provider           | Adapter            | `baseUrl`                                                 |
+| ------------------ | ------------------ | --------------------------------------------------------- |
+| Anthropic          | `anthropic`        | Default                                                   |
+| OpenAI             | `openAiCompatible` | Default (`https://api.openai.com/v1`)                     |
+| OpenRouter         | `openAiCompatible` | `https://openrouter.ai/api/v1`                            |
+| Google Gemini      | `openAiCompatible` | `https://generativelanguage.googleapis.com/v1beta/openai` |
+| Groq               | `openAiCompatible` | `https://api.groq.com/openai/v1`                          |
+| Together           | `openAiCompatible` | `https://api.together.xyz/v1`                             |
+| Ollama (local)     | `openAiCompatible` | `http://localhost:11434/v1`                               |
+| vLLM (self-hosted) | `openAiCompatible` | Your server's `/v1` URL                                   |
+
+```ts
+import { createAtsAi } from "@veriworkly/ats-engine/ai";
+import { openAiCompatible } from "@veriworkly/ats-engine/ai/openai-compatible";
+
+// OpenAI uses the default base URL; OpenRouter needs its own
+export const ai = createAtsAi({
+  provider: openAiCompatible({
+    apiKey: process.env.OPENROUTER_API_KEY!,
+    baseUrl: "https://openrouter.ai/api/v1",
+    requireParameters: true, // with structuredOutputs, route only to models that honour the schema
+  }),
+  routes: { analyze: { model: "your-model-id", maxTokens: 4000, structuredOutputs: true } },
+});
+
+// Ollama on your own machine (any non-empty key); resume text never leaves it
+export const local = createAtsAi({
+  provider: openAiCompatible({ apiKey: "ollama", baseUrl: "http://localhost:11434/v1" }),
+  routes: { analyze: { model: "your-local-model", maxTokens: 4000 } },
+});
+```
+
+Use the model ID your provider lists. A route can also set `temperature`, `retries`, `structuredOutputs`, `providerOptions` and `system`, and any call can override its route. `structuredOutputs` is off by default: the engine then asks for plain JSON and validates the reply against its own schema, which works with almost every model. Turn it on for providers and models that support JSON Schema output. For any other service, write your own `LlmProvider`: one `complete(request)` method that returns text.
+
+## The three tasks
+
+| Task            | Input                                                             | Returns in `result`                                                                                  |
+| --------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `analyze`       | `{ resumeText, report, jobDescription? }`                         | `explanation`, `missingEvidence`, `keywordOpportunities`, `recommendedImprovements`, `priorityOrder` |
+| `repairParse`   | `{ resumeText, report, now? }` where `report` needs only `parsed` | An `AtsParsedResume`: the parse with its gaps filled                                                 |
+| `convertResume` | `{ resumeText }`                                                  | `basics`, `links`, `summary`, `experience`, `education`, `projects`, `skills`                        |
+
+`analyze` explains a deterministic report in plain language. `repairParse` fills fields the parser left empty, using only values found in the resume, and never overwrites one the parser found. `convertResume` turns free text into structured resume data.
+
+```ts
+import { check, DEFAULT_POLICY, needsRepair } from "@veriworkly/ats-engine";
+import { createAtsAi } from "@veriworkly/ats-engine/ai";
+import { anthropic } from "@veriworkly/ats-engine/ai/anthropic";
+
+const ai = createAtsAi({
+  provider: anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! }),
+  routes: {
+    analyze: { model: "claude-sonnet-5-5", maxTokens: 4000 },
+    repairParse: { model: "claude-sonnet-5-5", maxTokens: 4000 },
+    convertResume: { model: "claude-sonnet-5-5", maxTokens: 6000 },
+  },
+});
+
+const report = check(resumeText, DEFAULT_POLICY, { jobDescription: postingText });
+
+// 1. Explain the report
+const analysis = await ai.analyze({ resumeText, report, jobDescription: postingText });
+console.log(analysis.result.explanation);
+console.log(analysis.result.recommendedImprovements);
+
+// 2. Repair a parse that visibly failed. needsRepair says when it is worth a call.
+if (needsRepair(report)) {
+  const repaired = await ai.repairParse({ resumeText, report });
+  console.log(repaired.result.roles.length, repaired.rejected);
+}
+
+// 3. Convert free text to structured data
+const converted = await ai.convertResume({ resumeText });
+console.log(converted.result.basics.fullName, converted.result.experience.length);
+```
+
+Set a model for each task you call. A task with no model throws `AtsAiError` with code `config`.
+
+## The result
+
+Every task returns the same wrapper around its `result`, so you can bill and audit calls yourself. The package never touches credits or quotas.
+
+```ts
+import { check } from "@veriworkly/ats-engine";
+import { createAtsAi } from "@veriworkly/ats-engine/ai";
+import { anthropic } from "@veriworkly/ats-engine/ai/anthropic";
+
+const ai = createAtsAi({
+  provider: anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! }),
+  routes: { analyze: { model: "claude-sonnet-5-5", maxTokens: 4000 } },
+});
+
+const { result, rejected, usage, attempts, model, promptVersion } = await ai.analyze({
+  resumeText,
+  report: check(resumeText),
+});
+
+console.log(result.priorityOrder);
+console.log(rejected); // [{ path, value }]: values dropped because they are not in the source
+console.log(usage?.inputTokens, usage?.outputTokens);
+console.log(attempts, model, promptVersion);
+```
+
+| Field           | Meaning                                                                                     |
+| --------------- | ------------------------------------------------------------------------------------------- |
+| `result`        | The task's output, after validation and grounding                                           |
+| `rejected`      | Values the model returned that do not occur in the source, each with its `path` and `value` |
+| `usage`         | Input and output tokens, plus cache read and write tokens when the provider reports them    |
+| `attempts`      | Calls made, counting retries                                                                |
+| `model`         | The model that answered                                                                     |
+| `promptVersion` | Which prompt produced the result, so you can compare prompt overrides                       |
+
+The options are in the [AI options reference](/ats-engine/reference/ai-options).
+
+## Grounding
+
+A model's output is never trusted as it comes. It is validated against a schema, and every value that claims to come from the resume must occur in it. Names, employers, titles, schools, email addresses, URLs and skills that do not appear in the source are dropped and reported in `rejected`. Dates in `repairParse` must name a year the text contains.
+
+`convertResume` checks names, employers, titles, schools, degrees, email addresses, URLs and skill keywords against the resume, and its dates and `current` flags separately. It does not check the phone number, location, headline, label, summary, highlights or skill group names, which a model may tidy or reword. Read those as the model's words.
+
+Free text a model writes, such as an explanation or a recommendation, is advice and is not grounded. Show it as the model's words, not as facts about the candidate. Resume and posting text go to the model as JSON data with a system prompt that says so, which lowers the risk of prompt injection and does not remove it.
+
+## Redaction
+
+`analyze` redacts contact details before the request leaves, best effort and only these forms:
+
+- The name as the parser read it, in any case or letter spacing, as "Doe, Jane", and inside a web address built from it (`janedoe.dev`).
+- Every email address.
+- The links the parser read.
+- Phone numbers, with or without a country code or trunk zero, any separators and an extension, and any run of nine or more digits on one line that opens with `+` or a trunk `0`.
+
+It does not redact initials ("J. Doe"), the first name alone, a handle written another way (`jane_doe`), or a phone number in a shape it does not recognise unless the parser read it. **Postal addresses are not recognised.** The report's `advice` is not sent, because it quotes the file name. Redaction is on by default for `analyze`; switch it off with `redact: { analyze: false }`.
+
+`repairParse` and `convertResume` exist to recover contact details, so they do not redact. The complete list is in [security](/ats-engine/project/security).
+
+## Handle errors
+
+A failed call throws `AtsAiError` with a `code`, and `status`, `usage` and `attempts` when known.
+
+| Code             | Meaning                                                | What to do                                                                           |
+| ---------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| `config`         | No model configured for the task, or bad options       | Set `routes.<task>.model`                                                            |
+| `provider`       | The provider returned an error or could not be reached | Retry, or check the key and the address                                              |
+| `refused`        | The model declined to answer                           | Do not retry the same input blindly                                                  |
+| `truncated`      | The reply hit `maxTokens`                              | Raise `maxTokens`, not `retries`. Models that think count thinking tokens against it |
+| `invalid_output` | The reply did not match the schema after retries       | Retry, or set `structuredOutputs: true` on a model that supports it                  |
+| `aborted`        | The call's `signal` aborted                            | No action: the caller cancelled                                                      |
+
+```ts
+import { check } from "@veriworkly/ats-engine";
+import { AtsAiError, createAtsAi } from "@veriworkly/ats-engine/ai";
+import { anthropic } from "@veriworkly/ats-engine/ai/anthropic";
+
+const ai = createAtsAi({
+  provider: anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! }),
+  routes: { analyze: { model: "claude-sonnet-5-5", maxTokens: 4000 } },
+  hooks: { onRetry: ({ task, attempt, error }) => console.warn(task, attempt, error.code) },
+});
+
+try {
+  await ai.analyze(
+    { resumeText, report: check(resumeText) },
+    { signal: AbortSignal.timeout(60_000) },
+  );
+} catch (error) {
+  if (error instanceof AtsAiError) console.error(error.code, error.status, error.attempts);
+  else throw error;
+}
+```
+
+The adapters never follow a redirect. They send the key only to the address you configure and fail the call, without retrying, if the response is a redirect.
+
+## Test without a network
+
+`@veriworkly/ats-engine/ai/testing` has a provider that replays canned replies and an eval harness. Import it in tests only.
+
+```ts
+import { check } from "@veriworkly/ats-engine";
+import { createAtsAi } from "@veriworkly/ats-engine/ai";
+import { runAiEval, scriptedProvider } from "@veriworkly/ats-engine/ai/testing";
+
+const report = check(resumeText);
+const provider = scriptedProvider(
+  JSON.stringify({
+    explanation: "A clear resume.",
+    missingEvidence: [],
+    keywordOpportunities: [],
+    recommendedImprovements: ["Add numbers to your bullets."],
+    priorityOrder: ["Add numbers to your bullets."],
+  }),
+);
+const ai = createAtsAi({ provider, routes: { analyze: { model: "test", maxTokens: 1000 } } });
+
+const { result } = await ai.analyze({ resumeText, report });
+console.log(result.recommendedImprovements, provider.calls.length); // calls holds every request
+
+// Measure a provider and prompt: schema validity, grounding, invented numbers, stability
+const evaluation = await runAiEval(
+  ai,
+  [
+    {
+      id: "analyze-basic",
+      source: resumeText + JSON.stringify(report),
+      run: (client) => client.analyze({ resumeText, report }),
+    },
+  ],
+  { runs: 3 },
+);
+console.log(evaluation.schemaValidRate, evaluation.groundingViolationRate, evaluation.failures);
+```
+
+`scriptedProvider(...replies)` answers one reply per call and repeats the last one. A reply is text, a partial response, an `Error` to throw, or a function of the request. `runAiEval` reports `schemaValidRate`, `groundingViolationRate`, `fabricatedNumberRate`, `consistency` and `forbiddenLeakRate`, plus the failures and rejected values. Case fields `source` and `forbidden` set what output may draw on and what must never appear.
+
+<Callout type="info" title="The score does not depend on a model">
+  `check` never calls `/ai`. Scripted or live, the same resume, policy and date produce the same
+  report.
+</Callout>
+
+## Next steps
+
+- Every option of the client: [AI options reference](/ats-engine/reference/ai-options).
+- What leaves your server and what does not: [security](/ats-engine/project/security).
+- Read a resume once for scoring and AI: [structured input](/ats-engine/guides/structured-input#prepare-once-use-twice).

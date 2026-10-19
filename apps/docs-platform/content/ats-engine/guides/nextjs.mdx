@@ -1,0 +1,174 @@
+---
+title: Use it in Next.js
+description: An App Router route handler that takes a resume upload, extracts it in a child process, scores it and returns JSON, and where pasted text can run instead.
+---
+
+A resume upload needs a Node runtime, because PDF and DOCX extraction is Node only. This guide builds one route handler, `app/api/resume/route.ts`, that receives a multipart upload, checks its size, detects the format, extracts in a killable child process, scores with `check` and returns JSON. It assumes you installed the optional peers from [files in Node](/ats-engine/guides/files-in-node).
+
+## The route handler
+
+```ts title="app/api/resume/route.ts"
+import { fork } from "node:child_process";
+import { createRequire } from "node:module";
+
+import { NextResponse } from "next/server";
+
+import { AtsInputError, AtsPolicyError, check, shapeReport } from "@veriworkly/ats-engine";
+import { detectResumeFormat } from "@veriworkly/ats-engine/node";
+import type {
+  AtsExtraction,
+  AtsExtractRequest,
+  AtsExtractResponse,
+  AtsResumeFormat,
+} from "@veriworkly/ats-engine/node";
+
+export const runtime = "nodejs";
+
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // a resume with a text layer is well under this
+const MAX_JOB_CHARS = 20_000;
+
+const childPath = createRequire(import.meta.url).resolve("@veriworkly/ats-engine/node/child");
+let lastId = 0;
+
+function extractInChild(
+  bytes: Uint8Array,
+  format: AtsResumeFormat,
+  timeoutMs = 30_000,
+): Promise<AtsExtraction> {
+  return new Promise((resolve, reject) => {
+    const id = ++lastId;
+    const child = fork(childPath, [], { execArgv: [] });
+    let settled = false;
+
+    const finish = (outcome: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      child.kill("SIGKILL");
+      outcome();
+    };
+    const timer = setTimeout(
+      () => finish(() => reject(new Error("Extraction timed out."))),
+      timeoutMs,
+    );
+
+    child.on("message", (response: AtsExtractResponse) => {
+      if (response.id !== id) return;
+      finish(() => {
+        if (!response.ok) return reject(new Error(response.message));
+        resolve(
+          response.layout
+            ? { text: response.text, layout: response.layout }
+            : { text: response.text },
+        );
+      });
+    });
+    child.on("error", (error) => finish(() => reject(error)));
+    child.on("exit", (code, signal) =>
+      finish(() => reject(new Error(`The extractor exited early (${signal ?? code}).`))),
+    );
+
+    const request: AtsExtractRequest = {
+      id,
+      format,
+      buffer: Buffer.from(bytes).toString("base64"),
+    };
+    child.send(request);
+  });
+}
+
+export async function POST(request: Request) {
+  const form = await request.formData();
+  const upload = form.get("resume");
+
+  if (!(upload instanceof File)) {
+    return NextResponse.json(
+      { error: "Send the resume as the form field `resume`." },
+      { status: 400 },
+    );
+  }
+  if (upload.size > MAX_UPLOAD_BYTES) {
+    return NextResponse.json({ error: "The file is too large." }, { status: 413 });
+  }
+
+  const format = detectResumeFormat(upload.name, upload.type);
+  if (!format) {
+    return NextResponse.json({ error: "Use a PDF, DOCX, HTML or text file." }, { status: 415 });
+  }
+
+  const posting = form.get("job");
+  const jobDescription =
+    typeof posting === "string" && posting.trim() ? posting.slice(0, MAX_JOB_CHARS) : undefined;
+
+  const bytes = new Uint8Array(await upload.arrayBuffer());
+
+  try {
+    const { text, layout } = await extractInChild(bytes, format);
+    const report = check(text, undefined, {
+      ...(layout ? { layout } : {}),
+      ...(jobDescription ? { jobDescription } : {}),
+      file: { name: upload.name, bytes: bytes.byteLength, format },
+    });
+
+    // Decide the level on the server, from your own session or plan: "full" or "restricted".
+    return NextResponse.json(shapeReport(report, "full"));
+  } catch (error) {
+    if (error instanceof AtsInputError || error instanceof AtsPolicyError) {
+      return NextResponse.json({ error: error.message }, { status: 422 });
+    }
+    return NextResponse.json({ error: "The file could not be read." }, { status: 422 });
+  }
+}
+```
+
+Send it from a form or `fetch`:
+
+```bash
+curl -F "resume=@resume.pdf" -F "job=<posting.txt" http://localhost:3000/api/resume
+```
+
+What the handler does, in order:
+
+1. `export const runtime = "nodejs"` keeps it off the Edge runtime, where `node:child_process` and the extraction peers do not exist.
+2. `request.formData()` gives a `File`. `formData()` has already buffered the upload, so the handler's 5 MB check refuses the file before it is extracted, not before it is read. Check `Content-Length` first if you want an early refusal. Pick your own cap; the engine's own file limit is 20 MB.
+3. `detectResumeFormat` reads the name and the declared MIME type and returns `null` for unsupported types such as RTF.
+4. `extractInChild` runs the extraction in a child process with a 30-second timeout. How it works, and how to cap the child's memory in the operating system, is in [files in Node](/ats-engine/guides/files-in-node#run-extraction-in-a-child-process).
+5. `check` scores the text with the layout signals and the file facts. `shapeReport` adds the verdict and, for `"restricted"`, withholds the lists ([restricted reports](/ats-engine/guides/restricted-reports)).
+
+If you would rather return the raw `AtsReport`, return `report` instead of `shapeReport(report, "full")`. The shaped full report is the report plus `restricted: false` and a `verdict`.
+
+## What to watch for
+
+- Escape `report.advice` before you put it in HTML. Advice can quote the file name as the user sent it ([rendering](/ats-engine/guides/rendering)).
+- Bound the request body at your proxy or platform as well. `request.formData()` reads the whole body into memory before the handler can check `upload.size`.
+- Rate-limit and authenticate this route like any upload endpoint. Extraction is the expensive step.
+- The route finds the child with `createRequire(...).resolve`, which needs the engine on disk at runtime. If your build bundles server dependencies, list `@veriworkly/ats-engine`, `pdf-parse`, `pdfjs-dist` and `mammoth` in `serverExternalPackages` in `next.config`.
+- Resume text is personal data. The engine does not store or send it anywhere; what your route logs is up to you.
+
+## Pasted text needs no server
+
+`check` does no I/O, so pasted-text scoring can run in a client component ([browser](/ats-engine/guides/browser)), in a route handler, or on the Edge runtime ([edge](/ats-engine/guides/edge)). A route that only takes JSON text can drop `runtime = "nodejs"` and the child process entirely:
+
+```ts title="app/api/score/route.ts"
+import { NextResponse } from "next/server";
+
+import { check } from "@veriworkly/ats-engine";
+
+export const runtime = "edge";
+
+export async function POST(request: Request) {
+  const body = (await request.json()) as { text?: unknown };
+  if (typeof body.text !== "string" || !body.text.trim()) {
+    return NextResponse.json({ error: "Send { text: string }." }, { status: 400 });
+  }
+  return NextResponse.json(check(body.text));
+}
+```
+
+Pasted text drops the layout rules, so its score can differ from the same resume uploaded as a file ([pasted text](/ats-engine/guides/pasted-text)).
+
+## Next steps
+
+- Show the result: [rendering](/ats-engine/guides/rendering).
+- Offer a free and a paid level: [restricted reports](/ats-engine/guides/restricted-reports).
+- Add a job posting from a saved page: [job postings](/ats-engine/guides/job-postings).

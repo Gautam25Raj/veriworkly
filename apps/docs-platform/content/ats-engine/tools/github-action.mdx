@@ -1,0 +1,138 @@
+---
+title: GitHub Action
+description: Check a resume in a workflow with VeriWorkly/ats-engine/action, fail the step below a minimum score, and read the report from the job summary or step outputs.
+---
+
+The VeriWorkly ATS Engine action scores a resume in a workflow and fails the step when the readiness score drops below `min-score`. Keep your resume in a repository and check it on every push.
+
+The step runs the published [command line](/ats-engine/tools/cli) with `npx`, at the engine version in the `version` input. It installs the PDF and DOCX readers (`pdf-parse`, `pdfjs-dist`, `mammoth`) alongside the engine, so a PDF or Word resume works with nothing set up. It has no dependencies of its own and is not part of either npm package. No AI model is involved in the score.
+
+## Usage
+
+```yaml
+- uses: actions/checkout@v5
+- uses: VeriWorkly/ats-engine/action@main
+  with:
+    resume: resume.pdf
+    job: jobs/backend-engineer.txt # optional
+    min-score: 80 # optional
+```
+
+<Callout type="info" title="Pin the action to a commit SHA">
+  `version` fixes the engine, so your score only moves when you change it. `@main` still follows the
+  action's own code. To fix that too, replace `@main` with a full commit SHA of the [ats-engine
+  repository](https://github.com/VeriWorkly/ats-engine).
+</Callout>
+
+## Inputs
+
+| Input       | Required | Default  | What it does                                                                                                                                                                                 |
+| ----------- | -------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resume`    | Yes      |          | Path to the resume: `.pdf`, `.docx`, `.html`, `.txt`, `.md`, or a `.json` resume document.                                                                                                   |
+| `job`       | No       | none     | Path to a job posting to match against: `.txt`, `.md`, `.pdf`, `.docx`, or a saved `.html` page.                                                                                             |
+| `min-score` | No       | none     | Fail the step when the readiness score is below this number, 0 to 100. Empty means never fail on the score.                                                                                  |
+| `region`    | No       | inferred | Read the resume as from this country: `US`, `GB`, `DE`, `FR` or `IN`.                                                                                                                        |
+| `version`   | No       | `0.10.0` | Version of `@veriworkly/ats-engine` to run. Defaults to the engine release the action ships with, so a later release cannot change your score until you move to it. A version or a dist-tag. |
+| `ats`       | No       | none     | The ATS you are applying through: `greenhouse`, `lever` or `taleo`. Adds its documented notes to the advice, which is never scored. Needs `version` 0.3.0 or later.                          |
+| `summary`   | No       | `true`   | Write the report to the job summary. `false` leaves it out.                                                                                                                                  |
+
+The action has no input for `--job-url` or `--ai`. For those, run the command line in a `run` step.
+
+## Outputs
+
+| Output          | Value                                                                           |
+| --------------- | ------------------------------------------------------------------------------- |
+| `score`         | Readiness score, 0 to 100.                                                      |
+| `job-match`     | Job match score, 0 to 100, or empty without a job.                              |
+| `failed-checks` | Failed checks as a JSON array of `{ id, severity, evidence, fix }`.             |
+| `report`        | Path to the full JSON report, `ats-report.json` in the runner's temp directory. |
+
+The outputs are written before the step fails on `min-score`, so a later step can read them with `if: always()`.
+
+## Job summary
+
+Unless `summary` is `false`, the run's job summary shows:
+
+- the readiness score, the job match when there is a posting, and the minimum with whether it was met;
+- each failed check with its severity, finding and fix, or a line saying every check passed;
+- each job requirement and its status;
+- the missing keywords, and the missing soft skills, which weigh less;
+- the advice, labelled as not scored;
+- a footer naming the engine version.
+
+## Security notes
+
+Resume and posting text is untrusted input, and a resume can say anything. The action treats it that way.
+
+- Inputs reach the script as environment variables and are never pasted into a command line, so a file name cannot inject shell code. Paths are resolved to absolute paths before the command runs outside your repository.
+- Text from the resume or posting is shown in the job summary as text. Each table cell is cut to one line of 300 characters, HTML characters are encoded so no tag survives, and Markdown characters are escaped. Colons, `@` and the dot after `www` are written as entities, so an address in a resume does not become a link.
+- Line breaks in a message are encoded, so an input or a file name cannot end a workflow command and start another. The command's own warnings, which can quote the resume, are passed on with workflow commands stopped under a random token.
+- `version` must be a version or a dist-tag (letters, digits, `.`, `_` and `-`), and `min-score` a number from 0 to 100, or the step fails at once.
+
+## Examples
+
+A complete workflow. It checks the resume whenever it or the posting changes:
+
+```yaml title=".github/workflows/resume.yml"
+name: Resume check
+
+on:
+  push:
+    paths:
+      - resume.pdf
+      - jobs/**
+  pull_request:
+
+jobs:
+  ats:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: VeriWorkly/ats-engine/action@main
+        with:
+          resume: resume.pdf
+          job: jobs/backend-engineer.txt
+          min-score: 80
+          region: US
+```
+
+Using the outputs in a later step. Give the action step an `id`, and use `if: always()` so the step runs when the score is below the minimum. The action writes its outputs before it fails the step on `min-score`:
+
+```yaml title=".github/workflows/resume-report.yml"
+name: Resume report
+
+on: [push]
+
+jobs:
+  ats:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - id: ats
+        uses: VeriWorkly/ats-engine/action@main
+        with:
+          resume: resume.pdf
+          job: jobs/backend-engineer.txt
+          min-score: 80
+
+      - name: Show the result
+        if: always()
+        env:
+          SCORE: ${{ steps.ats.outputs.score }}
+          JOB_MATCH: ${{ steps.ats.outputs.job-match }}
+          FAILED: ${{ steps.ats.outputs.failed-checks }}
+        run: |
+          echo "Readiness: $SCORE"
+          echo "Job match: $JOB_MATCH"
+          echo "$FAILED" | jq -r '.[] | "\(.severity): \(.evidence)"'
+
+      - name: Keep the full report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ats-report
+          path: ${{ steps.ats.outputs.report }}
+```
+
+The example passes outputs to `run` through `env` instead of pasting them into the script, for the same reason the action does: `failed-checks` holds text from the resume.

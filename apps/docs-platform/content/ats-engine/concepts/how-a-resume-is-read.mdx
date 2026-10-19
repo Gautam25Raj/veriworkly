@@ -1,0 +1,94 @@
+---
+title: How a resume is read
+description: The steps check() takes from raw input to a report, how each recovered field records where it came from, and what pasted text cannot show.
+---
+
+`check()` in the VeriWorkly ATS Engine turns a resume into a report in a fixed series of steps. Knowing them explains why a field is empty, why a rule is missing from a report, and why the same resume can score differently as pasted text and as a PDF.
+
+## The pipeline
+
+1. **Prepare the input.** The input becomes one text, and a validated document when it was structured. Size guards apply here: resume text is cut at 50,000 characters. Invisible characters are counted before they are removed.
+2. **Localise the policy.** With locale packs attached (`withLocales`), the languages, the region and the date order are detected or taken from your `languages` and `region` options.
+3. **Read the resume.** Text is normalised once (NFKC, digits of every script, invisible characters). Wrapped lines are rejoined and letter-spaced words are read back. Headings split the text into sections. The parser then recovers the record, and the text-level checks run: integrity, timeline, skills and writing.
+4. **Score the rules.** Rules whose evidence exists are evaluated. Rules without evidence are dropped. See [Scoring](/ats-engine/concepts/scoring).
+5. **Match the posting**, when you pass `jobDescription`. See [Job matching](/ats-engine/concepts/job-matching).
+6. **Assemble the report.** Fixes, strengths and categories are built, and the report is stamped with the engine version and policy fingerprint.
+7. **Add advice.** File, age and target-ATS notes are read last, after the score is final, so they cannot move a number.
+
+## Accepted inputs
+
+`check` accepts a string, a structured `AtsResumeDocument` (built with the `/document` helpers), or a JSON Resume (a `basics` object plus a `work` array, or an education entry with an `institution`). A structured input is read directly, with no parsing. A string is parsed. Any other object is flattened to text, with its keys on their own lines, and then parsed like a string.
+
+```ts
+import { check, DEFAULT_POLICY } from "@veriworkly/ats-engine";
+
+const fromText = check(resumeText, DEFAULT_POLICY);
+const fromJson = check(
+  {
+    basics: { name: "Mei Lin Chen" },
+    work: [{ name: "Acme", position: "Engineer", startDate: "2021-03" }],
+    skills: [{ name: "Go" }],
+  },
+  DEFAULT_POLICY,
+);
+```
+
+See [Structured input](/ats-engine/guides/structured-input).
+
+## Reading order
+
+Order is what breaks a multi-column layout, more than columns as such. Lines from a PDF are ordered by where they sit on the page and not by the order the file paints them, column by column. A running header, footer or page number printed on every page is read once or not at all. A Word document's header and footer are read once as well.
+
+To see the text the way the engine read it, pass `includeLines`:
+
+```ts
+import { check, DEFAULT_POLICY } from "@veriworkly/ats-engine";
+
+const report = check(resumeText, DEFAULT_POLICY, { includeLines: true });
+
+for (const line of report.lines ?? []) console.log(line);
+```
+
+`report.lines` holds at most 500 lines and is the resume's full text, so it is off by default. Showing it to a candidate is the quickest way to explain a scrambled read.
+
+## What gets recovered
+
+The parsed record, `report.parsed`, holds what an ATS would store: `name`, `email`, `phone`, `links`, `roles` (title, employer, start, end, current), `education` (school, credential, ISCED level), `skills`, `certifications`, `spokenLanguages` (with CEFR level), `monthsOfExperience` and `highestIsced`.
+
+Certifications and spoken languages are read from their own sections, and from a "Languages:" or "Certifications:" line among the skills. A "Languages: Go, Rust" line stays skills.
+
+## Provenance
+
+`parsed.provenance` says, for each group (`name`, `email`, `phone`, `roles`, `education`, `skills`, `certifications`, `spokenLanguages`), where it came from.
+
+| Value        | Meaning                                                                                 |
+| ------------ | --------------------------------------------------------------------------------------- |
+| `parser`     | Read from the document text by the deterministic parser. This is what an ATS would see. |
+| `structured` | Taken from the typed fields of a structured input. Nothing was parsed.                  |
+| `ai`         | Recovered by a model after the parser missed it, and checked against the resume text.   |
+| `none`       | Not recovered at all.                                                                   |
+
+A report can then say which values a parser read and which a model read, which are different claims. See the [AI guide](/ats-engine/guides/ai).
+
+## Layout signals from files
+
+Text alone cannot show columns, tables, photos or hidden text. `extractResume` and `readResumeFile` from `/node` return a `layout` alongside the text: column ratio, ruled table count, page count, images of photo size, hidden text, pages with no text layer, file metadata, and for a PDF whether it is encrypted or for a Word document its tracked changes and comments.
+
+Hidden text means characters drawn so a reader cannot see them while an ATS still reads them: in the page's colour or near it, too small to read, off the page, invisible, or under an image.
+
+## What pasted text cannot be judged on
+
+Pasted text and structured documents have no geometry. Five rules depend on it and are left out of the report when no `layout` is passed:
+
+- `ats-v2.format.columns`
+- `ats-v2.format.tables`
+- `ats-v2.format.photo`
+- `ats-v2.parse.imageOnly`
+- `ats-v2.integrity.hiddenText`
+
+A dropped rule is neither passed nor failed, and it leaves the score's denominator, so the score means the same thing with or without it. A pasted resume can still have a two-column PDF behind it, so a score from text says nothing about those five.
+
+<Callout type="info" title="Metadata is read for instructions">
+  A PDF's title, subject, keywords and author fields are never scored as resume text, but they are
+  read for instructions aimed at an AI screener, which can hide there.
+</Callout>

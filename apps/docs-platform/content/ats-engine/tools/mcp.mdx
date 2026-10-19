@@ -1,0 +1,130 @@
+---
+title: MCP server
+description: Let Claude, Cursor or VS Code check your own resume with @veriworkly/ats-engine-mcp, a local stdio server with four tools and the rubric as a resource.
+---
+
+`@veriworkly/ats-engine-mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server that lets an AI assistant read your own resume the way an applicant tracking system does and score it with the VeriWorkly ATS Engine's rubric. Version 0.5.0 runs engine 0.10.0.
+
+It is a local stdio server. It makes no network requests and calls no AI model. The score comes from the [rubric](/ats-engine/reference/rubric). The server attaches the built-in language and region packs, so the library gives the same score when you call `check(input, withLocales(DEFAULT_POLICY, BUILT_IN_LOCALES))`. The reference date defaults to the current time, so tenure and timeline results move as time passes. The assistant explains the result and helps you fix what failed.
+
+## Install
+
+Node.js 22.12 or later is required. Every client runs the server with `npx -y @veriworkly/ats-engine-mcp`.
+
+<Tabs items={["Claude Code", "Claude Desktop", "Cursor", "VS Code"]}>
+  <Tab value="Claude Code">
+    ```bash
+    claude mcp add ats-engine -- npx -y @veriworkly/ats-engine-mcp
+    ```
+
+    On native Windows (not WSL), wrap `npx` in `cmd /c`:
+
+    ```bash
+    claude mcp add ats-engine -- cmd /c npx -y @veriworkly/ats-engine-mcp
+    ```
+
+  </Tab>
+  <Tab value="Claude Desktop">
+    Open Settings, Developer, Edit Config, add the server to `claude_desktop_config.json`, and restart Claude Desktop.
+
+    ```json title="claude_desktop_config.json"
+    {
+      "mcpServers": {
+        "ats-engine": {
+          "command": "npx",
+          "args": ["-y", "@veriworkly/ats-engine-mcp"]
+        }
+      }
+    }
+    ```
+
+  </Tab>
+  <Tab value="Cursor">
+    Add it to `~/.cursor/mcp.json` for every project, or `.cursor/mcp.json` for one project.
+
+    ```json title="mcp.json"
+    {
+      "mcpServers": {
+        "ats-engine": {
+          "command": "npx",
+          "args": ["-y", "@veriworkly/ats-engine-mcp"]
+        }
+      }
+    }
+    ```
+
+  </Tab>
+  <Tab value="VS Code">
+    Add it to `.vscode/mcp.json` in your workspace, or run **MCP: Add Server** from the Command Palette.
+
+    ```json title=".vscode/mcp.json"
+    {
+      "servers": {
+        "ats-engine": {
+          "type": "stdio",
+          "command": "npx",
+          "args": ["-y", "@veriworkly/ats-engine-mcp"]
+        }
+      }
+    }
+    ```
+
+  </Tab>
+</Tabs>
+
+The server is listed in the MCP Registry as `io.github.VeriWorkly/ats-engine`.
+
+## Tools
+
+| Tool           | Input                                                                                         | Returns                                                                                                                                                                                                                  |
+| -------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `check_resume` | `path` or `text`; optional `job_path` or `job_text`; optional `region`; optional `target_ats` | Readiness score, verdict, category scores, every failed check with its evidence and fix, and the fields an ATS stores. With a posting, the job match, requirements and keywords too. Then `advice`, which is not scored. |
+| `match_job`    | `path` or `text`; `job_path` or `job_text` (required); optional `region`                      | Job match score, each requirement judged met, partial, missing or unverifiable with evidence, and the missing keywords, hard skills and soft skills apart.                                                               |
+| `explain_rule` | `rule_id`                                                                                     | One rubric rule: category, severity, what it checks, points, how to fix it. An unknown id lists the valid ones.                                                                                                          |
+| `extract_text` | `path` or `text`; optional `region`                                                           | The text in the order an ATS reads it, line by line (at most 500 lines), plus what the layout measured and the parsing warnings. For "why did it read my resume like this?".                                             |
+
+Every tool returns readable text for the assistant and its result as structured JSON (`structuredContent`, described by each tool's `outputSchema`). The tools are marked read-only.
+
+### Inputs
+
+| Input        | Type   | Meaning                                                                                                                                                                  |
+| ------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `path`       | string | Absolute path to the resume: `.pdf`, `.docx`, `.html`, `.txt`, `.md`, or a `.json` JSON Resume or ats-resume document. Give `path` or `text`, not both.                  |
+| `text`       | string | The resume as plain text, at least 50 and at most 200,000 characters.                                                                                                    |
+| `job_path`   | string | Path to a posting: `.txt`, `.md`, `.pdf`, `.docx`, or a saved `.html` page. Any other type is refused, since a posting's words come back in the answer.                  |
+| `job_text`   | string | The posting as text, at most 200,000 characters. Give `job_path` or `job_text`, not both.                                                                                |
+| `region`     | string | `US`, `GB`, `DE`, `FR` or `IN`. Without it, the region is inferred from the resume.                                                                                      |
+| `target_ats` | string | `greenhouse`, `lever` or `taleo`. Adds what that vendor documents publicly, each note with a link to the vendor's page. It never changes the score. `check_resume` only. |
+| `rule_id`    | string | A rule id, for example from a failed check. `explain_rule` only.                                                                                                         |
+
+### Advice
+
+`check_resume` ends with `advice`, a list that is never scored. For a file, it covers the file name (a draft name like `Resume_final_v3 (2).pdf` is flagged), a size over 2 MB, a password, and tracked changes or comments left in a Word document. For a US resume it also covers details that can invite age bias. With `target_ats` it adds the vendor's notes.
+
+## Resource
+
+The resource `rubric://default` is the whole rubric as JSON: the policy version and fingerprint, the engine version, and every rule with its category, severity, points and fix.
+
+## Limits
+
+- Give absolute paths. `~/` is read as your home folder; any other relative path is read from the folder the server was started in.
+- Pasted `text` and `job_text` may be up to 200,000 characters.
+- Files over 20 MB are refused.
+- Folders, pipes, devices and network paths (`\\host\share\...`) are refused.
+- A PDF with no text layer is refused: an ATS cannot read a scan either.
+
+More in [Errors and limits](/ats-engine/reference/errors-and-limits).
+
+## Example prompts
+
+- "Check my resume at ~/Documents/cv.pdf."
+- "How well does it match this job posting?" with the posting pasted or saved to a file.
+- "Why did it fail the date check?" The assistant calls `explain_rule` with the failed check's id.
+- "Show me how an ATS reads my resume." The assistant calls `extract_text`.
+- "Read it as a German resume and add Greenhouse's notes."
+
+## Privacy and intended use
+
+The server reads only the files you name in a request. Nothing leaves your machine except what your assistant itself sends to its model provider: the tool results it reads, which include text from your resume.
+
+The engine is for candidates checking their own resume. Do not use it to screen, rank or reject other people. See [Responsible use](/ats-engine/project/responsible-use).

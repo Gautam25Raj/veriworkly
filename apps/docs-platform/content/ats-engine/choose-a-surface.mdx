@@ -1,0 +1,59 @@
+---
+title: Choose a surface
+description: Compare the library, CLI, GitHub Action, MCP server and the hosted checker or VeriWorkly API, with the quotas and when to use each.
+---
+
+The VeriWorkly ATS Engine runs five ways. All of them use the same engine and the same rubric. The CLI, the MCP server and the GitHub Action attach the built-in language and region packs, which change some weights (US and GB, for example, weigh a date of birth and a photo more). The library scores with the policy you pass, so call `check(input, withLocales(DEFAULT_POLICY, BUILT_IN_LOCALES))` to get the same scores. The Action runs the engine version in its `version` input, which can differ from the one you installed.
+
+| Surface                | Runs where               | Needs                       | Best for                               |
+| ---------------------- | ------------------------ | --------------------------- | -------------------------------------- |
+| Library                | Node, browsers, the edge | `@veriworkly/ats-engine`    | Building the check into your product   |
+| CLI                    | Your terminal or CI      | Node 22.12 or later         | Checking a file without writing code   |
+| GitHub Action          | A GitHub workflow        | A repository                | Checking a resume on every push        |
+| MCP server             | Your machine, over stdio | An MCP client               | Checking a resume from an AI assistant |
+| Hosted checker and API | VeriWorkly's servers     | A browser or an HTTP client | Trying it with no install              |
+
+## Library
+
+`@veriworkly/ats-engine` is the package itself. The core makes no network calls and keeps no state, so it runs in a browser, at the edge or on a server. `/node` reads PDF and DOCX files and runs on Node only. `/ai` adds optional model tasks with your own API key.
+
+Use this when you are building a resume builder, a candidate-side job board, a career-centre tool or an agent, or when you need to control the policy, the locale packs or the report shape. Start with the [Quick start](/ats-engine/quick-start).
+
+## CLI
+
+`ats-engine check resume.pdf --job posting.txt` prints the score, the requirements, what an ATS reads and the failed checks. `--json` prints the full report and `--min-score` sets a failing exit code.
+
+Use this when you want to check your own resume once, script a batch of your own files, or gate a CI job. See [CLI](/ats-engine/tools/cli).
+
+## GitHub Action
+
+A composite action runs the published CLI on a resume kept in a repository. It fails the step below `min-score` and writes the score, each failed check and each requirement's status to the run's job summary.
+
+Use this when your resume lives in a repository and you want a regression check on every push. See [GitHub Action](/ats-engine/tools/github-action).
+
+## MCP server
+
+`@veriworkly/ats-engine-mcp` exposes `check_resume`, `match_job`, `explain_rule` and `extract_text` to Claude, Cursor, VS Code and other MCP clients. It talks over stdio, makes no network requests and calls no model. The assistant explains the result, and the score still comes from the rubric.
+
+Use this when you want an assistant to read a resume file on your machine and help you act on the report. See [MCP server](/ats-engine/tools/mcp).
+
+## Hosted checker and VeriWorkly API
+
+The [VeriWorkly ATS checker](https://veriworkly.com/ats-checker) runs this engine in the browser-facing product, with no install. The [VeriWorkly API](https://docs.veriworkly.com/api-reference/ats/overview) exposes it at `/ats/check`, `/ats/extract` and `/ats/analyze`.
+
+Both sit under the consumer quotas:
+
+| Plan         | Quota                        |
+| ------------ | ---------------------------- |
+| Anonymous    | 1 scan per 48 hours          |
+| Free account | 2 scans per 24 hours         |
+| Paid plan    | 300 scans per billing period |
+
+There is no separate developer tier. If you need volume, or need to control the policy or the data path, install the library and run the engine yourself.
+
+Use this when you want to try the engine with no setup, or when a single scan from a signed-in account is enough.
+
+<Callout type="info" title="Which to pick">
+  Building a product: the library. Checking your own file: the CLI or the hosted checker. Keeping a
+  resume in Git: the Action. Working inside an assistant: the MCP server.
+</Callout>

@@ -152,7 +152,17 @@ npx @veriworkly/ats-engine check resume.pdf --policy policy.json
 
 The CLI attaches the bundled language and region packs on top of whichever policy it loads. See [CLI](/ats-engine/tools/cli).
 
-A JSON Schema for the full policy (draft 2020-12, generated from the schema `parseAtsPolicy` uses) ships in the release after 0.10.0 as `@veriworkly/ats-engine/policy.schema.json`. You can then point a policy file's `$schema` at it. Until then, `parseAtsPolicy` is the validator, its issues name the field that is wrong, and the type `AtsEnginePolicy` and `DEFAULT_POLICY` are the reference.
+Since 0.11.0 the package ships a JSON Schema of the full policy (draft 2020-12, generated from the schema `parseAtsPolicy` uses) as `@veriworkly/ats-engine/policy.schema.json`. Add a `$schema` line at the top of the `policy.json` written above for completion and checking in your editor:
+
+```jsonc
+{
+  "$schema": "https://cdn.jsdelivr.net/npm/@veriworkly/ats-engine@0.11.0/dist/policy.schema.json",
+  "version": "ats-v2",
+  // ...the rest of the policy
+}
+```
+
+`parseAtsPolicy` ignores the `$schema` key, so the policy and its fingerprint are the same with or without it. Point it at the version you run, or, inside a project that installs the engine, at `./node_modules/@veriworkly/ats-engine/dist/policy.schema.json`. `parseAtsPolicy` is still the validator: it also compiles the patterns and refuses two rules with one id, which a schema cannot check, and its issues name the field that is wrong.
 
 ## Next steps
 

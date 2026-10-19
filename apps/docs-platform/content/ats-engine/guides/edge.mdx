@@ -17,7 +17,7 @@ The core of VeriWorkly ATS Engine holds no I/O, no global state and makes no net
 | `@veriworkly/ats-engine/ai` and its adapters | With `fetch` | About 73.0 KB gzipped, plus 1.9 KB per adapter. Keep the API key in a secret binding, never in client code |
 | `@veriworkly/ats-engine/node`, `/node/child` | No           | Node only: file reads, `node:child_process`, pdf.js and mammoth                                            |
 
-Sizes are for 0.10.0 and are not additive: the core is shared between entry points. Check the figures against your own bundler's output before you pick a plan tier. Workers and Edge Functions have size limits of their own.
+Sizes are for 0.11.0 and are not additive: the core is shared between entry points. Check the figures against your own bundler's output before you pick a plan tier. Workers and Edge Functions have size limits of their own.
 
 Reading PDF and DOCX is the one thing you cannot do at the edge. Send the file to a Node route instead ([Next.js](/ats-engine/guides/nextjs)) or score text the user pasted.
 

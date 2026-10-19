@@ -3,7 +3,7 @@ title: Package exports
 description: Every subpath of @veriworkly/ats-engine, with what it exports, where it runs, its gzipped size and the peers it needs.
 ---
 
-`@veriworkly/ats-engine` is ESM only and needs Node 22.12 or later. Each subpath below is a separate entry point, so a browser bundle takes only what it imports. Sizes are gzipped, for version 0.10.0.
+`@veriworkly/ats-engine` is ESM only and needs Node 22.12 or later. Each subpath below is a separate entry point, so a browser bundle takes only what it imports. Sizes are gzipped, for version 0.11.0.
 
 ## Summary
 
@@ -20,6 +20,7 @@ description: Every subpath of @veriworkly/ats-engine, with what it exports, wher
 | `./ai/testing`           | Test doubles and an eval harness                                  | Anywhere                                               | 1.2 KB                                | None                                                            |
 | `./node`                 | Reading PDF, DOCX and text files                                  | Node only                                              | 21.1 KB                               | `pdf-parse@2`, `pdfjs-dist@5.4.296` for PDF; `mammoth` for DOCX |
 | `./node/child`           | A forkable extraction process                                     | Node only                                              |                                       | Same as `./node`                                                |
+| `./policy.schema.json`   | The JSON Schema of a scoring policy (a file, not a module)        | An editor, from a policy file's `$schema`              |                                       |                                                                 |
 | `./package.json`         | The package manifest                                              |                                                        |                                       |                                                                 |
 
 The core, `./document`, `./format`, `./job` and `./locales` make no network calls. The `ats-engine` command is the package's `bin`; see [Command line](/ats-engine/tools/cli).

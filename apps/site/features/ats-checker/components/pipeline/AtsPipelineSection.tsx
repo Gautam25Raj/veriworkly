@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Reveal } from "@/components/marketing/Reveal";
 import { PIPELINE_STEPS } from "../../data/pipelineSteps";
 import { SCORE_FACTS } from "../../data/scoreFacts";
@@ -84,16 +86,20 @@ export function AtsPipelineSection() {
             Scored by our open-source engine
           </h4>
           <p className="text-muted text-xs leading-relaxed">
-            The checker runs{" "}
+            The checker runs the{" "}
+            <Link href="/ats-engine" className="text-accent hover:underline">
+              VeriWorkly ATS Engine
+            </Link>
+            , open source on{" "}
             <a
               href="https://github.com/VeriWorkly/ats-engine"
               target="_blank"
               rel="noopener noreferrer"
               className="text-accent hover:underline"
             >
-              @veriworkly/ats-engine
-            </a>
-            , published on{" "}
+              GitHub
+            </a>{" "}
+            and{" "}
             <a
               href="https://www.npmjs.com/package/@veriworkly/ats-engine"
               target="_blank"
@@ -104,7 +110,7 @@ export function AtsPipelineSection() {
             </a>
             . You can{" "}
             <a
-              href="https://github.com/VeriWorkly/ats-engine/blob/main/RUBRIC.md"
+              href="https://docs.veriworkly.com/ats-engine/reference/rubric"
               target="_blank"
               rel="noopener noreferrer"
               className="text-accent hover:underline"

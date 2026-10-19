@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { siteConfig } from "@/config/site";
 import { templateSummaries } from "@/config/templates";
 import { COMPETITORS } from "@/features/compare/data/competitors";
 
@@ -368,5 +369,86 @@ describe("AI data-handling claims stay within what we can substantiate", () => {
     // than assumed. Losing it would be a regression even though nothing else would break.
     expect(privacyContent).toMatch(/OpenRouter/);
     expect(privacyContent).toMatch(/Standard Contractual Clauses/);
+  });
+});
+
+describe("the ATS Engine page agrees with the engine and the docs it points to", () => {
+  /**
+   * /ats-engine quotes figures for one engine version and links into docs.veriworkly.com. Both
+   * drift silently: an engine bump leaves the page describing the old release, and a renamed
+   * docs page leaves a dead link. These pin the page to the installed engine and the docs tree.
+   */
+  const docsContent = join(__dirname, "..", "..", "..", "docs-platform", "content");
+  const sitemapSource = readFileSync(join(__dirname, "..", "..", "app", "sitemap.ts"), "utf8");
+
+  it("quotes the version of the engine the site installs", async () => {
+    const { ENGINE_VERSION } = await import("@veriworkly/ats-engine");
+    const { ENGINE_VERSION_LABEL } = await import("@/features/ats-engine/data/content");
+
+    expect(
+      ENGINE_VERSION_LABEL,
+      "the site now runs another engine: re-measure the sizes and benchmarks in features/ats-engine/data/content.ts, then update the label",
+    ).toBe(ENGINE_VERSION);
+  });
+
+  it("is listed in the sitemap and in llms.txt", () => {
+    expect(sitemapSource).toContain("${siteConfig.url}/ats-engine`");
+    expect(internalPathsIn(llmsTxt)).toContain("/ats-engine");
+  });
+
+  it("links only to docs pages that exist", async () => {
+    const { ENGINE_LINKS, SURFACES } = await import("@/features/ats-engine/data/content");
+
+    const docsPaths = [
+      ...Object.values(ENGINE_LINKS)
+        .filter((url) => new URL(url).hostname === new URL(siteConfig.links.docs).hostname)
+        .map((url) => new URL(url).pathname),
+      ...SURFACES.map((surface) => surface.docsPath),
+    ];
+
+    for (const path of docsPaths) {
+      const base = join(docsContent, path === "/ats-engine" ? "/ats-engine/index" : path);
+      const exists = [".mdx", ".md"].some((ext) => {
+        try {
+          readFileSync(`${base}${ext}`);
+          return true;
+        } catch {
+          return false;
+        }
+      });
+
+      expect(exists, `${path} has no page under apps/docs-platform/content`).toBe(true);
+    }
+  });
+
+  it("names FAQ entries that exist", async () => {
+    const { FAQ_IDS } = await import("@/features/ats-engine/data/content");
+    const { faqs } = await import("@/features/faq/data/faqItems");
+    const known = new Set(faqs.map((faq) => faq.id));
+
+    for (const id of FAQ_IDS) expect(known, `FAQ "${id}" does not exist`).toContain(id);
+  });
+
+  it("demo samples still show what their labels promise", async () => {
+    const { check } = await import("@veriworkly/ats-engine");
+    const { ENGINE_SAMPLES } = await import("@/features/ats-engine/data/samples");
+    const now = new Date("2026-10-01T00:00:00Z");
+    const score = (id: string) => {
+      const sample = ENGINE_SAMPLES.find((entry) => entry.id === id)!;
+      return check(sample.resume, undefined, { jobDescription: sample.posting, now });
+    };
+
+    const strong = score("strong");
+    expect(strong.failedChecks).toEqual([]);
+    expect(strong.jobMatchScore).toBeGreaterThanOrEqual(80);
+
+    const weak = score("needs-work");
+    expect(weak.jobMatchScore).toBeLessThan(50);
+    expect(weak.failedChecks.map((rule) => rule.id)).toContain("ats-v2.writing.firstPerson");
+
+    const gaming = score("gaming");
+    const failed = gaming.failedChecks.map((rule) => rule.id);
+    expect(failed).toContain("ats-v2.integrity.promptInjection");
+    expect(failed).toContain("ats-v2.integrity.keywordStuffing");
   });
 });

@@ -38,6 +38,12 @@ const publicRoutes = [
   },
 
   {
+    url: `${siteConfig.url}/ats-engine`,
+    changeFrequency: "monthly" as const,
+    priority: 0.85,
+  },
+
+  {
     url: `${siteConfig.url}/roadmap`,
     changeFrequency: "daily" as const,
     priority: 0.8,

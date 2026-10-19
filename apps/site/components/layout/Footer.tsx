@@ -14,6 +14,7 @@ const footerColumns: LandingFooterColumn[] = [
       { name: "Resume Builder", href: siteConfig.links.app, external: true },
       { name: "Portfolio Builder", href: siteConfig.links.portfolio, external: true },
       { name: "Free ATS Checker", href: "/ats-checker" },
+      { name: "ATS Engine (Open Source)", href: "/ats-engine" },
       { name: "Core Features", href: "/features" },
       { name: "How It Works", href: "/how-it-works" },
       { name: "Template Gallery", href: "/templates" },
@@ -25,6 +26,7 @@ const footerColumns: LandingFooterColumn[] = [
     title: "Resources",
     links: [
       { name: "Docs & APIs", href: siteConfig.links.docs, external: true },
+      { name: "ATS Engine Docs", href: `${siteConfig.links.docs}/ats-engine`, external: true },
       { name: "Engineering Blog", href: siteConfig.links.blog, external: true },
       { name: "System Security", href: "/security" },
       { name: "Design System", href: "/style-guide" },

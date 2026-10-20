@@ -9,7 +9,7 @@ Built in: language packs `de`, `fr` and `hi`, and region packs `US` (verified), 
 
 ## Attach the packs
 
-Call `withLocales` once at startup and reuse the policy. It lives in `@veriworkly/ats-engine/locales`, which is about 75.5 KB gzipped, with `withLocales` alone at 48.7 KB.
+Call `withLocales` once at startup and reuse the policy. It lives in `@veriworkly/ats-engine/locales`, which is about <EngineSize of="./locales" /> gzipped, with `withLocales` alone at <EngineSize of="withLocales" />.
 
 ```ts
 import { check, DEFAULT_POLICY } from "@veriworkly/ats-engine";
@@ -65,6 +65,8 @@ const policy = withLocales(DEFAULT_POLICY, BUILT_IN_LOCALES);
 const india = check(resumeText, policy, { region: "IN" });
 const german = check(resumeText, policy, { languages: ["de"], region: "DE" });
 console.log(india.locale, german.locale);
+
+// Ids are read in any case ("DE" is "de"); one no attached pack has throws AtsPolicyError.
 
 try {
   check(resumeText, withLocales(DEFAULT_POLICY, {}), { region: "DE" });

@@ -23,13 +23,14 @@ import {
 } from "lucide-react";
 
 import { siteConfig } from "@/config/site";
+import { engineSize } from "@/features/ats-engine/data/sizes";
 
 /**
- * Copy and figures for /ats-engine. Figures are for engine 0.11.0 (the version the site runs);
- * update them with the engine bump. Sizes come from the engine's `npm run size`, accuracy and
- * timing from its `npm run bench`, both on invented resumes.
+ * Copy and figures for /ats-engine. Figures are for engine 0.14.0 (the version the site runs);
+ * update them with the engine bump. Sizes are read from the installed engine's `sizes.json`
+ * (`engineSize`); accuracy and timing come from its `npm run bench`, on invented resumes.
  */
-export const ENGINE_VERSION_LABEL = "0.11.0";
+export const ENGINE_VERSION_LABEL = "0.14.0";
 
 export const ENGINE_LINKS = {
   docs: `${siteConfig.links.docs}/ats-engine`,
@@ -48,7 +49,7 @@ export const INSTALL_COMMAND = "npm install @veriworkly/ats-engine";
 
 export const HERO_FACTS = [
   { label: "Licence", value: "MIT" },
-  { label: "Core, gzipped", value: "101 KB" },
+  { label: "Core, gzipped", value: engineSize(".", true) },
   { label: "Runs in", value: "Browser · Edge · Node" },
   { label: "AI in the score", value: "None" },
 ] as const;
@@ -193,35 +194,40 @@ report.requirements;   // met, partial, missing, unverifiable`,
 export const RUNTIMES = [
   {
     subpath: "@veriworkly/ats-engine",
-    size: "101 KB",
+    size: engineSize(".", true),
     where: "Browser, edge, Node",
     what: "check(), parsing, scoring",
   },
   {
     subpath: "/locales",
-    size: "75.5 KB",
+    size: engineSize("./locales"),
     where: "Browser, edge, Node",
     what: "German, French, Hindi; US, UK, DE, FR, IN",
   },
   {
     subpath: "/job",
-    size: "3.5 KB",
+    size: engineSize("./job"),
     where: "Browser, edge, Node",
     what: "Postings from HTML and JSON-LD",
   },
   {
     subpath: "/format",
-    size: "1.2 KB",
+    size: engineSize("./format"),
     where: "Browser, edge, Node",
     what: "Labels, bands, dates for your UI",
   },
   {
     subpath: "/ai",
-    size: "73 KB",
+    size: engineSize("./ai", true),
     where: "Server, with fetch",
     what: "Optional: explain, repair, convert",
   },
-  { subpath: "/node", size: "21.1 KB", where: "Node.js 22.12+", what: "PDF and DOCX extraction" },
+  {
+    subpath: "/node",
+    size: engineSize("./node"),
+    where: "Node.js 22.12+",
+    what: "PDF and DOCX extraction",
+  },
 ] as const;
 
 export const EXTRAS: EngineFeature[] = [

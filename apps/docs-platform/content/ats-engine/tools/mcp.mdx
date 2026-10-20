@@ -3,7 +3,7 @@ title: MCP server
 description: Let Claude, Cursor or VS Code check your own resume with @veriworkly/ats-engine-mcp, a local stdio server with four tools and the rubric as a resource.
 ---
 
-`@veriworkly/ats-engine-mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server that lets an AI assistant read your own resume the way an applicant tracking system does and score it with the VeriWorkly ATS Engine's rubric. Version 0.5.1 runs engine 0.11.0.
+`@veriworkly/ats-engine-mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server that lets an AI assistant read your own resume the way an applicant tracking system does and score it with the VeriWorkly ATS Engine's rubric. Version 0.8.0 runs engine 0.14.0.
 
 It is a local stdio server. It makes no network requests and calls no AI model. The score comes from the [rubric](/ats-engine/reference/rubric). The server attaches the built-in language and region packs, so the library gives the same score when you call `check(input, withLocales(DEFAULT_POLICY, BUILT_IN_LOCALES))`. The reference date defaults to the current time, so tenure and timeline results move as time passes. The assistant explains the result and helps you fix what failed.
 
@@ -87,15 +87,15 @@ Every tool returns readable text for the assistant and its result as structured 
 
 ### Inputs
 
-| Input        | Type   | Meaning                                                                                                                                                                  |
-| ------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `path`       | string | Absolute path to the resume: `.pdf`, `.docx`, `.html`, `.txt`, `.md`, or a `.json` JSON Resume or ats-resume document. Give `path` or `text`, not both.                  |
-| `text`       | string | The resume as plain text, at least 50 and at most 200,000 characters.                                                                                                    |
-| `job_path`   | string | Path to a posting: `.txt`, `.md`, `.pdf`, `.docx`, or a saved `.html` page. Any other type is refused, since a posting's words come back in the answer.                  |
-| `job_text`   | string | The posting as text, at most 200,000 characters. Give `job_path` or `job_text`, not both.                                                                                |
-| `region`     | string | `US`, `GB`, `DE`, `FR` or `IN`. Without it, the region is inferred from the resume.                                                                                      |
-| `target_ats` | string | `greenhouse`, `lever` or `taleo`. Adds what that vendor documents publicly, each note with a link to the vendor's page. It never changes the score. `check_resume` only. |
-| `rule_id`    | string | A rule id, for example from a failed check. `explain_rule` only.                                                                                                         |
+| Input        | Type   | Meaning                                                                                                                                                                                            |
+| ------------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `path`       | string | Absolute path to the resume: `.pdf`, `.docx`, `.html`, `.txt`, `.md`, or a `.json` JSON Resume or ats-resume document. Give `path` or `text`, not both.                                            |
+| `text`       | string | The resume as plain text, at least 50 and at most 200,000 characters.                                                                                                                              |
+| `job_path`   | string | Path to a posting: `.txt`, `.md`, `.pdf`, `.docx`, or a saved `.html` page. Any other type is refused, since a posting's words come back in the answer, and so is a posting with no readable text. |
+| `job_text`   | string | The posting as text, at most 200,000 characters. Give `job_path` or `job_text`, not both.                                                                                                          |
+| `region`     | string | `US`, `GB`, `DE`, `FR` or `IN`. Without it, the region is inferred from the resume.                                                                                                                |
+| `target_ats` | string | `greenhouse`, `lever` or `taleo`. Adds what that vendor documents publicly, each note with a link to the vendor's page. It never changes the score. `check_resume` only.                           |
+| `rule_id`    | string | A rule id, for example from a failed check. `explain_rule` only.                                                                                                                                   |
 
 ### Advice
 

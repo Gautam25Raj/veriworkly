@@ -19,7 +19,7 @@ All extend `Error`. Plain text of any length never throws `AtsInputError`: text 
 
 ### AtsInputError
 
-Fields: `issues`, an array of `{ path, message }`. At most 20 issues are listed. `path` is dotted, such as `basics.name`; it is empty for a whole-document problem such as size. Thrown by `prepareResume`, and so by `check` and `AtsScoringService.check`.
+Fields: `issues`, an array of `{ path, message }`. At most 20 issues are listed. `path` is dotted, such as `basics.name`; it is empty for a whole-document problem such as size. Thrown by `prepareResume`, and so by `check`.
 
 ### AtsPolicyError
 
@@ -27,7 +27,7 @@ Fields: `issues`, an array of `{ path, message }` (`AtsPolicyIssue`), where `pat
 
 ### AtsFileError
 
-No extra fields. Thrown by `readResumeFile` and `readJobFile` for a missing file, a folder, a pipe or device, a network share (`\\host\share`), a file over 20 MB, an unsupported extension, a file that is not a regular file, invalid JSON, a `.json` that is neither a JSON Resume nor an `ats-resume` document, and a file with too little text to read (for a PDF, a scan or flattened image; for other formats, fewer than 50 characters). The command line and the [MCP server](/ats-engine/tools/mcp) print its message as is.
+No extra fields. Thrown by `readResumeFile` and `readJobFile` for a missing file, a folder, a pipe or device, a network share (`\\host\share`), a file over 20 MB, an unsupported extension, a file that is not a regular file, invalid JSON, a `.json` that is neither a JSON Resume nor an `ats-resume` document, a job posting with no readable text, and a file with too little text to read (for a PDF, a scan or flattened image; for other formats, fewer than 50 characters). The command line and the [MCP server](/ats-engine/tools/mcp) print its message as is.
 
 ### AtsAiError
 
@@ -122,15 +122,17 @@ A JSON Resume is cut to the same limits when it is converted instead of refused.
 
 ### AI and tools
 
-| Limit                         | Value                   | What happens                                   |
-| ----------------------------- | ----------------------- | ---------------------------------------------- |
-| AI `analyze`, resume          | 50,000 characters       | Cut.                                           |
-| AI `analyze`, job description | 20,000 characters       | Cut.                                           |
-| AI `convertResume`            | 50,000 characters       | Cut.                                           |
-| AI `repairParse`              | 40,000 characters       | Cut.                                           |
-| Provider request timeout      | 120 seconds per attempt | Default of the HTTP adapters; set `timeoutMs`. |
-| MCP `text` and `job_text`     | 200,000 characters      | The tool call is refused.                      |
-| MCP and CLI files             | 20 MB                   | Refused, as above.                             |
-| CLI `--job-url` answer        | 20 MB, 20 seconds       | Refused.                                       |
+| Limit                         | Value                   | What happens                                        |
+| ----------------------------- | ----------------------- | --------------------------------------------------- |
+| AI `analyze`, resume          | 50,000 characters       | Cut.                                                |
+| AI `analyze`, job description | 20,000 characters       | Cut.                                                |
+| AI `convertResume`            | 50,000 characters       | Cut.                                                |
+| AI `repairParse`              | 40,000 characters       | Cut.                                                |
+| Provider request timeout      | 120 seconds per attempt | Default of the HTTP adapters; set `timeoutMs`.      |
+| Provider answer               | 4 MB, an error's too    | Refused before it is parsed, as `LlmProviderError`. |
+| MCP PDF or DOCX reading       | 60 seconds a file       | Its child process is stopped; the call is refused.  |
+| MCP `text` and `job_text`     | 200,000 characters      | The tool call is refused.                           |
+| MCP and CLI files             | 20 MB                   | Refused, as above.                                  |
+| CLI `--job-url` answer        | 20 MB, 20 seconds       | Refused.                                            |
 
 See [Check options](/ats-engine/reference/check-options) for the options that interact with these limits, and the [MCP server](/ats-engine/tools/mcp) for its refused paths.

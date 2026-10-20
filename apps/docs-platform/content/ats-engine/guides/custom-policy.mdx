@@ -152,11 +152,11 @@ npx @veriworkly/ats-engine check resume.pdf --policy policy.json
 
 The CLI attaches the bundled language and region packs on top of whichever policy it loads. See [CLI](/ats-engine/tools/cli).
 
-Since 0.11.0 the package ships a JSON Schema of the full policy (draft 2020-12, generated from the schema `parseAtsPolicy` uses) as `@veriworkly/ats-engine/policy.schema.json`. Add a `$schema` line at the top of the `policy.json` written above for completion and checking in your editor:
+The package ships a JSON Schema of the full policy (draft 2020-12, generated from the schema `parseAtsPolicy` uses) as `@veriworkly/ats-engine/policy.schema.json`. Add a `$schema` line at the top of the `policy.json` written above for completion and checking in your editor:
 
 ```jsonc
 {
-  "$schema": "https://cdn.jsdelivr.net/npm/@veriworkly/ats-engine@0.11.0/dist/policy.schema.json",
+  "$schema": "https://cdn.jsdelivr.net/npm/@veriworkly/ats-engine@0.14.0/dist/policy.schema.json",
   "version": "ats-v2",
   // ...the rest of the policy
 }

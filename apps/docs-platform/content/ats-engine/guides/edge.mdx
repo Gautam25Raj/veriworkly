@@ -7,17 +7,17 @@ The core of VeriWorkly ATS Engine holds no I/O, no global state and makes no net
 
 ## What works at the edge
 
-| Import                                       | Edge         | Notes                                                                                                      |
-| -------------------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------- |
-| `@veriworkly/ats-engine`                     | Yes          | Scoring, parsing, policy, report shaping. About 101 KB gzipped                                             |
-| `@veriworkly/ats-engine/document`            | Yes          | Structured input and JSON Resume. About 2.1 KB gzipped                                                     |
-| `@veriworkly/ats-engine/format`              | Yes          | Display helpers. About 1.2 KB gzipped                                                                      |
-| `@veriworkly/ats-engine/job`                 | Yes          | Job text from saved page HTML. About 3.5 KB gzipped                                                        |
-| `@veriworkly/ats-engine/locales`             | Yes          | Language and region packs. About 75.5 KB gzipped; `withLocales` alone is 48.7 KB                           |
-| `@veriworkly/ats-engine/ai` and its adapters | With `fetch` | About 73.0 KB gzipped, plus 1.9 KB per adapter. Keep the API key in a secret binding, never in client code |
-| `@veriworkly/ats-engine/node`, `/node/child` | No           | Node only: file reads, `node:child_process`, pdf.js and mammoth                                            |
+| Import                                       | Edge         | Notes                                                                                                                                                   |
+| -------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@veriworkly/ats-engine`                     | Yes          | Scoring, parsing, policy, report shaping. About <EngineSize of="." whole /> gzipped                                                                     |
+| `@veriworkly/ats-engine/document`            | Yes          | Structured input and JSON Resume. About <EngineSize of="./document" /> gzipped                                                                          |
+| `@veriworkly/ats-engine/format`              | Yes          | Display helpers. About <EngineSize of="./format" /> gzipped                                                                                             |
+| `@veriworkly/ats-engine/job`                 | Yes          | Job text from saved page HTML. About <EngineSize of="./job" /> gzipped                                                                                  |
+| `@veriworkly/ats-engine/locales`             | Yes          | Language and region packs. About <EngineSize of="./locales" /> gzipped; `withLocales` alone is <EngineSize of="withLocales" />                          |
+| `@veriworkly/ats-engine/ai` and its adapters | With `fetch` | About <EngineSize of="./ai" /> gzipped, plus <EngineSize of="./ai/anthropic" /> per adapter. Keep the API key in a secret binding, never in client code |
+| `@veriworkly/ats-engine/node`, `/node/child` | No           | Node only: file reads, `node:child_process`, pdf.js and mammoth                                                                                         |
 
-Sizes are for 0.11.0 and are not additive: the core is shared between entry points. Check the figures against your own bundler's output before you pick a plan tier. Workers and Edge Functions have size limits of their own.
+Sizes are for <EngineVersion /> and are not additive: the core is shared between entry points. Check the figures against your own bundler's output before you pick a plan tier. Workers and Edge Functions have size limits of their own.
 
 Reading PDF and DOCX is the one thing you cannot do at the edge. Send the file to a Node route instead ([Next.js](/ats-engine/guides/nextjs)) or score text the user pasted.
 
@@ -99,7 +99,7 @@ A Next.js route with `export const runtime = "edge"` runs the same code. The rou
 ## What to watch for
 
 - A score from text or a structured document has no layout signals, so the layout rules drop out ([pasted text](/ats-engine/guides/pasted-text)).
-- Locale packs cost 48.7 KB (`withLocales` alone) to 75.5 KB (`/locales`) gzipped. Attach them once at module scope with `withLocales` and reuse the policy across requests ([languages and regions](/ats-engine/guides/languages-and-regions)).
+- Locale packs cost <EngineSize of="withLocales" /> (`withLocales` alone) to <EngineSize of="./locales" /> (`/locales`) gzipped. Attach them once at module scope with `withLocales` and reuse the policy across requests ([languages and regions](/ats-engine/guides/languages-and-regions)).
 - Bound the body yourself, as above. The check on `raw.length` runs after `request.text()` has buffered the body and counts UTF-16 units, not bytes, so the `Content-Length` check is what refuses early. The engine cuts resume text at 50,000 characters and a job posting at 20,000, but it reads the whole string first.
 - Do not import `@veriworkly/ats-engine/node` in an edge bundle. Keep file handling in a separate Node route.
 

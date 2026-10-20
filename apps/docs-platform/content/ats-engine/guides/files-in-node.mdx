@@ -111,7 +111,7 @@ export async function scoreUpload(bytes: Uint8Array, fileName: string, mimeType:
 | PDF pages read        | 100    | Text reading stops at the cap or at the 100th page; the page count still counts every page |
 | DOCX expansion        | 64 MB  | A DOCX that expands past it is refused                                                     |
 
-`readResumeFile` and `readJobFile` take `{ maxBytes }` to lower the file limit. `extractResume` does not check the size of the bytes you give it, so bound the request body in your own code. The full list of limits is in [errors and limits](/ats-engine/reference/errors-and-limits).
+`readResumeFile` and `readJobFile` take `{ maxBytes }` to lower the file limit, and `{ extract }`, the function that reads a PDF's or DOCX's bytes, so you can run it in a child process (below) and keep the path, type and size checks. A posting is decoded as a resume is (UTF-8, UTF-16 with its byte-order mark, or Windows-1252), and one with no readable text is refused with `AtsFileError`. `extractResume` does not check the size of the bytes you give it, so bound the request body in your own code. The full list of limits is in [errors and limits](/ats-engine/reference/errors-and-limits).
 
 ## Run extraction in a child process
 

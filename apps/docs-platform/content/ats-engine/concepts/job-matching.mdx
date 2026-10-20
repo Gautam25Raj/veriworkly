@@ -78,7 +78,7 @@ console.log(report.missingKeywordGroups.soft); // these weigh less
 
 ## Hidden text and integrity
 
-When the policy's hidden-text rule fails, lines the layout marks as hidden are left out of the match and of the requirements, because hidden text is no evidence of fit. When an integrity rule of severity `error` fails, `jobMatchScore` is capped at `readinessScore`, so a resume caught gaming the screener cannot match high. See [Integrity](/ats-engine/concepts/integrity).
+When the policy's hidden-text rule fails, the hidden text is left out of the match and of the requirements, because hidden text is no evidence of fit. Only what the text holds of it is set aside (`layout.hiddenTextRead`: all of a PDF's, a Word file's but its headers' runs marked hidden, none of a web page's hidden elements), and line by line: the lines that make up the hidden text, so a visible line that repeats a hidden word keeps it. White text drawn after visible text on one line is cut from that line, and the rest of the line still counts. When an integrity rule of severity `error` fails, `jobMatchScore` is capped at `readinessScore`, so a resume caught gaming the screener cannot match high. See [Integrity](/ats-engine/concepts/integrity).
 
 ## Names are left out
 

@@ -47,7 +47,7 @@ The core holds no global state, does no I/O and makes no network calls. Only `/a
 - Keep API keys on your server. The AI code can run in a browser, but a key sent there is visible to anyone using the page.
 - `analyze` redacts contact details before the request leaves. This is best effort and covers only specific forms, so read the full SECURITY.md before you promise a user that a number or a name never leaves.
 - Without `--ai`, the CLI makes a request only for `--job-url`, and only to a job board's public API host. It sends no resume text and no key.
-- The MCP server runs over stdio, makes no network requests and calls no model. Its answers include resume text, which the assistant sends to its own model provider.
+- The MCP server runs over stdio, makes no network requests and calls no model. It reads a PDF or DOCX in its own child process, one per file, stopped after 60 seconds, so a file that exhausts memory or never ends takes down that process and not the server. Its answers include resume text, which the assistant sends to its own model provider.
 
 ## Model output
 

@@ -5,7 +5,7 @@ description: The scoring policy as data, with its sections, rule kinds and rule 
 
 The VeriWorkly ATS Engine holds its rules, weights, thresholds and language-bound vocabularies in a policy: plain data, not code. `DEFAULT_POLICY` is the bundled community policy. This page lists what a policy contains. To write or change one, follow [Custom policy](/ats-engine/guides/custom-policy). For every rule in the default policy with its weight and fix, see the [rubric](/ats-engine/reference/rubric).
 
-Since 0.11.0 the package ships a JSON Schema of the full policy (draft 2020-12, generated from the schema `parseAtsPolicy` uses) as `@veriworkly/ats-engine/policy.schema.json`, usable as a policy file's `$schema`; see [Custom policy](/ats-engine/guides/custom-policy). `parseAtsPolicy` stays the validator, and the TypeScript type `AtsEnginePolicy` and `DEFAULT_POLICY` are the reference in code. `AtsEnginePolicyInput` is the type of a policy as you write it, where fields with defaults may be omitted; `AtsEngineRule` is one rule.
+The package ships a JSON Schema of the full policy (draft 2020-12, generated from the schema `parseAtsPolicy` uses) as `@veriworkly/ats-engine/policy.schema.json`, usable as a policy file's `$schema`; see [Custom policy](/ats-engine/guides/custom-policy). `parseAtsPolicy` stays the validator, and the TypeScript type `AtsEnginePolicy` and `DEFAULT_POLICY` are the reference in code. `AtsEnginePolicyInput` is the type of a policy as you write it, where fields with defaults may be omitted; `AtsEngineRule` is one rule.
 
 ## Top-level sections
 
@@ -30,7 +30,7 @@ Each rule has a `kind`. There are seven.
 | ----------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `min-words` | A minimum length.                                             | `min`, `weight`                                                                                                                            |
 | `presence`  | Whether a pattern appears.                                    | `pattern`, `flags`, `invert`, `scope` (`document`, `line` or `heading`), `weight`                                                          |
-| `position`  | Whether the contact details sit near the top.                 | `windowFraction` (0 to 1), `emailPattern`, `phonePattern`, `weight`                                                                        |
+| `position`  | Whether the contact details sit near the top.                 | `windowFraction` (0 to 1), `weight`                                                                                                        |
 | `bands`     | A measured metric, in bands.                                  | `metric`, optional `pattern` and `flags`, `bands`                                                                                          |
 | `layout`    | A signal from the file's geometry, such as columns or tables. | `metric` (`columnRatio`, `tableCount`, `imageCount`, `hiddenTextChars`, `imageOnlyPages`), `appliesWhen: "layout"`, `bands`                |
 | `parsed`    | How much of the resume the parser recovered.                  | `metric` (`rolesDetected`, `roleCompleteness`, `datedRoleRatio`, `contactCompleteness`, `educationDetected`, `dateOfBirthStated`), `bands` |
@@ -97,7 +97,7 @@ If no rule has that id, the edit is skipped. The default policy's ids look like 
 | `policyFingerprint(policy)` | `version+hash`, where the hash covers the policy as applied, after locale packs. A report carries it in `engine.policy`. The same fingerprint and engine version, input and reference date give an identical report. |
 | `policyRubric(policy)`      | One `AtsRubricEntry` per rule: `id`, `category`, `severity`, `measures`, `points`, `deduction`, `passes` and `fix`. The [rubric page](/ats-engine/reference/rubric) is generated from it.                            |
 | `DEFAULT_POLICY`            | The bundled community policy.                                                                                                                                                                                        |
-| `ENGINE_VERSION`            | The engine version, such as `0.11.0`.                                                                                                                                                                                |
+| `ENGINE_VERSION`            | The engine version, such as `0.14.0`.                                                                                                                                                                                |
 
 ```ts
 import { AtsPolicyError, parseAtsPolicy } from "@veriworkly/ats-engine";

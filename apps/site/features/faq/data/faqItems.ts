@@ -9,6 +9,8 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
+import { engineSize } from "@/features/ats-engine/data/sizes";
+
 export const categories = [
   { id: "all", name: "All Questions", icon: HelpCircle },
   { id: "general", name: "General & Privacy", icon: Shield },
@@ -339,8 +341,7 @@ export const faqs: FaqItem[] = [
     id: "ats-engine-runtimes",
     category: "developer",
     question: "Where does the ATS Engine run?",
-    answer:
-      "The core makes no network calls, so it runs in the browser, at the edge (Cloudflare Workers, Vercel Edge) or in Node.js 22.12 and later. It is about 101 KB gzipped. Reading PDF and DOCX files needs Node.js and three optional packages: pdf-parse, pdfjs-dist and mammoth.",
+    answer: `The core makes no network calls, so it runs in the browser, at the edge (Cloudflare Workers, Vercel Edge) or in Node.js 22.12 and later. It is about ${engineSize(".", true)} gzipped. Reading PDF and DOCX files needs Node.js and three optional packages: pdf-parse, pdfjs-dist and mammoth.`,
   },
   {
     id: "ats-engine-vendors",

@@ -4,6 +4,7 @@ import { Container } from "@veriworkly/ui";
 import { siteConfig } from "@/config/site";
 import { jsonLdScriptProps } from "@/utils/json-ld";
 import { buildPageMetadata } from "@/utils/metadata";
+import { engineSize } from "@/features/ats-engine/data/sizes";
 
 import {
   EngineCTA,
@@ -44,8 +45,7 @@ export const metadata: Metadata = buildPageMetadata({
   ogDescription:
     "Parse a resume like an ATS, score it with 35 published rules and match it to a job posting requirement by requirement. One npm install, no AI in the score.",
   twitterTitle: "An open-source ATS engine, in one npm install",
-  twitterDescription:
-    "Deterministic resume parsing, scoring and job matching for TypeScript. MIT, about 101 KB gzipped.",
+  twitterDescription: `Deterministic resume parsing, scoring and job matching for TypeScript. MIT, about ${engineSize(".", true)} gzipped.`,
   image: pageOgImage,
   imageAlt: "VeriWorkly ATS Engine",
   keywords: [

@@ -50,7 +50,7 @@ const MINIMAL = {
     sections: { experience: "a", education: "b", skills: "c", projects: "d", other: "e" },
     titleWords: ["engineer"],
     schoolWords: ["university"],
-    degrees: { diploma: "a", associate: "b", bachelor: "c", master: "d", doctorate: "e" },
+    degrees: { "4": "a", "5": "b", "6": "c", "7": "d", "8": "e" },
   },
 };
 

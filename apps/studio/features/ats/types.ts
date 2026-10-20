@@ -6,7 +6,6 @@ import type { AtsFullReport, AtsParsedField, AtsParsedResume } from "@veriworkly
 
 export type {
   AtsCategoryScore,
-  AtsDegreeLevel,
   AtsLayoutSignals,
   AtsParsedDate,
   AtsParsedEducation,

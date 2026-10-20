@@ -68,6 +68,35 @@ describe("file advice through the check request", () => {
     expect(input.file).toEqual({ name: "Resume_final_v3 (2).docx", bytes: 48_000 });
   });
 
+  // The engine reports a real file's pages and hidden characters uncapped: a 250-page PDF that
+  // uploaded fine was refused at every scan. A count past its bound is held at it; the hidden
+  // text in full and the part the text holds are kept.
+  it("holds a layout count past its bound at the bound, and keeps the hidden text", () => {
+    const input = atsCheckSchema.parse({
+      resume: text,
+      layout: {
+        columnRatio: 0,
+        tableCount: 0,
+        pageCount: 250,
+        hiddenTextChars: 250_000,
+        hiddenText: "Kafka Kubernetes",
+        hiddenTextRead: "Kafka",
+      },
+    });
+    expect(input.layout).toMatchObject({
+      pageCount: 200,
+      hiddenTextChars: 100_000,
+      hiddenText: "Kafka Kubernetes",
+      hiddenTextRead: "Kafka",
+    });
+    expect(() =>
+      atsCheckSchema.parse({
+        resume: text,
+        layout: { columnRatio: 0, tableCount: -1, pageCount: 1 },
+      }),
+    ).toThrow();
+  });
+
   it("refuses an oversized name or a negative size", () => {
     expect(() => atsCheckSchema.parse({ resume: text, file: { name: "x".repeat(256) } })).toThrow();
     expect(() => atsCheckSchema.parse({ resume: text, file: { bytes: -1 } })).toThrow();

@@ -9,20 +9,33 @@ const resumeSchema = z.union([z.string().trim().min(1).max(50_000), z.record(z.u
  * Client-supplied, therefore bounded rather than trusted: the worst a forged value can do is
  * mis-score the caller's own resume, and the ranges here keep it from doing anything else.
  */
+// A count past its bound is held at it rather than refused: the engine reports a real file's pages
+// and hidden characters uncapped, so a 250-page PDF that uploaded fine then failed every scan.
+const count = (max: number) =>
+  z
+    .number()
+    .int()
+    .min(0)
+    .transform((n) => Math.min(n, max));
+
 const layoutSchema = z.object({
   columnRatio: z.number().min(0).max(1).nullable(),
-  tableCount: z.number().int().min(0).max(500),
-  pageCount: z.number().int().min(0).max(200),
-  imageCount: z.number().int().min(0).max(500).optional(),
-  hiddenTextChars: z.number().int().min(0).max(100_000).optional(),
-  hiddenTextSample: z.string().max(200).optional(),
-  imageOnlyPages: z.number().int().min(0).max(200).optional(),
+  tableCount: count(500),
+  pageCount: count(200),
+  imageCount: count(500).optional(),
+  hiddenTextChars: count(100_000).optional(),
+  // The hidden text in full (the engine cuts it at 5,000 characters), and the part of it the text
+  // holds: with them the engine sets aside exactly the hidden lines and cuts hidden text out of a
+  // visible line; with the 80-character sample alone it can do neither.
+  hiddenText: z.string().max(5_000).optional(),
+  hiddenTextRead: z.string().max(5_000).optional(),
+  imageOnlyPages: count(200).optional(),
   metadataText: z.string().max(2_000).optional(),
   // Engine 0.3: a PDF opened without its password, and a Word file's tracked changes and
   // comments. Only the advice reads them, never the score.
   encrypted: z.boolean().optional(),
-  trackedChanges: z.number().int().min(0).max(100_000).optional(),
-  comments: z.number().int().min(0).max(100_000).optional(),
+  trackedChanges: count(100_000).optional(),
+  comments: count(100_000).optional(),
 });
 
 /** The uploaded file's name and size, sent by the client for the file advice. Never scored. */

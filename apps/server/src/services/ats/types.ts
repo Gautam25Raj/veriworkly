@@ -5,7 +5,6 @@
  */
 export type {
   AtsCategoryScore,
-  AtsDegreeLevel,
   AtsLayoutSignals,
   AtsParsedDate,
   AtsParsedEducation,

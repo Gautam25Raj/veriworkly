@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 
 import {
-  DEGREE_LABELS,
   ISCED_LABELS,
   formatCertification,
   formatRoleDates,
@@ -189,13 +188,11 @@ export function ParsedView({ parsed }: { parsed: AtsParsedResume }) {
               No education entries recovered.
             </p>
           )}
-          {parsed.highestIsced || parsed.highestDegree ? (
+          {parsed.highestIsced ? (
             <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
               Highest level read:{" "}
               <span className="font-medium text-zinc-700 dark:text-zinc-200">
-                {parsed.highestIsced
-                  ? ISCED_LABELS[parsed.highestIsced]
-                  : DEGREE_LABELS[parsed.highestDegree!]}
+                {ISCED_LABELS[parsed.highestIsced]}
               </span>
             </p>
           ) : null}

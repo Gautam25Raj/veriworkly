@@ -80,3 +80,24 @@ export function getRequestIpDetails(req: Request) {
     };
   }
 }
+
+/**
+ * The part of a client address that names one network, which quotas and rate limits count by: an
+ * IPv4 address whole, an IPv6 address's /64. One home connection holds a whole /64 and can move
+ * within it at will, so counting single IPv6 addresses counted nothing.
+ */
+export function addressBucket(ip: string): string {
+  if (!ip.includes(":")) return ip;
+  const [head = "", tail] = ip.toLowerCase().split("::");
+  const left = head ? head.split(":") : [];
+  const right = tail ? tail.split(":") : [];
+  const groups = [
+    ...left,
+    ...Array(Math.max(0, 8 - left.length - right.length)).fill("0"),
+    ...right,
+  ];
+  return `${groups
+    .slice(0, 4)
+    .map((group) => group.replace(/^0+(?=.)/, ""))
+    .join(":")}::/64`;
+}

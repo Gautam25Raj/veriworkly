@@ -86,6 +86,8 @@ export function PortfolioAnalyticsWorkspace() {
                   type="button"
                   onClick={() => {
                     const loginUrl = `${siteConfig.links.app}/login`;
+                    // Studio's login, another app's origin: a full page load is the only way there.
+                    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
                     window.location.href = `${loginUrl}?callbackURL=${encodeURIComponent(window.location.href)}`;
                   }}
                   className="bg-accent text-accent-foreground hover:bg-accent-strong mt-5 inline-flex min-h-10 cursor-pointer items-center justify-center rounded-lg px-5 text-xs font-bold transition"

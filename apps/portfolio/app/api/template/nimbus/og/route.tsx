@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 import { clampOgText } from "@/lib/og-text";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 /**
  * Social card for Nimbus portfolios.

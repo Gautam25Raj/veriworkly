@@ -43,6 +43,8 @@ const PricingExperience = ({
     } catch (cause) {
       if (cause instanceof ApiRequestError && cause.status === 401) {
         const params = new URLSearchParams({ productKey, interval });
+        // Studio's checkout, another app's origin: a full page load is the only way there.
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
         window.location.assign(`${siteConfig.links.app}/checkout?${params.toString()}`);
         return;
       }

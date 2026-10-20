@@ -27,6 +27,11 @@ describe("AtsJobFetchService SSRF guards", () => {
     ["[::1]", "IPv6 loopback"],
     ["[fd00::1]", "IPv6 unique local"],
     ["[fe80::1]", "IPv6 link local"],
+    // URL parsing writes [::ffff:127.0.0.1] as [::ffff:7f00:1], which slipped past the checks.
+    ["[::ffff:127.0.0.1]", "IPv4-mapped loopback"],
+    ["[::ffff:a00:1]", "IPv4-mapped 10.0.0.1"],
+    ["[::7f00:1]", "IPv4-compatible loopback"],
+    ["[64:ff9b::a9fe:a9fe]", "NAT64 cloud metadata"],
   ];
 
   it.each(blockedHosts)("blocks %s (%s)", async (host) => {
@@ -57,5 +62,51 @@ describe("AtsJobFetchService SSRF guards", () => {
     await expect(AtsJobFetchService.fetch("https://printer.local/job")).rejects.toThrow(
       /not allowed/i,
     );
+  });
+});
+
+describe("the pinned DNS lookup", () => {
+  // Node 20+ connects with `autoSelectFamily`, asking the lookup for every address; a single
+  // address in reply failed every hostname URL with ERR_INVALID_IP_ADDRESS.
+  it("answers with a list when asked for every address, and with one address otherwise", async () => {
+    const { pinnedLookup } = await import("#services/ats/jobFetch");
+    const lookup = pinnedLookup({ address: "93.184.215.14", family: 4 });
+    const all = vi.fn();
+    lookup("example.com", { all: true }, all);
+    expect(all).toHaveBeenCalledWith(null, [{ address: "93.184.215.14", family: 4 }]);
+    const one = vi.fn();
+    lookup("example.com", {}, one);
+    expect(one).toHaveBeenCalledWith(null, "93.184.215.14", 4);
+  });
+
+  it("connects through it: a real request resolves the host with the pinned address", async () => {
+    const { request } = await import("node:http");
+    const { createServer } = await import("node:http");
+    const { pinnedLookup } = await import("#services/ats/jobFetch");
+    const server = createServer((_req, res) => res.end("ok"));
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as { port: number };
+    try {
+      const body = await new Promise<string>((resolve, reject) => {
+        const req = request(
+          {
+            host: "pinned.invalid",
+            port,
+            path: "/",
+            lookup: pinnedLookup({ address: "127.0.0.1", family: 4 }) as never,
+          },
+          (res) => {
+            let text = "";
+            res.on("data", (chunk) => (text += chunk));
+            res.on("end", () => resolve(text));
+          },
+        );
+        req.on("error", reject);
+        req.end();
+      });
+      expect(body).toBe("ok");
+    } finally {
+      server.close();
+    }
   });
 });

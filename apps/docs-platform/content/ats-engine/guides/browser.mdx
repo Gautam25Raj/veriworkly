@@ -7,7 +7,7 @@ description: Score pasted text or a structured resume in the page, lazy-load the
 
 ## Bundle it and load it on demand
 
-Install the package and import it from your own code. Your bundler includes it; there is no script to load from a CDN. The core is about 101 KB gzipped, so import it dynamically and the cost lands when the user first asks for a score, not on page load.
+Install the package and import it from your own code. Your bundler includes it; there is no script to load from a CDN. The core is about <EngineSize of="." whole /> gzipped, so import it dynamically and the cost lands when the user first asks for a score, not on page load.
 
 ```ts title="score.ts"
 import type { AtsReport } from "@veriworkly/ats-engine";
@@ -32,7 +32,7 @@ export async function scoreText(text: string, jobDescription?: string): Promise<
 
 ## Score a structured resume
 
-If your app already holds the resume as data, as a builder does, pass it as an `ats-resume@1` document and the engine reads the fields instead of parsing text. `/document` is 2.1 KB and carries no dependencies.
+If your app already holds the resume as data, as a builder does, pass it as an `ats-resume@1` document and the engine reads the fields instead of parsing text. `/document` is <EngineSize of="./document" /> and carries no dependencies.
 
 ```ts
 import { ATS_DOCUMENT_FORMAT, type AtsResumeDocument } from "@veriworkly/ats-engine/document";
@@ -74,9 +74,9 @@ export function Checker() {
 
 `check` is synchronous and runs on the main thread. If you score on every keystroke, debounce the call or run it in a Web Worker.
 
-## What a browser cannot do yet
+## Files
 
-PDF and DOCX extraction is Node only today, so the browser cannot turn a file into text. Reading files in the browser is on the [roadmap](/ats-engine/project/roadmap). Until then you have two options:
+PDF and DOCX extraction is Node only, so the browser cannot turn a file into text. Two options:
 
 - Send the file to a server route that extracts and scores it, as in [Next.js](/ats-engine/guides/nextjs). Say so in your privacy notice: the file leaves the page.
 - Ask the user to paste the text, and score that. Tell them the layout rules do not apply to pasted text ([pasted text](/ats-engine/guides/pasted-text)).
@@ -85,7 +85,7 @@ PDF and DOCX extraction is Node only today, so the browser cannot turn a file in
 
 - Do not put an AI provider key in the page. `/ai` can run in a browser, but a key sent to the browser is visible to everyone who uses it ([AI](/ats-engine/guides/ai)).
 - Pin `now` in tests so tenure and date checks are reproducible.
-- Attach locale packs once and reuse the policy. `withLocales` alone is 48.7 KB gzipped; load it with the same dynamic import ([languages and regions](/ats-engine/guides/languages-and-regions)).
+- Attach locale packs once and reuse the policy. `withLocales` alone is <EngineSize of="withLocales" /> gzipped; load it with the same dynamic import ([languages and regions](/ats-engine/guides/languages-and-regions)).
 - If you render advice text into HTML, escape it ([rendering](/ats-engine/guides/rendering)).
 
 ## Next steps

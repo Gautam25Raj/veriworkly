@@ -17,6 +17,8 @@ import { ImageZoom } from "fumadocs-ui/components/image-zoom";
 import { TypeTable } from "fumadocs-ui/components/type-table";
 import { Accordion, Accordions } from "fumadocs-ui/components/accordion";
 
+import { EngineSize, EngineVersion } from "@/components/engine-size";
+
 export function getMDXComponents(components?: MDXComponents) {
   return {
     ...defaultMdxComponents,
@@ -28,6 +30,8 @@ export function getMDXComponents(components?: MDXComponents) {
     Card,
     Cards,
     TypeTable,
+    EngineSize,
+    EngineVersion,
     CodeBlockTab,
     CodeBlockTabs,
     CodeBlockTabsList,

@@ -1,5 +1,4 @@
 import { apiSource } from "@/lib/source";
-import { notFound } from "next/navigation";
 import { ImageResponse } from "next/og";
 
 export const runtime = "nodejs";
@@ -13,7 +12,8 @@ export async function GET(request: Request, { params }: RouteContext) {
     const { searchParams } = new URL(request.url);
     const { slug } = await params;
     const page = apiSource.getPage(slug.slice(0, -1));
-    if (!page) notFound();
+    // A plain 404: `notFound()` throws, and the catch below turned it into a 500.
+    if (!page) return new Response("Not found", { status: 404 });
 
     const title = page.data.title ?? "VeriWorkly API";
     const description = page.data.description;

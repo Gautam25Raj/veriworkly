@@ -29,7 +29,6 @@ export const EMPTY_PARSED: AtsParsedResume = {
   education: [],
   skills: [],
   monthsOfExperience: null,
-  highestDegree: null,
   provenance: {
     name: "none",
     email: "none",

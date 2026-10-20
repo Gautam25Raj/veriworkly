@@ -32,7 +32,7 @@ The step runs the published [command line](/ats-engine/tools/cli) with `npx`, at
 | `job`       | No       | none     | Path to a job posting to match against: `.txt`, `.md`, `.pdf`, `.docx`, or a saved `.html` page.                                                                                             |
 | `min-score` | No       | none     | Fail the step when the readiness score is below this number, 0 to 100. Empty means never fail on the score.                                                                                  |
 | `region`    | No       | inferred | Read the resume as from this country: `US`, `GB`, `DE`, `FR` or `IN`.                                                                                                                        |
-| `version`   | No       | `0.11.0` | Version of `@veriworkly/ats-engine` to run. Defaults to the engine release the action ships with, so a later release cannot change your score until you move to it. A version or a dist-tag. |
+| `version`   | No       | `0.14.0` | Version of `@veriworkly/ats-engine` to run. Defaults to the engine release the action ships with, so a later release cannot change your score until you move to it. A version or a dist-tag. |
 | `ats`       | No       | none     | The ATS you are applying through: `greenhouse`, `lever` or `taleo`. Adds its documented notes to the advice, which is never scored. Needs `version` 0.3.0 or later.                          |
 | `summary`   | No       | `true`   | Write the report to the job summary. `false` leaves it out.                                                                                                                                  |
 
@@ -40,12 +40,12 @@ The action has no input for `--job-url` or `--ai`. For those, run the command li
 
 ## Outputs
 
-| Output          | Value                                                                           |
-| --------------- | ------------------------------------------------------------------------------- |
-| `score`         | Readiness score, 0 to 100.                                                      |
-| `job-match`     | Job match score, 0 to 100, or empty without a job.                              |
-| `failed-checks` | Failed checks as a JSON array of `{ id, severity, evidence, fix }`.             |
-| `report`        | Path to the full JSON report, `ats-report.json` in the runner's temp directory. |
+| Output          | Value                                                                                                                                  |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `score`         | Readiness score, 0 to 100.                                                                                                             |
+| `job-match`     | Job match score, 0 to 100, or empty without a job.                                                                                     |
+| `failed-checks` | Failed checks as a JSON array of `{ id, severity, evidence, fix }`.                                                                    |
+| `report`        | Path to the full JSON report, a file of its own per run in the runner's temp directory: read it from this output, as its name changes. |
 
 The outputs are written before the step fails on `min-score`, so a later step can read them with `if: always()`.
 

@@ -14,7 +14,9 @@ import { ApiError } from "#lib/errors";
 export type AtsExtractOutcome = { text: string; layout?: AtsLayoutSignals };
 
 const EXTRACTION_TIMEOUT_MS = 20_000;
-const MAX_QUEUE_DEPTH = 8;
+// Three waiting behind the one in progress: the last waits at most 4 × 20 s = 80 s, inside
+// Cloudflare's 100 s, where eight could wait 160 s and be answered 524 while still charged.
+const MAX_QUEUE_DEPTH = 3;
 
 type PendingJob = {
   id: number;
@@ -59,10 +61,12 @@ function clearTimer() {
 }
 
 /**
- * Tears the child down and fails everything in flight. Called on timeout (the child is stuck in
- * a pathological parse and killing it is the only way to reclaim the CPU) and on unexpected exit.
+ * Tears the child down and fails the job it was on. Called on timeout (the child is stuck in a
+ * pathological parse and killing it is the only way to reclaim the CPU) and on unexpected exit.
+ * The jobs queued behind it did nothing wrong: a fresh child takes them. Only shutdown
+ * (`everyone`) fails them too; before, one slow or crashing file failed every upload behind it.
  */
-function recycleChild(reason: string, error: ApiError) {
+function recycleChild(reason: string, error: ApiError, everyone = false) {
   const victim = child;
   child = null;
 
@@ -71,7 +75,7 @@ function recycleChild(reason: string, error: ApiError) {
   const failed = current;
   current = null;
 
-  const queued = queue.splice(0, queue.length);
+  const queued = everyone ? queue.splice(0, queue.length) : [];
 
   if (victim) {
     victim.removeAllListeners();
@@ -86,6 +90,8 @@ function recycleChild(reason: string, error: ApiError) {
       reason,
       failedJobs: (failed ? 1 : 0) + queued.length,
     });
+
+  if (!everyone) pump();
 }
 
 function handleMessage(message: AtsExtractResponse) {
@@ -192,5 +198,5 @@ export function extractInChildProcess(
 
 /** Called from the shutdown path so a live child does not keep the worker from exiting. */
 export function stopExtractPool() {
-  recycleChild("shutdown", new ApiError(503, "Server is shutting down."));
+  recycleChild("shutdown", new ApiError(503, "Server is shutting down."), true);
 }

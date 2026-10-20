@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Plus, LockKeyhole } from "lucide-react";
 import { useUserStore } from "@/store/useUserStore";
 import { cn } from "@/lib/utils";
-import { siteConfig } from "@/config/site";
 
 import type { ApiKeyRecord, OffsetPaginationPayload } from "./ApiKeyTypes";
 
@@ -30,6 +30,7 @@ export default function ApiKeySection({
   initialPagination,
   initialKeysLoaded,
 }: ApiKeySectionProps) {
+  const router = useRouter();
   const isLoggedIn = useUserStore((state) => state.isLoggedIn);
   const apiKeys = useApiKeys({ initialKeys, initialPagination, initialKeysLoaded });
 
@@ -126,8 +127,7 @@ export default function ApiKeySection({
           </p>
           <button
             onClick={() => {
-              const loginUrl = `${siteConfig.links.app}/login`;
-              window.location.href = `${loginUrl}?callbackURL=${encodeURIComponent(window.location.href)}`;
+              router.push(`/login?callbackURL=${encodeURIComponent(window.location.href)}`);
             }}
             className="bg-accent text-accent-foreground hover:bg-accent/90 mt-5 inline-flex min-h-10 items-center justify-center rounded-lg px-5 text-xs font-bold transition"
           >

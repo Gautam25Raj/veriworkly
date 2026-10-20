@@ -1,20 +1,17 @@
 import { backendApiUrl, fetchApiData } from "@/utils/fetchApiData";
-import type { AtsLayoutSignals, AtsQuota } from "../types";
-import { normalizeCheckResult, type WireCheckResult } from "./normalize-report";
+import type { AtsCheckResult, AtsLayoutSignals, AtsQuota } from "../types";
 
-export async function runAtsCheck(input: {
+export function runAtsCheck(input: {
   resume: unknown;
   jobDescription?: string;
   layout?: AtsLayoutSignals;
   /** The uploaded file's name and size, for the file advice (never scored). */
   file?: { name: string; bytes: number };
 }) {
-  return normalizeCheckResult(
-    await fetchApiData<WireCheckResult>("/ats/check", {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
-  );
+  return fetchApiData<AtsCheckResult>("/ats/check", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 export function getAtsQuota() {

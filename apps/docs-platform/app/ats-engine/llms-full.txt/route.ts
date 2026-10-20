@@ -1,4 +1,5 @@
 import { siteConfig } from "@/config/site";
+import { withEngineSizes } from "@/components/engine-size";
 import { getEnginePagesInOrder } from "@/lib/source";
 
 export const revalidate = false;
@@ -12,7 +13,8 @@ export async function GET() {
         description?: string;
         getText: (type: "raw" | "processed") => Promise<string>;
       };
-      const text = await data.getText("processed");
+      // The size tags as their numbers: a model reads the Markdown, not the rendered page.
+      const text = withEngineSizes(await data.getText("processed"));
 
       return `# ${data.title ?? page.url}\n\nSource: ${siteConfig.url}${page.url}\n\n${data.description ? `${data.description}\n\n` : ""}${text}`;
     }),

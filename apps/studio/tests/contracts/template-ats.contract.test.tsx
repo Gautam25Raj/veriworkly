@@ -10,7 +10,7 @@ import type { ReactElement } from "react";
 import type { AtsReport } from "@veriworkly/ats-engine";
 import type { ResumeData } from "@/types/resume";
 
-import { AtsScoringService, DEFAULT_POLICY } from "@veriworkly/ats-engine";
+import { check, DEFAULT_POLICY } from "@veriworkly/ats-engine";
 import { extractResume } from "@veriworkly/ats-engine/node";
 
 import { toAtsDocument } from "@/features/ats/resume-document";
@@ -73,8 +73,8 @@ async function readBack(resume: ResumeData) {
   return {
     text,
     layout,
-    fromPdf: AtsScoringService.check(text, DEFAULT_POLICY, { layout, now: NOW }),
-    fromData: AtsScoringService.check(toAtsDocument(resume), DEFAULT_POLICY, { now: NOW }),
+    fromPdf: check(text, DEFAULT_POLICY, { layout, now: NOW }),
+    fromData: check(toAtsDocument(resume), DEFAULT_POLICY, { now: NOW }),
   };
 }
 
@@ -163,7 +163,7 @@ describe("hidden text in a react-pdf export", () => {
       ),
     ) as unknown as ReactElement<DocumentProps>;
     const { layout } = await extractResume(await renderToBuffer(document), "pdf");
-    expect(layout?.hiddenTextSample).toBe(KEYWORDS);
+    expect(layout?.hiddenText).toBe(KEYWORDS);
   });
 });
 
@@ -181,8 +181,8 @@ describe("DOCX export ATS read-back", () => {
         new Uint8Array(await blob.arrayBuffer()),
         "docx",
       );
-      const fromDocx = AtsScoringService.check(text, DEFAULT_POLICY, { layout, now: NOW });
-      const fromData = AtsScoringService.check(toAtsDocument(resume), DEFAULT_POLICY, { now: NOW });
+      const fromDocx = check(text, DEFAULT_POLICY, { layout, now: NOW });
+      const fromData = check(toAtsDocument(resume), DEFAULT_POLICY, { now: NOW });
       const context = `\n--- extracted text ---\n${text}`;
 
       expect(

@@ -5,7 +5,7 @@ import { config } from "#config";
 import { logger } from "#lib/logger";
 import { getRedis } from "#lib/redis";
 import { createErrorResponse } from "#lib/errors";
-import { getRequestIpDetails } from "#utils/requestIp";
+import { addressBucket, getRequestIpDetails } from "#utils/requestIp";
 
 type RateLimitEntry = {
   count: number;
@@ -28,7 +28,7 @@ const RATE_LIMIT_EXEMPT_PATHS = new Set(["/api/v1/billing/webhooks/dodo"]);
 
 function getClientKey(req: Request): string {
   const ip = getRequestIpDetails(req).resolvedIp;
-  return ip || "unknown";
+  return ip ? addressBucket(ip) : "unknown";
 }
 
 function getSanitizedPath(path: string): string {
@@ -165,8 +165,6 @@ export const rateLimitMiddleware = async (req: Request, res: Response, next: Nex
   const checkWithFallback = async (): Promise<{ route: BucketResult; global: BucketResult }> => {
     try {
       const redis = getRedis();
-
-      if (!redis.isOpen) throw new Error("Redis not open");
 
       const [routeCount, routeTtl, globalCount, globalTtl] = (await redis.eval(
         INCREMENT_WITH_EXPIRY_SCRIPT,

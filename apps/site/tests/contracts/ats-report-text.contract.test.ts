@@ -24,7 +24,6 @@ function report(overrides: Partial<AtsFullReport> = {}): AtsFullReport {
       spokenLanguages: [],
       monthsOfExperience: null,
       highestIsced: null,
-      highestDegree: null,
       provenance: {
         name: "parser",
         email: "parser",

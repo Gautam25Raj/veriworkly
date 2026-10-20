@@ -42,7 +42,7 @@ vi.mock("#lib/logger", () => ({
 
 vi.mock("#lib/redis", () => ({
   getRedis: () => ({
-    isOpen: true,
+    isReady: true,
     eval: vi.fn().mockResolvedValue([1, 60000]),
   }),
   cacheGet: vi.fn().mockResolvedValue(null),

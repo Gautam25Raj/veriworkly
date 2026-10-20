@@ -3,7 +3,7 @@ title: Render a report
 description: Turn an AtsReport into a summary with the format helpers, score bands, category labels and date formatters, and escape text that can quote a file name.
 ---
 
-`@veriworkly/ats-engine/format` holds display helpers for reports. It is 1.2 KB gzipped, has no dependencies, depends on no framework and changes no score. It runs anywhere. The labels are English.
+`@veriworkly/ats-engine/format` holds display helpers for reports. It is <EngineSize of="./format" /> gzipped, has no dependencies, depends on no framework and changes no score. It runs anywhere. The labels are English.
 
 ## Score tone and bands
 
@@ -85,8 +85,6 @@ console.log(
 | `roleSpanMonths(role, now?)` | Calendar months a role spans, to `now` for a current role                               |
 | `ISCED_LABELS`               | A name for each ISCED 2011 level 2 to 8, such as `"Bachelor's or equivalent"`           |
 | `printable(value)`           | The value with control characters removed from every string, for printing in a terminal |
-
-`DEGREE_LABELS` is deprecated and goes in 1.0. Read `isced` and `ISCED_LABELS`.
 
 ## A summary, in any framework
 

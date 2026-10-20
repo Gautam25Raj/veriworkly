@@ -1,6 +1,6 @@
 ---
 title: Benchmarks
-description: What npm run bench measures for the VeriWorkly ATS Engine, its 0.11.0 results on synthetic resumes, bundle sizes, and the limits of those numbers.
+description: What npm run bench measures for the VeriWorkly ATS Engine, its 0.14.0 results on synthetic resumes, bundle sizes, and the limits of those numbers.
 ---
 
 `npm run bench` in the engine repository measures how accurately the parser recovers fields from resumes, and how long a parse takes. The corpora are invented resumes. There is no third-party or real-world benchmark yet.
@@ -19,7 +19,7 @@ Field accuracy: for each labelled resume, whether the parser recovered each fiel
 
 `bench/baseline.json` lists every field each corpus misses today. The run fails on a miss that is not listed, so one field read better cannot hide another read worse.
 
-## Results on 0.11.0
+## Results on 0.14.0
 
 | Corpus                                   | Field accuracy |
 | ---------------------------------------- | -------------- |
@@ -29,25 +29,25 @@ Field accuracy: for each labelled resume, whether the parser recovered each fiel
 | Generated, as two-column PDF             | 99.9%          |
 | Generated, as DOCX                       | 100.0%         |
 
-Timing over 142 parses, after one warm-up: median 4.3 ms, p95 31.2 ms, measured on 0.10.0 (0.11.0 changes no reading or scoring code). These were taken on a developer machine, and timing varies with the machine and the load.
+Timing over 142 parses, after one warm-up: median 4.3 ms, p95 31.2 ms, measured on 0.10.0. These were taken on a developer machine, and timing varies with the machine and the load.
 
 ## Bundle sizes
 
-Minified and gzipped, from `npm run size`, on 0.11.0. Importing only part of a subpath bundles less: `withLocales` alone is 48.7 KB.
+Minified and gzipped, from `npm run size`, on <EngineVersion />, as the package's `sizes.json` records them. Importing only part of a subpath bundles less: `withLocales` alone is <EngineSize of="withLocales" />.
 
-| Import                                        | Gzipped      |
-| --------------------------------------------- | ------------ |
-| `@veriworkly/ats-engine`                      | about 101 KB |
-| `@veriworkly/ats-engine/locales`              | 75.5 KB      |
-| `@veriworkly/ats-engine/ai`                   | 73.0 KB      |
-| `@veriworkly/ats-engine/node`                 | 21.1 KB      |
-| `@veriworkly/ats-engine/job`                  | 3.5 KB       |
-| `@veriworkly/ats-engine/document`             | 2.1 KB       |
-| `@veriworkly/ats-engine/format`               | 1.2 KB       |
-| `@veriworkly/ats-engine/ai/openai-compatible` | 1.9 KB       |
-| `@veriworkly/ats-engine/ai/anthropic`         | 1.9 KB       |
-| `@veriworkly/ats-engine/ai/testing`           | 1.2 KB       |
-| `withLocales` alone                           | 48.7 KB      |
+| Import                                        | Gzipped                                    |
+| --------------------------------------------- | ------------------------------------------ |
+| `@veriworkly/ats-engine`                      | about <EngineSize of="." whole />          |
+| `@veriworkly/ats-engine/locales`              | <EngineSize of="./locales" />              |
+| `@veriworkly/ats-engine/ai`                   | <EngineSize of="./ai" />                   |
+| `@veriworkly/ats-engine/node`                 | <EngineSize of="./node" />                 |
+| `@veriworkly/ats-engine/job`                  | <EngineSize of="./job" />                  |
+| `@veriworkly/ats-engine/document`             | <EngineSize of="./document" />             |
+| `@veriworkly/ats-engine/format`               | <EngineSize of="./format" />               |
+| `@veriworkly/ats-engine/ai/openai-compatible` | <EngineSize of="./ai/openai-compatible" /> |
+| `@veriworkly/ats-engine/ai/anthropic`         | <EngineSize of="./ai/anthropic" />         |
+| `@veriworkly/ats-engine/ai/testing`           | <EngineSize of="./ai/testing" />           |
+| `withLocales` alone                           | <EngineSize of="withLocales" />            |
 
 `/node` runs on Node only. The other subpaths run in browsers and at the edge.
 

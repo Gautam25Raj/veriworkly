@@ -63,7 +63,7 @@ describe("rateLimitMiddleware", () => {
   });
   it("passes requests under the limit using Redis", async () => {
     const redisMockInstance = {
-      isOpen: true,
+      isReady: true,
       // [routeCount, routeTtl, globalCount, globalTtl] — one script bumps both buckets.
       eval: vi.fn().mockResolvedValue([1, 60000, 1, 900000]),
     };
@@ -80,7 +80,7 @@ describe("rateLimitMiddleware", () => {
 
   it("returns 429 when request count exceeds the limit using Redis", async () => {
     const redisMockInstance = {
-      isOpen: true,
+      isReady: true,
       // route count 3 against authMaxRequests 2; global bucket still well under its ceiling.
       eval: vi.fn().mockResolvedValue([3, 50000, 3, 900000]),
     };
@@ -102,7 +102,7 @@ describe("rateLimitMiddleware", () => {
    */
   it("returns 429 on the global bucket even when the per-route bucket is under its limit", async () => {
     const redisMockInstance = {
-      isOpen: true,
+      isReady: true,
       // Route count 1 (limit 2) but global count 51 against globalMaxRequests 50.
       eval: vi.fn().mockResolvedValue([1, 60000, 51, 120000]),
     };
@@ -123,7 +123,7 @@ describe("rateLimitMiddleware", () => {
    * silently diverges from reality.
    */
   it("exempts the billing webhook from IP rate limiting entirely", async () => {
-    const redisMockInstance = { isOpen: true, eval: vi.fn() };
+    const redisMockInstance = { isReady: true, eval: vi.fn() };
     mockGetRedis.mockReturnValue(redisMockInstance);
 
     req.path = "/api/v1/billing/webhooks/dodo";

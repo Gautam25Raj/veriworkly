@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { AtsScoringService, DEFAULT_POLICY } from "@veriworkly/ats-engine";
+import { check, DEFAULT_POLICY } from "@veriworkly/ats-engine";
 
 import { toAtsDocument } from "@/features/ats/resume-document";
 import { defaultResume } from "@/features/resume/constants/default-resume";
@@ -48,7 +48,7 @@ describe("certificates and languages in the ATS document", () => {
   });
 
   it("are filed by the engine with their levels", () => {
-    const report = AtsScoringService.check(toAtsDocument(sample()), DEFAULT_POLICY);
+    const report = check(toAtsDocument(sample()), DEFAULT_POLICY);
     expect(report.parsed.certifications.map((row) => row.issuer)).toEqual(["Amazon Web Services"]);
     expect(report.parsed.spokenLanguages.map((row) => row.cefr)).toEqual(["B1", "C2"]);
   });

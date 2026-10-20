@@ -1,6 +1,6 @@
 {
   "name": "veriworkly",
-  "version": "3.27.0",
+  "version": "3.28.0",
   "private": true,
   "packageManager": "npm@11.16.0",
   "engines": {

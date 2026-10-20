@@ -37,8 +37,6 @@ export const apiKeyRateLimit = async (req: Request, res: Response, next: NextFun
   try {
     const redis = getRedis();
 
-    if (!redis.isOpen) throw new Error("Redis not connected");
-
     const [count, ttl] = (await redis.eval(INCREMENT_WITH_EXPIRY_SCRIPT, {
       keys: [redisKey],
       arguments: [String(WINDOW_MS)],

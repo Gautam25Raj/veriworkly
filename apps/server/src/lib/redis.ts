@@ -15,6 +15,8 @@ export async function initRedis() {
     try {
       redisClient = createClient({
         url: config.redis.url,
+        // While reconnecting, fail commands at once so callers fall back instead of hanging.
+        disableOfflineQueue: true,
         socket: {
           reconnectStrategy: (retries) => {
             // Reconnect indefinitely with a maximum delay of 5 seconds (5000ms)
@@ -48,8 +50,8 @@ export async function initRedis() {
 }
 
 export function getRedis() {
-  if (!redisClient || !redisClient.isOpen)
-    throw new Error("Redis client not initialized or connection closed");
+  // `isOpen` stays true while reconnecting; only `isReady` means commands will run.
+  if (!redisClient?.isReady) throw new Error("Redis client not ready");
 
   return redisClient;
 }

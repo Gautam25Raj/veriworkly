@@ -46,6 +46,8 @@ export function EditorCommandBar() {
           label: "Log in",
           onClick: () => {
             const loginUrl = `${siteConfig.links.app}/login`;
+            // Studio's login, another app's origin: a full page load is the only way there.
+            // eslint-disable-next-line @next/next/no-location-assign-relative-destination
             window.location.href = `${loginUrl}?callbackURL=${encodeURIComponent(window.location.href)}`;
           },
         },

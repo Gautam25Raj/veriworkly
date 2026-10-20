@@ -1,7 +1,6 @@
 import { source } from "@/lib/source";
 
 import { ImageResponse } from "next/og";
-import { notFound } from "next/navigation";
 
 export const runtime = "nodejs";
 
@@ -16,7 +15,8 @@ export async function GET(request: Request, { params }: RouteContext) {
 
     const page = source.getPage(slug.slice(0, -1));
 
-    if (!page) notFound();
+    // A plain 404: `notFound()` throws, and the catch below turned it into a 500.
+    if (!page) return new Response("Not found", { status: 404 });
 
     const title = page.data.title ?? "VeriWorkly Docs";
     const description = page.data.description;

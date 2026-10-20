@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 const OG_CACHE_CONTROL = "public, immutable, no-transform, max-age=31536000";
 

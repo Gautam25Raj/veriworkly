@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import multer from "multer";
 
 import { config } from "#config";
 
@@ -27,6 +28,19 @@ export function errorHandler(error: unknown, req: Request, res: Response, next: 
     return res
       .status(error.statusCode)
       .json(createErrorResponse(error.statusCode, error.message, error.details));
+  }
+
+  // An upload the limits refuse (too large, an extra field): the caller's mistake, not ours. It
+  // reached the 500 below, so a 6 MB resume read "Internal server error".
+  if (error instanceof multer.MulterError) {
+    const status = error.code === "LIMIT_FILE_SIZE" ? 413 : 400;
+    const message =
+      status === 413
+        ? "The file is larger than the 5 MB upload limit."
+        : `Upload refused: ${error.message}.`;
+    logger.warn(`Upload refused [${req.method} ${req.path}]: ${error.code}`);
+    recordAuditError(res, error.code);
+    return res.status(status).json(createErrorResponse(status, message));
   }
 
   if (error instanceof Error) {

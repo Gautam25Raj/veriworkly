@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 
 import { extractInChildProcess, stopExtractPool } from "#services/ats/extractPool";
 
@@ -32,6 +32,22 @@ describe("extractPool", () => {
     expect(result.text.length).toBeGreaterThan(100);
     expect(result.layout?.columnRatio).toBeGreaterThanOrEqual(0.4);
     expect(result.layout?.pageCount).toBe(1);
+  }, 60_000);
+
+  // One file that hangs the child used to fail every upload queued behind it, with "took too long"
+  // and their upload charged. Only that file fails now; a fresh child takes the rest.
+  it("fails only the job that timed out, and serves the one queued behind it", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      const slow = extractInChildProcess("text", Buffer.from("the file that hangs"));
+      const next = extractInChildProcess("text", Buffer.from("the file behind it"));
+      vi.advanceTimersByTime(20_001);
+      await expect(slow).rejects.toMatchObject({ statusCode: 408 });
+      vi.useRealTimers();
+      expect((await next).text).toBe("the file behind it");
+    } finally {
+      vi.useRealTimers();
+    }
   }, 60_000);
 
   it("reports a corrupt file as unreadable and keeps serving", async () => {

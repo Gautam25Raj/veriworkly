@@ -52,6 +52,19 @@ describe("errorHandler audit diagnostics", () => {
     );
   });
 
+  // An upload multer refuses is the caller's mistake: it reached the 500 path, so a 6 MB resume
+  // read "Internal server error".
+  it("answers an oversized upload with 413 and any other refused upload with 400", async () => {
+    const { default: multer } = await import("multer");
+    errorHandler(new multer.MulterError("LIMIT_FILE_SIZE", "resume"), req, res, next);
+    expect(statusMock).toHaveBeenLastCalledWith(413);
+    expect(jsonMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ message: "The file is larger than the 5 MB upload limit." }),
+    );
+    errorHandler(new multer.MulterError("LIMIT_FIELD_COUNT"), req, res, next);
+    expect(statusMock).toHaveBeenLastCalledWith(400);
+  });
+
   it("truncates so a large error payload cannot become an unbounded column write", () => {
     errorHandler(new ApiError(400, "x".repeat(5_000)), req, res, next);
 

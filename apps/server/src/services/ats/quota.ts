@@ -7,6 +7,7 @@ import type { AtsQuotaSummary } from "#services/ats/types";
 import { ApiError } from "#lib/errors";
 import { prisma } from "#lib/prisma";
 import { getRedis } from "#lib/redis";
+import { addressBucket } from "#utils/requestIp";
 
 const ANONYMOUS_WINDOW_SECONDS = 48 * 60 * 60;
 const FREE_WINDOW_SECONDS = 24 * 60 * 60;
@@ -95,7 +96,7 @@ type QuotaContext = {
 async function resolveContext(userId: string | undefined, ip: string): Promise<QuotaContext> {
   const paid = userId ? await paidPeriod(userId) : null;
   const tier = paid ? "subscriber" : userId ? "free" : "anonymous";
-  const identity = userId ?? anonymousId(ip);
+  const identity = userId ?? anonymousId(addressBucket(ip));
   const windowSeconds = userId ? FREE_WINDOW_SECONDS : ANONYMOUS_WINDOW_SECONDS;
 
   return {
@@ -199,5 +200,15 @@ export class AtsQuotaService {
     const ctx = await resolveContext(userId, ip);
     await getRedis().eval(DECREMENT_SCRIPT, { keys: [ctx.key], arguments: [] });
     return summarize(ctx);
+  }
+
+  /**
+   * Returns an upload to the caller's allowance, when the server and not the file failed it: the
+   * extraction queue was full, or extraction was unavailable. A file that could not be read or
+   * took too long keeps its charge, so a hostile file cannot be retried for free.
+   */
+  static async refundExtract(userId: string | undefined, ip: string) {
+    const ctx = await resolveContext(userId, ip);
+    await getRedis().eval(DECREMENT_SCRIPT, { keys: [ctx.extractKey], arguments: [] });
   }
 }

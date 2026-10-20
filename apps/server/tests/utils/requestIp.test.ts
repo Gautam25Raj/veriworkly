@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Request } from "express";
-import { getRequestIpDetails } from "../../src/utils/requestIp.js";
+import { addressBucket, getRequestIpDetails } from "../../src/utils/requestIp.js";
 
 describe("requestIp utility", () => {
   it("normalizes localhost and loopback IPv6 / IPv4 addresses to 127.0.0.1", () => {
@@ -77,5 +77,18 @@ describe("requestIp utility", () => {
 
     const details = getRequestIpDetails(mockReq);
     expect(details.resolvedIp).toBe(normalIpv6);
+  });
+});
+
+// One home connection holds a whole IPv6 /64 and can move within it, so the anonymous quota
+// counted by single IPv6 addresses counted nothing.
+describe("addressBucket", () => {
+  it("keeps an IPv4 address whole and counts an IPv6 address by its /64", () => {
+    expect(addressBucket("203.0.113.7")).toBe("203.0.113.7");
+    expect(addressBucket("2001:db8:abcd:12:1111:2222:3333:4444")).toBe("2001:db8:abcd:12::/64");
+    expect(addressBucket("2001:db8:abcd:12:ffff::1")).toBe("2001:db8:abcd:12::/64");
+    expect(addressBucket("2001:DB8:0:0::5")).toBe("2001:db8:0:0::/64");
+    expect(addressBucket("2001:db8::1")).toBe("2001:db8:0:0::/64");
+    expect(addressBucket("fe80::1")).toBe("fe80:0:0:0::/64");
   });
 });

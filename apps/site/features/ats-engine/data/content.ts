@@ -26,11 +26,11 @@ import { siteConfig } from "@/config/site";
 import { engineSize } from "@/features/ats-engine/data/sizes";
 
 /**
- * Copy and figures for /ats-engine. Figures are for engine 0.14.0 (the version the site runs);
+ * Copy and figures for /ats-engine. Figures are for engine 0.15.0 (the version the site runs);
  * update them with the engine bump. Sizes are read from the installed engine's `sizes.json`
  * (`engineSize`); accuracy and timing come from its `npm run bench`, on invented resumes.
  */
-export const ENGINE_VERSION_LABEL = "0.14.0";
+export const ENGINE_VERSION_LABEL = "0.15.0";
 
 export const ENGINE_LINKS = {
   docs: `${siteConfig.links.docs}/ats-engine`,

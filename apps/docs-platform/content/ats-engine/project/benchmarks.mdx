@@ -1,6 +1,6 @@
 ---
 title: Benchmarks
-description: What npm run bench measures for the VeriWorkly ATS Engine, its 0.15.0 results on synthetic resumes, bundle sizes, and the limits of those numbers.
+description: What npm run bench measures for the VeriWorkly ATS Engine, its 0.16.0 results on synthetic resumes, bundle sizes, and the limits of those numbers.
 ---
 
 `npm run bench` in the engine repository measures how accurately the parser recovers fields from resumes, and how long a parse takes. The corpora are invented resumes. There is no third-party or real-world benchmark yet.
@@ -19,7 +19,7 @@ Field accuracy: for each labelled resume, whether the parser recovered each fiel
 
 `bench/baseline.json` lists every field each corpus misses today. The run fails on a miss that is not listed, so one field read better cannot hide another read worse.
 
-## Results on 0.15.0
+## Results on 0.16.0
 
 | Corpus                                   | Field accuracy |
 | ---------------------------------------- | -------------- |

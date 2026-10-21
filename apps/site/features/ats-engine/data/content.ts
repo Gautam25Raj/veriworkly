@@ -26,11 +26,11 @@ import { siteConfig } from "@/config/site";
 import { engineSize } from "@/features/ats-engine/data/sizes";
 
 /**
- * Copy and figures for /ats-engine. Figures are for engine 0.15.0 (the version the site runs);
+ * Copy and figures for /ats-engine. Figures are for engine 0.16.0 (the version the site runs);
  * update them with the engine bump. Sizes are read from the installed engine's `sizes.json`
  * (`engineSize`); accuracy and timing come from its `npm run bench`, on invented resumes.
  */
-export const ENGINE_VERSION_LABEL = "0.15.0";
+export const ENGINE_VERSION_LABEL = "0.16.0";
 
 export const ENGINE_LINKS = {
   docs: `${siteConfig.links.docs}/ats-engine`,
@@ -252,7 +252,7 @@ export const BENCHMARKS = [
   { label: "Field accuracy, hand-written resumes", value: "99.7%" },
   { label: "Field accuracy, generated text, PDF and DOCX", value: "100%" },
   { label: "Field accuracy, two-column PDF", value: "99.9%" },
-  { label: "Median time to read and score a resume", value: "4.3 ms" },
+  { label: "Median time to read and score a resume", value: "3.2 ms" },
 ] as const;
 
 export const AUDIENCES: EngineFeature[] = [

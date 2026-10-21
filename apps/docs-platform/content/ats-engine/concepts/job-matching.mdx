@@ -23,14 +23,14 @@ The posting is read up to its first 20,000 characters. If you have a saved page 
 
 Each requirement under the posting's requirements or preferred headings is judged on its own. `report.requirements` holds at most 25.
 
-| Field        | Values                                                                        |
-| ------------ | ----------------------------------------------------------------------------- |
-| `kind`       | `skills`, `experience`, `education`, `authorization`, `clearance`, `language` |
-| `status`     | `met`, `partial`, `missing`, `unverifiable`                                   |
-| `importance` | `required`, `preferred`                                                       |
-| `terms`      | The skills or languages the requirement names, each with `found`              |
-| `evidence`   | Resume lines that show it, quoted, work history first                         |
-| `detail`     | What was compared: "6 years in the work history, 5 asked"                     |
+| Field        | Values                                                                                     |
+| ------------ | ------------------------------------------------------------------------------------------ |
+| `kind`       | `skills`, `experience`, `education`, `authorization`, `clearance`, `language`, `seniority` |
+| `status`     | `met`, `partial`, `missing`, `unverifiable`                                                |
+| `importance` | `required`, `preferred`                                                                    |
+| `terms`      | The skills or languages the requirement names, each with `found`                           |
+| `evidence`   | Resume lines that show it, quoted, work history first                                      |
+| `detail`     | What was compared: "6 years in the work history, 5 asked"                                  |
 
 `importance` is `preferred` under a preferred heading and for a clause the posting calls a plus.
 
@@ -45,6 +45,8 @@ Each requirement under the posting's requirements or preferred headings is judge
 **Languages.** "Fluent German" asks for CEFR C1 and is met by German at C1 or above. A lower level gives `partial`, with a detail such as "Spanish: B1 read, C1 asked". A line that calls the language beginner, basic or A1/A2 is not evidence of it.
 
 **Credentials.** The judge reads `parsed.certifications` first, so "AWS certification" needs a certification row that names AWS.
+
+**Seniority.** When the posting's first line is a title that names a level, such as "Senior Backend Engineer", the table starts with one `seniority` row. The resume's latest title and its years judge it: met by a title at or above the level with at least half the years the level takes, partial with the title alone or a lower title and the years, missing otherwise. "Latest title senior, 10 years in the work history; staff asked (8+ years)" is a typical `detail`. A first line that is a sentence, runs past eight words or names no job besides its level gets no row. The row does not change the match score. The levels and their years are the policy's `keywordMatch.requirements.seniorityLevels`.
 
 **Clearances.** Compared by level, lowest first. A level asked is met by that level or one above it. In the community policy the US levels are Confidential, Secret, Top Secret and TS/SCI, and the UK levels are BPSS, CTC, SC and DV. Secret partly meets Top Secret and meets Confidential, as SC partly meets DV. A word saying a clearance is not held yet or any more ("eligible for", "expired", "lapsed") does not count as held. "Customs clearance" is logistics and is not read as vetting.
 

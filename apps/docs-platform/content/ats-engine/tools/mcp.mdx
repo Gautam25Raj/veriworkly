@@ -3,7 +3,7 @@ title: MCP server
 description: Let Claude, Cursor or VS Code check your own resume with @veriworkly/ats-engine-mcp, a local stdio server with four tools and the rubric as a resource.
 ---
 
-`@veriworkly/ats-engine-mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server that lets an AI assistant read your own resume the way an applicant tracking system does and score it with the VeriWorkly ATS Engine's rubric. Version 0.9.0 runs engine 0.15.0.
+`@veriworkly/ats-engine-mcp` is a [Model Context Protocol](https://modelcontextprotocol.io) server that lets an AI assistant read your own resume the way an applicant tracking system does and score it with the VeriWorkly ATS Engine's rubric. Version 0.10.0 runs engine 0.16.0.
 
 It is a local stdio server. It makes no network requests and calls no AI model. The score comes from the [rubric](/ats-engine/reference/rubric). The server attaches the built-in language and region packs, so the library gives the same score when you call `check(input, withLocales(DEFAULT_POLICY, BUILT_IN_LOCALES))`. The reference date defaults to the current time, so tenure and timeline results move as time passes. The assistant explains the result and helps you fix what failed.
 
@@ -80,7 +80,7 @@ The server is listed in the MCP Registry as `io.github.VeriWorkly/ats-engine`.
 | -------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `check_resume` | `path` or `text`; optional `job_path` or `job_text`; optional `region`; optional `target_ats` | Readiness score, verdict, category scores, every failed check with its evidence and fix, and the fields an ATS stores. With a posting, the job match, requirements and keywords too. Then `advice`, which is not scored. |
 | `match_job`    | `path` or `text`; `job_path` or `job_text` (required); optional `region`                      | Job match score, each requirement judged met, partial, missing or unverifiable with evidence, and the missing keywords, hard skills and soft skills apart.                                                               |
-| `explain_rule` | `rule_id`                                                                                     | One rubric rule: category, severity, what it checks, points, how to fix it. An unknown id lists the valid ones.                                                                                                          |
+| `explain_rule` | `rule_id`; optional `region`                                                                  | One rubric rule: category, severity, what it checks, points, how to fix it. An unknown id lists the valid ones.                                                                                                          |
 | `extract_text` | `path` or `text`; optional `region`                                                           | The text in the order an ATS reads it, line by line (at most 500 lines), plus what the layout measured and the parsing warnings. For "why did it read my resume like this?".                                             |
 
 Every tool returns readable text for the assistant and its result as structured JSON (`structuredContent`, described by each tool's `outputSchema`). The tools are marked read-only.

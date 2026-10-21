@@ -1,5 +1,30 @@
 [
   {
+    "id": "v3-29-0",
+    "version": "3.29.0",
+    "title": "ATS Engine 0.15.0 and Keyword Stuffing Spread Over a Few Skills",
+    "summary": "This release moves the server, site and Studio to @veriworkly/ats-engine 0.15.0. The ATS checker now catches keyword stuffing that names a few skills again and again on one line, each under five times. Such a resume gets a keyword-stuffing deduction in the hosted checker, where it used to pass.",
+    "type": "minor",
+    "publishedAt": "2026-10-21T12:00:00Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.29.0",
+    "added": [],
+    "improved": [
+      "Upgraded @veriworkly/ats-engine from 0.14.0 to 0.15.0 across server, site, Studio and docs.",
+      "A line that names a few skills again and again, such as \"Keywords: Python Kubernetes AWS Docker Go Kafka\" written four times, is now keyword stuffing: terms named three times or more each, totalling 10 words or more and half the line. With the default policy, an invented resume with that line falls from 92 to 82. The job match is unchanged.",
+      "The docs reference pages and changelog are regenerated for 0.15.0, and the integrity page describes the new check."
+    ],
+    "fixed": [],
+    "breaking": [],
+    "security": [],
+    "tags": ["ats-engine", "docs"],
+    "prRefs": [
+      {
+        "number": 220,
+        "title": "[Chore] [Server/Site/Studio/Docs]: move to @veriworkly/ats-engine 0.15.0"
+      }
+    ]
+  },
+  {
     "id": "v3-28-0",
     "version": "3.28.0",
     "title": "ATS Engine 0.14.0, Job URLs & Upload Reliability",

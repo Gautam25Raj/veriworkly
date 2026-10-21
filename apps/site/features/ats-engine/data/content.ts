@@ -252,7 +252,7 @@ export const BENCHMARKS = [
   { label: "Field accuracy, hand-written resumes", value: "99.7%" },
   { label: "Field accuracy, generated text, PDF and DOCX", value: "100%" },
   { label: "Field accuracy, two-column PDF", value: "99.9%" },
-  { label: "Median time to read and score a resume", value: "4.3 ms" },
+  { label: "Median time to read and score a resume", value: "3.2 ms" },
 ] as const;
 
 export const AUDIENCES: EngineFeature[] = [

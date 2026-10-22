@@ -725,7 +725,7 @@ export const templateSummaries: TemplateSummary[] = [
   {
     id: "resume-veriworkly-special",
     editorTemplateId: "veriworkly-special",
-    name: "Veriworkly Special",
+    name: "VeriWorkly Special",
     documentType: "resume",
     documentTypeLabel: "Resume",
     description:
@@ -748,7 +748,7 @@ export const templateSummaries: TemplateSummary[] = [
       "Pairing with the VeriWorkly Special cover letter for a matched, understated application set.",
     ],
     designVision:
-      "Veriworkly Special spends its entire color budget on three deliberate moments: a tight-tracked name in ink, a wide-tracked accent label under it, a thin accent rule closing the header, and a small accent mark opening each section. Everything else - dates, bullets, body copy - is plain text in a single column, so the three accent touches read as a signature rather than decoration competing with the content.",
+      "VeriWorkly Special spends its entire color budget on three deliberate moments: a tight-tracked name in ink, a wide-tracked accent label under it, a thin accent rule closing the header, and a small accent mark opening each section. Everything else - dates, bullets, body copy - is plain text in a single column, so the three accent touches read as a signature rather than decoration competing with the content.",
     typography: [
       "A large, tight-tracked name that carries hierarchy through size and weight, not color.",
       "A wide-tracked, uppercase accent label under the name - the one place the brand color touches text directly.",
@@ -780,9 +780,9 @@ export const templateSummaries: TemplateSummary[] = [
       "Pairs naturally with the VeriWorkly Special cover letter for a matched, understated application.",
     ],
     seo: {
-      title: "Veriworkly Special AI Resume Template | Minimal ATS-Friendly Resume",
+      title: "VeriWorkly Special AI Resume Template | Minimal ATS-Friendly Resume",
       description:
-        "Use the Veriworkly Special resume template with AI tailoring for a quiet, editorial resume that still parses cleanly through applicant tracking systems.",
+        "Use the VeriWorkly Special resume template with AI tailoring for a quiet, editorial resume that still parses cleanly through applicant tracking systems.",
     },
   },
 

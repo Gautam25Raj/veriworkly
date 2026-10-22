@@ -15,6 +15,7 @@ import { buildPageMetadata } from "@/utils/metadata";
 import { FRAME, PageHero, TYPE } from "@/components/marketing/PageLayout";
 
 import TemplateExplorer from "@/features/templates/TemplateExplorer";
+import { templatesHeading } from "@/features/templates/utils";
 
 type PageProps = {
   params: Promise<{ docType: string }>;
@@ -25,17 +26,6 @@ type PageProps = {
  * to render on demand.
  */
 export const dynamicParams = false;
-
-const FAMILY_DESCRIPTIONS: Record<string, string> = {
-  "Portfolio Websites":
-    "Live portfolio website templates that publish from one reusable profile and can be previewed before building.",
-  "Compact Core":
-    "High-density layouts for applications where parsing, keywords, and page control matter.",
-  "Modern Core": "Polished application layouts with contemporary spacing and calm hierarchy.",
-  "Classic Letter": "Formal letter systems for conservative, high-trust application moments.",
-  "Branded Letter":
-    "Distinctive letter systems for modern applicants who still need a credible PDF.",
-};
 
 const sentenceCase = (value: string) => value.charAt(0) + value.slice(1).toLowerCase();
 
@@ -144,19 +134,25 @@ const TemplatesByDocumentTypePage = async ({ params }: PageProps) => {
                 value: layouts.length,
                 label: layouts.length === 1 ? "layout mode" : "layout modes",
               },
-            ].map((figure) => (
-              <div key={figure.label} className="flex flex-col-reverse">
-                <dt className="text-muted mt-1 text-sm">{figure.label}</dt>
-                <dd className={TYPE.figure}>{figure.value}</dd>
-              </div>
-            ))}
+            ]
+              // A figure of one is not a choice; "1 style system" tells the visitor nothing.
+              .filter((figure, index) => index === 0 || figure.value > 1)
+              .map((figure) => (
+                <div key={figure.label} className="flex flex-col-reverse">
+                  <dt className="text-muted mt-1 text-sm">{figure.label}</dt>
+                  <dd className={TYPE.figure}>{figure.value}</dd>
+                </div>
+              ))}
           </dl>
         }
       />
 
       <section aria-label={`${docTypeData.pluralLabel}`} className="py-14 lg:py-20">
         <div className={FRAME}>
-          <TemplateExplorer templates={templates} familyDescriptions={FAMILY_DESCRIPTIONS} />
+          <TemplateExplorer
+            templates={templates}
+            noun={templatesHeading(docTypeData.label).toLowerCase()}
+          />
         </div>
       </section>
     </>

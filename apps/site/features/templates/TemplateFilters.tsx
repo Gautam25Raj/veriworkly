@@ -1,85 +1,122 @@
 "use client";
 
-import { cn } from "@veriworkly/ui";
+import { ChevronDown, Search } from "lucide-react";
+
+export const ALL = "All";
+
+export type TemplateFilterState = { query: string; family: string; layout: string };
 
 type Props = {
+  value: TemplateFilterState;
+  onChange: (next: TemplateFilterState) => void;
   familyOptions: string[];
   layoutOptions: string[];
-  selectedFamily: string;
-  selectedLayout: string;
-  onFamilyChange: (family: string) => void;
-  onLayoutChange: (layout: string) => void;
+  shown: number;
+  total: number;
+  noun: string;
+  /** Present only while a filter is active. */
+  onReset?: () => void;
 };
 
-const withAll = (values: string[]) => ["All", ...values];
+const control =
+  "bg-card text-foreground focus-visible:ring-accent/40 h-12 w-full rounded-full text-base transition-shadow focus-visible:ring-2 focus-visible:outline-none";
 
-/**
- * Filtering is view state over a list already rendered on the page, so these are
- * buttons rather than links - no navigation, no server round-trip. `aria-pressed`
- * carries the on/off state that the old active-link styling only conveyed visually.
- */
-const FilterGroup = ({
+/** A native select: it scales to any number of options and works with every input method. */
+const Select = ({
   label,
   options,
   selected,
-  onChange,
+  onSelect,
 }: {
   label: string;
   options: string[];
   selected: string;
-  onChange: (value: string) => void;
+  onSelect: (value: string) => void;
 }) => (
-  <div role="group" aria-label={label} className="flex flex-col gap-3">
-    <p className="text-muted text-sm font-semibold">{label}</p>
-    {/* A scrolling row on phones, so six long layout names do not stack into a wall. */}
-    <div className="hide-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
-      {withAll(options).map((option) => {
-        const active = selected === option;
-
-        return (
-          <button
-            key={option}
-            type="button"
-            aria-pressed={active}
-            onClick={() => onChange(option)}
-            className={cn(
-              "focus-visible:ring-accent/40 h-11 shrink-0 cursor-pointer rounded-full px-4 text-base font-semibold whitespace-nowrap transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.97] sm:px-5",
-              active ? "bg-foreground text-background" : "bg-card text-muted hover:text-foreground",
-            )}
-          >
-            {option}
-          </button>
-        );
-      })}
-    </div>
-  </div>
+  <label className="relative block sm:w-56">
+    <span className="sr-only">{label}</span>
+    <select
+      value={selected}
+      onChange={(event) => onSelect(event.target.value)}
+      className={`${control} cursor-pointer appearance-none pr-11 pl-5 font-medium`}
+    >
+      <option value={ALL}>{`Any ${label.toLowerCase()}`}</option>
+      {options.map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </select>
+    <ChevronDown
+      aria-hidden="true"
+      className="text-muted pointer-events-none absolute top-1/2 right-4 size-4 -translate-y-1/2"
+    />
+  </label>
 );
 
+/**
+ * Search, the two filters and the result count on one row. Filtering is view state over a list
+ * already on the page, so nothing here navigates.
+ */
 const TemplateFilters = ({
+  value,
+  onChange,
   familyOptions,
   layoutOptions,
-  selectedFamily,
-  selectedLayout,
-  onFamilyChange,
-  onLayoutChange,
+  shown,
+  total,
+  noun,
+  onReset,
 }: Props) => (
-  <div className="mb-14 flex flex-col gap-6 lg:mb-16">
-    {familyOptions.length > 1 && (
-      <FilterGroup
-        label="Style system"
-        options={familyOptions}
-        selected={selectedFamily}
-        onChange={onFamilyChange}
-      />
-    )}
-    {layoutOptions.length > 1 && (
-      <FilterGroup
-        label="Layout"
-        options={layoutOptions}
-        selected={selectedLayout}
-        onChange={onLayoutChange}
-      />
-    )}
+  <div className="mb-10 flex flex-col gap-4 lg:mb-12">
+    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+      <label className="relative block min-w-0 sm:flex-1 sm:basis-72">
+        <span className="sr-only">Search {noun}</span>
+        <Search
+          aria-hidden="true"
+          className="text-muted pointer-events-none absolute top-1/2 left-5 size-4 -translate-y-1/2"
+        />
+        <input
+          type="search"
+          value={value.query}
+          onChange={(event) => onChange({ ...value, query: event.target.value })}
+          placeholder="Search by name, style or role"
+          className={`${control} placeholder:text-muted pr-5 pl-12`}
+        />
+      </label>
+
+      {familyOptions.length > 1 && (
+        <Select
+          label="Style"
+          options={familyOptions}
+          selected={value.family}
+          onSelect={(family) => onChange({ ...value, family })}
+        />
+      )}
+      {layoutOptions.length > 1 && (
+        <Select
+          label="Layout"
+          options={layoutOptions}
+          selected={value.layout}
+          onSelect={(layout) => onChange({ ...value, layout })}
+        />
+      )}
+    </div>
+
+    <p className="text-muted flex flex-wrap items-center gap-x-3 text-sm" aria-live="polite">
+      <span className="tabular-nums">
+        {shown === total ? `${total} ${noun}` : `${shown} of ${total} ${noun}`}
+      </span>
+      {onReset && (
+        <button
+          type="button"
+          onClick={onReset}
+          className="text-accent focus-visible:ring-accent/40 cursor-pointer rounded font-semibold underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none"
+        >
+          Clear filters
+        </button>
+      )}
+    </p>
   </div>
 );
 

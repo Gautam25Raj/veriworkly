@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+
+import { cn } from "@veriworkly/ui";
 
 import {
   TYPE_META,
@@ -17,7 +18,11 @@ interface ChangelogEntryCardProps {
   isLatest: boolean;
 }
 
-/** One release as a ledger row: the version on the left, what it changed on the right. */
+/**
+ * One release as a ledger row with three fixed columns: when it shipped, what changed, and who
+ * shipped it. Every row keeps the same columns whatever the release holds, so a long list scans
+ * straight down.
+ */
 const ChangelogEntryCard = ({ entry, isLatest }: ChangelogEntryCardProps) => {
   const typeMeta = TYPE_META[entry.type];
 
@@ -25,11 +30,11 @@ const ChangelogEntryCard = ({ entry, isLatest }: ChangelogEntryCardProps) => {
     <Link
       id={entry.id}
       href={changelogEntryHref(entry.id)}
-      className="group hover:bg-card focus-visible:bg-card focus-visible:ring-accent/40 -mx-4 grid scroll-mt-28 gap-4 rounded-3xl px-4 py-6 transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none sm:-mx-7 sm:px-7 md:grid-cols-[11rem_minmax(0,1fr)_auto] md:gap-10"
+      className="group hover:bg-card focus-visible:bg-card focus-visible:ring-accent/40 -mx-4 grid scroll-mt-28 gap-4 rounded-3xl px-4 py-6 transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none sm:-mx-7 sm:px-7 md:grid-cols-[10rem_minmax(0,1fr)] md:gap-x-10 lg:grid-cols-[10rem_minmax(0,1fr)_12rem]"
     >
       <div>
         <p className="text-xl font-bold tracking-tight tabular-nums">v{entry.version}</p>
-        <time dateTime={entry.publishedAt} className="text-muted mt-1 block text-base">
+        <time dateTime={entry.publishedAt} className="text-muted mt-1 block text-sm">
           {formatChangelogDate(entry.publishedAt)}
         </time>
         <p className="mt-3 flex flex-wrap gap-2">
@@ -45,9 +50,7 @@ const ChangelogEntryCard = ({ entry, isLatest }: ChangelogEntryCardProps) => {
       </div>
 
       <div className="min-w-0">
-        <h2
-          className={`group-hover:text-accent text-balance transition-colors duration-200 ${TYPE.title}`}
-        >
+        <h2 className={cn("group-hover:text-accent text-balance transition-colors", TYPE.title)}>
           {entry.title}
         </h2>
 
@@ -57,16 +60,12 @@ const ChangelogEntryCard = ({ entry, isLatest }: ChangelogEntryCardProps) => {
           </p>
         )}
 
-        <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div className="mt-4">
           <CardCategories entry={entry} />
-          <CardAuthors prRefs={entry.prRefs ?? []} />
         </div>
       </div>
 
-      <ArrowRight
-        aria-hidden="true"
-        className="text-muted group-hover:text-accent hidden size-6 self-center transition-transform duration-200 group-hover:translate-x-1 md:block"
-      />
+      <CardAuthors prRefs={entry.prRefs ?? []} className="md:col-start-2 lg:col-start-auto" />
     </Link>
   );
 };

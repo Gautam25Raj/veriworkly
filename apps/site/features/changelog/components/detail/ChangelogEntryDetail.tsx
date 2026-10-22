@@ -18,6 +18,7 @@ import ReleaseActionLinks from "./ReleaseActionLinks";
 import ReleaseContributors from "./ReleaseContributors";
 import ReleasePullRequests from "./ReleasePullRequests";
 import ReleaseCategorySections from "./ReleaseCategorySections";
+import { AvatarStack } from "@/features/changelog/components/list/CardAuthors";
 
 import {
   categoriesFor,
@@ -89,6 +90,7 @@ const ChangelogEntryDetail = ({ entry, older, isLatest }: ChangelogEntryDetailPr
 
   const prRefs = entry.prRefs ?? [];
   const contributors = getReleaseContributors(entry);
+  const changeCount = categories.reduce((total, { items }) => total + items.length, 0);
 
   const compareUrl = older
     ? `${siteConfig.links.github}/compare/Release-v${older.version}...Release-v${entry.version}`
@@ -109,46 +111,80 @@ const ChangelogEntryDetail = ({ entry, older, isLatest }: ChangelogEntryDetailPr
             All releases
           </Link>
 
-          <div className="mt-8 grid items-end gap-8 lg:grid-cols-[1.25fr_.75fr] lg:gap-14">
-            {/* The version is the release's own name, so it is the display line. */}
-            <h1 className="min-w-0">
-              <span className={cn("block", TYPE.display)}>v{entry.version}</span>
-              <span className={cn("mt-5 block max-w-2xl text-balance", TYPE.title)}>
-                {entry.title}
-              </span>
-            </h1>
-
-            <div className="border-border hero-rise min-w-0 border-t pt-6">
-              <p className="flex flex-wrap items-center gap-2 text-base">
-                <span
-                  className={`rounded-full px-3 py-1 text-sm font-semibold ${typeMeta.className}`}
-                >
-                  {typeMeta.label} release
+          <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-16">
+            <div className="min-w-0">
+              {/* The version is the release's own name, so it is the display line. */}
+              <h1>
+                <span className={cn("block", TYPE.display)}>v{entry.version}</span>
+                <span className={cn("mt-5 block max-w-3xl text-balance", TYPE.title)}>
+                  {entry.title}
                 </span>
-                {isLatest && (
-                  <span className="bg-accent text-accent-foreground rounded-full px-3 py-1 text-sm font-semibold">
-                    Latest
-                  </span>
-                )}
-                <time dateTime={entry.publishedAt} className="text-muted ml-1">
-                  {formatChangelogDate(entry.publishedAt)}
-                </time>
-              </p>
+              </h1>
 
               {entry.summary && (
                 <ChangelogRichText
                   multiline
                   content={entry.summary}
-                  className={cn("text-muted mt-5 text-pretty", TYPE.lede)}
+                  className={cn("text-muted mt-6 max-w-3xl text-pretty", TYPE.lede)}
                 />
               )}
+            </div>
+
+            {/* The release at a glance: the same facts, in the same order, on every release. */}
+            <aside
+              aria-label="Release facts"
+              className="bg-card hero-rise self-start rounded-3xl p-6 sm:p-7"
+            >
+              <dl className="space-y-4 text-base">
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-muted">Type</dt>
+                  <dd className="flex flex-wrap justify-end gap-2">
+                    <span
+                      className={`rounded-full px-3 py-1 text-sm font-semibold ${typeMeta.className}`}
+                    >
+                      {typeMeta.label}
+                    </span>
+                    {isLatest && (
+                      <span className="bg-accent text-accent-foreground rounded-full px-3 py-1 text-sm font-semibold">
+                        Latest
+                      </span>
+                    )}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-muted">Released</dt>
+                  <dd className="font-medium">
+                    <time dateTime={entry.publishedAt}>
+                      {formatChangelogDate(entry.publishedAt)}
+                    </time>
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-muted">Changes</dt>
+                  <dd className="font-medium tabular-nums">{changeCount}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-muted">Pull requests</dt>
+                  <dd className="font-medium tabular-nums">{prRefs.length}</dd>
+                </div>
+                {contributors.length > 0 && (
+                  <div className="flex items-center justify-between gap-4">
+                    <dt className="text-muted">
+                      {contributors.length === 1 ? "Contributor" : "Contributors"}
+                    </dt>
+                    <dd>
+                      <AvatarStack people={contributors} max={6} size={26} />
+                    </dd>
+                  </div>
+                )}
+              </dl>
 
               <ReleaseActionLinks
                 compareUrl={compareUrl}
                 olderVersion={older?.version}
                 githubUrl={entry.githubUrl}
               />
-            </div>
+            </aside>
           </div>
         </div>
       </header>

@@ -10,9 +10,12 @@ import { logger } from "#lib/logger";
 import {
   fetchAllGitHubReleases,
   parseReleaseBody,
+  samePullRequests,
+  unionPullRequests,
+  listedPullRequests,
   reparseStoredRelease,
-  derivePrRefsFromCommits,
-  mergeReleasePullRequests,
+  fetchMergedPullRequests,
+  assignPullRequestsToReleases,
   type ReleasePrRef,
   type GitHubReleasePayload,
 } from "#services/github/index";
@@ -49,9 +52,10 @@ function deriveTitle(release: GitHubReleasePayload, version: string): string {
 }
 
 /**
- * Syncs GitHub releases into the changelog. New releases get a row; a previously synced row
- * that no admin has edited is parsed again, once, so parser fixes reach old entries.
- * Hand-curated and admin-edited entries are never modified. Safe to re-run.
+ * Syncs GitHub releases into the changelog. New releases get a row. Every stored release has its
+ * pull request list completed from GitHub, adding PRs and authors but never removing any. A
+ * synced row no admin has edited is also parsed again, once, so parser fixes reach old entries;
+ * hand-curated and admin-edited text is never modified. Safe to re-run.
  */
 export async function syncChangelogFromGitHubReleases(): Promise<{
   created: number;
@@ -102,6 +106,23 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
     const storedById = new Map(storedRows.map((row) => [row.id, row]));
     const repoUrl = `https://github.com/${owner}/${repo}`;
 
+    const parsedBodies = releases.map((release) => parseReleaseBody(release.body));
+
+    // Most release notes name no PRs, so the PR list comes from what merged between releases.
+    // A failed fetch only means this sync adds no PRs; the notes themselves still sync.
+    const pulls = await fetchMergedPullRequests(owner, repo, token).catch((error) => {
+      logger.error("Changelog release sync: could not list merged pull requests", error);
+      return [];
+    });
+    const assigned = assignPullRequestsToReleases(
+      releases.map((release, index) => ({
+        id: releaseIds[index],
+        publishedAt: release.published_at ?? new Date().toISOString(),
+        listed: parsedBodies[index].pullRequests.map((pr) => pr.number),
+      })),
+      pulls,
+    );
+
     let created = 0;
     let refreshed = 0;
     let skipped = 0;
@@ -110,35 +131,38 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
       const release = releases[index];
       const version = parseReleaseTag(release.tag_name);
       const id = releaseIds[index];
+      const parsedBody = parsedBodies[index];
+      const shippedPrs = unionPullRequests(
+        assigned.get(id) ?? [],
+        listedPullRequests(parsedBody.pullRequests, repoUrl),
+      );
 
       const stored = storedById.get(id);
 
       if (stored) {
+        const storedPrs = Array.isArray(stored.prRefs)
+          ? (stored.prRefs as unknown as ReleasePrRef[])
+          : [];
+
         // A synced entry an admin never touched still holds whatever the parser produced when it
-        // was created, so it is parsed again. updatedAt only moves on an update, which makes this
-        // a one-time repair that never overwrites an admin's edit.
+        // was created, so its text is parsed again. updatedAt only moves on an update, which makes
+        // this a one-time repair that never overwrites an admin's edit.
         const untouched = stored.updatedAt.getTime() - stored.createdAt.getTime() < 1000;
-        const update =
+        const text =
           stored.tags.includes("auto-synced") && untouched
-            ? reparseStoredRelease(
-                release.body,
-                {
-                  ...stored,
-                  prRefs: Array.isArray(stored.prRefs)
-                    ? (stored.prRefs as unknown as ReleasePrRef[])
-                    : [],
-                },
-                repoUrl,
-              )
+            ? reparseStoredRelease(release.body, { ...stored, prRefs: storedPrs }, repoUrl)
             : null;
 
-        if (update) {
+        const prRefs = unionPullRequests(text?.prRefs ?? storedPrs, shippedPrs);
+        const prsChanged = !samePullRequests(prRefs, storedPrs);
+
+        if (text || prsChanged) {
           await prisma.changelogEntry.update({
             where: { id },
             data: {
-              ...update,
-              prRefs: (update.prRefs.length > 0
-                ? update.prRefs
+              ...text,
+              prRefs: (prRefs.length > 0
+                ? prRefs
                 : Prisma.JsonNull) as unknown as Prisma.InputJsonValue,
             },
           });
@@ -153,17 +177,6 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
         previousRelease ? parseReleaseTag(previousRelease.tag_name) : undefined,
         version,
       );
-
-      const parsedBody = parseReleaseBody(release.body);
-      const commitPrRefs = await derivePrRefsFromCommits(
-        owner,
-        repo,
-        token,
-        previousRelease?.tag_name,
-        release.tag_name,
-      );
-
-      const prRefs = mergeReleasePullRequests(commitPrRefs, parsedBody.pullRequests, repoUrl);
 
       await prisma.changelogEntry.create({
         data: {
@@ -180,8 +193,8 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
           breaking: parsedBody.breaking,
           security: parsedBody.security,
           tags: ["auto-synced"],
-          prRefs: (prRefs.length > 0
-            ? prRefs
+          prRefs: (shippedPrs.length > 0
+            ? shippedPrs
             : Prisma.JsonNull) as unknown as Prisma.InputJsonValue,
         },
       });

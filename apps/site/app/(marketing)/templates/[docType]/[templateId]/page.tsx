@@ -14,13 +14,17 @@ import { siteConfig } from "@/config/site";
 import { jsonLdScriptProps } from "@/utils/json-ld";
 import { buildPageMetadata } from "@/utils/metadata";
 
-import { PageHero, PageSection, TYPE } from "@/components/marketing/PageLayout";
+import { FRAME, PageSection, TYPE } from "@/components/marketing/PageLayout";
 
 import TemplatePreview from "@/features/templates/TemplatePreview";
-import { buildEditorUrl, buildPreviewUrl, getTemplateHref } from "@/features/templates/utils";
+import TemplateCard, { templateGridClass } from "@/features/templates/TemplateCard";
+import { buildEditorUrl, buildPreviewUrl } from "@/features/templates/utils";
 
-/** How many sibling templates the closing row suggests. */
-const MORE_COUNT = 3;
+/** How many sibling templates the closing row suggests: one full gallery row. */
+const MORE_COUNT = 4;
+
+/** Each block in the details column opens below a rule, like a spec sheet. */
+const DETAIL_BLOCK = "border-border mt-10 border-t pt-8";
 
 type PageProps = {
   params: Promise<{ docType: string; templateId: string }>;
@@ -155,8 +159,8 @@ const TemplateDetailPage = async ({ params }: PageProps) => {
         dangerouslySetInnerHTML={jsonLdScriptProps(creativeWorkSchema)}
       />
 
-      <PageHero
-        before={
+      <article className="border-border border-b pt-28 pb-16 lg:pt-36 lg:pb-24">
+        <div className={FRAME}>
           <Link
             href={`/templates/${template.documentType}`}
             className="text-muted hover:text-foreground group focus-visible:ring-accent/40 inline-flex items-center gap-2 rounded-full text-base font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
@@ -167,204 +171,171 @@ const TemplateDetailPage = async ({ params }: PageProps) => {
             />
             All {template.documentTypeLabel.toLowerCase()} templates
           </Link>
-        }
-        // Names like "VeriWorkly Special" already take two lines at display size, so the
-        // type is named in the back link and the stage rather than as a third line here.
-        title={template.name}
-        lede={template.description}
-        aside={
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href={editorUrl}
-              className="group bg-foreground text-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-accent/40 inline-flex h-12 items-center gap-2 rounded-full px-6 text-base font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none active:scale-[0.97]"
-            >
-              {isPortfolioTemplate ? "Use in Portfolio Builder" : "Use this template"}
-              <ArrowRight
-                aria-hidden="true"
-                className="size-4 transition-transform duration-200 group-hover:translate-x-1"
-              />
-            </Link>
-            {previewUrl && (
-              <a
-                href={previewUrl}
-                className="border-border hover:bg-card focus-visible:ring-accent/40 inline-flex h-12 items-center gap-2 rounded-full border px-6 text-base font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.97]"
+
+          {/* A product page: the export stays in view while the reasons to pick it scroll past. */}
+          <div className="mt-8 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-16">
+            <figure className="lg:sticky lg:top-28">
+              <div
+                className={`bg-card flex items-center justify-center rounded-3xl ${
+                  isPortfolioTemplate ? "p-3 sm:p-5" : "px-6 py-6 sm:px-14 sm:py-12"
+                }`}
               >
-                Open live preview
-                <ExternalLink aria-hidden="true" className="size-4" />
-              </a>
-            )}
-          </div>
-        }
-      >
-        {/* The stage: the real export, large, beside the reasons to pick it. */}
-        <div
-          className={`bg-card grid overflow-hidden rounded-3xl ${
-            isPortfolioTemplate ? "" : "lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]"
-          }`}
-        >
-          <figure
-            className={`bg-background flex flex-col items-center justify-center gap-4 ${
-              isPortfolioTemplate ? "p-4 sm:p-8 lg:p-10" : "px-6 py-8 sm:p-12 lg:p-16"
-            }`}
-          >
-            <TemplatePreview
-              priority
-              template={template}
-              sizes={
-                isPortfolioTemplate
-                  ? "(min-width: 1180px) 1100px, 94vw"
-                  : "(min-width: 1024px) 520px, 88vw"
-              }
-              className={isPortfolioTemplate ? "w-full" : "w-full max-w-lg"}
-            />
-            <figcaption className="text-muted text-center text-sm">
-              {isPortfolioTemplate
-                ? "Screenshot of the live template. Open the live preview for the full page."
-                : "Rendered from the production template asset."}
-            </figcaption>
-          </figure>
-
-          <div className="flex flex-col gap-8 p-6 sm:p-8 lg:p-12">
-            <div>
-              <h2 className={TYPE.title}>Why this one works.</h2>
-              <p className="text-muted mt-3 max-w-xl text-base leading-7 text-pretty">
-                {template.designVision}
-              </p>
-            </div>
-
-            <ul
-              className={`grid gap-4 text-base leading-7 ${isPortfolioTemplate ? "md:grid-cols-3" : ""}`}
-            >
-              {template.proofPoints.map((point) => (
-                <li key={point} className="flex gap-3">
-                  <Check className="text-accent mt-1.5 size-4 shrink-0" aria-hidden="true" />
-                  <span>{point}</span>
-                </li>
-              ))}
-            </ul>
-
-            <dl className="mt-auto grid grid-cols-2 gap-6 text-base sm:grid-cols-3">
-              {[
-                { label: "Type", value: template.documentTypeLabel },
-                { label: "Style system", value: template.family },
-                { label: "Layout", value: template.layout },
-              ].map((item) => (
-                <div key={item.label} className="border-border border-t pt-4">
-                  <dt className="text-muted text-sm">{item.label}</dt>
-                  <dd className="mt-1 font-semibold">{item.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </div>
-      </PageHero>
-
-      <PageSection
-        tone="card"
-        title="Who it's for."
-        lede={`Built for ${template.audience.join(", ").toLowerCase()}.`}
-      >
-        <ul className="grid gap-x-10 gap-y-8 md:grid-cols-3">
-          {template.bestFor.map((item) => (
-            <li
-              key={item}
-              className="reveal border-border border-t pt-6 text-xl leading-8 font-semibold tracking-tight text-balance"
-            >
-              {item}
-            </li>
-          ))}
-        </ul>
-      </PageSection>
-
-      <PageSection
-        title="How it's built."
-        lede="The layout is more than a skin. These choices decide what a reader sees first and how the export scans."
-      >
-        <div className="grid gap-12 lg:grid-cols-3">
-          {[
-            { title: "Typography", items: template.typography },
-            { title: "Design rules", items: designPrinciples },
-            { title: "Behaviour", items: implementationNotes },
-          ].map((column) => (
-            <div key={column.title} className="reveal">
-              <h3 className={TYPE.title}>{column.title}</h3>
-              <ul className="mt-6 space-y-5">
-                {column.items.map((item) => (
-                  <li
-                    key={item}
-                    className="border-border text-muted border-t pt-5 text-base leading-7"
-                  >
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </PageSection>
-
-      <PageSection
-        tone="card"
-        title="Section by section."
-        lede="What each part of the template holds, from the top of the page down."
-      >
-        <ol className="divide-border bg-background divide-y overflow-hidden rounded-3xl">
-          {template.structure.map((section) => (
-            <li
-              key={section.title}
-              className="grid gap-4 p-6 sm:p-8 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] md:gap-10"
-            >
-              <div>
-                <h3 className="text-xl font-bold tracking-tight">{section.title}</h3>
-                <p className="text-muted mt-2 text-base leading-7 text-pretty">
-                  {section.description}
-                </p>
+                <TemplatePreview
+                  priority
+                  template={template}
+                  sizes="(min-width: 1180px) 560px, (min-width: 1024px) 46vw, 92vw"
+                  className={isPortfolioTemplate ? "w-full" : "w-full max-w-[13rem] sm:max-w-md"}
+                />
               </div>
-              <ul className="flex flex-wrap content-start gap-2">
-                {section.items.map((item) => (
-                  <li key={item} className="bg-card rounded-full px-4 py-2 text-base">
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </li>
-          ))}
-        </ol>
-      </PageSection>
+              <figcaption className="text-muted mt-3 text-center text-sm">
+                {isPortfolioTemplate
+                  ? "Screenshot of the live template. Open the live preview for the whole page."
+                  : "The real export, rendered from the production template."}
+              </figcaption>
+            </figure>
+
+            <div className="min-w-0">
+              <p className="text-muted flex flex-wrap items-center gap-2 text-sm">
+                <span
+                  aria-hidden="true"
+                  className="size-2.5 rounded-full"
+                  style={{ backgroundColor: template.accentColor }}
+                />
+                {/* "Portfolio Website · Portfolio Websites" says one thing twice. */}
+                {[template.documentTypeLabel, template.family, template.layout]
+                  .filter((part, index, parts) => index === 0 || !part.startsWith(parts[0] ?? ""))
+                  .join(" · ")}
+              </p>
+
+              <h1 className={`mt-4 text-balance ${TYPE.section}`}>{template.name}</h1>
+              <p className={`text-muted mt-5 text-pretty ${TYPE.lede}`}>{template.description}</p>
+
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link
+                  href={editorUrl}
+                  className="group bg-foreground text-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-accent/40 inline-flex h-12 items-center gap-2 rounded-full px-6 text-base font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none active:scale-[0.97]"
+                >
+                  {isPortfolioTemplate ? "Use in Portfolio Builder" : "Use this template"}
+                  <ArrowRight
+                    aria-hidden="true"
+                    className="size-4 transition-transform duration-200 group-hover:translate-x-1"
+                  />
+                </Link>
+                {previewUrl && (
+                  <a
+                    href={previewUrl}
+                    className="border-border hover:bg-card focus-visible:ring-accent/40 inline-flex h-12 items-center gap-2 rounded-full border px-6 text-base font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.97]"
+                  >
+                    Open live preview
+                    <ExternalLink aria-hidden="true" className="size-4" />
+                  </a>
+                )}
+              </div>
+
+              <section className={DETAIL_BLOCK}>
+                <h2 className={TYPE.title}>Why this one works</h2>
+                <p className="text-muted mt-3 text-base leading-7 text-pretty">
+                  {template.designVision}
+                </p>
+                <ul className="mt-5 space-y-3 text-base leading-7">
+                  {template.proofPoints.map((point) => (
+                    <li key={point} className="flex gap-3">
+                      <Check className="text-accent mt-1.5 size-4 shrink-0" aria-hidden="true" />
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
+              <section className={DETAIL_BLOCK}>
+                <h2 className={TYPE.title}>Who it&apos;s for</h2>
+                <ul aria-label="Audience" className="mt-4 flex flex-wrap gap-2">
+                  {template.audience.map((who) => (
+                    <li key={who} className="bg-card rounded-full px-3 py-1 text-sm">
+                      {who}
+                    </li>
+                  ))}
+                </ul>
+                <ul className="mt-5 space-y-3 text-base leading-7">
+                  {template.bestFor.map((item) => (
+                    <li key={item} className="flex gap-3">
+                      <Check className="text-accent mt-1.5 size-4 shrink-0" aria-hidden="true" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
+              <section className={DETAIL_BLOCK}>
+                <h2 className={TYPE.title}>Section by section</h2>
+                <ol className="mt-5 space-y-6">
+                  {template.structure.map((section) => (
+                    <li key={section.title}>
+                      <h3 className="text-base font-semibold">{section.title}</h3>
+                      <p className="text-muted mt-1 text-base leading-7 text-pretty">
+                        {section.description}
+                      </p>
+                      <ul className="mt-3 flex flex-wrap gap-2">
+                        {section.items.map((item) => (
+                          <li key={item} className="bg-card rounded-full px-3 py-1 text-sm">
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+
+              <section className={DETAIL_BLOCK}>
+                <h2 className={TYPE.title}>How it&apos;s built</h2>
+                <dl className="mt-5 space-y-6">
+                  {[
+                    { title: "Typography", items: template.typography },
+                    { title: "Design rules", items: designPrinciples },
+                    { title: "Behaviour", items: implementationNotes },
+                  ].map((group) => (
+                    <div key={group.title}>
+                      <dt className="text-base font-semibold">{group.title}</dt>
+                      <dd>
+                        <ul className="text-muted mt-2 list-disc space-y-1.5 pl-5 text-base leading-7 marker:text-current/40">
+                          {group.items.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            </div>
+          </div>
+        </div>
+      </article>
 
       {moreTemplates.length > 0 && (
         <PageSection
+          tone="card"
           title={`More ${template.documentTypeLabel.toLowerCase()} templates.`}
           lede="Your content moves between templates, so trying another one costs nothing."
         >
-          <ul
-            className={
-              isPortfolioTemplate
-                ? "grid gap-x-6 gap-y-10 md:grid-cols-2 lg:grid-cols-3"
-                : "grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 lg:grid-cols-3"
-            }
-          >
+          <ul className={templateGridClass(isPortfolioTemplate)}>
             {moreTemplates.map((other) => (
-              <li key={other.id} className="reveal">
-                <Link
-                  href={getTemplateHref(other)}
-                  className="group focus-visible:ring-accent/40 block rounded-2xl focus-visible:ring-2 focus-visible:ring-offset-4 focus-visible:outline-none"
-                >
-                  <TemplatePreview
-                    template={other}
-                    sizes="(min-width: 1024px) 370px, 46vw"
-                    className={`transition-transform duration-300 ease-out group-hover:-translate-y-1.5 ${
-                      isPortfolioTemplate ? "" : "lg:mx-auto lg:max-w-xs"
-                    }`}
-                  />
-                  <h3 className="group-hover:text-accent mt-4 text-xl font-bold tracking-tight transition-colors duration-200">
-                    {other.name}
-                  </h3>
-                  <p className="text-muted mt-1 text-base">{other.family}</p>
-                </Link>
+              <li key={other.id}>
+                <TemplateCard template={other} />
               </li>
             ))}
           </ul>
+          <Link
+            href={`/templates/${template.documentType}`}
+            className="text-accent group mt-10 inline-flex items-center gap-2 text-base font-semibold underline-offset-4 hover:underline"
+          >
+            See all {template.documentTypeLabel.toLowerCase()} templates
+            <ArrowRight
+              aria-hidden="true"
+              className="size-4 transition-transform duration-200 group-hover:translate-x-1"
+            />
+          </Link>
         </PageSection>
       )}
     </>

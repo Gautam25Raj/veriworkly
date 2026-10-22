@@ -1,4 +1,4 @@
-import type { ParsedReleaseBody } from "./types.js";
+import type { MergedPullRequest, ParsedReleaseBody } from "./types.js";
 
 type ChangeList = "added" | "improved" | "fixed" | "breaking" | "security";
 type Section = ChangeList | "skip" | "summary" | "pulls";
@@ -133,23 +133,77 @@ export interface ReleasePrRef {
   author?: { login: string; avatarUrl: string; htmlUrl: string } | null;
 }
 
-/**
- * Squash merges leave no "Merge pull request #n" commit, so the release's own PR list fills
- * the gaps in the commit-derived refs. Existing refs come first: they carry the author.
- */
-export function mergeReleasePullRequests<T extends ReleasePrRef>(
-  refs: T[],
+/** A release's listed PRs as refs; GitHub's merged-PR list fills in their authors later. */
+export function listedPullRequests(
   pulls: ParsedReleaseBody["pullRequests"],
   repoUrl: string,
-): Array<T | ReleasePrRef> {
-  const known = new Set(refs.map((pr) => pr.number));
+): ReleasePrRef[] {
+  return pulls.map((pr) => ({ ...pr, url: `${repoUrl}/pull/${pr.number}`, author: null }));
+}
 
-  return [
-    ...refs,
-    ...pulls
-      .filter((pr) => !known.has(pr.number))
-      .map((pr) => ({ ...pr, url: `${repoUrl}/pull/${pr.number}`, author: null })),
-  ];
+/**
+ * Two PR lists as one, newest first. Nothing is dropped, and a ref without an author is replaced
+ * by the same PR from the other list when that one has the author.
+ */
+export function unionPullRequests(a: ReleasePrRef[], b: ReleasePrRef[]): ReleasePrRef[] {
+  const byNumber = new Map<number, ReleasePrRef>();
+
+  for (const ref of [...a, ...b]) {
+    const known = byNumber.get(ref.number);
+    if (!known || (!known.author && ref.author)) byNumber.set(ref.number, ref);
+  }
+
+  return [...byNumber.values()].sort((x, y) => y.number - x.number);
+}
+
+/**
+ * Whether two PR lists say the same thing. Compared by content, not as JSON: Postgres jsonb
+ * stores object keys in its own order, so a stored list never stringifies like a fresh one.
+ */
+export function samePullRequests(a: ReleasePrRef[], b: ReleasePrRef[]): boolean {
+  const key = (refs: ReleasePrRef[]) =>
+    refs.map((ref) => [ref.number, ref.title, ref.url ?? "", ref.author?.login ?? ""].join("|"));
+
+  return JSON.stringify(key(a)) === JSON.stringify(key(b));
+}
+
+const DEFAULT_BRANCHES = new Set(["master", "main"]);
+
+/**
+ * Which pull requests shipped in which release. A PR a release's notes name belongs to that
+ * release; every other merged PR belongs to the first release published after it merged.
+ * "Sync dev from master" PRs only move code that already shipped, so they are left out.
+ */
+export function assignPullRequestsToReleases(
+  releases: Array<{ id: string; publishedAt: string; listed: number[] }>,
+  pulls: MergedPullRequest[],
+): Map<string, ReleasePrRef[]> {
+  const ordered = [...releases].sort(
+    (a, b) => Date.parse(a.publishedAt) - Date.parse(b.publishedAt),
+  );
+  const listedBy = new Map<number, string>();
+  for (const release of ordered)
+    for (const number of release.listed) listedBy.set(number, release.id);
+
+  const assigned = new Map<string, ReleasePrRef[]>(ordered.map((release) => [release.id, []]));
+
+  for (const pr of pulls) {
+    if (DEFAULT_BRANCHES.has(pr.headRef) && !DEFAULT_BRANCHES.has(pr.baseRef)) continue;
+
+    const merged = Date.parse(pr.mergedAt);
+    const id =
+      listedBy.get(pr.number) ??
+      ordered.find((release) => Date.parse(release.publishedAt) >= merged)?.id;
+
+    if (id)
+      assigned
+        .get(id)!
+        .push({ number: pr.number, title: pr.title, url: pr.url, author: pr.author });
+  }
+
+  for (const refs of assigned.values()) refs.sort((x, y) => y.number - x.number);
+
+  return assigned;
 }
 
 export type StoredReleaseFields = Pick<
@@ -176,12 +230,14 @@ export function reparseStoredRelease(
     fixed: parsed.fixed,
     breaking: parsed.breaking,
     security: parsed.security,
-    prRefs: mergeReleasePullRequests(stored.prRefs, parsed.pullRequests, repoUrl),
+    prRefs: unionPullRequests(stored.prRefs, listedPullRequests(parsed.pullRequests, repoUrl)),
   };
 
-  const same = (Object.keys(next) as Array<keyof StoredReleaseFields>).every(
-    (key) => JSON.stringify(next[key]) === JSON.stringify(stored[key]),
-  );
+  const same =
+    samePullRequests(next.prRefs, stored.prRefs) &&
+    (["summary", "added", "improved", "fixed", "breaking", "security"] as const).every(
+      (key) => JSON.stringify(next[key]) === JSON.stringify(stored[key]),
+    );
 
   return same ? null : next;
 }

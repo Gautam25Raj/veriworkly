@@ -42,9 +42,24 @@ export interface GitHubItemSnapshot {
 }
 
 export interface GitHubPullRequestPayload {
+  number: number;
   title: string;
   html_url: string;
   user: { login: string; avatar_url: string; html_url: string } | null;
+  /** Present on list responses; null when the PR was closed without merging. */
+  merged_at?: string | null;
+  head: { ref: string };
+  base: { ref: string };
+}
+
+export interface MergedPullRequest {
+  number: number;
+  title: string;
+  url: string;
+  author: { login: string; avatarUrl: string; htmlUrl: string } | null;
+  mergedAt: string;
+  headRef: string;
+  baseRef: string;
 }
 
 export interface GitHubPullRequestSummary {

@@ -1,25 +1,31 @@
 import Link from "next/link";
 import Image from "next/image";
+import { ArrowUpRight } from "lucide-react";
+
+import { siteConfig } from "@/config/site";
 
 import { type ChangelogStats } from "@/features/changelog/services/changelog-backend";
 
-const MAX_VISIBLE_AVATARS = 10;
-
+/**
+ * Everyone who has shipped a release, all of them, each a link to their GitHub profile. The
+ * server already caps the list at a size a row of faces can hold.
+ */
 const ChangelogContributors = ({ stats }: { stats: ChangelogStats | null }) => {
   const contributors = stats?.topContributors ?? [];
 
   if (contributors.length === 0) return null;
 
-  const visible = contributors.slice(0, MAX_VISIBLE_AVATARS);
-  const totalCount =
-    stats?.contributorCount && stats.contributorCount > 0
-      ? stats.contributorCount
-      : contributors.length;
+  const totalCount = Math.max(stats?.contributorCount ?? 0, contributors.length);
 
   return (
-    <div className="flex flex-wrap items-center gap-4">
-      <ul className="flex -space-x-2">
-        {visible.map((author) => (
+    <div>
+      <p className="text-base">
+        Shipped by <span className="font-semibold tabular-nums">{totalCount}</span> open source
+        contributor{totalCount === 1 ? "" : "s"}
+      </p>
+
+      <ul className="mt-4 flex flex-wrap -space-x-2" aria-label="Contributors">
+        {contributors.map((author) => (
           <li key={author.login}>
             <Link
               target="_blank"
@@ -40,10 +46,18 @@ const ChangelogContributors = ({ stats }: { stats: ChangelogStats | null }) => {
         ))}
       </ul>
 
-      <p className="text-base">
-        Shipped by <span className="font-semibold tabular-nums">{totalCount}</span> open source
-        contributor{totalCount === 1 ? "" : "s"}
-      </p>
+      <a
+        target="_blank"
+        rel="noopener noreferrer"
+        href={`${siteConfig.links.github}/graphs/contributors`}
+        className="text-accent group mt-4 inline-flex items-center gap-1.5 text-sm font-semibold underline-offset-4 hover:underline"
+      >
+        See every contribution on GitHub
+        <ArrowUpRight
+          aria-hidden="true"
+          className="size-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+        />
+      </a>
     </div>
   );
 };

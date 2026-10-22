@@ -4,9 +4,9 @@ import { TYPE } from "@/components/marketing/PageLayout";
 
 const EmptyState = ({ onReset }: { onReset: () => void }) => (
   <div className="bg-card rounded-3xl px-6 py-16 text-center sm:px-10">
-    <p className={TYPE.title}>No templates match these filters.</p>
+    <p className={TYPE.title}>No templates match.</p>
     <p className="text-muted mx-auto mt-3 max-w-sm text-base">
-      Switch the style system or layout to see more.
+      Try a different word, or another style or layout.
     </p>
 
     {/* Resets in place - the filters are client state, so there is nothing to navigate to. */}

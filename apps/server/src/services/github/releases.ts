@@ -1,9 +1,9 @@
-import { logger } from "#lib/logger";
 import { fetchGitHubApi } from "./client.js";
 import type {
   GitHubPullRequestPayload,
   GitHubPullRequestSummary,
   GitHubReleasePayload,
+  MergedPullRequest,
 } from "./types.js";
 
 /**
@@ -70,58 +70,43 @@ export async function fetchAllGitHubReleases(
 }
 
 /**
- * Derives PR references for a release by diffing it against the previous
- * release tag and pulling PR numbers out of merge-commit messages. Best
- * effort: a failed lookup just drops that ref rather than throwing, and an
- * absent previous tag (oldest release) yields an empty list.
+ * Every merged pull request in the repo, newest first, with its author. One request returns 100,
+ * so the whole history costs a couple of calls instead of one per PR.
  */
-export async function derivePrRefsFromCommits(
+export async function fetchMergedPullRequests(
   owner: string,
   repo: string,
   token: string,
-  baseTag: string | undefined,
-  headTag: string,
-): Promise<
-  Array<{ number: number; title: string; url: string; author: GitHubPullRequestSummary["author"] }>
-> {
-  if (!baseTag) return [];
+): Promise<MergedPullRequest[]> {
+  const merged: MergedPullRequest[] = [];
+  const perPage = 100;
 
-  let commits: Array<{ commit: { message: string } }>;
-
-  try {
+  // ponytail: 20 pages (2,000 closed PRs) is the ceiling; raise it, or filter by date, past that.
+  for (let page = 1; page <= 20; page++) {
     const response = await fetchGitHubApi(
-      `https://api.github.com/repos/${owner}/${repo}/compare/${baseTag}...${headTag}`,
+      `https://api.github.com/repos/${owner}/${repo}/pulls?state=closed&sort=created&direction=desc&per_page=${perPage}&page=${page}`,
       token,
     );
-    const payload = (await response.json()) as { commits?: Array<{ commit: { message: string } }> };
-    commits = payload.commits ?? [];
-  } catch (error) {
-    logger.error(`Failed to compare ${baseTag}...${headTag} for changelog sync`, error);
-    return [];
-  }
+    const payload = (await response.json()) as GitHubPullRequestPayload[];
 
-  const prNumbers = new Set<number>();
-  for (const { commit } of commits) {
-    const match = commit.message.match(/Merge pull request #(\d+)/i);
-    if (match) prNumbers.add(Number.parseInt(match[1], 10));
-    if (prNumbers.size >= 20) break;
-  }
+    for (const pr of payload) {
+      if (!pr.merged_at) continue;
 
-  const refs: Array<{
-    number: number;
-    title: string;
-    url: string;
-    author: GitHubPullRequestSummary["author"];
-  }> = [];
-
-  for (const number of prNumbers) {
-    try {
-      const summary = await fetchPullRequestSummary(owner, repo, number, token);
-      refs.push({ number, title: summary.title, url: summary.url, author: summary.author });
-    } catch (error) {
-      logger.error(`Failed to enrich PR #${number} while deriving changelog refs`, error);
+      merged.push({
+        number: pr.number,
+        title: pr.title,
+        url: pr.html_url,
+        author: pr.user
+          ? { login: pr.user.login, avatarUrl: pr.user.avatar_url, htmlUrl: pr.user.html_url }
+          : null,
+        mergedAt: pr.merged_at,
+        headRef: pr.head.ref,
+        baseRef: pr.base.ref,
+      });
     }
+
+    if (payload.length < perPage) break;
   }
 
-  return refs;
+  return merged;
 }

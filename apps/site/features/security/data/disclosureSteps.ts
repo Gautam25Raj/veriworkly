@@ -1,4 +1,3 @@
-import { FileWarning, Clock3, Wrench, ShieldAlert } from "lucide-react";
 import { siteConfig } from "@/config/site";
 import type { DisclosureStepItem } from "../types";
 
@@ -12,31 +11,23 @@ import type { DisclosureStepItem } from "../types";
  */
 export const DISCLOSURE_STEPS: DisclosureStepItem[] = [
   {
-    step: "01",
-    label: "1. You Report Privately",
+    label: "You report privately",
     detail: `Send the details directly to ${siteConfig.email}. Please do not open a public issue or post publicly before a fix is out.`,
-    icon: FileWarning,
   },
   {
-    step: "02",
-    label: "2. We Acknowledge (24-48h)",
+    label: "We acknowledge within 24 to 48 hours",
     detail:
       "We confirm receipt within 24 to 48 hours. VeriWorkly is maintained by a small team, so this is a target we can hold rather than a contractual SLA.",
-    icon: Clock3,
   },
   {
-    step: "03",
-    label: "3. Triage & Patch",
+    label: "We triage and patch",
     detail:
       "We reproduce the issue, agree a severity with you, and patch it before any public disclosure. We will tell you honestly if a fix is going to take time.",
-    icon: Wrench,
   },
   {
-    step: "04",
-    label: "4. Coordinated Release & Credit",
+    label: "We release together, with credit",
     detail:
       "Once the fix is live we coordinate disclosure with you, and credit you by name in the release notes if you would like to be named.",
-    icon: ShieldAlert,
   },
 ];
 

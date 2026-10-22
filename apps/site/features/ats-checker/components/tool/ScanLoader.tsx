@@ -38,14 +38,14 @@ export function ScanLoader({ hasTarget }: ScanLoaderProps) {
 
   return (
     <div
-      className="flex min-h-80 flex-col items-center justify-center rounded-3xl border border-zinc-200 bg-white p-8 text-center dark:border-zinc-800 dark:bg-white/2"
+      className="bg-card flex min-h-80 flex-col items-center justify-center rounded-3xl p-8 text-center"
       role="status"
       aria-live="polite"
     >
-      <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
+      <span className="bg-accent/10 text-accent relative flex h-14 w-14 items-center justify-center rounded-full">
         <ScanSearch className="h-6 w-6" aria-hidden="true" />
         <span
-          className="absolute inset-0 animate-ping rounded-full bg-blue-500/20"
+          className="bg-accent/20 absolute inset-0 animate-ping rounded-full motion-reduce:animate-none"
           aria-hidden="true"
         />
       </span>
@@ -57,18 +57,18 @@ export function ScanLoader({ hasTarget }: ScanLoaderProps) {
             animate={{ opacity: 1, y: 0 }}
             exit={shouldReduceMotion ? undefined : { opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
-            className="text-sm font-semibold text-zinc-800 dark:text-zinc-100"
+            className="text-base font-semibold"
           >
             {steps[index]}
           </motion.p>
         </AnimatePresence>
       </div>
       <div
-        className="mt-5 h-1.5 w-full max-w-56 overflow-hidden rounded-full bg-zinc-100 dark:bg-white/10"
+        className="bg-foreground/8 mt-5 h-1.5 w-full max-w-56 overflow-hidden rounded-full"
         aria-hidden="true"
       >
         <motion.div
-          className="h-full rounded-full bg-blue-600"
+          className="bg-accent h-full rounded-full"
           animate={{ width: `${progress}%` }}
           transition={{ duration: shouldReduceMotion ? 0 : 0.3, ease: "easeOut" }}
         />

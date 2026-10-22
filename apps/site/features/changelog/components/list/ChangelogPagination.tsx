@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 
 import { cn } from "@veriworkly/ui";
 
@@ -12,6 +12,14 @@ interface ChangelogPaginationProps {
   search?: string;
   basePath?: string;
 }
+
+const navLinkClass = (disabled: boolean) =>
+  cn(
+    "bg-card inline-flex h-12 items-center gap-2 rounded-full px-5 text-base font-semibold whitespace-nowrap transition-colors duration-200",
+    disabled
+      ? "text-muted pointer-events-none opacity-50"
+      : "hover:bg-foreground hover:text-background focus-visible:ring-accent/40 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.97]",
+  );
 
 const ChangelogPagination = ({
   pagination,
@@ -30,45 +38,42 @@ const ChangelogPagination = ({
       page: targetPage > 1 ? targetPage.toString() : undefined,
     });
 
-  const navLinkClass = (disabled: boolean) =>
-    cn(
-      "border-border/40 text-muted inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 font-sans text-xs font-semibold whitespace-nowrap transition-colors",
-      disabled
-        ? "pointer-events-none opacity-40"
-        : "hover:text-foreground hover:border-border/60 hover:bg-muted/5",
-    );
+  const previous = (
+    <>
+      <ArrowLeft className="size-4" aria-hidden="true" />
+      Newer
+    </>
+  );
+  const next = (
+    <>
+      Older
+      <ArrowRight className="size-4" aria-hidden="true" />
+    </>
+  );
 
   return (
     <nav
       aria-label="Changelog pagination"
-      className="mt-10 flex items-center justify-between gap-4"
+      className="mt-12 flex items-center justify-between gap-4"
     >
       {page > 1 ? (
         <Link href={hrefForPage(page - 1)} className={navLinkClass(false)}>
-          <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
-          Previous
+          {previous}
         </Link>
       ) : (
-        <span className={navLinkClass(true)}>
-          <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
-          Previous
-        </span>
+        <span className={navLinkClass(true)}>{previous}</span>
       )}
 
-      <p className="text-muted font-mono text-[11px] tracking-wide">
+      <p className="text-muted text-base tabular-nums">
         Page {page} of {totalPages}
       </p>
 
       {page < totalPages ? (
         <Link href={hrefForPage(page + 1)} className={navLinkClass(false)}>
-          Next
-          <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+          {next}
         </Link>
       ) : (
-        <span className={navLinkClass(true)}>
-          Next
-          <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-        </span>
+        <span className={navLinkClass(true)}>{next}</span>
       )}
     </nav>
   );

@@ -1,25 +1,20 @@
-import { EyeOff, Lock, Zap, Code2 } from "lucide-react";
 import type { SecurityCommitment } from "../types";
 
 export const SECURITY_COMMITMENTS: SecurityCommitment[] = [
   {
-    icon: EyeOff,
-    title: "0 Keystroke Telemetry",
+    title: "No keystroke telemetry",
     desc: "We never monitor or transmit your document typing.",
   },
   {
-    icon: Lock,
-    title: "Encrypted in Transit",
+    title: "Encrypted in transit",
     desc: "HTTPS on every connection. At-rest encryption is provided by our infrastructure providers.",
   },
   {
-    icon: Zap,
-    title: "24-48h Response",
+    title: "Replies in 24 to 48 hours",
     desc: "A named point of contact who acknowledges every security report.",
   },
   {
-    icon: Code2,
-    title: "Auditable MIT Core",
-    desc: "Transparent open-source architecture on GitHub.",
+    title: "Auditable MIT core",
+    desc: "The code that handles your data is open source on GitHub.",
   },
 ];

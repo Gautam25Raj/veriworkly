@@ -17,12 +17,12 @@ export function Stepper({ steps, current }: StepperProps) {
             <li key={label} className="flex flex-1 items-center gap-2 sm:gap-3">
               <div className="flex items-center gap-2.5">
                 <span
-                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors ${
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-colors ${
                     state === "done"
-                      ? "bg-blue-600 text-white"
+                      ? "bg-accent text-accent-foreground"
                       : state === "active"
-                        ? "bg-zinc-950 text-white dark:bg-white dark:text-zinc-950"
-                        : "bg-zinc-100 text-zinc-600 dark:bg-white/5 dark:text-zinc-400"
+                        ? "bg-foreground text-background"
+                        : "bg-card text-muted"
                   }`}
                   aria-hidden="true"
                 >
@@ -30,10 +30,8 @@ export function Stepper({ steps, current }: StepperProps) {
                 </span>
                 <span
                   aria-current={state === "active" ? "step" : undefined}
-                  className={`hidden text-sm font-semibold sm:inline ${
-                    state === "upcoming"
-                      ? "text-zinc-500 dark:text-zinc-400"
-                      : "text-zinc-900 dark:text-white"
+                  className={`hidden text-base font-semibold sm:inline ${
+                    state === "upcoming" ? "text-muted" : "text-foreground"
                   }`}
                 >
                   {label}
@@ -50,7 +48,7 @@ export function Stepper({ steps, current }: StepperProps) {
                 <span
                   aria-hidden="true"
                   className={`h-px flex-1 transition-colors ${
-                    state === "done" ? "bg-blue-600" : "bg-zinc-200 dark:bg-zinc-800"
+                    state === "done" ? "bg-accent" : "bg-border"
                   }`}
                 />
               ) : null}

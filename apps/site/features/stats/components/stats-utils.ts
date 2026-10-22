@@ -1,17 +1,25 @@
 import type {
+  GitHubStatus,
   GitHubFilterKind,
   GitHubFilterStatus,
 } from "@/features/github/services/github-backend";
 
 export const PAGE_SIZE = 20;
 
+/** Board status as a word and a dot, on status tokens so both themes keep their contrast. */
+export const STATUS_META: Record<GitHubStatus, { label: string; dot: string }> = {
+  todo: { label: "To do", dot: "bg-foreground/25" },
+  "in-progress": { label: "In progress", dot: "bg-warning" },
+  done: { label: "Done", dot: "bg-success" },
+};
+
 export const statusOptions: Array<{
   value: GitHubFilterStatus;
   label: string;
 }> = [
   { value: "all", label: "All" },
-  { value: "todo", label: "To Do" },
-  { value: "in-progress", label: "In Progress" },
+  { value: "todo", label: "To do" },
+  { value: "in-progress", label: "In progress" },
   { value: "done", label: "Done" },
 ];
 

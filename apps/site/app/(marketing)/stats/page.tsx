@@ -1,4 +1,6 @@
+import Link from "next/link";
 import type { Metadata } from "next";
+import { ArrowUpRight } from "lucide-react";
 
 import { siteConfig } from "@/config/site";
 
@@ -13,16 +15,23 @@ import {
   parseStatus,
   dateFromToIso,
   parseDateInput,
+  formatAbsoluteTime,
+  formatRelativeTime,
 } from "@/features/stats/components/stats-utils";
 
-import { Container } from "@veriworkly/ui";
+import {
+  FRAME,
+  PageHero,
+  PageSection,
+  SectionHeading,
+  TYPE,
+} from "@/components/marketing/PageLayout";
 
 import {
   fetchGitHubStatsFromBackend,
   fetchGitHubIssuesFromBackend,
 } from "@/features/github/services/github-backend";
 
-import StatsHero from "@/features/stats/components/StatsHero";
 import StatsBoard from "@/features/stats/components/StatsBoard";
 import StatsFilters from "@/features/stats/components/StatsFilters";
 import StatsOverview from "@/features/stats/components/StatsOverview";
@@ -114,13 +123,9 @@ const StatsPage = async ({ searchParams }: StatsPageProps) => {
   ]);
 
   const projectUrl = stats?.projectUrl ?? siteConfig.links.github;
-  const projectName = stats?.projectName ?? `${siteConfig.shortName} GitHub Board`;
 
-  const issueCount = stats?.stats.issues ?? 0;
-  const totalItems = stats?.stats.totalItems ?? issuePage?.total ?? 0;
-
-  const pullRequestCount = stats?.stats.pullRequests ?? 0;
-  const completionRate = stats?.stats.completionRate ?? "0.00";
+  const isFiltered =
+    kind !== "all" || status !== "all" || Boolean(updatedFrom) || Boolean(updatedTo);
 
   const syncedAt = stats?.syncedAt ?? issuePage?.syncedAt ?? null;
   const nextSyncAt = stats?.nextSyncAt ?? null;
@@ -150,55 +155,98 @@ const StatsPage = async ({ searchParams }: StatsPageProps) => {
   };
 
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden">
+    <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={jsonLdScriptProps(breadcrumbSchema)}
       />
       <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScriptProps(statsSchema)} />
 
-      <div className="surface-grid pointer-events-none absolute inset-0 -z-10 opacity-[0.25]" />
+      <PageHero
+        title="Development,"
+        highlight="in the open."
+        lede="Every public issue and pull request on the VeriWorkly GitHub board, synced on our server and filtered here without hiding anything."
+        aside={
+          <div className="space-y-5">
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-base">
+              <span
+                aria-hidden="true"
+                className={`size-2.5 rounded-full ${syncedAt ? "bg-success" : "bg-foreground/25"}`}
+              />
+              <span className="font-semibold">
+                {syncedAt ? `Synced ${formatRelativeTime(syncedAt)}` : "Not synced yet"}
+              </span>
+              {nextSyncAt && (
+                <span className="text-muted">Next sync {formatAbsoluteTime(nextSyncAt)}</span>
+              )}
+            </p>
+            <Link
+              target="_blank"
+              href={projectUrl}
+              rel="noopener noreferrer"
+              className="group border-border hover:bg-card focus-visible:ring-accent/40 inline-flex h-12 items-center gap-2 rounded-full border px-6 text-base font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.97]"
+            >
+              View the board on GitHub
+              <ArrowUpRight
+                aria-hidden="true"
+                className="size-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+              />
+            </Link>
+          </div>
+        }
+      >
+        <StatsOverview stats={stats} />
+      </PageHero>
 
-      <div className="bg-accent/5 pointer-events-none absolute top-0 left-1/4 -z-10 h-150 w-150 rounded-full blur-[130px]" />
+      {issuePage ? (
+        <section aria-label="Project board" className="py-14 lg:py-20">
+          <div className={FRAME}>
+            <SectionHeading title="The board." className="mb-10" />
 
-      <Container className="relative pt-28 pb-20 lg:pt-36">
-        <StatsHero syncedAt={syncedAt} nextSyncAt={nextSyncAt} />
+            <StatsFilters
+              kind={kind}
+              status={status}
+              updatedTo={updatedTo}
+              updatedFrom={updatedFrom}
+            />
 
-        <StatsOverview
-          projectUrl={projectUrl}
-          totalItems={totalItems}
-          issueCount={issueCount}
-          projectName={projectName}
-          completionRate={completionRate}
-          pullRequestCount={pullRequestCount}
-        />
+            <StatsBoard
+              offset={offset}
+              issuePage={issuePage}
+              totalItems={issuePage.total}
+              isFiltered={isFiltered}
+            />
 
-        <StatsFilters kind={kind} status={status} updatedTo={updatedTo} updatedFrom={updatedFrom} />
-
-        <StatsBoard offset={offset} issuePage={issuePage} totalItems={totalItems} />
-
-        <StatsPagination
-          kind={kind}
-          status={status}
-          hasMore={hasMore}
-          updatedTo={updatedTo}
-          currentPage={currentPage}
-          updatedFrom={updatedFrom}
-        />
-
-        <section className="border-border/40 bg-card/30 mx-auto mt-12 max-w-3xl rounded-3xl border p-6 shadow-[0_1px_3px_rgba(0,0,0,0.01)] backdrop-blur-xs">
-          <h3 className="text-foreground font-sans text-sm font-bold tracking-tight">
-            About this sync
-          </h3>
-
-          <p className="text-muted mt-3 max-w-3xl font-sans text-[13px] leading-relaxed font-medium">
-            GitHub data is synced on the server, persisted as normalized rows, and served in
-            filtered slices so the frontend can render quickly without re-fetching the entire board
-            on every visit.
-          </p>
+            <StatsPagination
+              kind={kind}
+              status={status}
+              hasMore={hasMore}
+              updatedTo={updatedTo}
+              currentPage={currentPage}
+              updatedFrom={updatedFrom}
+            />
+          </div>
         </section>
-      </Container>
-    </div>
+      ) : stats ? (
+        <section aria-label="Project board" className="py-14 lg:py-20">
+          <div className={FRAME}>
+            <div className="bg-card rounded-3xl px-6 py-16 text-center sm:px-10">
+              <p className={TYPE.title}>The item list did not load.</p>
+              <p className="text-muted mx-auto mt-3 max-w-md text-base">
+                The totals above are current. Reload in a moment, or browse the items on GitHub.
+              </p>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      <PageSection
+        tone="card"
+        className="border-t"
+        title="How this board stays current."
+        lede="Our server syncs the GitHub board on a schedule and serves every filtered page from that copy, cached until the next sync."
+      />
+    </>
   );
 };
 

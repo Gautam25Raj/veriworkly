@@ -1,10 +1,9 @@
-import { CheckCircle2, XCircle, FileCode, ShieldCheck } from "lucide-react";
-
-import { GithubIcon } from "@veriworkly/ui";
+import { ArrowRight, Check, X } from "lucide-react";
 
 import { siteConfig } from "@/config/site";
 
-import { Reveal } from "@/components/marketing/Reveal";
+import { PageSection, TYPE } from "@/components/marketing/PageLayout";
+
 import {
   DISCLOSURE_STEPS,
   DISCLOSURE_IN_SCOPE,
@@ -12,176 +11,98 @@ import {
   DISCLOSURE_SAFE_HARBOUR,
 } from "../../data";
 
-export const ResponsibleDisclosureSection = () => {
-  const supportEmail = siteConfig.email;
+/*
+ * "Bug Bounty" and "24h SLA Guarantee" both came out of this section earlier. There is no
+ * bounty anywhere in the repository, and advertising one attracts researchers under a false
+ * premise. The badge also contradicted SECURITY.md, which says 24-48 hours.
+ */
 
-  const supportEmailHref = `mailto:${supportEmail}`;
-  const githubDiscussionsUrl = `${siteConfig.links.github}/discussions`;
+const linkClass =
+  "inline-flex min-h-12 items-center gap-2 rounded-full px-6 text-base font-semibold transition-[opacity,transform] duration-200 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2 focus-visible:ring-offset-accent focus-visible:outline-none active:scale-[0.97]";
 
-  return (
-    <section className="border-border/40 space-y-12 border-t pt-16">
-      <div className="max-w-2xl space-y-2">
-        {/*
-          "Bug Bounty" and "24h SLA Guarantee" both came out. There is no bounty
-          anywhere in the repository, and advertising one attracts researchers under a
-          false premise. The badge also contradicted SECURITY.md, which says 24-48
-          hours, and "Guarantee" is a word this page cannot support.
-        */}
-        <div className="flex items-center gap-2">
-          <span className="text-accent font-mono text-[10px] font-bold tracking-widest uppercase">
-            Responsible Disclosure
-          </span>
-
-          <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-            24-48h acknowledgement
-          </span>
-        </div>
-
-        <h2 className="text-foreground text-2xl font-bold tracking-tight sm:text-3xl">
-          Found a vulnerability? Here is what happens next
-        </h2>
-
-        <p className="text-muted text-xs leading-relaxed sm:text-sm">
-          Report it privately and we will work it through with you. We do not run a paid bug bounty,
-          so we cannot offer money — what we can offer is a fast, honest response and credit where
-          you want it.
-        </p>
-      </div>
-
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {DISCLOSURE_STEPS.map((step, idx) => {
-          const Icon = step.icon;
-
-          return (
-            <Reveal key={step.label} delay={idx * 0.06}>
-              <div className="border-border/60 bg-card/40 hover:border-accent/40 relative flex h-full flex-col justify-between rounded-2xl border p-6 backdrop-blur-sm transition-all duration-200">
-                <div className="space-y-3.5">
-                  <div className="flex items-center justify-between">
-                    <span className="bg-accent/10 text-accent ring-accent/20 flex size-9 items-center justify-center rounded-xl ring-1">
-                      <Icon className="size-4.5" />
-                    </span>
-
-                    <span className="text-muted font-mono text-xs font-bold">{step.step}</span>
-                  </div>
-
-                  <h3 className="text-foreground text-sm font-bold tracking-tight">{step.label}</h3>
-
-                  <p className="text-muted text-xs leading-relaxed">{step.detail}</p>
-                </div>
-              </div>
-            </Reveal>
-          );
-        })}
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Reveal>
-          <div className="bg-card/40 relative flex h-full flex-col justify-between overflow-hidden rounded-3xl border border-emerald-500/30 p-6 shadow-sm backdrop-blur-sm sm:p-7">
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="flex size-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20 dark:text-emerald-400">
-                  <CheckCircle2 className="size-4" />
-                </span>
-
-                <h4 className="text-foreground text-base font-bold">
-                  {DISCLOSURE_IN_SCOPE.category}
-                </h4>
-              </div>
-
-              <ul className="text-muted space-y-2.5 text-xs">
-                {DISCLOSURE_IN_SCOPE.items.map((item) => (
-                  <li key={item} className="flex items-start gap-2">
-                    <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-emerald-500" />
-
-                    <span className="text-foreground/90 leading-relaxed">{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </Reveal>
-
-        <Reveal delay={0.08}>
-          <div className="border-destructive/30 bg-card/40 relative flex h-full flex-col justify-between overflow-hidden rounded-3xl border p-6 shadow-sm backdrop-blur-sm sm:p-7">
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="bg-destructive/10 text-destructive ring-destructive/20 flex size-8 items-center justify-center rounded-lg ring-1">
-                  <XCircle className="size-4" />
-                </span>
-
-                <h4 className="text-foreground text-base font-bold">
-                  {DISCLOSURE_OUT_OF_SCOPE.category}
-                </h4>
-              </div>
-
-              <ul className="text-muted space-y-2.5 text-xs">
-                {DISCLOSURE_OUT_OF_SCOPE.items.map((item) => (
-                  <li key={item} className="flex items-start gap-2">
-                    <XCircle className="text-destructive mt-0.5 size-3.5 shrink-0" />
-
-                    <span className="text-muted leading-relaxed">{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </Reveal>
-      </div>
-
-      <Reveal>
-        <div className="rounded-3xl border border-emerald-500/25 bg-emerald-500/5 p-6 sm:p-7">
-          <div className="flex items-center gap-2">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20 dark:text-emerald-400">
-              <ShieldCheck className="size-4" />
-            </span>
-
-            <h4 className="text-foreground text-base font-bold">{DISCLOSURE_SAFE_HARBOUR.title}</h4>
-          </div>
-
-          <p className="text-muted mt-3 text-xs leading-relaxed sm:text-sm">
-            {DISCLOSURE_SAFE_HARBOUR.body}
-          </p>
-        </div>
-      </Reveal>
-
-      <div className="border-border/60 bg-card/40 flex flex-wrap items-center justify-between gap-4 rounded-2xl border p-6 backdrop-blur-sm">
-        <div className="space-y-1">
-          <h4 className="text-foreground text-sm font-bold">Ready to submit a security report?</h4>
-
-          <p className="text-muted text-xs">Goes straight to the maintainer, not a ticket queue.</p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <a
-            href={supportEmailHref}
-            className="bg-accent text-accent-foreground inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-semibold shadow-sm transition-opacity hover:opacity-90 active:scale-[0.97]"
+export const ResponsibleDisclosureSection = () => (
+  <>
+    <PageSection
+      id="disclosure"
+      tone="accent"
+      title="Found a vulnerability?"
+      lede="Report it privately and we will work it through with you. There is no paid bug bounty. What we offer is a fast, honest reply and credit where you want it."
+    >
+      <ol className="grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
+        {DISCLOSURE_STEPS.map((step) => (
+          <li
+            key={step.label}
+            className="reveal border-t-2 border-current/30 pt-5 first:border-current"
           >
-            <span>Email Security Report</span>
-          </a>
+            <h3 className="text-xl leading-snug font-bold tracking-tight">{step.label}</h3>
+            <p className="mt-3 text-base leading-7 opacity-85">{step.detail}</p>
+          </li>
+        ))}
+      </ol>
 
-          <a
-            target="_blank"
-            rel="noreferrer"
-            href="/.well-known/security.txt"
-            className="border-border/80 bg-background/70 text-muted hover:text-foreground inline-flex items-center gap-1.5 rounded-full border px-4 py-2.5 text-xs font-semibold transition-colors"
-          >
-            <FileCode className="size-3.5 text-emerald-500" />
-            <span>security.txt</span>
-          </a>
-
-          <a
-            target="_blank"
-            rel="noreferrer"
-            href={githubDiscussionsUrl}
-            className="border-border/80 bg-background/70 text-foreground hover:bg-card inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-xs font-semibold transition-colors"
-          >
-            <GithubIcon className="size-3.5" />
-            <span>Public Discussions</span>
-          </a>
-        </div>
+      <div className="mt-14 flex flex-wrap gap-3">
+        <a
+          href={`mailto:${siteConfig.email}`}
+          className={`${linkClass} bg-accent-foreground text-accent group`}
+        >
+          Email a security report
+          <ArrowRight
+            aria-hidden="true"
+            className="size-4 transition-transform duration-200 group-hover:translate-x-1"
+          />
+        </a>
+        <a
+          href="/.well-known/security.txt"
+          target="_blank"
+          rel="noreferrer"
+          className={`${linkClass} bg-current/10`}
+        >
+          security.txt
+        </a>
+        <a
+          href={`${siteConfig.links.github}/discussions`}
+          target="_blank"
+          rel="noreferrer"
+          className={`${linkClass} bg-current/10`}
+        >
+          Public discussions
+        </a>
       </div>
-    </section>
-  );
-};
+    </PageSection>
+
+    <PageSection
+      id="scope"
+      title="Where testing is welcome."
+      lede="Stay inside these lines, use only your own accounts and data, and your research is authorised."
+    >
+      <div className="grid gap-12 lg:grid-cols-2">
+        {[
+          { scope: DISCLOSURE_IN_SCOPE, Icon: Check, iconClass: "text-success" },
+          { scope: DISCLOSURE_OUT_OF_SCOPE, Icon: X, iconClass: "text-destructive" },
+        ].map(({ scope, Icon, iconClass }) => (
+          <div key={scope.category} className="reveal">
+            <h3 className="text-2xl font-bold tracking-tight">{scope.category}</h3>
+            <ul className="mt-6 space-y-1">
+              {scope.items.map((item) => (
+                <li
+                  key={item}
+                  className="border-border flex items-start gap-3 border-t py-3.5 text-base leading-7"
+                >
+                  <Icon aria-hidden="true" className={`mt-1.5 size-4 shrink-0 ${iconClass}`} />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+
+      <div className="reveal bg-card mt-16 grid gap-6 rounded-3xl p-6 sm:p-10 lg:grid-cols-[.6fr_1.4fr] lg:gap-12">
+        <h3 className={`text-balance ${TYPE.title}`}>{DISCLOSURE_SAFE_HARBOUR.title}</h3>
+        <p className="text-base leading-7">{DISCLOSURE_SAFE_HARBOUR.body}</p>
+      </div>
+    </PageSection>
+  </>
+);
 
 export default ResponsibleDisclosureSection;

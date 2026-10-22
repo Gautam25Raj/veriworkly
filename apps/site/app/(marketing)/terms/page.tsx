@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
 
-import { Code2, Coins, Scale, Sparkles, BookOpen, Database, FileCheck2 } from "lucide-react";
-
 import { siteConfig } from "@/config/site";
 
 import { jsonLdScriptProps } from "@/utils/json-ld";
 import { buildPageMetadata } from "@/utils/metadata";
 
+import { PageHero, PageClosing } from "@/components/marketing/PageLayout";
+
 import {
-  LegalHero,
+  LegalHeroMeta,
   termsSections,
   LegalSections,
-  LegalPageShell,
   LegalTopicsGrid,
   termsLastUpdated,
   LegalContactBanner,
@@ -53,44 +52,32 @@ export const metadata: Metadata = buildPageMetadata({
 
 const termsTopics: LegalTopic[] = [
   {
-    icon: FileCheck2,
-    title: "You Own Your Content",
-    badge: "100% Ownership",
+    title: "You own your content",
     description:
       "You retain full intellectual property ownership over your resumes, cover letters, portfolio content, and career facts. We only process it to run the Service you requested.",
   },
   {
-    icon: Sparkles,
-    title: "AI & ATS Output Is a Draft",
-    badge: "Human in the Loop",
+    title: "AI and ATS output is a draft",
     description:
       "AI bullet rewrites and ATS scores are designed to assist you in drafting faster. We do not guarantee interview or hiring outcomes; always review AI output before applying.",
   },
   {
-    icon: Database,
-    title: "Local-First Backup Ownership",
-    badge: "Offline Capable",
+    title: "Local-first backup ownership",
     description:
       "If you use the studio without logging in, your data lives solely in your browser. Export a JSON backup or create a free account to ensure you do not lose drafts if you clear cache.",
   },
   {
-    icon: Code2,
-    title: "Open-Source Core vs Hosted",
-    badge: "MIT License",
+    title: "Open-source core vs hosted",
     description:
       "Our document engine is MIT-licensed on GitHub for self-hosting. These Terms specifically govern using the hosted veriworkly.com platform and cloud features.",
   },
   {
-    icon: Coins,
-    title: "Transparent Pay-As-You-Go",
-    badge: "No Sneaky Re-bills",
+    title: "Transparent pay-as-you-go",
     description:
       "We do not lock document downloads behind recurring trial traps. AI credits are transparent pay-as-you-go and do not expire on active accounts.",
   },
   {
-    icon: Scale,
-    title: "Fair Use on Free Tiers",
-    badge: "Rate Limits",
+    title: "Fair use on free tiers",
     description:
       "Rate limits and scan quotas exist so the free tier stays fast, secure, and accessible for everyone. Automated scraping or bot abuse is strictly prohibited.",
   },
@@ -129,45 +116,39 @@ const TermsPage = () => {
       />
       <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScriptProps(termsSchema)} />
 
-      <LegalPageShell ambientGlowColor="blue">
-        <div className="border-border/40 relative flex flex-col gap-8 border-b pb-16">
-          <LegalHero
-            badgeDotClass="bg-accent"
-            badgeLabel="Terms of Service"
+      <PageHero
+        title="Terms of"
+        highlight="service."
+        lede="Simple, transparent guidelines for everyone. Clear expectations without corporate legalese: how our document studio, ATS scoring, AI credits, and open-source licensing operate together."
+        aside={
+          <LegalHeroMeta
             effectiveDate={termsEffectiveDate}
-            title="Simple, transparent guidelines for everyone."
-            description="Clear expectations without corporate legalese. Review how our document studio, ATS scoring, AI credits, and open-source licensing operate together."
-            primaryAction={{
-              label: "About the project",
-              href: "/about",
-            }}
-            secondaryAction={{
-              label: "Contact legal support",
-              href: "/contact",
-            }}
+            links={[
+              { label: "About the project", href: "/about" },
+              { label: "Contact legal support", href: "/contact" },
+            ]}
           />
+        }
+      />
 
-          <LegalTopicsGrid
-            columns={3}
-            topics={termsTopics}
-            label="Terms Highlights"
-            countLabel="6 Core Tenets"
-          />
-        </div>
+      <LegalTopicsGrid
+        title="The short version."
+        lede="Six points in plain words. The full terms follow."
+        topics={termsTopics}
+      />
 
-        <LegalSections sections={termsSections} />
+      <LegalSections sections={termsSections} />
 
-        <LegalContactBanner
-          secondaryActionIcon={BookOpen}
-          secondaryActionHref="/privacy"
-          secondaryActionText="Privacy Policy"
-          primaryActionEmail={siteConfig.email}
-          primaryActionText="Contact Legal Support"
-          tagline="Legal Clarifications & Questions"
-          title="Have questions about our Terms of Service?"
-          description="Reach out directly to our team for licensing clarifications or enterprise inquiries."
-        />
-      </LegalPageShell>
+      <LegalContactBanner
+        secondaryActionHref="/privacy"
+        secondaryActionText="Privacy Policy"
+        primaryActionEmail={siteConfig.email}
+        primaryActionText="Contact Legal Support"
+        title="Have questions about our Terms of Service?"
+        description="Reach out directly to our team for licensing clarifications or enterprise inquiries."
+      />
+
+      <PageClosing />
     </>
   );
 };

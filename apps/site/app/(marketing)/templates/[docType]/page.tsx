@@ -12,10 +12,9 @@ import { siteConfig } from "@/config/site";
 import { jsonLdScriptProps } from "@/utils/json-ld";
 import { buildPageMetadata } from "@/utils/metadata";
 
-import { Container } from "@veriworkly/ui";
+import { FRAME, PageHero, TYPE } from "@/components/marketing/PageLayout";
 
 import TemplateExplorer from "@/features/templates/TemplateExplorer";
-import TemplatesHeader from "@/features/templates/TemplatesHeader";
 
 type PageProps = {
   params: Promise<{ docType: string }>;
@@ -37,6 +36,8 @@ const FAMILY_DESCRIPTIONS: Record<string, string> = {
   "Branded Letter":
     "Distinctive letter systems for modern applicants who still need a credible PDF.",
 };
+
+const sentenceCase = (value: string) => value.charAt(0) + value.slice(1).toLowerCase();
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { docType } = await params;
@@ -88,6 +89,8 @@ const TemplatesByDocumentTypePage = async ({ params }: PageProps) => {
   if (!docTypeData || docTypeData.status !== "available") notFound();
 
   const templates = getTemplatesByDocumentType(docType);
+  const families = Array.from(new Set(templates.map((template) => template.family)));
+  const layouts = Array.from(new Set(templates.map((template) => template.layout)));
 
   const breadcrumbSchema = {
     "@context": "https://schema.org",
@@ -111,25 +114,51 @@ const TemplatesByDocumentTypePage = async ({ params }: PageProps) => {
         dangerouslySetInnerHTML={jsonLdScriptProps(breadcrumbSchema)}
       />
 
-      <Container className="space-y-10 pt-28 pb-16 lg:pt-36">
-        <Link
-          href="/templates"
-          className="inline-flex w-fit items-center gap-2 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          All templates
-        </Link>
+      <PageHero
+        before={
+          <Link
+            href="/templates"
+            className="text-muted hover:text-foreground group focus-visible:ring-accent/40 inline-flex items-center gap-2 rounded-full text-base font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <ArrowLeft
+              aria-hidden="true"
+              className="size-4 transition-transform duration-200 group-hover:-translate-x-1"
+            />
+            All templates
+          </Link>
+        }
+        // "Portfolio Website templates." runs to three lines at display size; the type
+        // name alone ("Portfolio") says the same thing.
+        title={sentenceCase(docTypeData.label.replace(/ website$/i, ""))}
+        highlight="templates."
+        lede={`${docTypeData.description} Every preview is the real export.`}
+        aside={
+          <dl className="grid grid-cols-3 gap-4">
+            {[
+              { value: templates.length, label: "ready to use" },
+              {
+                value: families.length,
+                label: families.length === 1 ? "style system" : "style systems",
+              },
+              {
+                value: layouts.length,
+                label: layouts.length === 1 ? "layout mode" : "layout modes",
+              },
+            ].map((figure) => (
+              <div key={figure.label} className="flex flex-col-reverse">
+                <dt className="text-muted mt-1 text-sm">{figure.label}</dt>
+                <dd className={TYPE.figure}>{figure.value}</dd>
+              </div>
+            ))}
+          </dl>
+        }
+      />
 
-        <div className="space-y-14">
-          <TemplatesHeader docType={docTypeData} templates={templates} />
-
-          <TemplateExplorer
-            docTypeLabel={docTypeData.label}
-            templates={templates}
-            familyDescriptions={FAMILY_DESCRIPTIONS}
-          />
+      <section aria-label={`${docTypeData.pluralLabel}`} className="py-14 lg:py-20">
+        <div className={FRAME}>
+          <TemplateExplorer templates={templates} familyDescriptions={FAMILY_DESCRIPTIONS} />
         </div>
-      </Container>
+      </section>
     </>
   );
 };

@@ -4,23 +4,20 @@ import React, { useState } from "react";
 
 import { ContactForm } from "./components/ContactForm";
 import { ContactFaqSidebar } from "./components/ContactFaqSidebar";
-import { ContactChannelsSection } from "./components/ContactChannelsSection";
 import { ContactSuccessModal, type ContactSuccessData } from "./components/ContactSuccessModal";
 
 export const ContactExperience = () => {
   const [successData, setSuccessData] = useState<ContactSuccessData | null>(null);
 
   return (
-    <div className="space-y-10">
-      <ContactChannelsSection />
-
-      <section className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+    <>
+      <div className="grid gap-12 lg:grid-cols-[1.25fr_.75fr] lg:gap-16">
         <ContactForm onSuccess={setSuccessData} />
         <ContactFaqSidebar />
-      </section>
+      </div>
 
       <ContactSuccessModal data={successData} onClose={() => setSuccessData(null)} />
-    </div>
+    </>
   );
 };
 

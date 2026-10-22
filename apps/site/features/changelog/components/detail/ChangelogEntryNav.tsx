@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
+
+import { FRAME, TYPE } from "@/components/marketing/PageLayout";
 
 import { changelogEntryHref } from "@/features/changelog/utils/changelog-utils";
 import { type ChangelogIndexItem } from "@/features/changelog/services/changelog-backend";
 
 const cellClass =
-  "border-border/40 bg-card/30 hover:border-border/60 hover:bg-card/50 flex flex-col gap-1.5 rounded-2xl border p-4 transition-colors";
+  "group bg-background focus-visible:ring-accent/40 flex flex-col gap-3 rounded-3xl p-6 transition-transform duration-200 hover:-translate-y-1 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.99] sm:p-8";
 
 const ChangelogEntryNav = ({
   older,
@@ -13,48 +15,57 @@ const ChangelogEntryNav = ({
 }: {
   older: ChangelogIndexItem | null;
   newer: ChangelogIndexItem | null;
-}) => {
-  if (!older && !newer) return null;
-
-  return (
-    <nav aria-label="Adjacent releases" className="mt-12 grid gap-4 sm:grid-cols-2">
+}) => (
+  <nav aria-label="Adjacent releases" className="bg-card border-border border-y py-14 lg:py-16">
+    <div className={`${FRAME} grid gap-4 sm:grid-cols-2`}>
       {older ? (
-        <Link
-          className={cellClass}
-          href={changelogEntryHref(older.id)}
-          aria-label={`Previous release: VeriWorkly v${older.version} - ${older.title}`}
-        >
-          <span className="text-muted flex items-center gap-1 font-mono text-[10px] font-bold tracking-widest uppercase">
-            <ChevronLeft className="h-3 w-3" aria-hidden="true" />
+        <Link className={cellClass} href={changelogEntryHref(older.id)}>
+          <span className="text-muted flex items-center gap-2 text-base">
+            <ArrowLeft
+              aria-hidden="true"
+              className="size-4 transition-transform duration-200 group-hover:-translate-x-1"
+            />
             Previous release
           </span>
-
-          <span className="text-foreground font-mono text-sm font-bold">v{older.version}</span>
-
-          <span className="text-muted truncate text-xs">{older.title}</span>
+          <span className={TYPE.figure}>v{older.version}</span>
+          <span className="text-muted line-clamp-2 text-base">{older.title}</span>
         </Link>
       ) : (
         <span aria-hidden="true" />
       )}
 
-      {newer && (
+      {newer ? (
         <Link
+          className={`${cellClass} sm:items-end sm:text-right`}
           href={changelogEntryHref(newer.id)}
-          className={`${cellClass} sm:text-right`}
-          aria-label={`Next release: VeriWorkly v${newer.version} - ${newer.title}`}
         >
-          <span className="text-muted flex items-center gap-1 font-mono text-[10px] font-bold tracking-widest uppercase sm:justify-end">
+          <span className="text-muted flex items-center gap-2 text-base">
             Next release
-            <ChevronRight className="h-3 w-3" aria-hidden="true" />
+            <ArrowRight
+              aria-hidden="true"
+              className="size-4 transition-transform duration-200 group-hover:translate-x-1"
+            />
           </span>
-
-          <span className="text-foreground font-mono text-sm font-bold">v{newer.version}</span>
-
-          <span className="text-muted truncate text-xs">{newer.title}</span>
+          <span className={TYPE.figure}>v{newer.version}</span>
+          <span className="text-muted line-clamp-2 text-base">{newer.title}</span>
+        </Link>
+      ) : (
+        <Link className={`${cellClass} sm:items-end sm:text-right`} href="/roadmap">
+          <span className="text-muted flex items-center gap-2 text-base">
+            This is the newest release
+          </span>
+          <span className={TYPE.figure}>What&apos;s next</span>
+          <span className="text-accent flex items-center gap-2 text-base font-semibold">
+            See the roadmap
+            <ArrowRight
+              aria-hidden="true"
+              className="size-4 transition-transform duration-200 group-hover:translate-x-1"
+            />
+          </span>
         </Link>
       )}
-    </nav>
-  );
-};
+    </div>
+  </nav>
+);
 
 export default ChangelogEntryNav;

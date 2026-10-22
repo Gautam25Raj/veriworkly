@@ -1,150 +1,88 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 
-import { COMPETITORS } from "../../data";
+import { PageSection } from "@/components/marketing/PageLayout";
 
-export const CompareQuickMatrix = () => {
-  return (
-    <section className="space-y-6">
-      <div className="flex flex-col gap-2">
-        <span className="text-accent font-mono text-[10px] font-bold tracking-widest uppercase">
-          Quick Comparison Table
-        </span>
+import MatrixValueCell from "../shared/MatrixValueCell";
+import CompareCaveatNote from "../shared/CompareCaveatNote";
 
-        <h2 className="text-foreground text-2xl font-bold tracking-tight sm:text-3xl">
-          Compare all 6 platforms at a glance
-        </h2>
+import { COMPETITORS, SNAPSHOT_ROWS, VERIWORKLY_MATRIX, VERIWORKLY_PRICE } from "../../data";
 
-        <p className="text-muted max-w-2xl text-sm leading-relaxed">
-          See the key rules, download limits, and starting prices side-by-side.
-        </p>
-      </div>
+/**
+ * All seven tools in one table. Every cell comes from the competitor data, the same values each
+ * comparison page shows: this table used to keep its own hand-typed copy, which had drifted
+ * (it listed one monthly plan as a one-time price).
+ */
+const CompareQuickMatrix = () => (
+  <PageSection
+    id="table"
+    tone="card"
+    title="All seven at a glance."
+    lede="The rules that decide whether you can finish an application on a free plan, plus the starting price."
+  >
+    <div
+      tabIndex={0}
+      role="region"
+      aria-label="Resume builder comparison table, scrollable"
+      className="border-border bg-background focus-visible:ring-accent/40 reveal overflow-x-auto rounded-3xl border focus-visible:ring-2 focus-visible:outline-none"
+    >
+      <table className="w-full min-w-260 border-collapse text-left">
+        <caption className="sr-only">
+          VeriWorkly compared with {COMPETITORS.map((c) => c.name).join(", ")}
+        </caption>
 
-      <div className="border-border/60 bg-card/40 overflow-hidden rounded-2xl border shadow-md backdrop-blur-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-190 border-collapse text-left text-xs sm:text-sm">
-            <caption className="sr-only">
-              Quick comparison of VeriWorkly against Rezi, Teal, Kickresume, Novoresume, Zety, and
-              Enhancv
-            </caption>
+        <thead>
+          <tr className="border-border border-b">
+            <th scope="col" className="text-muted px-6 py-5 text-sm font-semibold">
+              Builder
+            </th>
+            {SNAPSHOT_ROWS.map((row) => (
+              <th key={row.key} scope="col" className="text-muted px-5 py-5 text-sm font-semibold">
+                {row.label}
+              </th>
+            ))}
+            <th scope="col" className="text-muted px-6 py-5 text-sm font-semibold">
+              Price
+            </th>
+          </tr>
+        </thead>
 
-            <thead>
-              <tr className="border-border/60 bg-muted/4 text-muted border-b font-mono text-[10px] font-bold tracking-wider uppercase sm:text-[11px]">
-                <th className="p-4 sm:p-5">Platform</th>
-                <th className="p-4 sm:p-5">Sign-Up Needed</th>
-                <th className="p-4 sm:p-5">Free PDF Downloads</th>
-                <th className="p-4 sm:p-5">Watermarks</th>
-                <th className="p-4 sm:p-5">Job-Post ATS Match</th>
-                <th className="p-4 sm:p-5">Online Portfolio</th>
-                <th className="p-4 sm:p-5">Starting Price</th>
-                <th className="p-4 text-right sm:p-5">Details</th>
-              </tr>
-            </thead>
+        <tbody>
+          <tr className="bg-accent/5 align-top">
+            <th scope="row" className="text-accent px-6 py-5 text-left text-lg font-bold">
+              VeriWorkly
+            </th>
+            {SNAPSHOT_ROWS.map((row) => (
+              <td key={row.key} className="px-5 py-5">
+                <MatrixValueCell value={VERIWORKLY_MATRIX[row.key]} emphasize />
+              </td>
+            ))}
+            <td className="px-6 py-5 text-sm leading-6 font-bold">{VERIWORKLY_PRICE}</td>
+          </tr>
 
-            <tbody className="divide-border/40 divide-y">
-              <tr className="bg-accent/6 font-medium transition-colors">
-                <td className="text-foreground flex items-center gap-2 p-4 font-bold sm:p-5">
-                  <span className="bg-accent size-2.5 animate-pulse rounded-full" />
-                  <span className="text-base">VeriWorkly</span>
+          {COMPETITORS.map((competitor) => (
+            <tr key={competitor.id} className="border-border border-t align-top">
+              <th scope="row" className="px-6 py-5 text-left">
+                <Link
+                  href={`/compare/${competitor.id}`}
+                  className="hover:text-accent focus-visible:ring-accent/40 rounded text-lg font-bold underline-offset-4 transition-colors duration-200 hover:underline focus-visible:ring-2 focus-visible:outline-none"
+                >
+                  {competitor.name}
+                </Link>
+              </th>
+              {SNAPSHOT_ROWS.map((row) => (
+                <td key={row.key} className="px-5 py-5">
+                  <MatrixValueCell value={competitor.matrix[row.key]} />
                 </td>
-
-                <td className="p-4 font-semibold text-emerald-600 sm:p-5 dark:text-emerald-400">
-                  No login needed
-                </td>
-
-                <td className="p-4 font-semibold text-emerald-600 sm:p-5 dark:text-emerald-400">
-                  Unlimited PDF, DOCX, MD
-                </td>
-
-                <td className="p-4 font-semibold text-emerald-600 sm:p-5 dark:text-emerald-400">
-                  Documents: No Watermark
-                </td>
-
-                <td className="text-foreground p-4 font-semibold sm:p-5">Matches Target Job</td>
-
-                <td className="p-4 font-semibold text-emerald-600 sm:p-5 dark:text-emerald-400">
-                  Free core, paid premium
-                </td>
-
-                <td className="text-accent p-4 font-mono font-bold sm:p-5">$0 Free Core</td>
-
-                <td className="p-4 text-right sm:p-5">
-                  <span className="bg-accent/15 text-accent rounded-md px-2.5 py-1 text-[11px] font-bold">
-                    You Are Here
-                  </span>
-                </td>
-              </tr>
-
-              {COMPETITORS.map((comp) => (
-                <tr key={comp.id} className="hover:bg-muted/3 transition-colors">
-                  <td className="text-foreground flex items-center gap-2.5 p-4 font-semibold sm:p-5">
-                    <span
-                      className="size-2.5 rounded-full"
-                      style={{ backgroundColor: comp.color }}
-                    />
-
-                    <span className="text-sm">{comp.name}</span>
-                  </td>
-
-                  <td className="text-muted p-4 sm:p-5">
-                    <span className="text-destructive/90 font-medium">Required</span>
-                  </td>
-
-                  <td className="text-muted p-4 sm:p-5">
-                    {comp.id === "rezi" && "Capped (3 downloads)"}
-                    {comp.id === "teal" && "Unlimited PDF"}
-                    {comp.id === "kickresume" && "Unlimited with free options"}
-                    {comp.id === "novoresume" && "1-page PDF only"}
-                    {comp.id === "zety" && "Plain text only (.txt)"}
-                    {comp.id === "enhancv" && "Watermarked trial"}
-                  </td>
-
-                  <td className="text-muted p-4 sm:p-5">
-                    {comp.id === "enhancv" ? (
-                      <span className="text-destructive/90 font-medium">Watermarked</span>
-                    ) : (
-                      "Clean"
-                    )}
-                  </td>
-
-                  <td className="text-muted p-4 sm:p-5">
-                    {comp.id === "novoresume"
-                      ? "General completeness only"
-                      : comp.id === "zety"
-                        ? "Basic formatting"
-                        : "Included"}
-                  </td>
-
-                  <td className="text-muted p-4 sm:p-5">
-                    {comp.id === "kickresume" ? "Included (Paid themes)" : "No"}
-                  </td>
-
-                  <td className="text-muted p-4 font-mono text-xs sm:p-5">
-                    {comp.id === "rezi" && "$29/mo or $149"}
-                    {comp.id === "teal" && "$13/7d or $29/30d"}
-                    {comp.id === "kickresume" && "$24/mo or $96/yr"}
-                    {comp.id === "novoresume" && "$23.99 one-time"}
-                    {comp.id === "zety" && "$1.95 trial → $25.95/4wks"}
-                    {comp.id === "enhancv" && "$39/mo or $99/6mo"}
-                  </td>
-
-                  <td className="p-4 text-right sm:p-5">
-                    <Link
-                      href={`/compare/${comp.id}`}
-                      className="text-accent inline-flex items-center gap-1 text-xs font-semibold hover:underline"
-                    >
-                      Compare
-                      <ArrowRight className="size-3" />
-                    </Link>
-                  </td>
-                </tr>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-  );
-};
+              <td className="px-6 py-5 text-sm leading-6 font-medium">{competitor.pricingModel}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <CompareCaveatNote className="mt-6" />
+  </PageSection>
+);
 
 export default CompareQuickMatrix;

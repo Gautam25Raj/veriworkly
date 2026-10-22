@@ -1,4 +1,5 @@
 import { fetchApiData, ApiRequestError } from "@/utils/fetchApiData";
+import { siteConfig } from "@/config/site";
 
 /**
  * One week. The changelog only changes when a release ships, and every release ships
@@ -125,16 +126,66 @@ function parsePrRefs(raw: unknown): ChangelogPrRef[] | undefined {
     .filter((entry): entry is ChangelogPrRef => entry !== null);
 }
 
-function normalizeEntry(entry: ChangelogEntry): ChangelogEntry {
+/**
+ * The backend parses GitHub release bodies line by line, so markdown structure leaks into the
+ * entries: `---` rules arrive as a summary or glued to the last bullet, the "Highlights" list
+ * repeats, and the release's own "**#191** — [Feature] …" PR list lands in `added`. Cleaned
+ * here, once, so the listing and the detail page both read tidy data.
+ */
+const RULE_LINE = /^\s*[-*_]{3,}\s*$/;
+const TRAILING_RULE = /\s+[-*_]{3,}\s*$/;
+const PR_LINE = /^\*{0,2}#(\d+)\*{0,2}\s+[—–-]\s+`?(.+?)`?(?:\s+by\s+@[\w-]+)?$/;
+
+function cleanText(text: string) {
+  return text
+    .split("\n")
+    .filter((line) => !RULE_LINE.test(line))
+    .join("\n")
+    .replace(TRAILING_RULE, "")
+    .trim();
+}
+
+export function normalizeEntry(entry: ChangelogEntry): ChangelogEntry {
+  const prRefs = parsePrRefs(entry.prRefs) ?? [];
+  const known = new Set(prRefs.map((pr) => pr.number));
+
+  const clean = (items: string[] | undefined) => {
+    const kept = new Set<string>();
+
+    for (const raw of items ?? []) {
+      const item = cleanText(raw);
+      const pr = PR_LINE.exec(item);
+
+      if (pr) {
+        const number = Number(pr[1]);
+
+        if (!known.has(number)) {
+          known.add(number);
+          prRefs.push({
+            number,
+            title: pr[2]!.trim(),
+            url: `${siteConfig.links.github}/pull/${number}`,
+          });
+        }
+      } else if (item) kept.add(item);
+    }
+
+    return [...kept];
+  };
+
+  const summary = entry.summary ? cleanText(entry.summary) : "";
+
   return {
     ...entry,
-    tags: entry.tags ?? [],
-    added: entry.added ?? [],
-    improved: entry.improved ?? [],
-    fixed: entry.fixed ?? [],
-    breaking: entry.breaking ?? [],
-    security: entry.security ?? [],
-    prRefs: parsePrRefs(entry.prRefs),
+    summary: summary || null,
+    // "auto-synced" marks rows the release sync owns; it is bookkeeping, not a topic.
+    tags: (entry.tags ?? []).filter((tag) => tag !== "auto-synced"),
+    added: clean(entry.added),
+    improved: clean(entry.improved),
+    fixed: clean(entry.fixed),
+    breaking: clean(entry.breaking),
+    security: clean(entry.security),
+    prRefs,
   };
 }
 

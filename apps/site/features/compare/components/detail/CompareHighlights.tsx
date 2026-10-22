@@ -1,6 +1,4 @@
-import { Sparkles, AlertTriangle, ArrowRightLeft, UserCheck } from "lucide-react";
-
-import { Card } from "@veriworkly/ui";
+import { PageSection, TYPE } from "@/components/marketing/PageLayout";
 
 import { type Competitor } from "../../types";
 
@@ -9,84 +7,49 @@ interface CompareHighlightsProps {
 }
 
 export const CompareHighlights = ({ competitor }: CompareHighlightsProps) => {
+  const notes = [
+    { title: `What ${competitor.name} does well`, body: competitor.standoutFeature },
+    { title: "Good to know", body: competitor.knownLimitation },
+    { title: "Why people switch", body: competitor.whySwitch },
+  ];
+
   return (
-    <section className="space-y-6">
-      <div className="flex flex-col gap-2">
-        <span className="text-accent font-mono text-[10px] font-bold tracking-widest uppercase">
-          Key Takeaways
-        </span>
+    <PageSection
+      tone="card"
+      title="Where each one wins."
+      lede={`${competitor.name} is a good tool. Here is what it does well, where it limits you, and who should pick which.`}
+    >
+      <div className="grid gap-12 lg:grid-cols-[1.1fr_.9fr] lg:gap-16">
+        <dl>
+          {notes.map((note) => (
+            <div
+              key={note.title}
+              className="border-border reveal border-t py-6 first:border-t-0 first:pt-0"
+            >
+              <dt className={TYPE.title}>{note.title}</dt>
+              <dd className="text-muted mt-2 max-w-xl text-base leading-7 text-pretty">
+                {note.body}
+              </dd>
+            </div>
+          ))}
+        </dl>
 
-        <h2 className="text-foreground text-2xl font-bold tracking-tight sm:text-3xl">
-          Strengths, trade-offs, and who each tool is best for
-        </h2>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Card className="space-y-3 border-emerald-500/20 bg-emerald-500/3 p-6 backdrop-blur-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg">
-          <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/15 ring-1 ring-emerald-500/30">
-              <Sparkles className="size-4" aria-hidden="true" />
-            </span>
-
-            <p className="font-mono text-[11px] font-bold tracking-wider uppercase">
-              What {competitor.name} Does Well
+        <div className="grid content-start gap-4">
+          <div data-ui className="bg-background reveal rounded-3xl p-7 lg:p-8">
+            <h3 className={TYPE.title}>Choose {competitor.name} if</h3>
+            <p className="text-muted mt-3 text-base leading-7 text-pretty">
+              {competitor.bestForCompetitor}
             </p>
           </div>
-
-          <p className="text-muted text-sm leading-relaxed">{competitor.standoutFeature}</p>
-        </Card>
-
-        <Card className="space-y-3 border-amber-500/20 bg-amber-500/3 p-6 backdrop-blur-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg">
-          <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-amber-500/15 ring-1 ring-amber-500/30">
-              <AlertTriangle className="size-4" aria-hidden="true" />
-            </span>
-
-            <p className="font-mono text-[11px] font-bold tracking-wider uppercase">Good to Know</p>
-          </div>
-
-          <p className="text-muted text-sm leading-relaxed">{competitor.knownLimitation}</p>
-        </Card>
-
-        <Card className="border-accent/30 bg-accent/3 space-y-3 p-6 backdrop-blur-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg sm:col-span-2 lg:col-span-1">
-          <div className="text-accent flex items-center gap-2">
-            <span className="bg-accent/15 ring-accent/30 flex size-7 items-center justify-center rounded-lg ring-1">
-              <ArrowRightLeft className="size-4" aria-hidden="true" />
-            </span>
-
-            <p className="font-mono text-[11px] font-bold tracking-wider uppercase">
-              Why People Switch to VeriWorkly
+          <div data-ui className="bg-foreground text-background reveal rounded-3xl p-7 lg:p-8">
+            <h3 className={TYPE.title}>Choose VeriWorkly if</h3>
+            <p className="mt-3 text-base leading-7 text-pretty opacity-80">
+              {competitor.bestForVeriworkly}
             </p>
           </div>
-
-          <p className="text-muted text-sm leading-relaxed">{competitor.whySwitch}</p>
-        </Card>
-      </div>
-
-      <div className="border-border/60 bg-card/40 grid gap-6 rounded-2xl border p-6 sm:grid-cols-2">
-        <div className="border-border/40 space-y-2 sm:border-r sm:pr-6">
-          <div className="text-foreground flex items-center gap-2 text-sm font-semibold">
-            <UserCheck className="text-muted size-4" />
-            <span>Choose {competitor.name} if:</span>
-          </div>
-
-          <p className="text-muted text-xs leading-relaxed sm:text-sm">
-            {competitor.bestForCompetitor}
-          </p>
-        </div>
-
-        <div className="space-y-2 sm:pl-2">
-          <div className="text-accent flex items-center gap-2 text-sm font-semibold">
-            <UserCheck className="size-4" />
-            <span>Choose VeriWorkly if:</span>
-          </div>
-
-          <p className="text-muted text-xs leading-relaxed sm:text-sm">
-            {competitor.bestForVeriworkly}
-          </p>
         </div>
       </div>
-    </section>
+    </PageSection>
   );
 };
 

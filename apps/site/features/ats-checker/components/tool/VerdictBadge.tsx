@@ -5,17 +5,17 @@ const CONFIG: Record<AtsVerdict, { label: string; className: string; icon: typeo
   {
     strong: {
       label: "Strong: ready to send",
-      className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+      className: "bg-success/10 text-success",
       icon: CheckCircle2,
     },
     "needs-work": {
       label: "Needs work before you apply",
-      className: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+      className: "bg-warning/10 text-warning",
       icon: TriangleAlert,
     },
     weak: {
       label: "Weak: likely to be filtered out",
-      className: "bg-red-500/10 text-red-700 dark:text-red-400",
+      className: "bg-destructive/10 text-destructive",
       icon: XCircle,
     },
   };

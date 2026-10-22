@@ -14,16 +14,16 @@ import type { OAuthScopeItem } from "../types";
  */
 export const OAUTH_SCOPES: OAuthScopeItem[] = [
   {
-    provider: "GitHub OAuth 2.0",
+    provider: "GitHub sign-in",
     scope: "Better Auth defaults (no elevated scopes requested)",
-    accessType: "Sign-in & public data",
+    accessType: "OAuth 2.0, public data only",
     purpose:
       "Signs you in, and imports public repository names, stars, descriptions, and primary languages for your profile projects. Only your own connected account is importable on the free tier.",
     restrictions:
       "We request no repository write scope, no commit access, no SSH key access, and no organization admin permissions. GitHub shows you the exact scopes on its own consent screen — that screen, not this table, is the authority.",
   },
   {
-    provider: "LinkedIn Import",
+    provider: "LinkedIn import",
     scope: "Text you paste or upload yourself",
     accessType: "Server-side, AI-parsed",
     purpose:
@@ -32,9 +32,9 @@ export const OAUTH_SCOPES: OAuthScopeItem[] = [
       "We never ask for your LinkedIn password, never scrape, and make no automated requests to LinkedIn on your behalf. Be aware that parsing happens on our servers: the text you paste is sent to a third-party AI model to be structured, then discarded. It is not stored and not used for training.",
   },
   {
-    provider: "Better Auth Identity",
-    scope: "Email OTP Verification",
-    accessType: "Passwordless Token",
+    provider: "Email sign-in",
+    scope: "A one-time passcode sent to your email",
+    accessType: "Passwordless, via Better Auth",
     purpose:
       "Authenticates account ownership via short-lived numeric one-time passcodes delivered to your email.",
     restrictions:

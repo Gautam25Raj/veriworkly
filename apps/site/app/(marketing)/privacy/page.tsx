@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
-import { Lock, Globe, BarChart3, EyeOff, ShieldCheck } from "lucide-react";
 
 import { siteConfig } from "@/config/site";
 
 import { jsonLdScriptProps } from "@/utils/json-ld";
 import { buildPageMetadata } from "@/utils/metadata";
 
+import { PageHero, PageClosing } from "@/components/marketing/PageLayout";
+
 import {
-  LegalHero,
+  LegalHeroMeta,
   LegalSections,
-  LegalPageShell,
   LegalTopicsGrid,
-  privacySections,
+  privacySections as SECTIONS,
   LegalContactBanner,
   privacyLastUpdated,
   privacyEffectiveDate,
@@ -52,30 +52,22 @@ export const metadata: Metadata = buildPageMetadata({
 
 const privacyTopics: LegalTopic[] = [
   {
-    icon: Lock,
-    title: "Local-First Browser Storage",
-    badge: "Client-Side First",
+    title: "Local-first browser storage",
     description:
       "Your documents and Master Profile facts are written to your browser's private local storage (LocalStorage) first. Nothing is uploaded to our servers unless you log in, sync, or trigger a cloud feature.",
   },
   {
-    icon: Globe,
-    title: "Opt-In Portfolio Publishing",
-    badge: "Public by Choice",
+    title: "Opt-in portfolio publishing",
     description:
       "Published portfolios and share links are only public because you choose to publish them. Password protection and one-click unpublishing are available at any time from your dashboard.",
   },
   {
-    icon: BarChart3,
-    title: "Aggregate-Only Analytics",
-    badge: "No Cookie Trackers",
+    title: "Aggregate-only analytics",
     description:
       "Portfolio view counts and referrer stats are tracked purely in aggregate, without cookies and without building individual tracking profiles of your visitors.",
   },
   {
-    icon: EyeOff,
-    title: "Zero Selling & Zero Ad Trackers",
-    badge: "100% Private",
+    title: "Zero selling, zero ad trackers",
     description:
       "We never sell your data to data brokers or recruiters. We do not run third-party advertising trackers or session recording heatmaps on your private documents.",
   },
@@ -118,45 +110,39 @@ const PrivacyPage = () => {
         dangerouslySetInnerHTML={jsonLdScriptProps(privacySchema)}
       />
 
-      <LegalPageShell ambientGlowColor="emerald">
-        <div className="border-border/40 relative flex flex-col gap-8 border-b pb-16">
-          <LegalHero
-            badgeLabel="Privacy Policy"
-            badgeDotClass="bg-emerald-500"
+      <PageHero
+        title="Privacy"
+        highlight="policy."
+        lede="Your career credentials belong to you. We built VeriWorkly on a foundational principle: you can write, format, and download your resumes without ever uploading your personal data to a remote database."
+        aside={
+          <LegalHeroMeta
             effectiveDate={privacyEffectiveDate}
-            title="Your career credentials belong to you."
-            description="We built VeriWorkly on a foundational principle: you can write, format, and download your resumes without ever uploading your personal data to a remote database."
-            primaryAction={{
-              label: "Read security architecture",
-              href: "/security",
-            }}
-            secondaryAction={{
-              label: "Contact our Grievance Officer",
-              href: "/contact",
-            }}
+            links={[
+              { label: "Read security architecture", href: "/security" },
+              { label: "Contact our Grievance Officer", href: "/contact" },
+            ]}
           />
+        }
+      />
 
-          <LegalTopicsGrid
-            columns={4}
-            topics={privacyTopics}
-            label="Executive Summary"
-            countLabel="4 Key Pillars"
-          />
-        </div>
+      <LegalTopicsGrid
+        title="The short version."
+        lede="Four commitments in plain words. The full policy follows."
+        topics={privacyTopics}
+      />
 
-        <LegalSections sections={privacySections} />
+      <LegalSections sections={SECTIONS} />
 
-        <LegalContactBanner
-          secondaryActionHref="/security"
-          secondaryActionIcon={ShieldCheck}
-          secondaryActionText="Security Overview"
-          tagline="Privacy Inquiries & GDPR Requests"
-          title="Have questions about your data privacy?"
-          primaryActionText="Contact our Grievance Officer"
-          primaryActionEmail={siteConfig.legalContact.email}
-          description={`Write to ${siteConfig.legalContact.name}, our named ${siteConfig.legalContact.role}, for data exports, deletions, or anything in this policy that is unclear.`}
-        />
-      </LegalPageShell>
+      <LegalContactBanner
+        secondaryActionHref="/security"
+        secondaryActionText="Security Overview"
+        title="Have questions about your data privacy?"
+        primaryActionText="Contact our Grievance Officer"
+        primaryActionEmail={siteConfig.legalContact.email}
+        description={`Write to ${siteConfig.legalContact.name}, our named ${siteConfig.legalContact.role}, for data exports, deletions, or anything in this policy that is unclear.`}
+      />
+
+      <PageClosing />
     </>
   );
 };

@@ -2,39 +2,33 @@ import type { ExportFormatItem } from "../types";
 
 export const EXPORT_FORMATS: ExportFormatItem[] = [
   {
-    ext: "PDF",
+    ext: "pdf",
     name: "Vector PDF",
-    desc: "Compiled client-side with selectable text and embedded fonts.",
-    badge: "Most Popular",
+    desc: "Compiled in your browser, with selectable text and embedded fonts.",
   },
   {
-    ext: "DOCX",
+    ext: "docx",
     name: "Microsoft Word",
-    desc: "Native Word format for corporate recruiters and agency portals.",
-    badge: "Recruiter Friendly",
+    desc: "Native Word format for recruiters and agency portals.",
   },
   {
-    ext: "MD",
+    ext: "md",
     name: "Markdown",
-    desc: "Plaintext structured format for developer portfolios and READMEs.",
-    badge: "Developer Favorite",
+    desc: "Structured plain text for developer portfolios and READMEs.",
   },
   {
-    ext: "HTML",
+    ext: "html",
     name: "Clean HTML",
-    desc: "Standalone semantic web format ready to embed anywhere.",
-    badge: "Web Ready",
+    desc: "A standalone, semantic web page ready to embed anywhere.",
   },
   {
-    ext: "JSON",
+    ext: "json",
     name: "JSON",
-    desc: "Standardized JSON schema backup for portable career data.",
-    badge: "Open Standard",
+    desc: "A portable backup of your career data in an open schema.",
   },
   {
-    ext: "TXT",
-    name: "Plain Text",
-    desc: "Clean ASCII text stream for simple legacy application forms.",
-    badge: "Universal",
+    ext: "txt",
+    name: "Plain text",
+    desc: "A clean text stream for older application forms.",
   },
 ];

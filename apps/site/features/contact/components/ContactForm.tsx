@@ -3,8 +3,6 @@ import { AlertCircle, ArrowRight, LoaderCircle } from "lucide-react";
 
 import { fetchApiData } from "@/utils/fetchApiData";
 
-import { Reveal } from "@/components/marketing/Reveal";
-
 import { ContactFloatingField } from "./ContactFloatingField";
 import type { ContactSuccessData } from "./ContactSuccessModal";
 
@@ -20,12 +18,12 @@ const FIELD_LIMITS = {
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 const TOPIC_SUGGESTIONS = [
-  "Resume & Cover Letters",
-  "AI Credits & Billing",
-  "Portfolio Website",
-  "Bug Report",
-  "Feature Idea",
-  "General Question",
+  "Resumes and cover letters",
+  "AI credits and billing",
+  "Portfolio website",
+  "Bug report",
+  "Feature idea",
+  "General question",
 ];
 
 interface ContactFormProps {
@@ -136,29 +134,16 @@ export const ContactForm = ({ onSuccess }: ContactFormProps) => {
   };
 
   return (
-    <Reveal className="border-border/60 bg-card/40 relative rounded-3xl border p-6 shadow-lg backdrop-blur-sm sm:p-8">
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <span className="bg-accent size-2 animate-pulse rounded-full" />
-          <span className="text-accent font-mono text-[10px] font-bold tracking-widest uppercase">
-            Send a Direct Note
-          </span>
-        </div>
-
-        <h2 className="text-foreground text-2xl font-bold tracking-tight">How can we help you?</h2>
-
-        <p className="text-muted text-xs leading-relaxed sm:text-sm">
-          Fill out the quick form below. Every note reaches our core engineering and support team
-          directly.
+    <div
+      id="message"
+      className="bg-background relative scroll-mt-28 rounded-3xl p-6 sm:p-8 lg:p-10"
+    >
+      <div role="group" aria-labelledby="contact-topic-label">
+        <p id="contact-topic-label" className="text-muted text-sm font-semibold">
+          What is it about? (optional)
         </p>
-      </div>
 
-      <div className="mt-6 space-y-2">
-        <span className="text-muted block font-mono text-[10px] font-bold tracking-widest uppercase">
-          Select a topic (optional):
-        </span>
-
-        <div className="flex flex-wrap gap-1.5 sm:gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           {TOPIC_SUGGESTIONS.map((topic) => {
             const isSelected = selectedTopic === topic || subject === topic;
 
@@ -166,11 +151,12 @@ export const ContactForm = ({ onSuccess }: ContactFormProps) => {
               <button
                 key={topic}
                 type="button"
+                aria-pressed={isSelected}
                 onClick={() => handleSelectTopic(topic)}
-                className={`cursor-pointer rounded-full px-3 py-1 text-xs font-medium transition-all duration-200 ${
+                className={`focus-visible:ring-accent/40 min-h-10 cursor-pointer rounded-full px-4 text-sm font-semibold transition-[background-color,color,transform] duration-200 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.97] ${
                   isSelected
-                    ? "bg-accent text-accent-foreground ring-accent/30 font-semibold shadow-xs ring-2"
-                    : "border-border/60 bg-background/50 text-muted hover:text-foreground hover:border-border hover:bg-background/90 border"
+                    ? "bg-foreground text-background"
+                    : "bg-card text-muted hover:text-foreground"
                 }`}
               >
                 {topic}
@@ -180,7 +166,7 @@ export const ContactForm = ({ onSuccess }: ContactFormProps) => {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
+      <form onSubmit={handleSubmit} className="mt-8 space-y-4" noValidate>
         <div
           className="pointer-events-none absolute top-[-9999px] left-[-9999px] h-0 w-0 overflow-hidden opacity-0"
           aria-hidden="true"
@@ -200,7 +186,7 @@ export const ContactForm = ({ onSuccess }: ContactFormProps) => {
 
         <div role="alert" aria-live="assertive">
           {error && (
-            <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-center gap-3 rounded-2xl border p-4 text-xs font-semibold">
+            <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-center gap-3 rounded-2xl border p-4 text-sm font-semibold">
               <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
 
               <span>{error}</span>
@@ -213,7 +199,7 @@ export const ContactForm = ({ onSuccess }: ContactFormProps) => {
             required
             id="name"
             value={name}
-            label="Your Name"
+            label="Your name"
             onChange={setName}
             disabled={loading}
             autoComplete="name"
@@ -225,7 +211,7 @@ export const ContactForm = ({ onSuccess }: ContactFormProps) => {
             required
             type="email"
             value={email}
-            label="Your Email"
+            label="Your email"
             disabled={loading}
             onChange={setEmail}
             autoComplete="email"
@@ -255,7 +241,7 @@ export const ContactForm = ({ onSuccess }: ContactFormProps) => {
           as="textarea"
           value={message}
           disabled={loading}
-          label="Your Message"
+          label="Your message"
           onChange={setMessage}
           maxLength={FIELD_LIMITS.message}
           invalid={message.length > 0 && messageRemaining > 0}
@@ -269,7 +255,7 @@ export const ContactForm = ({ onSuccess }: ContactFormProps) => {
         <button
           type="submit"
           disabled={loading || !isValid}
-          className="bg-accent text-accent-foreground group flex h-13 w-full cursor-pointer items-center justify-center rounded-full text-sm font-semibold shadow-md transition-all duration-200 hover:opacity-90 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40"
+          className="bg-foreground text-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-accent/40 group flex h-13 w-full cursor-pointer items-center justify-center rounded-full text-base font-semibold transition-[background-color,color,transform] duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40"
         >
           {loading ? (
             <>
@@ -278,7 +264,7 @@ export const ContactForm = ({ onSuccess }: ContactFormProps) => {
             </>
           ) : (
             <>
-              <span>Send message to team</span>
+              <span>Send message</span>
               <ArrowRight
                 className="ml-2 size-4 transition-transform group-hover:translate-x-1"
                 aria-hidden="true"
@@ -291,7 +277,7 @@ export const ContactForm = ({ onSuccess }: ContactFormProps) => {
           {loading ? "Sending your message" : ""}
         </p>
       </form>
-    </Reveal>
+    </div>
   );
 };
 

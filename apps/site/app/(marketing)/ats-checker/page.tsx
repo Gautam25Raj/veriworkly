@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 
-import { Container } from "@veriworkly/ui";
 import { siteConfig } from "@/config/site";
 import { jsonLdScriptProps } from "@/utils/json-ld";
 import { buildPageMetadata } from "@/utils/metadata";
 
 import {
   AtsHero,
-  AtsFaqSection,
+  AtsScoreFacts,
+  AtsCheckerFaq,
   TierComparison,
   AtsDirectAnswer,
   AtsFailureTraps,
@@ -15,7 +15,7 @@ import {
   AtsPipelineSection,
 } from "@/features/ats-checker";
 import { faqs } from "@/features/faq/data/faqItems";
-import InteractiveCTA from "@/features/marketing/cta/InteractiveCTA";
+import { PageClosing } from "@/components/marketing/PageLayout";
 
 export const revalidate = false;
 export const dynamic = "force-static";
@@ -145,54 +145,19 @@ export default function AtsCheckerPage() {
         dangerouslySetInnerHTML={jsonLdScriptProps(breadcrumbSchema)}
       />
 
-      <div className="relative flex min-h-screen flex-col overflow-x-clip">
-        <div className="surface-grid pointer-events-none absolute inset-0 -z-10 opacity-[0.25]" />
-        <div className="bg-accent/5 pointer-events-none absolute top-0 left-1/4 -z-10 h-150 w-150 rounded-full blur-[140px]" />
-        <div className="pointer-events-none absolute top-96 right-10 -z-10 h-120 w-120 rounded-full bg-blue-500/5 blur-[130px]" />
-
-        <Container className="space-y-24 pt-28 pb-20 lg:space-y-32 lg:pt-36">
-          <AtsHero />
-          <AtsDirectAnswer />
-          <AtsFailureTraps />
-          <AtsCategoriesGrid />
-          <AtsPipelineSection />
-
-          <section className="border-border/40 space-y-10 border-t pt-16">
-            <div className="space-y-2 text-left">
-              <span className="text-accent font-mono text-[10px] font-bold tracking-widest uppercase">
-                Tier Comparison
-              </span>
-
-              <h2 className="text-foreground text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">
-                Score for free. Unlock the full breakdown when you are ready.
-              </h2>
-
-              <p className="text-muted max-w-2xl text-xs leading-relaxed sm:text-sm">
-                Anyone can check their resume score and see which area drags it down. The
-                rule-by-rule reasoning takes a free account, and AI explanations are included on
-                paid plans.
-              </p>
-            </div>
-
-            <TierComparison />
-          </section>
-
-          <AtsFaqSection faqs={pageFaqs} />
-
-          <div className="border-border/30 border-t pt-8 text-center">
-            <p className="text-muted/70 mx-auto max-w-3xl text-[11px] leading-relaxed">
-              <strong>Disclaimer:</strong> VeriWorkly ATS Checker evaluates documents against
-              heuristic parsing standards, weighted keyword matching, and structural guidelines. It
-              does not simulate or guarantee compatibility with any specific proprietary employer
-              software, nor does it guarantee interviews or job offers. All third-party product and
-              company names mentioned are trademarks or registered trademarks of their respective
-              owners. Their mention does not imply endorsement, affiliation, or sponsorship.
-            </p>
-          </div>
-        </Container>
-
-        <InteractiveCTA />
-      </div>
+      <AtsHero />
+      <AtsDirectAnswer />
+      <AtsFailureTraps />
+      <AtsPipelineSection />
+      <AtsCategoriesGrid />
+      <AtsScoreFacts />
+      <TierComparison />
+      <AtsCheckerFaq faqs={pageFaqs} />
+      <PageClosing
+        title="Fix it in the editor."
+        lede="Open the resume in the studio, apply the fixes the report ranked first, then scan it again."
+        secondary={{ label: "Scan a resume", href: "/ats-checker/scan" }}
+      />
     </>
   );
 }

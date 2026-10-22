@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 
-import { Container } from "@veriworkly/ui";
 import { siteConfig } from "@/config/site";
 import { jsonLdScriptProps } from "@/utils/json-ld";
 import { buildPageMetadata } from "@/utils/metadata";
@@ -8,22 +7,20 @@ import { engineSize } from "@/features/ats-engine/data/sizes";
 
 import {
   EngineCTA,
+  EngineFaq,
   EngineHero,
   EngineIntegrity,
   EngineRuntimes,
   EngineSurfaces,
   EngineAudiences,
-  EngineHostedApi,
   EngineBenchmarks,
   EngineComparison,
-  EngineDemoSection,
   EngineDeterminism,
   EngineCapabilities,
   ENGINE_LINKS,
   ENGINE_VERSION_LABEL,
   FAQ_IDS,
 } from "@/features/ats-engine";
-import { AtsFaqSection } from "@/features/ats-checker";
 import { faqs } from "@/features/faq/data/faqItems";
 
 export const revalidate = false;
@@ -127,30 +124,17 @@ export default function AtsEnginePage() {
         dangerouslySetInnerHTML={jsonLdScriptProps(breadcrumbSchema)}
       />
 
-      <div className="relative flex min-h-screen flex-col overflow-x-clip">
-        <div className="surface-grid pointer-events-none absolute inset-0 -z-10 opacity-[0.25]" />
-        <div className="bg-accent/5 pointer-events-none absolute top-0 left-1/4 -z-10 h-150 w-150 rounded-full blur-[140px]" />
-
-        <Container className="space-y-24 pt-28 pb-20 lg:space-y-32 lg:pt-36">
-          <EngineHero />
-          <EngineDemoSection />
-          <EngineCapabilities />
-          <EngineDeterminism />
-          <EngineIntegrity />
-          <EngineSurfaces />
-          <EngineRuntimes />
-          <EngineBenchmarks />
-          <EngineAudiences />
-          <EngineComparison />
-          <EngineHostedApi />
-          <AtsFaqSection
-            faqs={pageFaqs}
-            title="Questions about the ATS Engine"
-            intro="What it does, where it runs, and what it is not for."
-          />
-          <EngineCTA />
-        </Container>
-      </div>
+      <EngineHero />
+      <EngineCapabilities />
+      <EngineDeterminism />
+      <EngineIntegrity />
+      <EngineSurfaces />
+      <EngineRuntimes />
+      <EngineBenchmarks />
+      <EngineAudiences />
+      <EngineComparison />
+      <EngineFaq faqs={pageFaqs} />
+      <EngineCTA />
     </>
   );
 }

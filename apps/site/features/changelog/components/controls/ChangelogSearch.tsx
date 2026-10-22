@@ -56,8 +56,8 @@ const ChangelogSearch = () => {
   );
 
   return (
-    <div className="border-border/30 bg-background/60 focus-within:ring-accent/30 flex min-w-0 flex-1 items-center gap-2 rounded-full border px-3.5 py-1.5 transition-shadow focus-within:ring-2 sm:flex-none sm:basis-64">
-      <Search className="text-muted h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+    <div className="bg-card focus-within:ring-accent/40 flex h-12 w-full min-w-0 items-center gap-3 rounded-full px-5 transition-shadow focus-within:ring-2 sm:w-80">
+      <Search className="text-muted size-4 shrink-0" aria-hidden="true" />
 
       <input
         type="search"
@@ -65,7 +65,7 @@ const ChangelogSearch = () => {
         aria-label="Search changelog"
         placeholder="Search releases…"
         onChange={(event) => handleSearch(event.target.value)}
-        className="text-foreground placeholder:text-muted/70 w-full min-w-0 bg-transparent font-sans text-xs font-medium outline-none"
+        className="text-foreground placeholder:text-muted w-full min-w-0 bg-transparent text-base outline-none"
       />
     </div>
   );

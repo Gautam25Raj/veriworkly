@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import { ArrowUpRight } from "lucide-react";
 
 import { siteConfig } from "@/config/site";
-import { SURFACES as surfaces } from "../data/content";
+import { TYPE } from "@/components/marketing/PageLayout";
+import { INSTALL_COMMAND, SURFACES as surfaces } from "../data/content";
 import { CopyCommand } from "./CopyCommand";
 
 /**
@@ -13,34 +14,50 @@ import { CopyCommand } from "./CopyCommand";
  */
 export function CodeTabs() {
   const [activeId, setActiveId] = useState(surfaces[0]?.id);
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const active = surfaces.find((surface) => surface.id === activeId) ?? surfaces[0];
 
   if (!active) return null;
 
+  // Arrow keys move between tabs, as the WAI-ARIA tabs pattern expects.
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const index = surfaces.findIndex((surface) => surface.id === active.id);
+    const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+    if (!step) return;
+
+    event.preventDefault();
+    const next = (index + step + surfaces.length) % surfaces.length;
+    setActiveId(surfaces[next]!.id);
+    tabRefs.current[next]?.focus();
+  };
+
   return (
-    <div className="border-border/60 bg-card/40 overflow-hidden rounded-3xl border backdrop-blur-sm">
+    <div>
       <div
         role="tablist"
         aria-label="Ways to run the engine"
-        className="border-border/60 flex gap-1 overflow-x-auto border-b p-2"
+        onKeyDown={onKeyDown}
+        className="bg-background inline-flex max-w-full flex-wrap gap-1 rounded-3xl p-1 sm:rounded-full"
       >
-        {surfaces.map((surface) => {
+        {surfaces.map((surface, index) => {
           const Icon = surface.icon;
           const selected = surface.id === active.id;
 
           return (
             <button
               key={surface.id}
+              ref={(node) => {
+                tabRefs.current[index] = node;
+              }}
               type="button"
               role="tab"
               id={`surface-tab-${surface.id}`}
               aria-selected={selected}
               aria-controls={`surface-panel-${surface.id}`}
+              tabIndex={selected ? 0 : -1}
               onClick={() => setActiveId(surface.id)}
-              className={`focus-visible:ring-accent inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none sm:text-sm ${
-                selected
-                  ? "bg-foreground text-background"
-                  : "text-muted hover:text-foreground hover:bg-background"
+              className={`focus-visible:ring-accent/40 inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none ${
+                selected ? "bg-foreground text-background" : "text-muted hover:text-foreground"
               }`}
             >
               <Icon className="size-4" aria-hidden="true" />
@@ -54,29 +71,33 @@ export function CodeTabs() {
         role="tabpanel"
         id={`surface-panel-${active.id}`}
         aria-labelledby={`surface-tab-${active.id}`}
-        className="grid gap-6 p-6 lg:grid-cols-5 lg:gap-8"
+        className="mt-10 grid gap-8 lg:grid-cols-[.8fr_1.2fr] lg:gap-12"
       >
-        <div className="min-w-0 space-y-3 lg:col-span-2">
-          <h3 className="text-foreground text-lg font-semibold tracking-tight">{active.title}</h3>
-          <p className="text-muted text-sm leading-relaxed">{active.body}</p>
+        <div className="min-w-0">
+          <h3 className={TYPE.title}>{active.title}</h3>
+          <p className="text-muted mt-4 max-w-md text-base leading-7">{active.body}</p>
           <a
             href={`${siteConfig.links.docs}${active.docsPath}`}
-            className="text-accent inline-flex items-center gap-1 text-sm font-semibold hover:underline"
+            className="group text-accent mt-6 inline-flex items-center gap-1.5 text-base font-semibold"
           >
             Read the {active.label} guide
-            <ArrowUpRight className="size-4" aria-hidden="true" />
+            <ArrowUpRight
+              aria-hidden="true"
+              className="size-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+            />
           </a>
           {active.id === "library" ? (
-            <div className="pt-2">
-              <CopyCommand command="npm install @veriworkly/ats-engine" />
+            <div className="mt-8">
+              <CopyCommand command={INSTALL_COMMAND} className="bg-background" />
             </div>
           ) : null}
         </div>
 
         <pre
+          data-ui
           tabIndex={0}
           aria-label={`${active.label} example`}
-          className="border-border/60 bg-background text-foreground focus-visible:ring-accent min-w-0 overflow-x-auto rounded-2xl border p-5 font-mono text-xs leading-relaxed focus-visible:ring-2 focus-visible:outline-none sm:text-[13px] lg:col-span-3"
+          className="bg-foreground text-background focus-visible:ring-accent/40 min-h-56 min-w-0 self-start overflow-x-auto rounded-3xl p-6 font-mono text-sm leading-relaxed focus-visible:ring-2 focus-visible:outline-none sm:p-8"
         >
           <code>{active.code}</code>
         </pre>

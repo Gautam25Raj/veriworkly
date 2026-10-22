@@ -22,15 +22,15 @@ const AREAS = [
 ] as const;
 
 const FILL = {
-  good: "bg-emerald-500",
-  warn: "bg-amber-500",
-  bad: "bg-rose-500",
+  good: "bg-success",
+  warn: "bg-warning",
+  bad: "bg-destructive",
 } as const;
 
-const TEXT = {
-  good: "text-emerald-600 dark:text-emerald-400",
-  warn: "text-amber-600 dark:text-amber-400",
-  bad: "text-rose-600 dark:text-rose-400",
+const ICON = {
+  good: "text-success",
+  warn: "text-warning",
+  bad: "text-destructive",
 } as const;
 
 const FIXES = [
@@ -49,70 +49,78 @@ const FIXES = [
   },
 ] as const;
 
+const SCORES = [
+  { label: "ATS readiness", value: 74 },
+  { label: "Job match", value: 61 },
+] as const;
+
+const CHECKS = { passed: 12, total: 16 };
+
 export function ReportPreview() {
   return (
     <figure className="w-full">
-      <div className="border-border/70 bg-card/60 relative overflow-hidden rounded-3xl border shadow-2xl backdrop-blur-md">
-        {/* Terminal Header */}
-        <div className="border-border/40 flex items-center justify-between border-b px-5 py-3.5">
-          <div className="flex items-center gap-2">
-            <span className="size-2.5 rounded-full bg-rose-500/80" />
-            <span className="size-2.5 rounded-full bg-amber-500/80" />
-            <span className="size-2.5 rounded-full bg-emerald-500/80" />
-            <span className="text-muted/80 ml-2 font-mono text-[11px]">ats-report.json</span>
+      <div data-ui className="bg-card grid overflow-hidden rounded-3xl lg:grid-cols-[.9fr_1.1fr]">
+        <div className="bg-foreground text-background flex flex-col p-6 sm:p-8 lg:p-10">
+          <p className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm font-semibold opacity-70">
+            <span>Sample report</span>
+            <span className="font-medium">gautam-raj-resume.pdf</span>
+          </p>
+
+          <dl className="mt-8 grid grid-cols-2 gap-6">
+            {SCORES.map((score) => (
+              <div key={score.label}>
+                <dt className="text-sm font-medium opacity-70">{score.label}</dt>
+                <dd className="mt-1 flex items-baseline gap-1.5">
+                  <span className="text-5xl leading-none font-bold tracking-tighter tabular-nums lg:text-6xl">
+                    {score.value}
+                  </span>
+                  <span className="text-base font-medium opacity-60">/ 100</span>
+                </dd>
+              </div>
+            ))}
+          </dl>
+
+          <p className="mt-6 inline-flex w-fit items-center gap-2 rounded-full bg-current/10 px-4 py-2 text-sm font-semibold">
+            <TriangleAlert aria-hidden="true" className="size-4" />
+            Needs work before you apply
+          </p>
+
+          <div className="mt-8">
+            <p className="text-sm font-medium opacity-70">
+              {CHECKS.passed} of {CHECKS.total} checks passed
+            </p>
+            <div aria-hidden="true" className="mt-3 flex gap-1">
+              {Array.from({ length: CHECKS.total }, (_, index) => (
+                <span
+                  key={index}
+                  className={`h-2 flex-1 rounded-full ${index < CHECKS.passed ? "bg-success" : "bg-current/15"}`}
+                />
+              ))}
+            </div>
           </div>
 
-          <span className="border-border/60 bg-background/80 text-muted inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[10px]">
-            <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
-            Sample Report Output
-          </span>
+          <div className="mt-8 rounded-2xl bg-current/[0.07] p-5 lg:mt-auto">
+            <p className="text-sm font-medium opacity-70">Highest-impact fix</p>
+            <p className="mt-2 text-lg leading-snug font-semibold">
+              Put a number on more of your bullets: a percentage, a count, a time saved.
+            </p>
+            <p className="mt-1 text-sm opacity-70">Worth about 10 points.</p>
+          </div>
         </div>
 
-        <div className="p-6 sm:p-7">
-          {/* Dual Scores */}
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p className="text-muted font-mono text-xs font-semibold tracking-wider uppercase">
-                ATS Readiness
-              </p>
-              <p className="text-foreground mt-1 flex items-baseline gap-1.5 font-mono text-4xl font-bold tracking-tight tabular-nums">
-                74
-                <span className="text-muted font-mono text-base font-normal">/ 100</span>
-              </p>
-            </div>
+        <div className="p-6 sm:p-8 lg:p-10">
+          <p className="text-base font-semibold">Score by area</p>
 
-            <div className="text-right">
-              <p className="text-muted font-mono text-xs font-semibold tracking-wider uppercase">
-                Job Match
-              </p>
-              <p className="text-foreground mt-1 flex items-baseline justify-end gap-1.5 font-mono text-4xl font-bold tracking-tight tabular-nums">
-                61
-                <span className="text-muted font-mono text-base font-normal">/ 100</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Verdict Badge */}
-          <div className="mt-4">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
-              <TriangleAlert className="size-3.5" />
-              Needs work before you apply
-            </span>
-          </div>
-
-          {/* Area Progress Bars */}
-          <ul className="border-border/30 mt-6 space-y-3.5 border-t pt-5">
+          <ul className="mt-5 space-y-4">
             {AREAS.map((area) => (
               <li key={area.label}>
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-foreground/90 text-xs font-medium">{area.label}</span>
-                  <span className={`font-mono text-xs font-bold tabular-nums ${TEXT[area.tone]}`}>
-                    {area.score}%
-                  </span>
+                <div className="flex items-baseline justify-between gap-3 text-base">
+                  <span>{area.label}</span>
+                  <span className="font-semibold tabular-nums">{area.score}%</span>
                 </div>
-                <div className="bg-muted/15 mt-1.5 h-2 w-full overflow-hidden rounded-full">
+                <div className="bg-foreground/8 mt-2 h-2 w-full overflow-hidden rounded-full">
                   <div
-                    className={`h-full rounded-full transition-all ${FILL[area.tone]}`}
+                    className={`h-full rounded-full ${FILL[area.tone]}`}
                     style={{ width: `${area.score}%` }}
                   />
                 </div>
@@ -120,18 +128,20 @@ export function ReportPreview() {
             ))}
           </ul>
 
-          {/* Actionable Fixes Strip */}
-          <ul className="border-border/30 mt-6 space-y-2.5 border-t pt-5">
+          <p className="mt-10 text-base font-semibold">Fixes, by points recovered</p>
+
+          <ul className="mt-4 space-y-3">
             {FIXES.map((fix) => (
-              <li key={fix.text} className="flex items-start justify-between gap-2.5">
-                <div className="flex min-w-0 items-start gap-2">
-                  <fix.icon className={`mt-0.5 size-4 shrink-0 ${TEXT[fix.tone]}`} />
-                  <span className="text-muted truncate text-xs leading-relaxed sm:text-wrap">
-                    {fix.text}
-                  </span>
-                </div>
+              <li key={fix.text} className="flex items-start justify-between gap-4 text-base">
+                <span className="flex min-w-0 items-start gap-2.5">
+                  <fix.icon
+                    aria-hidden="true"
+                    className={`mt-1 size-4 shrink-0 ${ICON[fix.tone]}`}
+                  />
+                  <span className="text-muted">{fix.text}</span>
+                </span>
                 {fix.points ? (
-                  <span className="border-border/60 bg-background/80 text-foreground shrink-0 rounded-full border px-2 py-0.5 font-mono text-[10px] font-bold tabular-nums">
+                  <span className="bg-background shrink-0 rounded-full px-2.5 py-0.5 text-sm font-semibold tabular-nums">
                     +{fix.points} pts
                   </span>
                 ) : null}
@@ -141,9 +151,9 @@ export function ReportPreview() {
         </div>
       </div>
 
-      <figcaption className="text-muted/80 mt-3.5 text-center font-mono text-[11px]">
-        Sample scanner output. Your exact score is computed from your resume text in volatile
-        memory.
+      <figcaption className="text-muted mt-4 text-sm">
+        Sample output. Your own score is computed from your resume text, in memory, and nothing is
+        kept.
       </figcaption>
     </figure>
   );

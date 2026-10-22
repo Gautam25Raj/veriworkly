@@ -1,95 +1,152 @@
-import { Check, X } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, ArrowUpRight, Check, X } from "lucide-react";
 
-import { Reveal } from "@/components/marketing/Reveal";
+import { siteConfig } from "@/config/site";
+
+import { PageSection, TYPE } from "@/components/marketing/PageLayout";
 
 import { COMPARISON_ROWS } from "../../data";
 
-export const FeaturesComparisonTable = () => {
-  return (
-    <section className="border-border/40 space-y-8 border-t pt-16">
-      <div className="mx-auto max-w-2xl space-y-2 text-center">
-        <span className="text-accent font-mono text-[10px] font-bold tracking-widest uppercase">
-          Why VeriWorkly
-        </span>
+/** Where to verify the table's last row, "MIT-licensed open core", for yourself. */
+const RESOURCES = [
+  {
+    title: "Documentation",
+    detail: "Templates, Master Profile schemas, ATS rules and deployment.",
+    href: siteConfig.links.docs,
+    external: true,
+  },
+  {
+    title: "Source on GitHub",
+    detail: "MIT-licensed. Check our privacy claims, self-host or contribute.",
+    href: siteConfig.links.github,
+    external: true,
+  },
+  {
+    title: "API and JSON schema",
+    detail: "Export document data, create scoped tokens, render portfolios.",
+    href: `${siteConfig.links.docs}/api-reference`,
+    external: true,
+  },
+  {
+    title: "ATS Engine",
+    detail: "The open-source engine behind our checker, for your own product.",
+    href: "/ats-engine",
+    external: false,
+  },
+];
 
-        <h2 className="text-foreground text-2xl font-bold tracking-tight sm:text-3xl">
-          How we compare to traditional resume websites
-        </h2>
+export const FeaturesComparisonTable = () => (
+  <PageSection
+    id="compare"
+    title="How we compare."
+    lede="Against traditional resume websites: clean tools, plain policies, and no paywall when you click download."
+  >
+    {/*
+      A horizontally scrollable region has to be reachable by keyboard (WCAG 2.1.1), so the
+      scroll container takes focus and names itself.
+    */}
+    <div
+      tabIndex={0}
+      role="region"
+      aria-label="Feature comparison, scrollable"
+      className="reveal bg-card focus-visible:ring-accent/40 hidden overflow-x-auto rounded-3xl focus-visible:ring-2 focus-visible:outline-none md:block"
+    >
+      <table className="w-full min-w-180 border-collapse text-left">
+        <caption className="sr-only">
+          Feature comparison between VeriWorkly and traditional resume websites
+        </caption>
+        <thead>
+          <tr className="text-muted text-sm">
+            <th scope="col" className="w-[30%] px-6 py-5 font-semibold">
+              Feature
+            </th>
+            <th scope="col" className="w-[35%] px-6 py-5 font-semibold">
+              Traditional resume sites
+            </th>
+            <th scope="col" className="text-accent bg-accent/8 w-[35%] px-6 py-5 font-semibold">
+              VeriWorkly
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {COMPARISON_ROWS.map((row) => (
+            <tr key={row.feature} className="border-border border-t align-top">
+              <th scope="row" className="px-6 py-4 text-base font-semibold">
+                {row.feature}
+              </th>
+              <td className="text-muted px-6 py-4 text-base leading-7">
+                <span className="flex gap-2.5">
+                  <X aria-hidden="true" className="text-destructive mt-1.5 size-4 shrink-0" />
+                  {row.competitor}
+                </span>
+              </td>
+              <td className="bg-accent/8 px-6 py-4 text-base leading-7 font-medium">
+                <span className="flex gap-2.5">
+                  <Check aria-hidden="true" className="text-success mt-1.5 size-4 shrink-0" />
+                  {row.veriworkly}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
 
-        <p className="text-muted text-xs leading-relaxed sm:text-sm">
-          We believe in clean tools, transparent policies, and zero hidden paywalls when you click
-          download.
-        </p>
-      </div>
+    {/* On a phone the same rows read top to bottom instead of scrolling sideways. */}
+    <ul className="reveal bg-card overflow-hidden rounded-3xl md:hidden">
+      {COMPARISON_ROWS.map((row) => (
+        <li key={row.feature} className="border-border border-t px-5 py-5 first:border-t-0">
+          <p className="text-base font-semibold">{row.feature}</p>
+          <p className="mt-3 flex gap-2.5 text-base leading-7 font-medium">
+            <Check aria-hidden="true" className="text-success mt-1.5 size-4 shrink-0" />
+            <span>
+              <span className="sr-only">VeriWorkly: </span>
+              {row.veriworkly}
+            </span>
+          </p>
+          <p className="text-muted mt-1 flex gap-2.5 text-base leading-7">
+            <X aria-hidden="true" className="text-destructive mt-1.5 size-4 shrink-0" />
+            <span>
+              <span className="sr-only">Traditional resume sites: </span>
+              {row.competitor}
+            </span>
+          </p>
+        </li>
+      ))}
+    </ul>
 
-      <Reveal className="border-border/60 bg-card/40 overflow-hidden rounded-3xl border shadow-xl backdrop-blur-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-160 border-collapse text-left text-sm">
-            <caption className="sr-only">
-              Feature comparison between VeriWorkly and traditional career portals
-            </caption>
+    <div id="developers" className="reveal mt-16 scroll-mt-24">
+      <h3 className={`${TYPE.title} text-balance`}>
+        Don&apos;t take the table&apos;s word for it.
+      </h3>
+      <ul className="mt-6 grid gap-x-8 sm:grid-cols-2 lg:grid-cols-4">
+        {RESOURCES.map((resource) => {
+          const Arrow = resource.external ? ArrowUpRight : ArrowRight;
 
-            <thead>
-              <tr className="border-border/60 bg-muted/4 text-muted border-b font-mono text-[11px] font-bold tracking-wider uppercase">
-                <th scope="col" className="w-2/5 p-4 sm:p-5">
-                  Feature
-                </th>
-
-                <th scope="col" className="w-[30%] p-4 sm:p-5">
-                  Traditional Competitors
-                </th>
-
-                <th
-                  scope="col"
-                  className="bg-accent/6 text-accent border-border/60 w-[30%] border-l p-4 sm:p-5"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="bg-accent size-2 animate-pulse rounded-full" />
-                    <span>VeriWorkly Platform</span>
-                  </div>
-                </th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-border/40 divide-y">
-              {COMPARISON_ROWS.map((row) => {
-                return (
-                  <tr key={row.feature} className="hover:bg-muted/3 transition-colors">
-                    <th
-                      scope="row"
-                      className="text-foreground p-4 text-xs font-semibold sm:p-5 sm:text-sm"
-                    >
-                      {row.feature}
-                    </th>
-
-                    <td className="text-muted p-4 text-xs sm:p-5 sm:text-sm">
-                      <div className="flex items-start gap-2">
-                        <span className="bg-destructive/10 text-destructive mt-0.5 flex size-4.5 shrink-0 items-center justify-center rounded-full">
-                          <X className="size-3 stroke-[2.5]" />
-                        </span>
-
-                        <span>{row.competitor}</span>
-                      </div>
-                    </td>
-
-                    <td className="bg-accent/3 border-border/60 text-foreground border-l p-4 text-xs sm:p-5 sm:text-sm">
-                      <div className="flex items-start gap-2">
-                        <span className="mt-0.5 flex size-4.5 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-                          <Check className="size-3 stroke-[2.5]" />
-                        </span>
-
-                        <span className="text-foreground font-medium">{row.veriworkly}</span>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </Reveal>
-    </section>
-  );
-};
+          return (
+            <li key={resource.title} className="border-border border-t">
+              <Link
+                href={resource.href}
+                {...(resource.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                className="group focus-visible:ring-accent/40 block rounded-xl py-5 focus-visible:ring-2 focus-visible:outline-none"
+              >
+                <span className="group-hover:text-accent flex items-center gap-2 text-lg font-bold tracking-tight transition-colors duration-200">
+                  {resource.title}
+                  <Arrow
+                    aria-hidden="true"
+                    className="size-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5"
+                  />
+                </span>
+                <span className="text-muted mt-2 block text-base leading-7 text-pretty">
+                  {resource.detail}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  </PageSection>
+);
 
 export default FeaturesComparisonTable;

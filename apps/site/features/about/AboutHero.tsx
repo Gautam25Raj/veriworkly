@@ -1,63 +1,126 @@
-import { Shield } from "lucide-react";
+import { Check, Lock } from "lucide-react";
 
 import { siteConfig } from "@/config/site";
 
-import { Reveal } from "@/components/marketing/Reveal";
+import { PageHero } from "@/components/marketing/PageLayout";
 import { LandingButton } from "@/components/marketing/LandingButton";
-import { SectionEyebrow } from "@/components/marketing/SectionEyebrow";
 
-const AboutHero = () => {
-  return (
-    <section className="relative w-full overflow-hidden bg-zinc-950 pt-32 pb-24 md:pt-40 md:pb-32">
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(120,119,198,0.07)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,119,198,0.07)_1px,transparent_1px)] mask-[radial-gradient(ellipse_65%_55%_at_50%_0%,#000_65%,transparent_100%)] bg-size-[26px_26px]" />
+const EXPORT_FORMATS = [
+  { name: "PDF", note: "ATS-ready, selectable text" },
+  { name: "Word (.docx)", note: "Editable in Word and Docs" },
+  { name: "Markdown", note: "For READMEs and notes" },
+  { name: "HTML", note: "Keeps your colours" },
+  { name: "Plain text", note: "For paste-in job forms" },
+  { name: "JSON", note: "Your data, portable" },
+];
 
-      <div className="pointer-events-none absolute top-0 left-1/2 h-105 w-full max-w-225 -translate-x-1/2 rounded-full bg-blue-500/15 blur-[120px]" />
+/**
+ * The page's picture is the moment the product was built to remove: the export dialog.
+ * Two real-looking dialogs side by side, the category's and ours, so the story in the
+ * headline is shown rather than told.
+ */
+const ExportContrast = () => (
+  <div className="grid gap-6 lg:grid-cols-[.85fr_1.15fr]">
+    <figure className="flex flex-col">
+      <div
+        data-ui
+        className="border-border bg-card flex flex-1 flex-col rounded-3xl border p-6 sm:p-8"
+      >
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold">Download your resume</p>
+          <Lock aria-hidden="true" className="text-muted size-4" />
+        </div>
 
-      <div className="relative z-10 mx-auto max-w-4xl px-6 md:px-8">
-        <Reveal priority>
-          <SectionEyebrow icon={Shield} label="Why VeriWorkly exists" className="mx-auto" />
-        </Reveal>
+        <p className="mt-8 text-2xl font-bold tracking-tight">Unlock your PDF</p>
+        <p className="text-muted mt-2 text-base">
+          Your resume is ready. Choose a plan to export it.
+        </p>
 
-        <Reveal priority delay={0.06}>
-          <h1 className="mt-8 text-center text-[clamp(2.25rem,5.5vw,4rem)] leading-[1.08] font-semibold tracking-tighter text-balance text-white">
-            Job hunting is hard enough. Your resume builder shouldn&apos;t be another obstacle.
-          </h1>
-        </Reveal>
-
-        <Reveal priority delay={0.14}>
-          <p className="mx-auto mt-8 max-w-2xl text-center text-base leading-relaxed text-zinc-400 lg:text-lg">
-            We built VeriWorkly because we got tired of the standard playbook: spending an hour
-            building a resume, only to find the download button locked behind a $24/month charge.
-            VeriWorkly gives you a fast, private studio to build ATS resumes, matched cover letters,
-            and web portfolios for free. Your files stay on your machine, and your PDF downloads are
-            always unlocked.
-          </p>
-        </Reveal>
-
-        <Reveal delay={0.2}>
-          <div className="mt-10 flex items-center justify-center gap-4">
-            <span className="h-px w-10 bg-zinc-800" />
-            <span className="text-sm font-medium text-zinc-500">
-              - Gautam Raj, Founder of {siteConfig.shortName}
+        <div className="bg-background mt-8 rounded-2xl p-5">
+          <p className="text-3xl font-bold tracking-tighter tabular-nums">
+            $25.95
+            <span className="text-muted ml-2 text-base font-medium tracking-normal">
+              every 4 weeks
             </span>
-            <span className="h-px w-10 bg-zinc-800" />
-          </div>
-        </Reveal>
+          </p>
+          <p className="text-muted mt-2 text-sm">Renews automatically until you cancel.</p>
+        </div>
 
-        <Reveal delay={0.28}>
-          <div className="mt-12 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <LandingButton showArrow size="hero" variant="solid" href={siteConfig.links.app}>
-              Open Studio
-            </LandingButton>
-
-            <LandingButton size="hero" variant="glass" href="/contact">
-              Message the Team
-            </LandingButton>
-          </div>
-        </Reveal>
+        <span className="bg-foreground/10 text-muted mt-auto flex h-12 items-center justify-center rounded-full text-sm font-semibold sm:mt-8">
+          Start subscription to download
+        </span>
       </div>
-    </section>
-  );
-};
+      <figcaption className="text-muted mt-4 text-sm">
+        A typical resume builder: the download is the paywall.
+      </figcaption>
+    </figure>
+
+    <figure className="flex flex-col">
+      <div
+        data-ui
+        className="bg-foreground text-background flex flex-1 flex-col rounded-3xl p-6 sm:p-8"
+      >
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold">Export resume</p>
+          <span className="rounded-full bg-current/10 px-3 py-1 text-sm font-semibold">
+            No account needed
+          </span>
+        </div>
+
+        <ul className="mt-6 grid gap-2 sm:grid-cols-2">
+          {EXPORT_FORMATS.map((format) => (
+            <li
+              key={format.name}
+              className="flex items-center justify-between gap-4 rounded-2xl bg-current/[0.06] px-4 py-3.5"
+            >
+              <span>
+                <span className="block text-base font-semibold">{format.name}</span>
+                <span className="block text-sm opacity-65">{format.note}</span>
+              </span>
+              <span className="flex items-center gap-1.5 text-sm font-semibold">
+                <Check aria-hidden="true" className="size-4" />
+                Free
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <p className="mt-auto flex items-center justify-between gap-4 pt-6 text-sm opacity-70">
+          <span>Generated in your browser</span>
+          <span>No watermark</span>
+        </p>
+      </div>
+      <figcaption className="text-muted mt-4 text-sm">
+        VeriWorkly: every format, free, before you ever make an account.
+      </figcaption>
+    </figure>
+  </div>
+);
+
+const AboutHero = () => (
+  <PageHero
+    title="Your resume"
+    highlight="is yours."
+    lede={
+      <>
+        We built {siteConfig.shortName} after one too many resume builders locked the download
+        button behind a monthly charge. Resumes, cover letters and portfolios are free to build and
+        free to export, and your files stay on your machine.
+      </>
+    }
+    aside={
+      <div className="flex flex-wrap gap-3">
+        <LandingButton showArrow size="lg" variant="solid" href={siteConfig.links.app}>
+          Open Studio
+        </LandingButton>
+        <LandingButton size="lg" variant="outline" href="/contact">
+          Message the team
+        </LandingButton>
+      </div>
+    }
+  >
+    <ExportContrast />
+  </PageHero>
+);
 
 export default AboutHero;

@@ -1,16 +1,20 @@
-import type { LucideIcon } from "lucide-react";
-
 export interface SecurityCommitment {
-  icon: LucideIcon;
   title: string;
   desc: string;
 }
 
+/** The places a piece of your text can be, in the order the route diagram draws them. */
+export type DataStop = "browser" | "api" | "database" | "ai" | "web";
+
 export interface EncryptionBoundary {
-  number: string;
+  id: string;
+  /** What the visitor does, as the diagram's tab label. */
+  action: string;
   title: string;
   description: string;
   specs: string[];
+  /** Every stop the text reaches when the visitor takes this action. */
+  route: DataStop[];
 }
 
 export interface OAuthScopeItem {
@@ -30,10 +34,8 @@ export interface DataRetentionRow {
 }
 
 export interface DisclosureStepItem {
-  step: string;
   label: string;
   detail: string;
-  icon: LucideIcon;
 }
 
 export interface ScopeClassification {

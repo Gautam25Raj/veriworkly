@@ -5,10 +5,10 @@ import Link from "next/link";
 import { Button, Container } from "@veriworkly/ui";
 
 export default function RoadmapError({
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   return (
     <div className="flex min-h-screen flex-col">
@@ -56,7 +56,7 @@ export default function RoadmapError({
               size="lg"
               variant="primary"
               className="rounded-full px-8"
-              onClick={() => reset()}
+              onClick={() => retry()}
             >
               Retry Sync
             </Button>

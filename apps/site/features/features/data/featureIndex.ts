@@ -1,28 +1,35 @@
-import { FileText, Sparkles, Gauge, Globe } from "lucide-react";
-import type { HeroPillar } from "../types";
+import type { FeatureIndexItem } from "../types";
 
-export const HERO_PILLARS: HeroPillar[] = [
+/** The contents list under the /features headline. Each `id` is a section on the page. */
+export const FEATURE_INDEX: FeatureIndexItem[] = [
   {
-    icon: FileText,
-    title: "100% Free Downloads",
-    description:
-      "Export clean PDFs, Word (.docx), and Markdown with zero watermarks or subscription traps.",
+    id: "studio",
+    title: "Document Studio",
+    summary: "Resumes and matched cover letters, tailored per job.",
   },
   {
-    icon: Sparkles,
-    title: "AI Writing & Tailoring",
-    description: "Target bullet points to job descriptions with live side-by-side diff previews.",
+    id: "ai-tailoring",
+    title: "AI tailoring",
+    summary: "Suggestions you review side by side before anything changes.",
   },
   {
-    icon: Gauge,
-    title: "Target Job ATS Scanner",
-    description:
-      "Match your resume against any job description with instant keyword and parse scoring.",
+    id: "imports",
+    title: "Profile import",
+    summary: "Your GitHub projects and LinkedIn history, without retyping.",
   },
   {
-    icon: Globe,
-    title: "Web Portfolios",
-    description:
-      "Publish on your own veriworkly.com subdomain. Free core templates carry a small badge; premium templates and badge removal are paid. Opening at launch.",
+    id: "ats",
+    title: "ATS scoring",
+    summary: "Check a resume against the job you are applying for.",
+  },
+  {
+    id: "portfolio",
+    title: "Web portfolio",
+    summary: "A personal site at yourname.veriworkly.com.",
+  },
+  {
+    id: "exports",
+    title: "Export formats",
+    summary: "PDF, Word, Markdown, HTML, text and JSON, all free.",
   },
 ];

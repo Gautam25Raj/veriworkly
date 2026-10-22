@@ -1,22 +1,21 @@
-import { Info } from "lucide-react";
-
 import { PRICING_VERIFIED_AT } from "../../data";
 
 interface CompareCaveatNoteProps {
-  competitorName: string;
+  /** One competitor's name, or omitted for a note that covers all of them. */
+  competitorName?: string;
+  className?: string;
 }
 
-export const CompareCaveatNote = ({ competitorName }: CompareCaveatNoteProps) => {
+export const CompareCaveatNote = ({ competitorName, className }: CompareCaveatNoteProps) => {
+  const who = competitorName ?? "each builder";
+  const site = competitorName ? `${competitorName}'s website` : "each provider's website";
+
   return (
-    <div className="border-border/50 bg-card/30 flex items-start gap-3 rounded-xl border p-4 backdrop-blur-xs">
-      <Info className="text-muted mt-0.5 size-4 shrink-0" aria-hidden="true" />
-      <p className="text-muted text-xs leading-relaxed">
-        <span className="text-foreground font-medium">Pricing Note:</span> Pricing and feature
-        details for {competitorName} were checked in {PRICING_VERIFIED_AT} against the
-        provider&apos;s public pricing or product pages. Companies occasionally change their prices,
-        so please check {competitorName}&apos;s website for the most recent numbers.
-      </p>
-    </div>
+    <p className={`text-muted max-w-3xl text-sm leading-6 ${className ?? ""}`}>
+      Pricing and features for {who} were checked in {PRICING_VERIFIED_AT} against the
+      provider&apos;s public pricing and product pages. Prices change, so check {site} for the
+      latest numbers.
+    </p>
   );
 };
 

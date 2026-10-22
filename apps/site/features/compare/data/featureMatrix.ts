@@ -18,10 +18,10 @@ export const VERIWORKLY_MATRIX: CompetitorFeatureMatrix = {
 };
 
 export const FEATURE_CATEGORIES = [
-  { id: "access", label: "Getting Started & Privacy" },
-  { id: "builder", label: "Building & Downloading" },
-  { id: "ats", label: "ATS & AI Tailoring" },
-  { id: "integrations", label: "Imports & Online Portfolio" },
+  { id: "access", label: "Getting started and privacy" },
+  { id: "builder", label: "Building and downloading" },
+  { id: "ats", label: "ATS and AI tailoring" },
+  { id: "integrations", label: "Imports and online portfolio" },
 ] as const;
 
 export const FEATURE_ROWS: FeatureRowItem[] = [
@@ -112,3 +112,24 @@ export const FEATURE_ROWS: FeatureRowItem[] = [
       "Show off your repositories, top languages, and stars right on your personal page.",
   },
 ];
+
+/**
+ * The short list every summary view shows (the hub picker, the hub table, each page's
+ * scoreboard), so all three read the same fields from the same data instead of keeping their
+ * own hand-written copies of each competitor's limits.
+ */
+export const SNAPSHOT_ROWS = [
+  { key: "loginRequired", label: "Sign-up" },
+  { key: "freeExport", label: "Free downloads" },
+  { key: "watermarkFree", label: "Watermark-free documents" },
+  { key: "atsChecker", label: "ATS check" },
+  { key: "portfolioBuilder", label: "Online portfolio" },
+] as const satisfies readonly { key: keyof CompetitorFeatureMatrix; label: string }[];
+
+export const VERIWORKLY_PRICE = "$0 for the core builder";
+
+export function matrixText(value: CompetitorFeatureMatrix[keyof CompetitorFeatureMatrix]) {
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+
+  return value;
+}

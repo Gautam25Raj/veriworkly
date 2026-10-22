@@ -1,30 +1,23 @@
 "use client";
 
-import { SearchX } from "lucide-react";
+import { TYPE } from "@/components/marketing/PageLayout";
 
-const EmptyState = ({ onReset }: { onReset: () => void }) => {
-  return (
-    <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-zinc-300 bg-zinc-50/50 p-10 text-center dark:border-zinc-700 dark:bg-white/2">
-      <SearchX className="h-8 w-8 text-zinc-400 dark:text-zinc-600" aria-hidden="true" />
+const EmptyState = ({ onReset }: { onReset: () => void }) => (
+  <div className="bg-card rounded-3xl px-6 py-16 text-center sm:px-10">
+    <p className={TYPE.title}>No templates match these filters.</p>
+    <p className="text-muted mx-auto mt-3 max-w-sm text-base">
+      Switch the style system or layout to see more.
+    </p>
 
-      <p className="text-base font-medium text-zinc-900 dark:text-white">
-        No templates match these filters.
-      </p>
-
-      <p className="max-w-sm text-sm text-zinc-500 dark:text-zinc-400">
-        Try switching family or layout to see more options.
-      </p>
-
-      {/* Resets in place - the filters are client state, so there is nothing to navigate to. */}
-      <button
-        type="button"
-        onClick={onReset}
-        className="mt-1 cursor-pointer text-sm font-semibold text-blue-600 hover:text-blue-500 focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:outline-none dark:text-blue-400 dark:hover:text-blue-300"
-      >
-        Reset filters
-      </button>
-    </div>
-  );
-};
+    {/* Resets in place - the filters are client state, so there is nothing to navigate to. */}
+    <button
+      type="button"
+      onClick={onReset}
+      className="bg-foreground text-background focus-visible:ring-accent/40 mt-8 inline-flex h-12 cursor-pointer items-center rounded-full px-6 text-base font-semibold transition-transform duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none active:scale-[0.97]"
+    >
+      Show every template
+    </button>
+  </div>
+);
 
 export default EmptyState;

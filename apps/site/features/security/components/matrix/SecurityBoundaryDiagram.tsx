@@ -1,213 +1,155 @@
 "use client";
 
-import { useState } from "react";
-import { Globe2, Lock, ShieldCheck, Cpu, CheckCircle2 } from "lucide-react";
+import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { Check, Minus } from "lucide-react";
 
-import { Reveal } from "@/components/marketing/Reveal";
+import { cn } from "@veriworkly/ui";
 
-interface SecurityLayer {
-  id: string;
-  title: string;
-  badge: string;
-  badgeTone: string;
-  detail: string;
-  icon: typeof Lock;
-  specs: string[];
-  colorClass: string;
-  borderClass: string;
-  bgClass: string;
-}
+import { TYPE } from "@/components/marketing/PageLayout";
 
-const layers: SecurityLayer[] = [
-  {
-    id: "browser-sandbox",
-    title: "1. Browser Local Sandbox",
-    badge: "100% Offline Capable",
-    badgeTone: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
-    detail:
-      "Your documents compile in-browser using vector rendering. Zero telemetry on your keystrokes.",
-    icon: Lock,
-    specs: [
-      "Client-side LocalStorage encryption",
-      "In-browser PDF & DOCX vector compiler",
-      "Zero unauthenticated remote uploads",
-      "1-click local JSON backup export",
-    ],
-    colorClass: "text-blue-500",
-    borderClass: "border-blue-500/30",
-    bgClass: "bg-blue-500/10",
-  },
-  {
-    id: "cloud-sync",
-    title: "2. Encrypted Cloud Sync",
-    badge: "Optional Opt-In",
-    badgeTone: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
-    detail:
-      "When you log in, your Master Profile syncs over TLS 1.3 with passwordless OTP verification.",
-    icon: ShieldCheck,
-    specs: [
-      "Better Auth passwordless OTP login",
-      "AES-256 at rest & TLS 1.3 in transit",
-      "Isolated multi-tenant data partitioning",
-      "Full account & document deletion on demand",
-    ],
-    colorClass: "text-emerald-500",
-    borderClass: "border-emerald-500/30",
-    bgClass: "bg-emerald-500/10",
-  },
-  {
-    id: "edge-portfolios",
-    title: "3. Edge Subdomain Routing",
-    badge: "Zero Cookies",
-    badgeTone: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20",
-    detail:
-      "Published web portfolios are distributed across global CDN edges with automatic SSL/TLS.",
-    icon: Globe2,
-    specs: [
-      "Custom subdomain routing (yourname.veriworkly.com)",
-      "Aggregate-only analytics without tracker cookies",
-      "Instant password protection & unpublish toggle",
-      "Automatic SSL certificate provisioning",
-    ],
-    colorClass: "text-purple-500",
-    borderClass: "border-purple-500/30",
-    bgClass: "bg-purple-500/10",
-  },
-  {
-    id: "ai-privacy",
-    title: "4. AI Privacy Shield",
-    badge: "Named Subprocessor",
-    badgeTone: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
-    detail:
-      "We keep no copy of AI request text after a request completes, and our provider terms prohibit training on it. The Privacy Policy names every AI subprocessor.",
-    icon: Cpu,
-    specs: [
-      "AI request text not retained by VeriWorkly",
-      "Provider terms prohibit training on your text",
-      "Side-by-side diff review before applying changes",
-      "Encrypted API gateway with rate-limiting",
-    ],
-    colorClass: "text-amber-500",
-    borderClass: "border-amber-500/30",
-    bgClass: "bg-amber-500/10",
-  },
+import { ENCRYPTION_BOUNDARIES } from "../../data";
+import type { DataStop } from "../../types";
+
+/**
+ * Pick something you do in VeriWorkly and see every place your text reaches while you do it.
+ *
+ * Every claim shown here comes from ENCRYPTION_BOUNDARIES, which is the copy we can back up
+ * from the repository. The earlier version of this diagram carried its own list of specs
+ * (local storage encryption, AES-256, TLS 1.3, a 24h SLA) that the code does not support, so
+ * the diagram now has no copy of its own beyond the names of the stops.
+ */
+
+const STOPS: { id: DataStop; name: string; where: string }[] = [
+  { id: "browser", name: "Your browser", where: "On your device" },
+  { id: "api", name: "VeriWorkly API", where: "Our servers" },
+  { id: "database", name: "Our database", where: "Our servers" },
+  { id: "ai", name: "AI model provider", where: "A named subprocessor" },
+  { id: "web", name: "The public web", where: "Anyone with the link" },
 ];
 
-export const SecurityBoundaryDiagram = () => {
-  const [activeLayerId, setActiveLayerId] = useState<string>("browser-sandbox");
+const KEY_STEPS: Record<string, number> = {
+  ArrowRight: 1,
+  ArrowDown: 1,
+  ArrowLeft: -1,
+  ArrowUp: -1,
+};
 
-  const activeLayer = layers.find((l) => l.id === activeLayerId) ?? layers[0];
-  const ActiveIcon = activeLayer.icon;
+export const SecurityBoundaryDiagram = () => {
+  const [activeId, setActiveId] = useState(ENCRYPTION_BOUNDARIES[0]!.id);
+  const tabsRef = useRef<(HTMLButtonElement | null)[]>([]);
+  const baseId = useId();
+
+  const active = ENCRYPTION_BOUNDARIES.find((item) => item.id === activeId)!;
+  const leavesDevice = active.route.some((stop) => stop !== "browser");
+
+  // Tabs pattern from the ARIA Authoring Practices: arrows move and wrap, Home and End jump.
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const count = ENCRYPTION_BOUNDARIES.length;
+    const step = KEY_STEPS[event.key];
+    const next =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? count - 1
+          : step === undefined
+            ? null
+            : (index + step + count) % count;
+
+    if (next === null) return;
+    event.preventDefault();
+    setActiveId(ENCRYPTION_BOUNDARIES[next]!.id);
+    tabsRef.current[next]?.focus();
+  };
 
   return (
-    <div className="border-border/60 bg-card/60 relative overflow-hidden rounded-3xl border p-6 shadow-2xl backdrop-blur-md sm:p-8">
-      <div className="surface-grid pointer-events-none absolute inset-0 -z-10 opacity-[0.2]" />
-      <div className="bg-accent/10 pointer-events-none absolute -top-10 -right-10 size-60 rounded-full blur-3xl" />
+    <div className="bg-background rounded-3xl p-4 sm:p-6 lg:p-8">
+      <div
+        role="tablist"
+        aria-label="What you are doing"
+        className="grid grid-cols-2 gap-2 lg:grid-cols-4"
+      >
+        {ENCRYPTION_BOUNDARIES.map((item, index) => {
+          const selected = item.id === activeId;
 
-      <div className="space-y-6">
-        <div className="border-border/40 flex flex-wrap items-center justify-between gap-3 border-b pb-4">
-          <div className="flex items-center gap-2">
-            <span className="bg-accent/15 text-accent ring-accent/30 flex size-8 items-center justify-center rounded-lg ring-1">
-              <Lock className="size-4" />
-            </span>
+          return (
+            <button
+              key={item.id}
+              ref={(node) => {
+                tabsRef.current[index] = node;
+              }}
+              id={`${baseId}-tab-${item.id}`}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              aria-controls={`${baseId}-panel`}
+              tabIndex={selected ? 0 : -1}
+              onClick={() => setActiveId(item.id)}
+              onKeyDown={(event) => onKeyDown(event, index)}
+              className={cn(
+                "focus-visible:ring-accent/40 min-h-12 rounded-full px-5 py-2.5 text-left text-base font-semibold transition-[background-color,color,transform] duration-200 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.98]",
+                selected
+                  ? "bg-foreground text-background"
+                  : "bg-card text-muted hover:text-foreground",
+              )}
+            >
+              {item.action}
+            </button>
+          );
+        })}
+      </div>
 
-            <div>
-              <h3 className="text-foreground text-sm font-bold">
-                Security &amp; Privacy Boundary Matrix
-              </h3>
-
-              <p className="text-muted text-[11px]">Interactive multi-layered architecture</p>
-            </div>
-          </div>
-
-          <span className="border-border/60 bg-background/80 text-foreground inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] font-semibold">
-            <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
-            Isolated Sandboxes
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {layers.map((layer) => {
-            const Icon = layer.icon;
-            const isActive = layer.id === activeLayerId;
+      <div
+        id={`${baseId}-panel`}
+        role="tabpanel"
+        aria-labelledby={`${baseId}-tab-${active.id}`}
+        className="mt-6 lg:mt-8"
+      >
+        <ol className="grid gap-2 sm:grid-cols-5" aria-label="Where your text goes">
+          {STOPS.map((stop) => {
+            const reached = active.route.includes(stop.id);
 
             return (
-              <button
-                type="button"
-                key={layer.id}
-                onClick={() => setActiveLayerId(layer.id)}
-                className={`flex flex-col items-start gap-1.5 rounded-xl border p-3 text-left transition-all duration-200 ${
-                  isActive
-                    ? "border-accent bg-accent/10 shadow-sm"
-                    : "border-border/50 bg-background/50 hover:border-border hover:bg-background/80 text-muted"
-                }`}
+              <li
+                key={stop.id}
+                className={cn(
+                  "flex items-center justify-between gap-3 rounded-2xl p-4 transition-colors duration-300 sm:min-h-32 sm:flex-col sm:items-start",
+                  reached ? "bg-accent text-accent-foreground" : "bg-card text-muted",
+                )}
               >
-                <div className="flex w-full items-center justify-between">
-                  <Icon className={`size-4 ${isActive ? layer.colorClass : "text-muted"}`} />
-                  {isActive && <span className="bg-accent size-1.5 animate-ping rounded-full" />}
-                </div>
-
-                <span
-                  className={`text-xs font-bold ${isActive ? "text-foreground" : "text-muted"}`}
-                >
-                  {layer.title.split(". ")[1]}
+                <span>
+                  <span className="block text-base font-semibold">{stop.name}</span>
+                  <span className="block text-sm opacity-75">{stop.where}</span>
                 </span>
-              </button>
+                <span className="flex items-center gap-1.5 text-sm font-semibold">
+                  {reached ? (
+                    <Check aria-hidden="true" className="size-4" />
+                  ) : (
+                    <Minus aria-hidden="true" className="size-4" />
+                  )}
+                  {reached ? "Reached" : "Not touched"}
+                </span>
+              </li>
             );
           })}
-        </div>
+        </ol>
 
-        <Reveal key={activeLayer.id} className="space-y-4">
-          <div
-            className={`rounded-2xl border p-5 backdrop-blur-sm sm:p-6 ${activeLayer.borderClass} ${activeLayer.bgClass}`}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5">
-                <span
-                  className={`bg-background flex size-10 items-center justify-center rounded-xl shadow-xs ${activeLayer.colorClass}`}
-                >
-                  <ActiveIcon className="size-5" />
-                </span>
-
-                <div>
-                  <h4 className="text-foreground text-base font-bold">{activeLayer.title}</h4>
-                  <p className="text-muted text-xs leading-relaxed">{activeLayer.detail}</p>
-                </div>
-              </div>
-
-              <span
-                className={`rounded-full border px-2.5 py-0.5 font-mono text-[10px] font-bold uppercase ${activeLayer.badgeTone}`}
-              >
-                {activeLayer.badge}
-              </span>
-            </div>
-
-            <div className="border-border/40 mt-5 grid gap-2 border-t pt-2 sm:grid-cols-2">
-              {activeLayer.specs.map((spec) => (
-                <div key={spec} className="flex items-center gap-2 text-xs">
-                  <CheckCircle2 className={`size-3.5 shrink-0 ${activeLayer.colorClass}`} />
-                  <span className="text-foreground/90 font-medium">{spec}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Reveal>
-
-        <div className="grid grid-cols-3 gap-2 pt-1 text-center font-mono text-[10px]">
-          <div className="border-border/40 bg-background/50 text-muted rounded-xl border p-2">
-            <span className="text-foreground block font-bold">0 Trackers</span>
-            <span>Zero ad pixels</span>
+        <div className="mt-8 grid gap-8 lg:mt-10 lg:grid-cols-[1fr_1fr] lg:gap-12">
+          <div>
+            <p className="text-muted text-base">
+              {leavesDevice ? "Leaves your device" : "Stays on your device"}
+            </p>
+            <h3 className={`mt-2 text-balance ${TYPE.title}`}>{active.title}</h3>
+            <p className="text-muted mt-4 text-base leading-7">{active.description}</p>
           </div>
 
-          <div className="border-border/40 bg-background/50 text-muted rounded-xl border p-2">
-            <span className="block font-bold text-emerald-500">MIT Core</span>
-            <span>Auditable source</span>
-          </div>
-
-          <div className="border-border/40 bg-background/50 text-muted rounded-xl border p-2">
-            <span className="text-accent block font-bold">24h SLA</span>
-            <span>Security response</span>
-          </div>
+          <ul className="space-y-3">
+            {active.specs.map((spec) => (
+              <li key={spec} className="bg-card flex items-start gap-3 rounded-2xl p-4 text-base">
+                <Check aria-hidden="true" className="text-success mt-1 size-4 shrink-0" />
+                <span>{spec}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </div>

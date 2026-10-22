@@ -11,44 +11,21 @@ import { type ChangelogEntry } from "@/features/changelog/services/changelog-bac
 
 export type ChangelogCategory = "added" | "improved" | "fixed" | "security" | "breaking";
 
+// Status tokens, not raw palette colours, so both themes keep their contrast. Security uses the
+// ink because it is neither good news nor bad: it is the thing to read first.
 export const CATEGORY_META: Record<
   ChangelogCategory,
-  { label: string; icon: LucideIcon; dot: string; text: string; border: string }
+  { label: string; icon: LucideIcon; dot: string; text: string }
 > = {
-  added: {
-    label: "Added",
-    icon: Sparkles,
-    dot: "bg-emerald-500",
-    text: "text-emerald-600 dark:text-emerald-400",
-    border: "border-emerald-500/30",
-  },
-  improved: {
-    label: "Improved",
-    icon: TrendingUp,
-    dot: "bg-blue-500",
-    text: "text-blue-600 dark:text-blue-400",
-    border: "border-blue-500/30",
-  },
-  fixed: {
-    label: "Fixed",
-    icon: Wrench,
-    dot: "bg-amber-500",
-    text: "text-amber-600 dark:text-amber-400",
-    border: "border-amber-500/30",
-  },
-  security: {
-    label: "Security",
-    icon: ShieldCheck,
-    dot: "bg-purple-500",
-    text: "text-purple-600 dark:text-purple-400",
-    border: "border-purple-500/30",
-  },
+  added: { label: "Added", icon: Sparkles, dot: "bg-success", text: "text-success" },
+  improved: { label: "Improved", icon: TrendingUp, dot: "bg-accent", text: "text-accent" },
+  fixed: { label: "Fixed", icon: Wrench, dot: "bg-warning", text: "text-warning" },
+  security: { label: "Security", icon: ShieldCheck, dot: "bg-foreground", text: "text-foreground" },
   breaking: {
     label: "Breaking",
     icon: AlertTriangle,
-    dot: "bg-red-500",
-    text: "text-red-600 dark:text-red-400",
-    border: "border-red-500/30",
+    dot: "bg-destructive",
+    text: "text-destructive",
   },
 };
 
@@ -85,18 +62,9 @@ export function changelogEntryHref(id: string) {
 }
 
 export const TYPE_META: Record<ChangelogEntry["type"], { label: string; className: string }> = {
-  major: {
-    label: "Major",
-    className: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20",
-  },
-  minor: {
-    label: "Minor",
-    className: "bg-accent/10 text-accent border-accent/20",
-  },
-  patch: {
-    label: "Patch",
-    className: "bg-muted/10 text-muted border-border/40",
-  },
+  major: { label: "Major", className: "bg-foreground text-background" },
+  minor: { label: "Minor", className: "bg-accent/10 text-accent" },
+  patch: { label: "Patch", className: "bg-foreground/5 text-muted" },
 };
 
 export function formatChangelogDate(iso: string) {

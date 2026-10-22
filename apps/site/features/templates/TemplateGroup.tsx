@@ -1,4 +1,7 @@
 import type { TemplateSummary } from "@/config/templates";
+
+import { TYPE } from "@/components/marketing/PageLayout";
+
 import TemplateCard from "./TemplateCard";
 
 type TemplateGroupProps = {
@@ -9,29 +12,26 @@ type TemplateGroupProps = {
   };
 };
 
-const TemplateGroup = ({ group }: TemplateGroupProps) => {
-  return (
-    <section className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-zinc-200 pb-4 dark:border-zinc-800">
-        <div className="space-y-1">
-          <h2 className="text-3xl font-semibold tracking-tight text-zinc-900 dark:text-white">
-            {group.title}
-          </h2>
-          <p className="text-sm leading-6 text-zinc-500 dark:text-zinc-400">{group.description}</p>
-        </div>
+/**
+ * A style system and its templates. Most systems hold one or two templates, so the heading
+ * is a block title, not a section heading: six of those in a row would shout over the previews.
+ */
+const TemplateGroup = ({ group }: TemplateGroupProps) => (
+  <section aria-label={group.title}>
+    <div className="border-border border-t pt-6">
+      <h2 className={`reveal ${TYPE.title}`}>{group.title}</h2>
+      <p className="reveal text-muted mt-2 max-w-2xl text-base leading-7 text-pretty">
+        {group.description ? `${group.description} ` : ""}
+        {group.items.length} available.
+      </p>
+    </div>
 
-        <p className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-sm font-medium text-zinc-500 dark:border-zinc-800 dark:bg-white/5 dark:text-zinc-400">
-          {group.items.length} available
-        </p>
-      </div>
-
-      <div className="grid gap-6">
-        {group.items.map((template) => (
-          <TemplateCard key={template.id} template={template} />
-        ))}
-      </div>
-    </section>
-  );
-};
+    <div className="mt-6 grid gap-6">
+      {group.items.map((template, index) => (
+        <TemplateCard key={template.id} template={template} priority={index === 0} />
+      ))}
+    </div>
+  </section>
+);
 
 export default TemplateGroup;

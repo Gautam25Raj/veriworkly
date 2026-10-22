@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 
 import Link from "next/link";
-import { ChevronLeft, Lock } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
 import { siteConfig } from "@/config/site";
 
-import { Container } from "@veriworkly/ui";
+import { FRAME, TYPE } from "@/components/marketing/PageLayout";
 
 import { jsonLdScriptProps } from "@/utils/json-ld";
 import { buildPageMetadata } from "@/utils/metadata";
@@ -46,6 +46,21 @@ const breadcrumbSchema = {
   ],
 };
 
+const SCAN_FACTS = [
+  {
+    title: "Where your file goes",
+    body: "Into memory for the scan, then it is discarded. Nothing is stored, and no account is needed.",
+  },
+  {
+    title: "What you get",
+    body: "A readiness score, a job match score when you add a posting, the most serious issue, and your highest-impact fix.",
+  },
+  {
+    title: "What it reads",
+    body: "PDF, DOCX, TXT or Markdown. On a PDF it also measures the page layout, which pasted text cannot show.",
+  },
+];
+
 export default function AtsCheckerScanPage() {
   return (
     <>
@@ -54,43 +69,45 @@ export default function AtsCheckerScanPage() {
         dangerouslySetInnerHTML={jsonLdScriptProps(breadcrumbSchema)}
       />
 
-      <div className="relative flex min-h-screen flex-col overflow-x-clip">
-        <div className="surface-grid pointer-events-none absolute inset-0 -z-10 opacity-[0.25]" />
-        <div className="bg-accent/5 pointer-events-none absolute top-0 left-1/4 -z-10 h-150 w-150 rounded-full blur-[140px]" />
-        <div className="pointer-events-none absolute top-96 right-10 -z-10 h-120 w-120 rounded-full bg-blue-500/5 blur-[130px]" />
+      <section className="pt-28 pb-24 lg:pt-36 lg:pb-32">
+        <div className={FRAME}>
+          <Link
+            href="/ats-checker"
+            className="group text-muted hover:text-foreground focus-visible:ring-accent/40 inline-flex items-center gap-2 rounded-full text-base font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <ArrowLeft
+              aria-hidden="true"
+              className="size-4 transition-transform duration-200 group-hover:-translate-x-0.5"
+            />
+            ATS checker overview
+          </Link>
 
-        <Container className="pt-28 pb-24 md:pt-36">
-          <div className="mx-auto max-w-2xl">
-            <div className="mb-8 flex items-center justify-between gap-4">
-              <Link
-                href="/ats-checker"
-                className="border-border/60 bg-card/60 text-muted hover:text-foreground inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-semibold backdrop-blur-sm transition-colors"
-              >
-                <ChevronLeft className="size-3.5" aria-hidden="true" />
-                <span>Back to ATS Overview</span>
-              </Link>
+          <div className="mt-8 grid gap-14 lg:grid-cols-[1fr_300px] lg:gap-16">
+            <div className="min-w-0">
+              <h1 className={TYPE.section}>Scan your resume</h1>
+              <p className={`text-muted mt-4 max-w-xl ${TYPE.lede}`}>
+                Two steps and a score. Add a job description in step two for keyword match against a
+                specific role.
+              </p>
 
-              <span className="border-border/60 bg-background/80 text-muted inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[11px]">
-                <Lock className="text-accent size-3" aria-hidden="true" />
-                <span>Memory only · Not stored</span>
-              </span>
+              <div className="mt-10">
+                <AtsCheckerTool />
+              </div>
             </div>
 
-            <header className="mb-8 space-y-2">
-              <h1 className="text-foreground text-3xl font-bold tracking-tight sm:text-4xl">
-                Scan your resume
-              </h1>
-
-              <p className="text-muted text-xs leading-relaxed sm:text-sm">
-                Two steps and a score. Add a job description in step two if you want keyword match
-                for a specific role.
-              </p>
-            </header>
-
-            <AtsCheckerTool />
+            <aside className="lg:sticky lg:top-28 lg:self-start lg:pt-3">
+              <dl className="space-y-8">
+                {SCAN_FACTS.map((fact) => (
+                  <div key={fact.title} className="border-border border-t pt-5">
+                    <dt className="text-base font-semibold">{fact.title}</dt>
+                    <dd className="text-muted mt-2 text-base leading-7">{fact.body}</dd>
+                  </div>
+                ))}
+              </dl>
+            </aside>
           </div>
-        </Container>
-      </div>
+        </div>
+      </section>
     </>
   );
 }

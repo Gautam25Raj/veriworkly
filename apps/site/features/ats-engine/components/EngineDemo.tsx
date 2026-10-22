@@ -105,63 +105,61 @@ export function EngineDemo() {
 
   return (
     <div ref={sectionRef} className="space-y-6">
-      <div role="tablist" aria-label="Sample resumes" className="flex flex-wrap gap-2">
-        {ENGINE_SAMPLES.map((entry) => {
-          const selected = entry.id === sample.id;
-          return (
-            <button
-              key={entry.id}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              onClick={() => selectSample(entry.id)}
-              className={`focus-visible:ring-accent rounded-full border px-4 py-2 text-xs font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none sm:text-sm ${
-                selected
-                  ? "border-foreground bg-foreground text-background"
-                  : "border-border/80 bg-card/60 text-muted hover:text-foreground"
-              }`}
-            >
-              {entry.label}
-            </button>
-          );
-        })}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div
+          role="group"
+          aria-label="Sample resumes"
+          className="bg-card inline-flex max-w-full flex-wrap gap-1 rounded-3xl p-1 sm:rounded-full"
+        >
+          {ENGINE_SAMPLES.map((entry) => {
+            const selected = entry.id === sample.id;
+            return (
+              <button
+                key={entry.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => selectSample(entry.id)}
+                className={`focus-visible:ring-accent/40 shrink-0 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none ${
+                  selected ? "bg-foreground text-background" : "text-muted hover:text-foreground"
+                }`}
+              >
+                {entry.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <p className="text-muted text-base">{sample.summary}</p>
       </div>
 
-      <p className="text-muted text-sm">{sample.summary}</p>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="min-w-0 space-y-4">
-          <div className="border-border/60 bg-card/40 rounded-2xl border">
-            <div className="border-border/60 flex items-center justify-between border-b px-4 py-2.5">
-              <span className="text-foreground text-xs font-semibold">Resume (invented)</span>
-              <span className="text-muted font-mono text-[10px] tracking-widest uppercase">
-                read-only
-              </span>
+      <div data-ui className="grid gap-4 lg:grid-cols-2">
+        <div className="flex min-w-0 flex-col gap-4">
+          <div className="bg-card rounded-3xl">
+            <div className="flex items-center justify-between px-6 pt-5">
+              <span className="text-sm font-semibold">Resume, invented</span>
+              <span className="text-muted text-sm">Read-only</span>
             </div>
             <pre
               tabIndex={0}
               aria-label="Sample resume text"
-              className="text-muted focus-visible:ring-accent max-h-72 overflow-auto p-4 font-mono text-[11px] leading-relaxed whitespace-pre-wrap focus-visible:ring-2 focus-visible:outline-none"
+              className="text-muted focus-visible:ring-accent/40 max-h-72 overflow-auto rounded-b-3xl px-6 pt-3 pb-6 font-mono text-sm leading-relaxed whitespace-pre-wrap focus-visible:ring-2 focus-visible:outline-none"
             >
               {sample.resume}
             </pre>
           </div>
 
-          <div className="border-border/60 bg-card/40 rounded-2xl border">
-            <div className="border-border/60 flex items-center justify-between border-b px-4 py-2.5">
-              <label
-                htmlFor="engine-demo-posting"
-                className="text-foreground text-xs font-semibold"
-              >
-                Job posting (edit it)
+          <div className="bg-card flex flex-1 flex-col rounded-3xl">
+            <div className="flex items-center justify-between px-6 pt-5">
+              <label htmlFor="engine-demo-posting" className="text-sm font-semibold">
+                Job posting, edit it
               </label>
               <button
                 type="button"
                 onClick={resetPosting}
                 disabled={posting === sample.posting}
-                className="text-muted hover:text-foreground focus-visible:ring-accent inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-40"
+                className="text-muted hover:text-foreground focus-visible:ring-accent/40 -mr-2 inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-sm font-semibold transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:opacity-40"
               >
-                <RotateCcw className="size-3" aria-hidden="true" />
+                <RotateCcw className="size-3.5" aria-hidden="true" />
                 Reset
               </button>
             </div>
@@ -169,16 +167,16 @@ export function EngineDemo() {
               id="engine-demo-posting"
               value={posting}
               onChange={(event) => editPosting(event.target.value)}
-              rows={10}
+              rows={9}
               spellCheck={false}
-              className="text-foreground focus-visible:ring-accent block w-full resize-y bg-transparent p-4 font-mono text-[11px] leading-relaxed focus-visible:ring-2 focus-visible:outline-none"
+              className="focus-visible:ring-accent/40 block min-h-56 w-full flex-1 resize-y rounded-b-3xl bg-transparent px-6 pt-3 pb-6 font-mono text-sm leading-relaxed focus-visible:ring-2 focus-visible:outline-none"
             />
           </div>
         </div>
 
-        <div aria-live="polite" className="min-w-0 space-y-5">
+        <div aria-live="polite" className="bg-card min-w-0 rounded-3xl p-6 sm:p-8">
           {!report ? (
-            <div className="border-border/60 bg-card/40 text-muted flex h-full min-h-72 items-center justify-center gap-2 rounded-2xl border text-sm">
+            <div className="text-muted flex min-h-72 items-center justify-center gap-2 text-base">
               {loadFailed ? (
                 "The engine could not be loaded. Reload the page to try again."
               ) : (
@@ -189,77 +187,72 @@ export function EngineDemo() {
               )}
             </div>
           ) : (
-            <>
-              <div className="border-border/60 bg-card/40 flex flex-wrap items-start justify-around gap-6 rounded-2xl border p-6">
+            <div className="space-y-7">
+              <div className="flex flex-wrap items-start justify-around gap-6">
                 <ScoreGauge score={report.readinessScore} label="Readiness" size="sm" />
                 {report.jobMatchScore !== null ? (
                   <ScoreGauge score={report.jobMatchScore} label="Job match" size="sm" />
                 ) : null}
               </div>
 
-              <p className="text-muted font-mono text-[11px]">
+              <p className="text-muted text-center text-sm tabular-nums">
                 Scored in {result.ms < 1 ? "<1" : Math.round(result.ms)} ms in this browser · engine{" "}
                 {report.engine.version} · policy {report.engine.policy}
               </p>
 
-              <div className="flex flex-wrap gap-2">
+              <ul className="flex flex-wrap gap-2" aria-label="Category scores">
                 {sortByCategoryOrder(report.categories).map((category) => (
-                  <span
+                  <li
                     key={category.category}
-                    className={`rounded-full px-3 py-1 text-[11px] font-semibold tabular-nums ${TONE_CLASSES[scoreTone(category.score)].chip}`}
+                    className={`rounded-full px-3 py-1 text-sm font-semibold tabular-nums ${TONE_CLASSES[scoreTone(category.score)].chip}`}
                   >
                     {categoryLabel(category.category)} {category.score}%
-                  </span>
+                  </li>
                 ))}
-              </div>
+              </ul>
 
-              <div className="space-y-3">
-                <h3 className="text-foreground text-sm font-semibold">
+              <div>
+                <h3 className="text-base font-semibold">
                   {report.failedChecks.length === 0
                     ? "No failed checks"
                     : `Failed checks (${report.failedChecks.length})`}
                 </h3>
-                <ul className="space-y-2.5">
-                  {[...report.failedChecks]
-                    .sort((a, b) => b.scoreImpact - a.scoreImpact)
-                    .slice(0, 4)
-                    .map((rule) => (
-                      <li
-                        key={rule.id}
-                        className="border-border/60 bg-card/40 space-y-1 rounded-xl border p-3.5"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <code className="text-foreground truncate font-mono text-[11px]">
-                            {rule.id}
-                          </code>
-                          <span className="text-muted shrink-0 font-mono text-[11px] tabular-nums">
-                            −{rule.scoreImpact}
-                          </span>
-                        </div>
-                        <p className="text-muted text-xs leading-relaxed">{rule.evidence}</p>
-                        <p className="text-foreground text-xs leading-relaxed">{rule.fix}</p>
-                      </li>
-                    ))}
-                </ul>
+                {report.failedChecks.length > 0 ? (
+                  <ul className="mt-3 space-y-2">
+                    {[...report.failedChecks]
+                      .sort((a, b) => b.scoreImpact - a.scoreImpact)
+                      .slice(0, 4)
+                      .map((rule) => (
+                        <li key={rule.id} className="bg-background space-y-1.5 rounded-2xl p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <code className="truncate font-mono text-sm">{rule.id}</code>
+                            <span className="text-destructive shrink-0 text-sm font-semibold tabular-nums">
+                              −{rule.scoreImpact}
+                            </span>
+                          </div>
+                          <p className="text-muted text-sm leading-relaxed">{rule.evidence}</p>
+                          <p className="text-sm leading-relaxed">{rule.fix}</p>
+                        </li>
+                      ))}
+                  </ul>
+                ) : null}
               </div>
 
               {report.requirements.length > 0 ? (
-                <div className="space-y-3">
-                  <h3 className="text-foreground text-sm font-semibold">Requirements</h3>
-                  <ul className="space-y-2">
+                <div>
+                  <h3 className="text-base font-semibold">Requirements</h3>
+                  <ul className="mt-3 space-y-2.5">
                     {report.requirements.slice(0, 6).map((requirement, index) => (
                       <li key={`${requirement.text}-${index}`} className="flex items-start gap-3">
                         <span
-                          className={`mt-0.5 w-24 shrink-0 rounded-full px-2 py-0.5 text-center text-[10px] font-semibold ${STATUS_STYLE[requirement.status]}`}
+                          className={`mt-0.5 w-28 shrink-0 rounded-full px-2 py-0.5 text-center text-sm font-semibold capitalize ${STATUS_STYLE[requirement.status]}`}
                         >
                           {requirement.status}
                         </span>
-                        <span className="text-muted min-w-0 text-xs leading-relaxed">
+                        <span className="min-w-0 text-sm leading-relaxed">
                           {requirement.text}
                           {requirement.detail ? (
-                            <span className="text-muted/80 block text-[11px]">
-                              {requirement.detail}
-                            </span>
+                            <span className="text-muted block">{requirement.detail}</span>
                           ) : null}
                         </span>
                       </li>
@@ -267,15 +260,18 @@ export function EngineDemo() {
                   </ul>
                 </div>
               ) : null}
-            </>
+            </div>
           )}
 
           <Link
             href="/ats-checker/scan"
-            className="text-accent inline-flex items-center gap-1.5 text-sm font-semibold hover:underline"
+            className="group text-accent mt-8 inline-flex items-center gap-1.5 text-base font-semibold"
           >
             Check your own resume, with PDF upload
-            <ArrowRight className="size-4" aria-hidden="true" />
+            <ArrowRight
+              aria-hidden="true"
+              className="size-4 transition-transform duration-200 group-hover:translate-x-0.5"
+            />
           </Link>
         </div>
       </div>

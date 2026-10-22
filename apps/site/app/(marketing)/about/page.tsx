@@ -8,8 +8,9 @@ import { buildPageMetadata } from "@/utils/metadata";
 import AboutHero from "@/features/about/AboutHero";
 import AboutPrinciples from "@/features/about/AboutPrinciples";
 import AboutProductScope from "@/features/about/AboutProductScope";
-import InteractiveCTA from "@/features/marketing/cta/InteractiveCTA";
-import AboutStudentProgram from "@/features/about/AboutStudentProgram";
+import AboutLetter from "@/features/about/AboutLetter";
+import AboutPrograms from "@/features/about/AboutPrograms";
+import { PageClosing } from "@/components/marketing/PageLayout";
 
 export const revalidate = false;
 export const dynamic = "force-static";
@@ -82,10 +83,14 @@ const AboutPage = () => {
       <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScriptProps(aboutSchema)} />
 
       <AboutHero />
+      <AboutLetter />
       <AboutPrinciples />
       <AboutProductScope />
-      <AboutStudentProgram />
-      <InteractiveCTA />
+      <AboutPrograms />
+      <PageClosing
+        title="Build it, then keep it."
+        lede="Build your resume free, export it free, and take your data with you as JSON whenever you like."
+      />
     </>
   );
 };

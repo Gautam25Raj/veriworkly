@@ -1,86 +1,54 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowUpRight, RotateCw } from "lucide-react";
 
-import { Button, Container } from "@veriworkly/ui";
+import { siteConfig } from "@/config/site";
+
+import { PageHero } from "@/components/marketing/PageLayout";
 
 export default function StatsError({
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   return (
-    <div className="relative flex min-h-screen flex-col overflow-hidden">
+    <>
       <p className="sr-only" role="alert">
         The development statistics could not be loaded.
       </p>
 
-      <div className="surface-grid pointer-events-none absolute inset-0 -z-10 opacity-[0.25]" />
-
-      <div className="bg-destructive/5 pointer-events-none absolute top-0 left-1/4 -z-10 h-150 w-150 rounded-full blur-[130px]" />
-
-      <Container className="relative pt-28 pb-20 text-center lg:pt-36">
-        <header className="mx-auto mb-12 max-w-2xl space-y-4">
-          <div className="flex items-center justify-center gap-2">
-            <span className="bg-destructive h-1.5 w-1.5 animate-pulse rounded-full" />
-
-            <span className="text-destructive font-mono text-[9px] font-bold tracking-widest uppercase">
-              Sync Error
-            </span>
-          </div>
-
-          <h1 className="text-foreground font-sans text-4xl font-bold tracking-tight sm:text-5xl">
-            GitHub Board Sync Failed
-          </h1>
-
-          <p className="text-muted mx-auto max-w-2xl text-sm leading-relaxed">
-            We encountered a problem while fetching the latest development activity from GitHub. The
-            board might be temporarily unavailable.
-          </p>
-        </header>
-
-        <section className="border-border/30 bg-card/20 mx-auto flex max-w-2xl flex-col items-center justify-center rounded-3xl border p-8 shadow-[0_1px_3px_rgba(0,0,0,0.01)] backdrop-blur-xs sm:p-12">
-          <div className="bg-destructive/10 text-destructive border-destructive/20 mb-6 flex h-16 w-16 items-center justify-center rounded-full border">
-            <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeWidth={1.5}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
+      <PageHero
+        className="border-b-0"
+        title="The board"
+        highlight="didn't load."
+        lede="Something went wrong while reading the development board from our server. The board itself is public on GitHub, so nothing is lost: try again, or read it there."
+        aside={
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => retry()}
+              className="group bg-foreground text-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-accent/40 inline-flex h-12 cursor-pointer items-center gap-2 rounded-full px-6 text-base font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none active:scale-[0.97]"
+            >
+              <RotateCw
+                aria-hidden="true"
+                className="size-4 transition-transform duration-300 group-hover:rotate-90"
               />
-            </svg>
-          </div>
-
-          <h2 className="text-foreground font-sans text-lg font-bold tracking-tight">
-            API Connection Lost
-          </h2>
-
-          <p className="text-muted mt-2 max-w-xs text-xs leading-relaxed">
-            We couldn&apos;t establish a secure connection to our development activity worker.
-          </p>
-
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Button
-              size="lg"
-              variant="primary"
-              className="rounded-full px-6 font-sans text-xs font-bold"
-              onClick={() => reset()}
+              Try again
+            </button>
+            <Link
+              target="_blank"
+              rel="noopener noreferrer"
+              href={siteConfig.links.github}
+              className="border-border hover:bg-card focus-visible:ring-accent/40 inline-flex h-12 items-center gap-2 rounded-full border px-6 text-base font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.97]"
             >
-              Reconnect Sync
-            </Button>
-
-            <Button
-              asChild
-              size="lg"
-              variant="ghost"
-              className="rounded-full px-6 font-sans text-xs font-bold"
-            >
-              <Link href="/">Back to Home</Link>
-            </Button>
+              Open GitHub
+              <ArrowUpRight aria-hidden="true" className="size-4" />
+            </Link>
           </div>
-        </section>
-      </Container>
-    </div>
+        }
+      />
+    </>
   );
 }

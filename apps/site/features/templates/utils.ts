@@ -32,3 +32,7 @@ export const buildPreviewUrl = (
 
   return null;
 };
+
+/** "Cover Letter" -> "Cover letter templates": headings on the page are sentence case. */
+export const templatesHeading = (label: string) =>
+  `${label.charAt(0)}${label.slice(1).toLowerCase()} templates`;

@@ -1,1 +1,1 @@
-export * from "./AtsFaqSection";
+export * from "./AtsCheckerFaq";

@@ -11,4 +11,3 @@ export { default as PrivacyAndExportsSection } from "./engines/PrivacyAndExports
 
 // Ecosystem & Comparison components
 export { default as FeaturesComparisonTable } from "./ecosystem/FeaturesComparisonTable";
-export { default as DeveloperEcosystemSection } from "./ecosystem/DeveloperEcosystemSection";

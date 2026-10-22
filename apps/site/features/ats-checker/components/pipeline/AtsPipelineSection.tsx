@@ -1,127 +1,149 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
+import { FileText, Search, TriangleAlert } from "lucide-react";
 
-import { Reveal } from "@/components/marketing/Reveal";
+import { PageSection, TYPE } from "@/components/marketing/PageLayout";
+
 import { PIPELINE_STEPS } from "../../data/pipelineSteps";
 import { SCORE_FACTS } from "../../data/scoreFacts";
 
+const FRAGMENT = "bg-background rounded-2xl p-4 text-sm leading-6";
+
+/**
+ * One sample two-column resume followed through the four stages, so each stage shows what it
+ * does to the same document. The data is a sample, and the figure says so.
+ */
+const FRAGMENTS: Record<(typeof PIPELINE_STEPS)[number]["phase"], ReactNode> = {
+  Upload: (
+    <div data-ui className={FRAGMENT}>
+      <p className="text-muted">Extracted text</p>
+      <p className="mt-2 font-medium">
+        Senior Product Designer <span className="text-warning">Skills</span>
+      </p>
+      <p className="font-medium">
+        Lumen Health <span className="text-warning">Figma, research</span>
+      </p>
+      <p className="font-medium">
+        2022 to now <span className="text-warning">Design systems</span>
+      </p>
+    </div>
+  ),
+  Extract: (
+    <dl data-ui className={`${FRAGMENT} grid grid-cols-[auto_1fr] gap-x-4 gap-y-1`}>
+      <dt className="text-muted">Name</dt>
+      <dd className="font-medium">Gautam Raj</dd>
+      <dt className="text-muted">Title</dt>
+      <dd className="font-medium">Senior Product Designer Skills</dd>
+      <dt className="text-muted">Skills</dt>
+      <dd className="text-destructive font-medium">Not found</dd>
+      <dt className="text-muted">Dates</dt>
+      <dd className="font-medium">2022 to now</dd>
+    </dl>
+  ),
+  Search: (
+    <div data-ui className={FRAGMENT}>
+      <p className="flex items-center gap-2 font-medium">
+        <Search aria-hidden="true" className="text-muted size-4" />
+        Figma, design systems
+      </p>
+      <p className="text-muted mt-2 flex items-center gap-2">
+        <TriangleAlert aria-hidden="true" className="text-warning size-4 shrink-0" />
+        Gautam Raj is not in the results
+      </p>
+    </div>
+  ),
+  Review: (
+    <div data-ui className={FRAGMENT}>
+      <p className="flex items-center gap-2 font-medium">
+        <FileText aria-hidden="true" className="text-muted size-4" />
+        gautam-raj-resume.pdf
+      </p>
+      <p className="mt-2 flex gap-1.5">
+        <span className="bg-card rounded-full px-3 py-0.5 font-medium">Parsed profile</span>
+        <span className="text-muted rounded-full px-3 py-0.5">Original PDF</span>
+      </p>
+      <p className="text-muted mt-3">A recruiter reads both, side by side.</p>
+    </div>
+  ),
+};
+
 export function AtsPipelineSection() {
   return (
-    <section className="border-border/40 space-y-16 border-t pt-16">
-      {/* Top: Pipeline Heading & Connected Cards */}
-      <div className="space-y-10">
-        <div className="space-y-2 text-left">
-          <span className="text-accent font-mono text-[10px] font-bold tracking-widest uppercase">
-            Parser Architecture
-          </span>
-          <h2 className="text-foreground text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">
-            What an applicant tracking system does to your resume
-          </h2>
-          <p className="text-muted max-w-2xl text-xs leading-relaxed sm:text-sm">
-            Every check in our engine maps directly to one of these 4 stages in standard recruitment
-            software. Understanding the pipeline makes fixing issues straightforward.
-          </p>
-        </div>
+    <PageSection
+      tone="card"
+      title="What an ATS does to your resume."
+      lede="Every check in the engine maps to one of these four stages. Here is one sample two-column resume going through them."
+    >
+      <ol className="grid gap-x-8 gap-y-14 sm:grid-cols-2 lg:grid-cols-4">
+        {PIPELINE_STEPS.map((stage) => (
+          <li key={stage.phase} className="reveal flex flex-col">
+            {/* A shared height keeps the four stage names on one line across the row. */}
+            <div className="*:h-full sm:h-44">{FRAGMENTS[stage.phase]}</div>
+            <h3 className={`mt-6 ${TYPE.title}`}>{stage.phase}</h3>
+            <p className="mt-1 text-base font-semibold">{stage.title}</p>
+            <p className="text-muted mt-2 text-base leading-7 text-pretty">{stage.body}</p>
+          </li>
+        ))}
+      </ol>
+      <p className="text-muted mt-10 text-sm">Sample resume.</p>
+    </PageSection>
+  );
+}
 
-        {/* 4 Steps Horizontal Flow */}
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {PIPELINE_STEPS.map((stage, idx) => (
-            <Reveal key={stage.step} delay={idx * 0.06}>
-              <div className="border-border/60 bg-card/40 hover:border-accent/40 relative flex h-full flex-col justify-between rounded-3xl border p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
-                <div className="space-y-3.5">
-                  <div className="flex items-center justify-between">
-                    <span className="bg-accent/15 text-accent ring-accent/30 flex size-8 items-center justify-center rounded-lg font-mono text-xs font-bold ring-1">
-                      {stage.step}
-                    </span>
-                    <span className="border-border/60 bg-background text-muted rounded-full border px-2.5 py-0.5 font-mono text-[10px]">
-                      {stage.phase}
-                    </span>
-                  </div>
-
-                  <h3 className="text-foreground text-sm font-bold tracking-tight">
-                    {stage.title}
-                  </h3>
-
-                  <p className="text-muted text-xs leading-relaxed">{stage.body}</p>
-                </div>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-      </div>
-
-      {/* Bottom: 3 Score Realities */}
-      <div className="space-y-6">
-        <div className="space-y-1">
-          <span className="text-accent font-mono text-[10px] font-bold tracking-widest uppercase">
-            Clarity &amp; Transparency
-          </span>
-          <h3 className="text-foreground text-xl font-bold tracking-tight sm:text-2xl">
-            Three facts every job seeker should know about ATS
-          </h3>
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-3">
-          {SCORE_FACTS.map((fact, idx) => {
-            const Icon = fact.icon;
-            return (
-              <Reveal key={fact.title} delay={idx * 0.06}>
-                <div className="border-border/60 bg-card/40 hover:border-border relative flex h-full flex-col justify-between rounded-2xl border p-6 backdrop-blur-sm transition-all">
-                  <div className="space-y-3">
-                    <span className="bg-accent/10 text-accent ring-accent/20 flex size-9 items-center justify-center rounded-xl ring-1">
-                      <Icon className="size-4.5" />
-                    </span>
-                    <h4 className="text-foreground text-sm font-bold tracking-tight">
-                      {fact.title}
-                    </h4>
-                    <p className="text-muted text-xs leading-relaxed">{fact.body}</p>
-                  </div>
-                </div>
-              </Reveal>
-            );
-          })}
-        </div>
-
-        <div className="border-border/60 bg-card/40 space-y-2 rounded-2xl border p-6 backdrop-blur-sm">
-          <h4 className="text-foreground text-sm font-bold tracking-tight">
-            Scored by our open-source engine
-          </h4>
-          <p className="text-muted text-xs leading-relaxed">
-            The checker runs the{" "}
-            <Link href="/ats-engine" className="text-accent hover:underline">
-              VeriWorkly ATS Engine
-            </Link>
-            , open source on{" "}
-            <a
-              href="https://github.com/VeriWorkly/ats-engine"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-accent hover:underline"
-            >
-              GitHub
-            </a>{" "}
-            and{" "}
-            <a
-              href="https://www.npmjs.com/package/@veriworkly/ats-engine"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-accent hover:underline"
-            >
-              npm
-            </a>
-            . You can{" "}
-            <a
-              href="https://docs.veriworkly.com/ats-engine/reference/rubric"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-accent hover:underline"
-            >
-              read every rule and its weight
-            </a>
-            .
-          </p>
-        </div>
-      </div>
-    </section>
+export function AtsScoreFacts() {
+  return (
+    <PageSection
+      tone="card"
+      title="Three things to know about ATS scores."
+      lede={
+        <>
+          The checker runs the{" "}
+          <Link href="/ats-engine" className="text-accent font-semibold hover:underline">
+            VeriWorkly ATS Engine
+          </Link>
+          , open source on{" "}
+          <a
+            href="https://github.com/VeriWorkly/ats-engine"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent font-semibold hover:underline"
+          >
+            GitHub
+          </a>{" "}
+          and{" "}
+          <a
+            href="https://www.npmjs.com/package/@veriworkly/ats-engine"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent font-semibold hover:underline"
+          >
+            npm
+          </a>
+          . You can{" "}
+          <a
+            href="https://docs.veriworkly.com/ats-engine/reference/rubric"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent font-semibold hover:underline"
+          >
+            read every rule and its weight
+          </a>
+          .
+        </>
+      }
+    >
+      <dl>
+        {SCORE_FACTS.map((fact) => (
+          <div
+            key={fact.title}
+            className="reveal border-border grid gap-3 border-t py-8 lg:grid-cols-[.9fr_1.1fr] lg:gap-12"
+          >
+            <dt className={`text-balance ${TYPE.title}`}>{fact.title}</dt>
+            <dd className="text-muted max-w-2xl text-base leading-7 text-pretty">{fact.body}</dd>
+          </div>
+        ))}
+      </dl>
+    </PageSection>
   );
 }
 

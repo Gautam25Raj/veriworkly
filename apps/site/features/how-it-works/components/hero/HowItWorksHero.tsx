@@ -1,93 +1,54 @@
 import Link from "next/link";
-import { ArrowRight, Terminal, BookOpen } from "lucide-react";
+import { ArrowDown } from "lucide-react";
 
 import { siteConfig } from "@/config/site";
 
-import { Reveal } from "@/components/marketing/Reveal";
-import { SectionEyebrow } from "@/components/marketing/SectionEyebrow";
+import { PageHero } from "@/components/marketing/PageLayout";
+import { LandingButton } from "@/components/marketing/LandingButton";
 
-import { PIPELINE_NODES } from "../../data";
+import { WORKFLOW_STEPS } from "../../data";
 
-export const HowItWorksHero = () => {
-  return (
-    <div className="border-border/60 bg-card/40 relative flex w-full flex-col items-center overflow-hidden rounded-4xl border px-6 pt-28 pb-20 text-center backdrop-blur-md md:pt-32 md:pb-24">
-      <div className="surface-grid pointer-events-none absolute inset-0 -z-10 opacity-[0.2]" />
-      <div className="bg-accent/10 pointer-events-none absolute top-0 left-1/2 h-105 w-full max-w-225 -translate-x-1/2 rounded-full blur-[140px]" />
-
-      <Reveal priority className="relative z-10 flex max-w-3xl flex-col items-center">
-        <SectionEyebrow icon={Terminal} label="End-to-End Workflow" className="mb-6" />
-
-        <h1 className="text-foreground text-[clamp(2.5rem,5.5vw,4.25rem)] leading-[1.04] font-bold tracking-tight text-balance">
-          How VeriWorkly Works: From Draft to Dream Job
-        </h1>
-
-        <p className="text-muted mt-6 max-w-2xl text-base leading-relaxed sm:text-lg">
-          A step-by-step walkthrough of how our local-first studio, AI bullet rewrites, ATS scanner,
-          and web portfolios work together without paywalls or privacy trade-offs.
-        </p>
-
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <Link
-            href={siteConfig.links.app}
-            className="bg-accent text-accent-foreground group inline-flex h-12 items-center justify-center gap-2 rounded-full px-7 text-sm font-semibold shadow-md transition-all duration-300 hover:opacity-90 active:scale-[0.97]"
-          >
-            <span>Open Studio</span>
-            <ArrowRight
-              className="size-4 transition-transform group-hover:translate-x-1"
-              aria-hidden="true"
-            />
-          </Link>
-
-          <a
-            target="_blank"
-            rel="noreferrer"
-            href={siteConfig.links.docs}
-            className="border-border/80 bg-background/70 text-foreground hover:bg-card inline-flex h-12 items-center justify-center gap-2 rounded-full border px-6 text-sm font-semibold backdrop-blur-sm transition-colors"
-          >
-            <BookOpen className="text-accent size-4" />
-            <span>Read Platform Docs</span>
-          </a>
-        </div>
-      </Reveal>
-
-      <Reveal
-        delay={0.15}
-        className="relative z-10 mt-16 flex w-full max-w-5xl flex-wrap items-center justify-center gap-x-3 gap-y-6"
-      >
-        {PIPELINE_NODES.map((node, idx) => {
-          const Icon = node.icon;
-          const isLast = idx === PIPELINE_NODES.length - 1;
-
-          return (
-            <div key={node.step} className="flex items-center gap-2.5">
-              <div className="border-border/60 bg-background/80 hover:border-accent/40 flex flex-col items-center gap-1.5 rounded-2xl border p-3.5 shadow-sm backdrop-blur-xs transition-all duration-200">
-                <div className="flex items-center gap-2">
-                  <span className="bg-accent/10 text-accent ring-accent/20 flex size-8 items-center justify-center rounded-xl ring-1">
-                    <Icon className="size-4" strokeWidth={1.75} />
-                  </span>
-
-                  <span className="text-muted font-mono text-[10px] font-bold">{node.step}</span>
-                </div>
-
-                <span className="text-foreground text-xs font-bold tracking-tight">
-                  {node.label}
-                </span>
-
-                <span className="text-muted text-[10px]">{node.desc}</span>
-              </div>
-
-              {!isLast && (
-                <ArrowRight
-                  className="text-muted/50 hidden size-4 shrink-0 sm:block"
-                  aria-hidden="true"
-                />
-              )}
-            </div>
-          );
-        })}
-      </Reveal>
-    </div>
-  );
-};
+export const HowItWorksHero = () => (
+  <PageHero
+    title="From draft"
+    highlight="to dream job."
+    lede="How the local-first studio, AI rewrites, the ATS scanner and web portfolios fit together, without paywalls or privacy trade-offs."
+    aside={
+      <div className="flex flex-wrap items-center gap-3">
+        <LandingButton showArrow size="lg" variant="solid" href={siteConfig.links.app}>
+          Open Studio
+        </LandingButton>
+        <LandingButton size="lg" variant="outline" href={siteConfig.links.docs} target="_blank">
+          Read the docs
+        </LandingButton>
+      </div>
+    }
+  >
+    {/* The route, in order. Each stop jumps to its step below. */}
+    <nav aria-label="The five steps">
+      <ol className="grid gap-2 lg:grid-cols-5">
+        {WORKFLOW_STEPS.map((step) => (
+          <li key={step.id} className="flex">
+            <Link
+              href={`#${step.id}`}
+              className="group bg-card focus-visible:ring-accent/40 flex min-h-11 flex-1 items-center justify-between gap-4 rounded-2xl px-5 py-3.5 transition-transform duration-200 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.98] lg:flex-col lg:items-start lg:justify-start lg:gap-2 lg:rounded-3xl lg:p-5 lg:hover:-translate-y-1"
+            >
+              <span className="group-hover:text-accent text-base leading-snug font-bold tracking-tight transition-colors duration-200 lg:text-lg">
+                {step.label}
+              </span>
+              <span className="text-muted hidden text-sm leading-6 text-pretty lg:block">
+                {step.subtitle}
+              </span>
+              <ArrowDown
+                aria-hidden="true"
+                className="text-muted size-4 shrink-0 transition-transform duration-200 group-hover:translate-y-0.5 lg:hidden"
+              />
+            </Link>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  </PageHero>
+);
 
 export default HowItWorksHero;

@@ -1,26 +1,27 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 
 import {
   COMPETITORS,
-  CompareVsHero,
   getCompetitor,
-  CompareCaveatNote,
+  CompareClosing,
   CompareHighlights,
+  CompareScoreboard,
   CompareFAQSection,
   FeatureMatrixTable,
   ComparePricingSection,
   CompareDeepDiveSection,
 } from "@/features/compare";
 
-import { Container } from "@veriworkly/ui";
-
 import { siteConfig } from "@/config/site";
 
 import { jsonLdScriptProps } from "@/utils/json-ld";
 import { buildPageMetadata } from "@/utils/metadata";
+
+import { LandingButton } from "@/components/marketing/LandingButton";
+import { PageHero, PageSection } from "@/components/marketing/PageLayout";
 
 interface PageProps {
   params: Promise<{ tool: string }>;
@@ -159,150 +160,64 @@ const CompareToolPage = async ({ params }: PageProps) => {
         <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScriptProps(faqSchema)} />
       )}
 
-      <div className="relative flex min-h-screen flex-col overflow-hidden">
-        <div className="surface-grid pointer-events-none absolute inset-0 -z-10 opacity-[0.25]" />
-        <div className="bg-accent/5 pointer-events-none absolute top-0 left-1/4 -z-10 h-150 w-150 rounded-full blur-[140px]" />
-
-        <div
-          className="pointer-events-none absolute top-32 -right-24 -z-10 h-140 w-140 rounded-full opacity-[0.06] blur-[160px]"
-          style={{ backgroundColor: competitor.color }}
-        />
-
-        <Container className="space-y-12 pt-28 pb-24 lg:pt-36">
-          <div>
-            <Link
-              href="/compare"
-              className="text-muted hover:text-foreground group inline-flex w-fit items-center gap-2 text-sm font-medium transition-colors"
+      <PageHero
+        before={
+          <Link
+            href="/compare"
+            className="group text-muted hover:text-foreground focus-visible:ring-accent/40 inline-flex items-center gap-2 rounded-full text-base font-medium transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <ArrowLeft
+              aria-hidden="true"
+              className="size-4 transition-transform duration-200 group-hover:-translate-x-1"
+            />
+            All comparisons
+          </Link>
+        }
+        title="VeriWorkly"
+        highlight={`vs ${competitor.name}.`}
+        lede={competitor.positioning}
+        aside={
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+            <LandingButton showArrow size="lg" variant="solid" href={siteConfig.links.app}>
+              Start building free
+            </LandingButton>
+            <a
+              href={competitor.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group text-muted hover:text-foreground focus-visible:ring-accent/40 inline-flex h-12 items-center gap-2 rounded-full px-2 text-base font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none"
             >
-              <ArrowLeft
+              Visit {competitor.name}
+              <ExternalLink
                 aria-hidden="true"
-                className="h-4 w-4 transition-transform duration-200 group-hover:-translate-x-1"
+                className="size-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
               />
-              <span>All resume builder comparisons</span>
-            </Link>
+            </a>
           </div>
+        }
+      >
+        <CompareScoreboard competitor={competitor} />
+      </PageHero>
 
-          <CompareVsHero competitor={competitor} />
+      <CompareHighlights competitor={competitor} />
+      <CompareDeepDiveSection competitor={competitor} />
 
-          <CompareHighlights competitor={competitor} />
+      <PageSection
+        id="features"
+        tone="card"
+        title="Feature by feature."
+        lede="Account access, downloads, ATS scoring and portfolio tools, row by row."
+      >
+        <FeatureMatrixTable competitor={competitor} />
+      </PageSection>
 
-          <CompareDeepDiveSection competitor={competitor} />
+      <ComparePricingSection competitor={competitor} />
+      <CompareFAQSection competitor={competitor} />
 
-          <section className="space-y-6">
-            <div className="flex flex-col gap-2">
-              <span className="text-accent font-mono text-[10px] font-bold tracking-widest uppercase">
-                Detailed Feature Matrix
-              </span>
-
-              <h2 className="text-foreground text-2xl font-bold tracking-tight sm:text-3xl">
-                Feature-by-feature breakdown
-              </h2>
-
-              <p className="text-muted max-w-2xl text-sm">
-                Check exact capabilities across account access, file downloads, ATS scoring, and
-                portfolio tools.
-              </p>
-            </div>
-
-            <FeatureMatrixTable competitor={competitor} />
-          </section>
-
-          <section className="space-y-6">
-            <div className="flex flex-col gap-2">
-              <span className="text-accent font-mono text-[10px] font-bold tracking-widest uppercase">
-                Pricing Comparison
-              </span>
-
-              <h2 className="text-foreground text-2xl font-bold tracking-tight sm:text-3xl">
-                Simple, transparent pricing comparison
-              </h2>
-
-              <p className="text-muted max-w-2xl text-sm">
-                A clear look at costs without hidden renewal traps or surprise download fees.
-              </p>
-            </div>
-
-            <ComparePricingSection competitor={competitor} />
-            <CompareCaveatNote competitorName={competitor.name} />
-          </section>
-
-          <CompareFAQSection competitor={competitor} />
-
-          <section className="border-border/40 space-y-6 border-t pt-12">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-accent font-mono text-[10px] font-bold tracking-widest uppercase">
-                  More Comparisons
-                </span>
-
-                <h3 className="text-foreground text-xl font-bold tracking-tight">
-                  Compare other resume builders
-                </h3>
-              </div>
-
-              <Link
-                href="/compare"
-                className="text-accent inline-flex items-center gap-1 text-xs font-semibold hover:underline sm:text-sm"
-              >
-                View all
-                <ArrowRight className="size-3.5" />
-              </Link>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              {otherCompetitors.map((other) => (
-                <Link
-                  key={other.id}
-                  href={`/compare/${other.id}`}
-                  className="border-border/60 bg-card/40 hover:border-accent/40 hover:bg-card/70 flex items-center gap-3 rounded-xl border p-3 transition-all duration-200 hover:-translate-y-0.5"
-                >
-                  <div
-                    className="flex size-8 shrink-0 items-center justify-center rounded-lg font-mono text-xs font-bold text-white shadow-xs"
-                    style={{ backgroundColor: other.color }}
-                  >
-                    {other.initials}
-                  </div>
-
-                  <div className="min-w-0">
-                    <span className="text-foreground block truncate text-xs font-semibold">
-                      vs {other.name}
-                    </span>
-
-                    <span className="text-muted block truncate text-[10px]">
-                      {other.pricingModel.split("-")[0]?.trim() || other.pricingModel}
-                    </span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </section>
-
-          <div className="border-border/60 bg-card/40 relative flex flex-col items-center gap-5 overflow-hidden rounded-3xl border p-10 text-center shadow-lg backdrop-blur-sm sm:p-12">
-            <div className="bg-accent/10 pointer-events-none absolute top-0 left-1/2 size-80 -translate-x-1/2 rounded-full blur-3xl" />
-
-            <span className="bg-accent/15 text-accent border-accent/30 rounded-full border px-3 py-1 font-mono text-[10px] font-bold tracking-wider uppercase">
-              Free to Start • No Credit Card
-            </span>
-
-            <h2 className="text-foreground relative max-w-xl text-2xl font-bold tracking-tight text-balance sm:text-3xl">
-              Build your resume on VeriWorkly for free
-            </h2>
-
-            <p className="text-muted relative max-w-lg text-sm leading-relaxed sm:text-base">
-              No account wall, no watermarks on downloads, and no credit card required. Build your
-              resume, cover letter, or portfolio in seconds.
-            </p>
-
-            <Link
-              href={siteConfig.links.app}
-              className="bg-accent text-accent-foreground relative inline-flex items-center gap-2 rounded-full px-8 py-3.5 text-sm font-semibold shadow-md transition duration-200 ease-out hover:opacity-90 active:scale-[0.97]"
-            >
-              <span>Start building free without an account</span>
-              <ArrowRight className="size-4" />
-            </Link>
-          </div>
-        </Container>
-      </div>
+      <CompareClosing
+        title={`Switching from ${competitor.name}? Try it free.`}
+        others={otherCompetitors}
+      />
     </>
   );
 };

@@ -23,9 +23,9 @@ interface ScoreGaugeProps {
 }
 
 const RING_TONE: Record<ReturnType<typeof scoreTone>, string> = {
-  good: "text-emerald-500",
-  warn: "text-amber-500",
-  bad: "text-red-500",
+  good: "text-success",
+  warn: "text-warning",
+  bad: "text-destructive",
 };
 
 export function ScoreGauge({ score, label, caption, size = "lg" }: ScoreGaugeProps) {
@@ -64,7 +64,7 @@ export function ScoreGauge({ score, label, caption, size = "lg" }: ScoreGaugePro
             r={RADIUS}
             fill="none"
             stroke="currentColor"
-            className="text-zinc-200 dark:text-white/10"
+            className="text-foreground/8"
             strokeWidth="7"
           />
           <motion.circle
@@ -81,26 +81,22 @@ export function ScoreGauge({ score, label, caption, size = "lg" }: ScoreGaugePro
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span
-            className={`font-semibold tracking-tighter text-zinc-900 tabular-nums dark:text-white ${
+            className={`font-bold tracking-tighter tabular-nums ${
               size === "lg" ? "text-4xl" : "text-3xl"
             }`}
           >
             {display}
           </span>
-          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">out of 100</span>
+          <span className="text-muted text-sm font-medium">out of 100</span>
         </div>
       </div>
       <div className="text-center">
         <span
-          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${TONE_CLASSES[tone].chip}`}
+          className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${TONE_CLASSES[tone].chip}`}
         >
           {label}
         </span>
-        {caption ? (
-          <p className="mt-2 max-w-40 text-xs leading-4 text-zinc-500 dark:text-zinc-400">
-            {caption}
-          </p>
-        ) : null}
+        {caption ? <p className="text-muted mt-2 max-w-48 text-sm leading-5">{caption}</p> : null}
       </div>
     </div>
   );

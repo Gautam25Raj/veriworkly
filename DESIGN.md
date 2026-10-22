@@ -330,6 +330,44 @@ Tailwind v4 defaults, unmodified.
 - **Sibling groups** are spaced with flex or grid `gap`, not per-element margins — margins
   collapse and double in ways that are hard to see and harder to fix.
 
+### Secondary marketing pages
+
+Every marketing page except the landing page, pricing, roadmap, `/style-guide` and
+`/brand-kit` is built from `apps/site/components/marketing/PageLayout.tsx`. The system copies
+the pricing page:
+
+| Primitive        | What it gives you                                                                                                                                           |
+| :--------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FRAME`          | `mx-auto w-[min(1180px,calc(100%-32px))]`, the one frame every section sits in.                                                                             |
+| `PageHero`       | Left-aligned display headline (`clamp(3rem,7.4vw,6.75rem)`, bold, `tracking-tighter`), last line in `--accent`; lede and actions to the right above a rule. |
+| `PageSection`    | A band with `py-24 lg:py-32` and a heading row: headline left, lede right. `tone` is `plain`, `card` or `accent` (one accent band per page).                |
+| `SectionHeading` | The same heading row on its own.                                                                                                                            |
+| `PageClosing`    | The last section: one ink panel with a headline, a line, "Open Studio" and one quiet link. The landing page keeps its own closer.                           |
+
+`components/marketing/StatusPage.tsx` builds the 404, error and loading screens from the same
+frame.
+
+Type on these pages comes from `TYPE` in the same file, never from a one-off size:
+
+| Step      | Size (390 → 1440 px)      | Use                                   |
+| :-------- | :------------------------ | :------------------------------------ |
+| `display` | 44 → 88 px, bold, tight   | The page's h1. One per page.          |
+| `section` | 32 → 52 px, bold, tight   | A section's h2.                       |
+| `figure`  | 32 → 48 px, bold, tabular | A large number in a stat or figure.   |
+| `title`   | 20 → 24 px, bold          | A block or card heading in a section. |
+| `lede`    | 16 → 18 px                | The paragraph under a headline.       |
+
+Body copy is 16 px; metadata and captions are 14 px. Nothing smaller.
+
+Rules for these pages: keep headline lines short (they are set very large); separate sections
+by a step in ground tone, not ornaments; no eyebrow labels, surface grid, blurred blobs or
+icon-topped card grids; body copy at 16 px or more. Show the product with HTML fragments of
+the real interface (marked `data-ui`) rather than icons.
+
+Entrances are CSS only, in `apps/site/app/globals.css`: `.reveal` rises as the element scrolls
+into view (scroll-driven, so it needs no JavaScript and does nothing where unsupported), and
+`.hero-rise` plays once on load. Headlines never fade, because they are the largest paint.
+
 ### Radius scale
 
 | Token          | Value | Applied to                                                        |

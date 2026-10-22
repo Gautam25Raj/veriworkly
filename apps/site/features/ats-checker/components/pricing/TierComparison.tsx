@@ -1,74 +1,66 @@
 import Link from "next/link";
-import { Check, Sparkles, ArrowRight } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
+
+import { PageSection, TYPE } from "@/components/marketing/PageLayout";
+
 import { ATS_TIERS } from "../../data/pricingTiers";
 
 export function TierComparison() {
   return (
-    <div className="grid gap-6 lg:grid-cols-3">
-      {ATS_TIERS.map((tier) => (
-        <div
-          key={tier.name}
-          className={`relative flex flex-col justify-between rounded-3xl border p-7 shadow-lg backdrop-blur-sm transition-all duration-300 ${
-            tier.highlight
-              ? "border-accent/50 bg-card/60 ring-accent/20 shadow-xl ring-1"
-              : "border-border/60 bg-card/40 hover:border-border"
-          }`}
-        >
-          {tier.highlight && (
-            <span className="bg-accent text-accent-foreground absolute -top-3 left-6 inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-mono text-[11px] font-bold shadow-md">
-              <Sparkles className="size-3" aria-hidden="true" />
-              {tier.badge}
-            </span>
-          )}
-
-          <div>
-            <div className="flex items-center justify-between">
-              <h3 className="text-foreground text-lg font-bold tracking-tight">{tier.name}</h3>
-              {!tier.highlight && (
-                <span className="border-border/60 bg-background text-muted rounded-full border px-2.5 py-0.5 font-mono text-[10px]">
+    <PageSection
+      title="Free to score. Paid for AI."
+      lede="A free account gets the full report: every rule, every keyword, every fix. Paid plans add AI explanations and more scans."
+    >
+      <div className="grid gap-6 md:grid-cols-2">
+        {ATS_TIERS.map((tier) => (
+          <article
+            key={tier.name}
+            className={`reveal flex flex-col rounded-3xl p-6 lg:p-8 ${
+              tier.highlight ? "bg-accent text-accent-foreground" : "bg-card"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <h3 className={TYPE.title}>{tier.name}</h3>
+              {tier.highlight ? (
+                <span className="bg-accent-foreground text-accent rounded-full px-3 py-1 text-sm font-semibold">
                   {tier.badge}
                 </span>
-              )}
+              ) : null}
             </div>
 
-            <div className="mt-3 flex items-baseline gap-1.5">
-              <span className="text-foreground font-mono text-3xl font-bold tracking-tight">
-                {tier.price}
-              </span>
-              <span className="text-muted font-mono text-xs">{tier.period}</span>
-            </div>
+            <p className="mt-6 flex items-baseline gap-2">
+              <span className={TYPE.figure}>{tier.price}</span>
+              <span className="text-base opacity-75">{tier.period}</span>
+            </p>
+            <p className="mt-3 text-sm font-semibold opacity-80">{tier.note}</p>
 
-            <p className="text-muted/80 mt-1 font-mono text-xs">{tier.note}</p>
-
-            <ul className="border-border/30 mt-6 space-y-3 border-t pt-5">
+            <ul className="mt-6 mb-8 space-y-3 border-t border-current/15 pt-6 text-base">
               {tier.features.map((feature) => (
-                <li
-                  key={feature}
-                  className="flex items-start gap-2.5 text-xs leading-relaxed sm:text-sm"
-                >
-                  <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-                    <Check className="size-2.5" strokeWidth={2.5} aria-hidden="true" />
-                  </span>
-                  <span className="text-foreground/90">{feature}</span>
+                <li key={feature} className="flex items-start gap-2.5">
+                  <Check aria-hidden="true" className="mt-1 size-4 shrink-0" />
+                  {feature}
                 </li>
               ))}
             </ul>
-          </div>
 
-          <Link
-            href={tier.cta.href}
-            className={`mt-8 inline-flex h-11 items-center justify-center gap-2 rounded-full px-6 text-xs font-semibold transition-all duration-200 active:scale-[0.97] ${
-              tier.highlight
-                ? "bg-accent text-accent-foreground shadow-md hover:opacity-90"
-                : "border-border/80 bg-background/80 text-foreground hover:bg-card border"
-            }`}
-          >
-            <span>{tier.cta.label}</span>
-            <ArrowRight className="size-3.5" />
-          </Link>
-        </div>
-      ))}
-    </div>
+            <Link
+              href={tier.cta.href}
+              className={`group focus-visible:ring-accent/40 mt-auto inline-flex h-12 items-center justify-center gap-2 rounded-full px-6 text-base font-semibold transition-[transform,background-color] duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none active:scale-[0.97] ${
+                tier.highlight
+                  ? "bg-accent-foreground text-accent"
+                  : "bg-foreground text-background hover:bg-accent hover:text-accent-foreground"
+              }`}
+            >
+              {tier.cta.label}
+              <ArrowRight
+                aria-hidden="true"
+                className="size-4 transition-transform duration-200 group-hover:translate-x-0.5"
+              />
+            </Link>
+          </article>
+        ))}
+      </div>
+    </PageSection>
   );
 }
 

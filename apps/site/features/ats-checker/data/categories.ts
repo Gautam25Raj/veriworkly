@@ -5,7 +5,6 @@ import {
   PenLine,
   ShieldAlert,
   Type,
-  Gauge,
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
@@ -61,21 +60,14 @@ export function categoryMeta(category: string) {
   return { label: categoryLabel(category), ...meta };
 }
 
+// Status tokens, so both themes keep their contrast without per-theme overrides.
 export const TONE_CLASSES: Record<ScoreTone, { text: string; fill: string; chip: string }> = {
-  good: {
-    text: "text-emerald-700 dark:text-emerald-400",
-    fill: "bg-emerald-500",
-    chip: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-  },
-  warn: {
-    text: "text-amber-700 dark:text-amber-400",
-    fill: "bg-amber-500",
-    chip: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
-  },
+  good: { text: "text-success", fill: "bg-success", chip: "bg-success/10 text-success" },
+  warn: { text: "text-warning", fill: "bg-warning", chip: "bg-warning/10 text-warning" },
   bad: {
-    text: "text-red-700 dark:text-red-400",
-    fill: "bg-red-500",
-    chip: "bg-red-500/10 text-red-700 dark:text-red-400",
+    text: "text-destructive",
+    fill: "bg-destructive",
+    chip: "bg-destructive/10 text-destructive",
   },
 };
 
@@ -85,9 +77,7 @@ export const TONE_CLASSES: Record<ScoreTone, { text: string; fill: string; chip:
  */
 export const SCORING_DIMENSIONS = [
   {
-    icon: FileSearch,
-    title: "Parsing & Layout Integrity",
-    badge: "Format Sanity",
+    title: "Parsing and layout",
     body: "On an uploaded PDF we read the page geometry, not just the text: whether lines split across a column gutter, and whether content sits inside ruled table grids. Both scramble the order your text comes out in.",
     checks: [
       "Column-gutter detection on PDF uploads",
@@ -96,9 +86,7 @@ export const SCORING_DIMENSIONS = [
     ],
   },
   {
-    icon: ShieldCheck,
-    title: "Contact & Section Headings",
-    badge: "Search Indexing",
+    title: "Contact and headings",
     body: "Email, phone, and a professional link, plus Experience, Education, and Skills headings that parsers map into searchable profile fields. Headings must be real headings — the word appearing mid-sentence does not count.",
     checks: [
       "Contact details in the first quarter",
@@ -107,9 +95,7 @@ export const SCORING_DIMENSIONS = [
     ],
   },
   {
-    icon: Type,
-    title: "Evidence & Impact Quality",
-    badge: "Impact Weight",
+    title: "Evidence and impact",
     body: "Quantified outcomes and action verbs, scored by the share of your bullets that carry them rather than by whether they appear at all — a single strong verb in the document is not the same as a resume written in them.",
     checks: [
       "Metric & percentage density per bullet",
@@ -118,9 +104,7 @@ export const SCORING_DIMENSIONS = [
     ],
   },
   {
-    icon: Gauge,
-    title: "Job Match & Keywords",
-    badge: "Semantic Fit",
+    title: "Job match and keywords",
     body: "Keyword matching against a pasted job description. The posting is split into sections so about-us and benefits copy is not scored, requirements outweigh nice-to-haves, and skills outweigh ordinary English.",
     checks: [
       "Requirements weighted above nice-to-haves",

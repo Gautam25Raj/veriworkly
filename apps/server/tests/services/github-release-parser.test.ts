@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { parseReleaseBody, reparseStoredRelease } from "../../src/services/github/index.js";
+import {
+  parseReleaseBody,
+  samePullRequests,
+  unionPullRequests,
+  reparseStoredRelease,
+  assignPullRequestsToReleases,
+} from "../../src/services/github/index.js";
 
 describe("GitHub Release Body Parser", () => {
   it("parses release notes with preamble summary, categorized headers, and multi-line bullets", () => {
@@ -142,11 +148,67 @@ Intro.
     expect(update?.summary).toBe("Intro.");
     expect(update?.added).toEqual(["Exports"]);
     expect(update?.prRefs).toEqual([
-      stored.prRefs[0],
       { number: 12, title: "[Fix] [Site]: tidy footer", url: `${repoUrl}/pull/12`, author: null },
+      stored.prRefs[0],
     ]);
 
     // Already clean: nothing to write.
     expect(reparseStoredRelease(body, update!, repoUrl)).toBeNull();
+  });
+
+  it("assigns every merged PR to the release it shipped in", () => {
+    const author = (login: string) => ({ login, avatarUrl: `${login}.png`, htmlUrl: login });
+    const pr = (number: number, mergedAt: string, headRef = "feat/x", baseRef = "master") => ({
+      number,
+      title: `PR ${number}`,
+      url: `https://github.com/acme/app/pull/${number}`,
+      author: author(`dev${number}`),
+      mergedAt,
+      headRef,
+      baseRef,
+    });
+
+    const assigned = assignPullRequestsToReleases(
+      [
+        { id: "v1-1-0", publishedAt: "2026-02-01T00:00:00Z", listed: [4] },
+        { id: "v1-0-0", publishedAt: "2026-01-01T00:00:00Z", listed: [] },
+      ],
+      [
+        pr(1, "2025-12-20T00:00:00Z"), // before v1.0.0
+        pr(2, "2026-01-15T00:00:00Z"), // between the two
+        pr(3, "2025-12-21T00:00:00Z", "master", "dev"), // "sync dev from master": left out
+        pr(4, "2025-12-22T00:00:00Z"), // merged early, but v1.1.0's notes name it
+        pr(5, "2026-03-01T00:00:00Z"), // not released yet
+      ],
+    );
+
+    expect(assigned.get("v1-0-0")?.map((ref) => ref.number)).toEqual([1]);
+    expect(assigned.get("v1-1-0")?.map((ref) => ref.number)).toEqual([4, 2]);
+    expect(assigned.get("v1-1-0")?.[0]?.author?.login).toBe("dev4");
+  });
+
+  it("fills missing authors without dropping refs, and compares lists by content", () => {
+    const withAuthor = {
+      number: 7,
+      title: "T",
+      url: "u7",
+      author: { login: "dev", avatarUrl: "a", htmlUrl: "h" },
+    };
+
+    const merged = unionPullRequests(
+      [
+        { number: 7, title: "T", url: "u7", author: null },
+        { number: 3, title: "Old" },
+      ],
+      [withAuthor],
+    );
+
+    expect(merged.map((ref) => ref.number)).toEqual([7, 3]);
+    expect(merged[0]?.author?.login).toBe("dev");
+
+    // jsonb hands keys back in its own order; that alone is not a change.
+    const fromDb = JSON.parse('{"url":"u7","title":"T","author":{"login":"dev"},"number":7}');
+    expect(samePullRequests([fromDb], [withAuthor])).toBe(true);
+    expect(samePullRequests([fromDb], [{ ...withAuthor, author: null }])).toBe(false);
   });
 });

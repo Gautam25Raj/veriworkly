@@ -78,4 +78,6 @@ export interface ParsedReleaseBody {
   fixed: string[];
   breaking: string[];
   security: string[];
+  /** The release's own pull request list ("**#191** — title"), kept out of the change lists. */
+  pullRequests: Array<{ number: number; title: string }>;
 }

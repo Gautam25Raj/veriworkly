@@ -11,12 +11,12 @@ export const CardCategories = ({ entry }: CardCategoriesProps) => {
   if (counts.length === 0) return null;
 
   return (
-    <ul className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-      {counts.map(({ category, count, label, dot, text }) => (
-        <li key={category} className="flex items-center gap-1.5">
-          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} aria-hidden="true" />
-          <span className={`font-mono text-[11px] font-bold tracking-wide ${text}`}>{count}</span>
-          <span className="text-muted font-mono text-[11px] tracking-wide">{label}</span>
+    <ul className="flex flex-wrap items-center gap-x-5 gap-y-2 text-base">
+      {counts.map(({ category, count, label, dot }) => (
+        <li key={category} className="flex items-center gap-2">
+          <span className={`size-2 shrink-0 rounded-full ${dot}`} aria-hidden="true" />
+          <span className="font-semibold tabular-nums">{count}</span>
+          <span className="text-muted">{label.toLowerCase()}</span>
         </li>
       ))}
     </ul>

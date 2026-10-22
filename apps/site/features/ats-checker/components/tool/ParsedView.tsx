@@ -22,8 +22,8 @@ import type { AtsParsedResume } from "../../types";
 /** A field the parser could not recover, shown as the empty column it actually is. */
 function Missing({ label }: { label: string }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
-      <AlertCircle className="h-3 w-3" aria-hidden="true" /> no {label}
+    <span className="bg-warning/10 text-warning inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-sm font-medium">
+      <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" /> no {label}
     </span>
   );
 }
@@ -40,15 +40,13 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-3xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-white/2">
-      <h3 className="flex items-center gap-2 text-sm font-semibold text-zinc-900 dark:text-white">
-        <Icon className="h-4 w-4 text-zinc-400" aria-hidden="true" />
+    <section className="bg-card rounded-3xl p-6 sm:p-8">
+      <h3 className="flex items-center gap-2 text-xl font-bold tracking-tight">
+        <Icon className="text-muted h-5 w-5" aria-hidden="true" />
         {title}
       </h3>
-      {hint ? (
-        <p className="mt-1 text-xs leading-5 text-zinc-500 dark:text-zinc-400">{hint}</p>
-      ) : null}
-      <div className="mt-3">{children}</div>
+      {hint ? <p className="text-muted mt-1 text-sm leading-6">{hint}</p> : null}
+      <div className="mt-5">{children}</div>
     </section>
   );
 }
@@ -78,17 +76,15 @@ export function ParsedView({ parsed }: { parsed: AtsParsedResume }) {
         <dl className="grid gap-3 sm:grid-cols-3">
           {contact.map(([label, value]) => (
             <div key={label}>
-              <dt className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{label}</dt>
-              <dd className="mt-0.5 text-sm break-words text-zinc-900 dark:text-white">
+              <dt className="text-muted text-sm font-medium">{label}</dt>
+              <dd className="mt-1 text-base break-words">
                 {value || <Missing label={label.toLowerCase()} />}
               </dd>
             </div>
           ))}
         </dl>
         {parsed.links.length ? (
-          <p className="mt-3 text-xs break-words text-zinc-500 dark:text-zinc-400">
-            Links: {parsed.links.join(" · ")}
-          </p>
+          <p className="text-muted mt-4 text-sm break-words">Links: {parsed.links.join(" · ")}</p>
         ) : null}
       </Panel>
 
@@ -99,15 +95,11 @@ export function ParsedView({ parsed }: { parsed: AtsParsedResume }) {
       >
         {parsed.roles.length ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] text-left text-sm">
+            <table className="w-full min-w-[520px] text-left text-base">
               <thead>
-                <tr className="border-b border-zinc-200 dark:border-zinc-800">
+                <tr className="border-border border-b">
                   {["Title", "Employer", "Dates", "Tenure"].map((heading) => (
-                    <th
-                      key={heading}
-                      scope="col"
-                      className="pb-2 text-xs font-medium text-zinc-500 dark:text-zinc-400"
-                    >
+                    <th key={heading} scope="col" className="text-muted pb-3 text-sm font-medium">
                       {heading}
                     </th>
                   ))}
@@ -119,18 +111,16 @@ export function ParsedView({ parsed }: { parsed: AtsParsedResume }) {
                   return (
                     <tr
                       key={`${role.title}-${role.employer}-${index}`}
-                      className="border-b border-zinc-100 last:border-0 dark:border-zinc-900"
+                      className="border-border border-b last:border-0"
                     >
-                      <td className="py-2.5 pr-3 text-zinc-900 dark:text-white">
+                      <td className="py-3 pr-3 font-medium">
                         {role.title || <Missing label="title" />}
                       </td>
-                      <td className="py-2.5 pr-3 text-zinc-700 dark:text-zinc-300">
-                        {role.employer || <Missing label="employer" />}
-                      </td>
-                      <td className="py-2.5 pr-3 text-zinc-700 tabular-nums dark:text-zinc-300">
+                      <td className="py-3 pr-3">{role.employer || <Missing label="employer" />}</td>
+                      <td className="py-3 pr-3 tabular-nums">
                         {dates ?? <Missing label="dates" />}
                       </td>
-                      <td className="py-2.5 text-zinc-500 tabular-nums dark:text-zinc-400">
+                      <td className="text-muted py-3 tabular-nums">
                         {role.start ? formatTenure(roleSpanMonths(role)) : "—"}
                       </td>
                     </tr>
@@ -140,7 +130,7 @@ export function ParsedView({ parsed }: { parsed: AtsParsedResume }) {
             </table>
           </div>
         ) : (
-          <p className="text-sm text-amber-700 dark:text-amber-400">
+          <p className="text-warning text-base leading-7">
             No work history could be recovered. A parser builds one row per job from an employer, a
             job title and a date range on the same line or the line above — without them the role
             never enters the recruiter&rsquo;s search at all.
@@ -148,12 +138,12 @@ export function ParsedView({ parsed }: { parsed: AtsParsedResume }) {
         )}
 
         {parsed.monthsOfExperience !== null ? (
-          <p className="mt-4 border-t border-zinc-100 pt-3 text-sm text-zinc-600 dark:border-zinc-900 dark:text-zinc-300">
+          <p className="border-border text-muted mt-5 border-t pt-4 text-base leading-7">
             Total experience read from your dates:{" "}
-            <span className="font-semibold text-zinc-900 tabular-nums dark:text-white">
+            <span className="text-foreground font-semibold tabular-nums">
               {formatTenure(parsed.monthsOfExperience)}
             </span>
-            <span className="text-zinc-500 dark:text-zinc-400">
+            <span className="text-muted">
               {" "}
               — overlapping roles counted once, which is how a filter on years of experience reads
               it.
@@ -167,31 +157,26 @@ export function ParsedView({ parsed }: { parsed: AtsParsedResume }) {
           {parsed.education.length ? (
             <ul className="space-y-2.5">
               {parsed.education.map((entry, index) => (
-                <li key={`${entry.school}-${index}`} className="text-sm">
-                  <span className="font-medium text-zinc-900 dark:text-white">
+                <li key={`${entry.school}-${index}`} className="text-base leading-7">
+                  <span className="font-semibold">
                     {entry.credential || entry.school || "Entry"}
                   </span>
                   {entry.school && entry.credential ? (
-                    <span className="text-zinc-600 dark:text-zinc-300"> — {entry.school}</span>
+                    <span className="text-muted"> — {entry.school}</span>
                   ) : null}
                   {entry.end ? (
-                    <span className="text-zinc-500 tabular-nums dark:text-zinc-400">
-                      {" "}
-                      ({entry.end.year})
-                    </span>
+                    <span className="text-muted tabular-nums"> ({entry.end.year})</span>
                   ) : null}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              No education entries recovered.
-            </p>
+            <p className="text-muted text-base">No education entries recovered.</p>
           )}
           {parsed.highestIsced ? (
-            <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+            <p className="text-muted mt-4 text-sm">
               Highest level read:{" "}
-              <span className="font-medium text-zinc-700 dark:text-zinc-200">
+              <span className="text-foreground font-medium">
                 {ISCED_LABELS[parsed.highestIsced]}
               </span>
             </p>
@@ -200,18 +185,18 @@ export function ParsedView({ parsed }: { parsed: AtsParsedResume }) {
 
         <Panel icon={Wrench} title={`Indexed skills — ${parsed.skills.length}`}>
           {parsed.skills.length ? (
-            <ul className="flex flex-wrap gap-1.5">
+            <ul className="flex flex-wrap gap-2">
               {parsed.skills.map((skill) => (
                 <li
                   key={skill}
-                  className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:bg-white/5 dark:text-zinc-300"
+                  className="bg-background rounded-full px-3 py-1 text-sm font-medium"
                 >
                   {skill}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            <p className="text-muted text-base">
               No skills section found. A labelled Skills heading with a comma-separated list is what
               a parser indexes for keyword search.
             </p>
@@ -229,18 +214,13 @@ export function ParsedView({ parsed }: { parsed: AtsParsedResume }) {
             {parsed.certifications.length ? (
               <ul className="space-y-2.5">
                 {parsed.certifications.map((row, index) => (
-                  <li
-                    key={`${row.name}-${index}`}
-                    className="text-sm text-zinc-900 dark:text-white"
-                  >
+                  <li key={`${row.name}-${index}`} className="text-base leading-7">
                     {formatCertification(row)}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                No certifications recovered.
-              </p>
+              <p className="text-muted text-base">No certifications recovered.</p>
             )}
           </Panel>
 
@@ -250,20 +230,18 @@ export function ParsedView({ parsed }: { parsed: AtsParsedResume }) {
             hint="Each with its level on the European scale (A1–C2), which a requirement such as “fluent German” is checked against."
           >
             {parsed.spokenLanguages.length ? (
-              <ul className="flex flex-wrap gap-1.5">
+              <ul className="flex flex-wrap gap-2">
                 {parsed.spokenLanguages.map((row) => (
                   <li
                     key={row.language}
-                    className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:bg-white/5 dark:text-zinc-300"
+                    className="bg-background rounded-full px-3 py-1 text-sm font-medium"
                   >
                     {formatSpokenLanguage(row)}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                No spoken languages recovered.
-              </p>
+              <p className="text-muted text-base">No spoken languages recovered.</p>
             )}
           </Panel>
         </div>

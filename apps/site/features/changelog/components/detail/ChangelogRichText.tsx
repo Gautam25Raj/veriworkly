@@ -75,7 +75,7 @@ export function renderInlineMarkdown(text: string, keyPrefix = "inline"): React.
       nodes.push(
         <code
           key={key}
-          className="border-border/50 bg-muted/25 text-foreground dark:bg-muted/40 rounded border px-1.5 py-0.5 font-mono text-[11px] font-medium"
+          className="bg-foreground/[0.07] text-foreground rounded-md px-1.5 py-0.5 font-mono text-[0.82em] font-medium break-words"
         >
           {codeContent}
         </code>,
@@ -112,7 +112,7 @@ export function renderInlineMarkdown(text: string, keyPrefix = "inline"): React.
           target="_blank"
           href={matchedStr}
           rel="noopener noreferrer"
-          className="text-accent decoration-accent/40 hover:decoration-accent font-mono text-xs underline underline-offset-2"
+          className="text-accent decoration-accent/40 hover:decoration-accent font-medium tabular-nums underline underline-offset-2"
         >
           {`#${prNumber}`}
         </Link>,
@@ -159,7 +159,7 @@ export function renderInlineMarkdown(text: string, keyPrefix = "inline"): React.
         nodes.push(
           <code
             key={key}
-            className="border-border/50 bg-muted/25 text-foreground dark:bg-muted/40 rounded border px-1.5 py-0.5 font-mono text-[11px] font-medium"
+            className="bg-foreground/[0.07] text-foreground rounded-md px-1.5 py-0.5 font-mono text-[0.82em] font-medium break-words"
           >
             {pkgName}
           </code>,
@@ -181,7 +181,7 @@ export function renderInlineMarkdown(text: string, keyPrefix = "inline"): React.
             href={prUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-accent decoration-accent/40 hover:decoration-accent font-mono text-xs underline underline-offset-2"
+            className="text-accent decoration-accent/40 hover:decoration-accent font-medium tabular-nums underline underline-offset-2"
           >
             {`#${prNumber}`}
           </Link>,
@@ -203,10 +203,9 @@ export function renderInlineMarkdown(text: string, keyPrefix = "inline"): React.
             rel="noopener noreferrer"
             title={`@${username} on GitHub`}
             href={`https://github.com/${username}`}
-            className="bg-accent/10 border-accent/20 text-foreground hover:bg-accent/20 hover:text-accent inline-flex items-center gap-0.5 rounded-md border px-1.5 py-0.5 font-mono text-[11px] font-medium transition-colors"
+            className="text-accent hover:decoration-accent decoration-accent/40 font-medium underline underline-offset-2 transition-colors"
           >
-            <span className="text-accent font-bold">@</span>
-            {username}
+            @{username}
           </Link>,
         );
       } else nodes.push(matchedStr);

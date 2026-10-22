@@ -1,7 +1,13 @@
+import { cn } from "@veriworkly/ui";
+
 import ChangelogRichText from "./ChangelogRichText";
 
+import { TYPE } from "@/components/marketing/PageLayout";
 import { categoriesFor } from "@/features/changelog/utils/changelog-utils";
 import { type ChangelogEntry } from "@/features/changelog/services/changelog-backend";
+
+/** Release notes write detailed items as "**Heading**: what changed". */
+const TITLED_ITEM = /^\*\*(.+?)\*\*:?\s+([\s\S]+)$/;
 
 interface ReleaseCategorySectionsProps {
   entry: ChangelogEntry;
@@ -12,43 +18,67 @@ export const ReleaseCategorySections = ({ entry }: ReleaseCategorySectionsProps)
 
   if (categories.length === 0)
     return (
-      <p className="text-muted text-sm leading-relaxed">
-        No itemised changes were recorded for this release. The linked GitHub release and pull
-        requests carry the full detail.
+      <p className="text-muted text-base leading-7 text-pretty">
+        No itemised changes were recorded for this release. The GitHub release and its pull requests
+        carry the full detail.
       </p>
     );
 
   return (
-    <div className="space-y-8">
-      {categories.map(({ category, items, label, icon: Icon, text, border }) => (
-        <section key={category} className={`space-y-3 border-l-2 pl-5 ${border}`}>
-          <h2
-            className={`flex items-center gap-1.5 font-mono text-[11px] font-bold tracking-widest uppercase ${text}`}
-          >
-            <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-            {label}
-            <span className="text-muted/70">({items.length})</span>
-          </h2>
+    <div className="space-y-16">
+      {categories.map(({ category, items, label, dot }) => {
+        // Short bullets first, then the detailed items: the order release notes use
+        // (highlights, then the detail behind them).
+        const bullets = items.filter((item) => !TITLED_ITEM.test(item));
+        const detailed = items.flatMap((item) => {
+          const match = TITLED_ITEM.exec(item);
+          return match ? [{ item, heading: match[1]!, body: match[2]! }] : [];
+        });
 
-          <ul className="space-y-2.5">
-            {items.map((item, index) => (
-              <li
-                key={index}
-                className="text-muted flex items-start gap-2.5 text-sm leading-relaxed"
-              >
-                <span
-                  aria-hidden="true"
-                  className="bg-muted/40 mt-2 h-1.5 w-1.5 shrink-0 rounded-full"
-                />
+        return (
+          <section key={category} id={category} className="scroll-mt-28">
+            <h2 className={cn("flex items-center gap-3", TYPE.title)}>
+              <span aria-hidden="true" className={`size-2.5 shrink-0 rounded-full ${dot}`} />
+              {label}
+              <span className="text-muted text-base font-medium tabular-nums">{items.length}</span>
+            </h2>
 
-                <div className="min-w-0 flex-1">
-                  <ChangelogRichText content={item} />
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+            {bullets.length > 0 && (
+              <ul className="mt-6 space-y-3">
+                {bullets.map((item) => (
+                  <li key={item} className="flex gap-3.5 text-base leading-7">
+                    <span
+                      aria-hidden="true"
+                      className={`mt-[0.7rem] size-1.5 shrink-0 rounded-full ${dot}`}
+                    />
+                    <span className="min-w-0 text-pretty">
+                      <ChangelogRichText content={item} />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {detailed.length > 0 && (
+              <ul className="bg-card mt-8 overflow-hidden rounded-3xl">
+                {detailed.map(({ item, heading, body }) => (
+                  <li
+                    key={item}
+                    className="border-border border-b px-6 py-5 last:border-b-0 sm:px-7"
+                  >
+                    <p className="text-base leading-7 font-semibold text-balance">
+                      <ChangelogRichText content={heading} />
+                    </p>
+                    <p className="text-muted mt-1 text-base leading-7 text-pretty">
+                      <ChangelogRichText content={body} />
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 };

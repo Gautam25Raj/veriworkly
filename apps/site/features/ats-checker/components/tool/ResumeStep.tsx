@@ -30,22 +30,20 @@ export function ResumeStep({
 
   if (hasResume) {
     return (
-      <div className="flex items-center gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-white/2">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+      <div className="bg-card flex items-center gap-4 rounded-2xl p-4">
+        <span className="bg-success/10 text-success flex h-11 w-11 shrink-0 items-center justify-center rounded-xl">
           <FileText className="h-5 w-5" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-zinc-900 dark:text-white">
-            {sourceLabel}
-          </p>
-          <p className="text-xs text-zinc-500 tabular-nums dark:text-zinc-400">
+          <p className="truncate text-base font-semibold">{sourceLabel}</p>
+          <p className="text-muted text-sm tabular-nums">
             {wordCount.toLocaleString()} words &middot; ready to scan
           </p>
         </div>
         <button
           type="button"
           onClick={onClear}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 transition hover:bg-zinc-200 hover:text-zinc-700 dark:hover:bg-white/10 dark:hover:text-zinc-200"
+          className="text-muted hover:bg-background hover:text-foreground focus-visible:ring-accent/40 flex h-10 w-10 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none"
           aria-label="Remove resume"
         >
           <X className="h-4 w-4" />
@@ -60,10 +58,8 @@ export function ResumeStep({
         <button
           type="button"
           onClick={() => setMode("upload")}
-          className={`rounded-full px-3.5 py-1 text-xs font-semibold transition ${
-            mode === "upload"
-              ? "bg-zinc-950 text-white dark:bg-white dark:text-zinc-950"
-              : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
+          className={`focus-visible:ring-accent/40 rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none ${
+            mode === "upload" ? "bg-foreground text-background" : "text-muted hover:text-foreground"
           }`}
         >
           Upload file
@@ -71,10 +67,8 @@ export function ResumeStep({
         <button
           type="button"
           onClick={() => setMode("paste")}
-          className={`rounded-full px-3.5 py-1 text-xs font-semibold transition ${
-            mode === "paste"
-              ? "bg-zinc-950 text-white dark:bg-white dark:text-zinc-950"
-              : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
+          className={`focus-visible:ring-accent/40 rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none ${
+            mode === "paste" ? "bg-foreground text-background" : "text-muted hover:text-foreground"
           }`}
         >
           Paste text
@@ -94,10 +88,10 @@ export function ResumeStep({
             const file = e.dataTransfer.files[0];
             if (file) onFile(file);
           }}
-          className={`flex min-h-56 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center transition ${
+          className={`bg-card focus-within:ring-accent/40 flex min-h-56 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center transition-colors focus-within:ring-2 ${
             dragOver
-              ? "border-blue-500 bg-blue-500/5"
-              : "border-zinc-300 hover:border-zinc-400 dark:border-zinc-700 dark:hover:border-zinc-600"
+              ? "border-accent bg-accent/5"
+              : "border-foreground/15 hover:border-foreground/30"
           }`}
         >
           <input
@@ -112,21 +106,19 @@ export function ResumeStep({
           />
           {busy ? (
             <div className="flex flex-col items-center gap-3">
-              <Loader2 className="h-7 w-7 animate-spin text-blue-600 dark:text-blue-400" />
-              <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-                Reading document…
-              </p>
+              <Loader2 className="text-accent h-7 w-7 animate-spin" aria-hidden="true" />
+              <p className="text-base font-semibold">Reading document…</p>
             </div>
           ) : (
             <>
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-600 dark:bg-white/5 dark:text-zinc-300">
+              <span className="bg-background flex h-12 w-12 items-center justify-center rounded-2xl">
                 <Upload className="h-5 w-5" aria-hidden="true" />
               </span>
-              <p className="mt-3 text-sm font-semibold text-zinc-900 dark:text-white">
+              <p className="mt-4 text-base font-semibold">
                 Drop your resume here, or{" "}
-                <span className="text-blue-600 dark:text-blue-400">browse</span>
+                <span className="text-accent underline underline-offset-4">browse</span>
               </p>
-              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              <p className="text-muted mt-1 text-sm">
                 PDF, DOCX, TXT, or MD &middot; processed in memory &middot; nothing stored
               </p>
             </>
@@ -139,13 +131,13 @@ export function ResumeStep({
             onChange={(e) => setPasteValue(e.target.value)}
             rows={9}
             placeholder="Paste your resume text here…"
-            className="w-full rounded-2xl border border-zinc-300 bg-white p-4 font-mono text-xs leading-relaxed text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-white/2 dark:text-white"
+            className="border-border bg-card placeholder:text-muted focus:border-accent/40 focus:ring-accent/20 w-full rounded-2xl border p-4 text-base leading-7 focus:ring-4 focus:outline-none"
           />
           <button
             type="button"
             disabled={!pasteValue.trim()}
             onClick={() => onPaste(pasteValue)}
-            className="inline-flex h-9 items-center justify-center rounded-full bg-zinc-950 px-4 text-xs font-semibold text-white transition hover:bg-zinc-800 disabled:opacity-40 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
+            className="bg-foreground text-background hover:bg-accent hover:text-accent-foreground inline-flex h-11 items-center justify-center rounded-full px-5 text-sm font-semibold transition-colors duration-200 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40"
           >
             Use this resume text
           </button>
@@ -153,10 +145,7 @@ export function ResumeStep({
       )}
 
       {error ? (
-        <p
-          role="alert"
-          className="flex items-center gap-2 text-xs font-medium text-red-600 dark:text-red-400"
-        >
+        <p role="alert" className="text-destructive flex items-center gap-2 text-sm font-medium">
           <TriangleAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
           {error}
         </p>

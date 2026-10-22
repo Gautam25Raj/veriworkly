@@ -10,7 +10,10 @@ import { logger } from "#lib/logger";
 import {
   fetchAllGitHubReleases,
   parseReleaseBody,
+  reparseStoredRelease,
   derivePrRefsFromCommits,
+  mergeReleasePullRequests,
+  type ReleasePrRef,
   type GitHubReleasePayload,
 } from "#services/github/index";
 import { slugifyVersion, parseReleaseTag, deriveReleaseType } from "#utils/changelogVersion";
@@ -46,12 +49,13 @@ function deriveTitle(release: GitHubReleasePayload, version: string): string {
 }
 
 /**
- * Syncs missing GitHub releases into the changelog. Purely additive: an
- * existing ChangelogEntry (hand-curated or previously synced) is never
- * modified, only genuinely new releases get a row created. Safe to re-run.
+ * Syncs GitHub releases into the changelog. New releases get a row; a previously synced row
+ * that no admin has edited is parsed again, once, so parser fixes reach old entries.
+ * Hand-curated and admin-edited entries are never modified. Safe to re-run.
  */
 export async function syncChangelogFromGitHubReleases(): Promise<{
   created: number;
+  refreshed: number;
   skipped: number;
   total: number;
 }> {
@@ -61,7 +65,7 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
     logger.warn(
       "Changelog release sync skipped: GITHUB_OWNER/GITHUB_REPO/GITHUB_TOKEN not configured.",
     );
-    return { created: 0, skipped: 0, total: 0 };
+    return { created: 0, refreshed: 0, skipped: 0, total: 0 };
   }
 
   const redis = getRedis();
@@ -81,11 +85,25 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
     const releaseIds = releases.map((release) => slugifyVersion(parseReleaseTag(release.tag_name)));
     const storedRows = await prisma.changelogEntry.findMany({
       where: { id: { in: releaseIds } },
-      select: { id: true },
+      select: {
+        id: true,
+        tags: true,
+        createdAt: true,
+        updatedAt: true,
+        summary: true,
+        added: true,
+        improved: true,
+        fixed: true,
+        breaking: true,
+        security: true,
+        prRefs: true,
+      },
     });
-    const storedIds = new Set(storedRows.map((row) => row.id));
+    const storedById = new Map(storedRows.map((row) => [row.id, row]));
+    const repoUrl = `https://github.com/${owner}/${repo}`;
 
     let created = 0;
+    let refreshed = 0;
     let skipped = 0;
 
     for (let index = 0; index < releases.length; index++) {
@@ -93,8 +111,40 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
       const version = parseReleaseTag(release.tag_name);
       const id = releaseIds[index];
 
-      if (storedIds.has(id)) {
-        skipped++;
+      const stored = storedById.get(id);
+
+      if (stored) {
+        // A synced entry an admin never touched still holds whatever the parser produced when it
+        // was created, so it is parsed again. updatedAt only moves on an update, which makes this
+        // a one-time repair that never overwrites an admin's edit.
+        const untouched = stored.updatedAt.getTime() - stored.createdAt.getTime() < 1000;
+        const update =
+          stored.tags.includes("auto-synced") && untouched
+            ? reparseStoredRelease(
+                release.body,
+                {
+                  ...stored,
+                  prRefs: Array.isArray(stored.prRefs)
+                    ? (stored.prRefs as unknown as ReleasePrRef[])
+                    : [],
+                },
+                repoUrl,
+              )
+            : null;
+
+        if (update) {
+          await prisma.changelogEntry.update({
+            where: { id },
+            data: {
+              ...update,
+              prRefs: (update.prRefs.length > 0
+                ? update.prRefs
+                : Prisma.JsonNull) as unknown as Prisma.InputJsonValue,
+            },
+          });
+          refreshed++;
+        } else skipped++;
+
         continue;
       }
 
@@ -105,13 +155,15 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
       );
 
       const parsedBody = parseReleaseBody(release.body);
-      const prRefs = await derivePrRefsFromCommits(
+      const commitPrRefs = await derivePrRefsFromCommits(
         owner,
         repo,
         token,
         previousRelease?.tag_name,
         release.tag_name,
       );
+
+      const prRefs = mergeReleasePullRequests(commitPrRefs, parsedBody.pullRequests, repoUrl);
 
       await prisma.changelogEntry.create({
         data: {
@@ -128,7 +180,9 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
           breaking: parsedBody.breaking,
           security: parsedBody.security,
           tags: ["auto-synced"],
-          prRefs: (prRefs.length > 0 ? prRefs : Prisma.JsonNull) as Prisma.InputJsonValue,
+          prRefs: (prRefs.length > 0
+            ? prRefs
+            : Prisma.JsonNull) as unknown as Prisma.InputJsonValue,
         },
       });
 
@@ -136,7 +190,7 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
       logger.info(`Changelog release sync: created entry for ${id} (v${version})`);
     }
 
-    if (created > 0) {
+    if (created > 0 || refreshed > 0) {
       await invalidateChangelogReadCaches();
     }
 
@@ -146,9 +200,11 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
       })
       .catch((err) => logger.error("Failed to record changelog sync freshness marker", err));
 
-    logger.info(`Changelog release sync complete: ${created} created, ${skipped} already present`);
+    logger.info(
+      `Changelog release sync complete: ${created} created, ${refreshed} re-parsed, ${skipped} already present`,
+    );
 
-    return { created, skipped, total: releases.length };
+    return { created, refreshed, skipped, total: releases.length };
   } finally {
     try {
       await redis.eval(RELEASE_LOCK_LUA_SCRIPT, {

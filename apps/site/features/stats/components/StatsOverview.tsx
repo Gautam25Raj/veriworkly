@@ -1,120 +1,93 @@
-import Link from "next/link";
-import { ExternalLink, GitBranch, AlertCircle, FileText, CheckCircle2 } from "lucide-react";
+import type { GitHubProjectStats } from "@/features/github/services/github-backend";
+
+import { TYPE } from "@/components/marketing/PageLayout";
+
+import { STATUS_META } from "./stats-utils";
 
 interface StatsOverviewProps {
-  projectName: string;
-  projectUrl: string;
-  totalItems: number;
-  issueCount: number;
-  pullRequestCount: number;
-  completionRate: string;
+  stats: GitHubProjectStats | null;
 }
 
-const StatsOverview = ({
-  projectName,
-  projectUrl,
-  totalItems,
-  issueCount,
-  pullRequestCount,
-  completionRate,
-}: StatsOverviewProps) => {
-  const completionVal = parseFloat(completionRate) || 0;
-
-  return (
-    <section className="mb-10 space-y-6">
-      <div className="border-border/30 bg-card/10 flex flex-col gap-4 rounded-3xl border p-5 shadow-xs backdrop-blur-xs sm:flex-row sm:items-center sm:justify-between sm:p-6">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2.5">
-            <GitBranch className="text-accent h-4.5 w-4.5" />
-
-            <h2 className="text-foreground font-sans text-base font-bold tracking-tight">
-              {projectName}
-            </h2>
-          </div>
-
-          <p className="text-muted max-w-xl text-[13px]">
-            Sync snapshots compile all public issues and pull requests, serving normalized
-            cache-backed records directly from the database.
+/**
+ * The board in numbers. Without a sync there are no numbers, and showing zeros would read as
+ * "nothing is happening", so the offline case says what is true instead.
+ */
+const StatsOverview = ({ stats }: StatsOverviewProps) => {
+  if (!stats) {
+    return (
+      <div className="bg-card grid gap-3 rounded-3xl p-6 sm:p-8 md:grid-cols-[.8fr_1.2fr] md:gap-10">
+        <p className={TYPE.title}>The sync is offline right now.</p>
+        <div>
+          <p className="text-muted max-w-2xl text-base leading-7 text-pretty">
+            These figures come from our server&apos;s copy of the GitHub board, and it could not be
+            reached. Nothing here is estimated, so nothing is shown until it is back. The board
+            itself is public on GitHub.
           </p>
         </div>
-
-        <Link
-          target="_blank"
-          href={projectUrl}
-          rel="noopener noreferrer"
-          className="border-border/40 bg-card text-foreground hover:bg-muted/10 inline-flex w-fit items-center gap-1.5 rounded-full border px-4 py-2 font-sans text-xs font-bold shadow-xs transition-colors"
-        >
-          View Repository
-          <ExternalLink className="h-3.5 w-3.5" />
-        </Link>
       </div>
+    );
+  }
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div className="group border-border/30 bg-card/25 hover:border-border/50 hover:bg-card/45 relative overflow-hidden rounded-2xl border p-5 shadow-[0_1px_3px_rgba(0,0,0,0.01)] transition-all duration-300">
-          <div className="flex items-center justify-between">
-            <span className="text-muted/80 font-mono text-[10px] font-bold tracking-wider uppercase">
-              Total Items
-            </span>
+  const { totalItems, issues, pullRequests, todo, inProgress, done, completionRate } = stats.stats;
+  const completion = Number.parseFloat(completionRate) || 0;
 
-            <FileText className="text-muted/50 group-hover:text-accent h-4 w-4 transition-colors" />
+  const segments = [
+    { status: "done" as const, count: done },
+    { status: "in-progress" as const, count: inProgress },
+    { status: "todo" as const, count: todo },
+  ];
+  const segmentTotal = segments.reduce((sum, segment) => sum + segment.count, 0);
+
+  return (
+    <div className="space-y-12">
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-4">
+        {[
+          { label: "Items on the board", value: totalItems },
+          { label: "Issues", value: issues },
+          { label: "Pull requests", value: pullRequests },
+          { label: "Done", value: `${completion}%` },
+        ].map((figure) => (
+          <div key={figure.label} className="border-border flex flex-col-reverse border-t pt-5">
+            <dt className="text-muted mt-3 text-base">{figure.label}</dt>
+            <dd className={TYPE.figure}>{figure.value}</dd>
           </div>
+        ))}
+      </dl>
 
-          <div className="mt-4 flex items-baseline justify-between">
-            <span className="text-foreground font-sans text-2xl font-bold tracking-tight sm:text-3xl">
-              {totalItems}
-            </span>
+      {segmentTotal > 0 && (
+        <figure>
+          <div
+            role="img"
+            aria-label={segments
+              .map(({ status, count }) => `${count} ${STATUS_META[status].label.toLowerCase()}`)
+              .join(", ")}
+            className="flex h-4 gap-1 overflow-hidden rounded-full"
+          >
+            {segments.map(({ status, count }) =>
+              count > 0 ? (
+                <span
+                  key={status}
+                  className={`h-full rounded-full ${STATUS_META[status].dot}`}
+                  style={{ flexGrow: count }}
+                />
+              ) : null,
+            )}
           </div>
-        </div>
-
-        <div className="group border-border/30 bg-card/25 hover:border-border/50 hover:bg-card/45 relative overflow-hidden rounded-2xl border p-5 shadow-[0_1px_3px_rgba(0,0,0,0.01)] transition-all duration-300">
-          <div className="flex items-center justify-between">
-            <span className="text-muted/80 font-mono text-[10px] font-bold tracking-wider uppercase">
-              Issues
-            </span>
-
-            <AlertCircle className="text-muted/50 h-4 w-4 transition-colors group-hover:text-amber-500" />
-          </div>
-
-          <div className="mt-4 flex items-baseline justify-between">
-            <span className="text-foreground font-sans text-2xl font-bold tracking-tight sm:text-3xl">
-              {issueCount}
-            </span>
-          </div>
-        </div>
-
-        <div className="group border-border/30 bg-card/25 hover:border-border/50 hover:bg-card/45 relative overflow-hidden rounded-2xl border p-5 shadow-[0_1px_3px_rgba(0,0,0,0.01)] transition-all duration-300">
-          <div className="flex items-center justify-between">
-            <span className="text-muted/80 font-mono text-[10px] font-bold tracking-wider uppercase">
-              Pull Requests
-            </span>
-
-            <GitBranch className="text-muted/50 h-4 w-4 transition-colors group-hover:text-blue-500" />
-          </div>
-
-          <div className="mt-4 flex items-baseline justify-between">
-            <span className="text-foreground font-sans text-2xl font-bold tracking-tight sm:text-3xl">
-              {pullRequestCount}
-            </span>
-          </div>
-        </div>
-
-        <div className="group border-border/30 bg-card/25 hover:border-border/50 hover:bg-card/45 relative overflow-hidden rounded-2xl border p-5 shadow-[0_1px_3px_rgba(0,0,0,0.01)] transition-all duration-300">
-          <div className="flex items-center justify-between">
-            <span className="text-muted/80 font-mono text-[10px] font-bold tracking-wider uppercase">
-              Completion Rate
-            </span>
-
-            <CheckCircle2 className="text-muted/50 h-4 w-4 transition-colors group-hover:text-emerald-500" />
-          </div>
-
-          <div className="mt-4 flex items-baseline justify-between">
-            <span className="text-foreground font-sans text-2xl font-bold tracking-tight sm:text-3xl">
-              {completionVal}%
-            </span>
-          </div>
-        </div>
-      </div>
-    </section>
+          <figcaption className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-base">
+            {segments.map(({ status, count }) => (
+              <span key={status} className="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className={`size-2.5 rounded-full ${STATUS_META[status].dot}`}
+                />
+                <span className="font-semibold tabular-nums">{count}</span>
+                <span className="text-muted">{STATUS_META[status].label.toLowerCase()}</span>
+              </span>
+            ))}
+          </figcaption>
+        </figure>
+      )}
+    </div>
   );
 };
 

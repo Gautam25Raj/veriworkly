@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ExternalLink, GitCompareArrows } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 
 interface ReleaseActionLinksProps {
   compareUrl: string | null;
@@ -7,8 +7,15 @@ interface ReleaseActionLinksProps {
   githubUrl: string | null;
 }
 
-const linkClass =
-  "border-border/40 text-muted hover:text-foreground hover:border-border/60 hover:bg-muted/5 group inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 font-sans text-xs font-semibold whitespace-nowrap transition-colors";
+const base =
+  "group focus-visible:ring-accent/40 inline-flex h-11 items-center gap-2 rounded-full px-5 text-base font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none active:scale-[0.97]";
+
+const Arrow = () => (
+  <ArrowUpRight
+    aria-hidden="true"
+    className="size-4 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+  />
+);
 
 export const ReleaseActionLinks = ({
   compareUrl,
@@ -18,18 +25,28 @@ export const ReleaseActionLinks = ({
   if (!compareUrl && !githubUrl) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {compareUrl && (
-        <Link target="_blank" href={compareUrl} className={linkClass} rel="noopener noreferrer">
-          <GitCompareArrows className="h-3 w-3" aria-hidden="true" />
-          Compare with v{olderVersion}
+    <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
+      {githubUrl && (
+        <Link
+          target="_blank"
+          href={githubUrl}
+          rel="noopener noreferrer"
+          className={`${base} bg-foreground text-background hover:bg-accent hover:text-accent-foreground`}
+        >
+          Release on GitHub
+          <Arrow />
         </Link>
       )}
 
-      {githubUrl && (
-        <Link target="_blank" href={githubUrl} className={linkClass} rel="noopener noreferrer">
-          View on GitHub
-          <ExternalLink className="h-3 w-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+      {compareUrl && (
+        <Link
+          target="_blank"
+          href={compareUrl}
+          rel="noopener noreferrer"
+          className="group text-foreground hover:text-accent focus-visible:ring-accent/40 inline-flex h-11 items-center gap-2 rounded-full text-base font-semibold underline decoration-current/30 underline-offset-4 transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none"
+        >
+          Changes since v{olderVersion}
+          <Arrow />
         </Link>
       )}
     </div>

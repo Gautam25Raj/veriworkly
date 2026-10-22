@@ -6,17 +6,17 @@ const STATUS: Record<
   AtsRequirement["status"],
   { label: string; icon: typeof CheckCircle2; className: string }
 > = {
-  met: { label: "Met", icon: CheckCircle2, className: "text-emerald-600 dark:text-emerald-400" },
+  met: { label: "Met", icon: CheckCircle2, className: "text-success" },
   partial: {
     label: "Partly met",
     icon: CircleDashed,
-    className: "text-amber-600 dark:text-amber-400",
+    className: "text-warning",
   },
-  missing: { label: "Not shown", icon: XCircle, className: "text-red-600 dark:text-red-400" },
+  missing: { label: "Not shown", icon: XCircle, className: "text-destructive" },
   unverifiable: {
     label: "Answer in the application",
     icon: CircleHelp,
-    className: "text-zinc-500 dark:text-zinc-400",
+    className: "text-muted",
   },
 };
 
@@ -37,17 +37,11 @@ export function RequirementsPanel({ requirements }: { requirements: AtsRequireme
   const met = requirements.filter((r) => r.status === "met").length;
 
   return (
-    <section
-      aria-labelledby="ats-requirements-heading"
-      className="rounded-3xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-white/2"
-    >
-      <h2
-        id="ats-requirements-heading"
-        className="text-sm font-semibold text-zinc-900 dark:text-white"
-      >
+    <section aria-labelledby="ats-requirements-heading" className="bg-card rounded-3xl p-6 sm:p-8">
+      <h2 id="ats-requirements-heading" className="text-xl font-bold tracking-tight">
         Requirement by requirement
       </h2>
-      <p className="mt-1 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+      <p className="text-muted mt-1 text-base leading-7">
         {met} of {requirements.length} shown by the resume. Screeners now grade each requirement on
         its own, so a gap here costs more than a missing keyword.
       </p>
@@ -57,31 +51,29 @@ export function RequirementsPanel({ requirements }: { requirements: AtsRequireme
           return (
             <li
               key={`${requirement.importance}:${requirement.text}`}
-              className="flex items-start gap-3 border-t border-zinc-100 pt-4 first:border-t-0 first:pt-0 dark:border-zinc-800/70"
+              className="border-border flex items-start gap-3 border-t pt-4 first:border-t-0 first:pt-0"
             >
               <status.icon
-                className={`mt-0.5 h-4 w-4 shrink-0 ${status.className}`}
+                className={`mt-1 h-4 w-4 shrink-0 ${status.className}`}
                 aria-hidden="true"
               />
               <div className="min-w-0 flex-1">
-                <p className="text-sm leading-relaxed font-medium text-zinc-900 dark:text-white">
-                  {requirement.text}
-                </p>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                <p className="text-base leading-7 font-medium">{requirement.text}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
                   <span className={`font-semibold ${status.className}`}>{status.label}</span>
                   {requirement.importance === "preferred" ? (
-                    <span className="text-zinc-500 dark:text-zinc-400">Nice to have</span>
+                    <span className="text-muted">Nice to have</span>
                   ) : null}
                   {requirement.detail ? (
-                    <span className="text-zinc-500 dark:text-zinc-400">{requirement.detail}</span>
+                    <span className="text-muted">{requirement.detail}</span>
                   ) : null}
                 </div>
                 {requirement.evidence.length ? (
-                  <ul className="mt-2 space-y-1">
+                  <ul className="mt-3 space-y-1.5">
                     {requirement.evidence.map((line) => (
                       <li
                         key={line}
-                        className="border-l-2 border-zinc-200 pl-3 text-sm leading-relaxed text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
+                        className="bg-background text-muted rounded-xl px-3 py-2 text-sm leading-6"
                       >
                         {line}
                       </li>

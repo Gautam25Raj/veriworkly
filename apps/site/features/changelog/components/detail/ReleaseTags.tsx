@@ -6,16 +6,13 @@ export const ReleaseTags = ({ tags }: ReleaseTagsProps) => {
   if (tags.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <ul aria-label="Topics" className="flex flex-wrap gap-2">
       {tags.map((tag) => (
-        <span
-          key={tag}
-          className="bg-muted/10 text-muted border-border/30 rounded-full border px-2.5 py-0.5 font-mono text-[10px] tracking-wide"
-        >
-          #{tag}
-        </span>
+        <li key={tag} className="bg-card text-muted rounded-full px-3 py-1 text-sm">
+          {tag}
+        </li>
       ))}
-    </div>
+    </ul>
   );
 };
 

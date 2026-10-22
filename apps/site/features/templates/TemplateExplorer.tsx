@@ -1,20 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { TemplateSummary } from "@/config/templates";
-import { Reveal } from "@/components/marketing/Reveal";
 
 import EmptyState from "./EmptyState";
 import TemplateGroup from "./TemplateGroup";
 import TemplateFilters from "./TemplateFilters";
-import { getTemplateHref } from "./utils";
 
 const ALL = "All";
 
 type Props = {
-  docTypeLabel: string;
   templates: TemplateSummary[];
   familyDescriptions: Record<string, string>;
 };
@@ -32,7 +28,7 @@ type Props = {
  * instead of via `useSearchParams`, which would trigger a client-render bailout and
  * strip that content from the static HTML.
  */
-const TemplateExplorer = ({ docTypeLabel, templates, familyDescriptions }: Props) => {
+const TemplateExplorer = ({ templates, familyDescriptions }: Props) => {
   const [selectedFamily, setSelectedFamily] = useState(ALL);
   const [selectedLayout, setSelectedLayout] = useState(ALL);
 
@@ -136,57 +132,8 @@ const TemplateExplorer = ({ docTypeLabel, templates, familyDescriptions }: Props
         />
       )}
 
-      <Reveal
-        priority
-        className="overflow-hidden rounded-4xl border border-zinc-200 bg-white dark:border-zinc-800/80 dark:bg-[#0c0c0c]"
-        aria-label={`${docTypeLabel} template quick comparison`}
-      >
-        <div className="grid gap-px bg-zinc-200 lg:grid-cols-2 dark:bg-zinc-800">
-          {visibleTemplates.map((template) => (
-            <Link
-              key={template.id}
-              href={getTemplateHref(template)}
-              className="group bg-white p-5 transition-colors hover:bg-blue-500/5 focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 focus-visible:outline-none dark:bg-[#0c0c0c] dark:hover:bg-blue-500/5"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0 space-y-2">
-                  <p className="text-xs font-semibold tracking-[0.18em] text-zinc-400 uppercase dark:text-zinc-500">
-                    {template.family}
-                  </p>
-
-                  <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-white">
-                    {template.name}
-                  </h2>
-
-                  <p className="line-clamp-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                    {template.shortDescription}
-                  </p>
-                </div>
-
-                <span
-                  className="mt-1 h-3 w-12 shrink-0 rounded-full"
-                  style={{ backgroundColor: template.accentColor }}
-                  aria-hidden="true"
-                />
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                {[template.layout, ...template.audience.slice(0, 2)].map((item) => (
-                  <span
-                    key={item}
-                    className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-white/5 dark:text-zinc-400"
-                  >
-                    {item}
-                  </span>
-                ))}
-              </div>
-            </Link>
-          ))}
-        </div>
-      </Reveal>
-
       {visibleTemplates.length ? (
-        <div className="space-y-12">
+        <div className="space-y-14 lg:space-y-16">
           {familyGroups.map(
             (group) => group.items.length > 0 && <TemplateGroup key={group.title} group={group} />,
           )}

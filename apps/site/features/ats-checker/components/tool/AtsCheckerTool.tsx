@@ -162,7 +162,7 @@ export function AtsCheckerTool() {
   const currentStep = phase === "resume" ? 0 : phase === "target" || phase === "scanning" ? 1 : 2;
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="max-w-3xl">
       <div className="mb-8">
         <Stepper steps={STEP_LABELS} current={currentStep} />
       </div>
@@ -179,9 +179,9 @@ export function AtsCheckerTool() {
               exit={shouldReduceMotion ? undefined : { opacity: 0, y: -8 }}
               transition={{ duration: 0.2 }}
             >
-              <div className="rounded-3xl border border-zinc-200 bg-white p-6 sm:p-8 dark:border-zinc-800 dark:bg-white/2">
-                <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Add your resume</h2>
-                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              <div className="bg-card rounded-3xl p-6 sm:p-8">
+                <h2 className="text-2xl font-bold tracking-tight">Add your resume</h2>
+                <p className="text-muted mt-2 text-base">
                   Upload a document or paste raw text. The scan runs entirely in volatile memory.
                 </p>
                 <div className="mt-6">
@@ -209,7 +209,7 @@ export function AtsCheckerTool() {
               transition={{ duration: 0.2 }}
               className="space-y-4"
             >
-              <div className="rounded-3xl border border-zinc-200 bg-white p-6 sm:p-8 dark:border-zinc-800 dark:bg-white/2">
+              <div className="bg-card rounded-3xl p-6 sm:p-8">
                 <ResumeStep
                   hasResume={true}
                   sourceLabel={sourceLabel}
@@ -221,14 +221,11 @@ export function AtsCheckerTool() {
                   onClear={handleClearResume}
                 />
 
-                <div className="mt-6 border-t border-zinc-100 pt-6 dark:border-zinc-800/70">
+                <div className="border-border mt-6 border-t pt-6">
                   <div className="flex items-baseline justify-between gap-4">
-                    <label
-                      htmlFor="target-jd"
-                      className="text-sm font-semibold text-zinc-900 dark:text-white"
-                    >
+                    <label htmlFor="target-jd" className="text-base font-semibold">
                       Target job description{" "}
-                      <span className="text-xs font-normal text-zinc-500 dark:text-zinc-400">
+                      <span className="text-muted text-sm font-normal">
                         (optional, for keyword scoring)
                       </span>
                     </label>
@@ -239,14 +236,14 @@ export function AtsCheckerTool() {
                     onChange={(e) => setJobDescription(e.target.value)}
                     rows={7}
                     placeholder="Paste the job description here to check keyword match…"
-                    className="mt-3 w-full rounded-2xl border border-zinc-300 bg-white p-4 font-mono text-xs leading-relaxed text-zinc-900 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none dark:border-zinc-700 dark:bg-white/2 dark:text-white"
+                    className="border-border bg-background focus:border-accent focus:ring-accent/20 mt-3 w-full rounded-2xl border p-4 text-base leading-relaxed focus:ring-2 focus:outline-none"
                   />
                 </div>
 
                 {error ? (
                   <p
                     role="alert"
-                    className="mt-4 flex items-center gap-2 text-xs font-medium text-red-600 dark:text-red-400"
+                    className="text-destructive mt-4 flex items-center gap-2 text-sm font-medium"
                   >
                     <TriangleAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
                     {error}
@@ -257,7 +254,7 @@ export function AtsCheckerTool() {
                   <button
                     type="button"
                     onClick={handleClearResume}
-                    className="text-xs font-semibold text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
+                    className="text-muted hover:text-foreground text-sm font-semibold transition-colors"
                   >
                     Change resume
                   </button>
@@ -265,7 +262,7 @@ export function AtsCheckerTool() {
                     type="button"
                     disabled={busy || !resume.trim()}
                     onClick={runScan}
-                    className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-blue-600 px-6 text-sm font-semibold text-white shadow-md transition hover:bg-blue-700 active:scale-[0.98] disabled:opacity-50"
+                    className="bg-foreground text-background hover:bg-accent hover:text-accent-foreground inline-flex h-12 items-center justify-center gap-2 rounded-full px-6 text-base font-semibold transition-[transform,background-color,color] duration-200 active:scale-[0.97] disabled:opacity-50"
                   >
                     <span>
                       {jobDescription.trim() ? "Scan with job match" : "Scan resume readiness"}
@@ -299,16 +296,16 @@ export function AtsCheckerTool() {
               className="space-y-6"
             >
               <div className="flex items-center justify-between gap-4">
-                <span className="inline-flex items-center gap-2 font-mono text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                  <ScanSearch className="h-4 w-4 text-emerald-500" />
+                <span className="text-muted inline-flex items-center gap-2 text-sm font-semibold">
+                  <ScanSearch aria-hidden="true" className="text-success h-4 w-4" />
                   Scan complete
                 </span>
                 <button
                   type="button"
                   onClick={resetAll}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50 dark:border-zinc-800 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10"
+                  className="border-border bg-card hover:bg-background inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-semibold transition-colors"
                 >
-                  <RotateCcw className="h-3.5 w-3.5" />
+                  <RotateCcw aria-hidden="true" className="h-3.5 w-3.5" />
                   <span>Scan another resume</span>
                 </button>
               </div>

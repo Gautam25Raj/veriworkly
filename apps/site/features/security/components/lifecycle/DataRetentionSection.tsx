@@ -1,93 +1,79 @@
-import { Trash2 } from "lucide-react";
-
-import { Reveal } from "@/components/marketing/Reveal";
+import { PageSection } from "@/components/marketing/PageLayout";
 
 import { DATA_RETENTION_MATRIX } from "../../data";
 
-export const DataRetentionSection = () => {
-  return (
-    <section className="space-y-8">
-      <div className="space-y-2">
-        <span className="text-accent font-mono text-[10px] font-bold tracking-widest uppercase">
-          Data Lifecycle &amp; Erasure
-        </span>
+const COLUMNS = [
+  { key: "storageLocation", label: "Where it lives" },
+  { key: "retentionPeriod", label: "How long" },
+  { key: "deletionMethod", label: "How it is deleted" },
+  { key: "encryption", label: "Protection" },
+] as const;
 
-        <h2 className="text-foreground text-2xl font-bold tracking-tight sm:text-3xl">
-          Cryptographic retention and purge policies
-        </h2>
-
-        <p className="text-muted max-w-2xl text-sm leading-relaxed">
-          We do not monetize or hold user data indefinitely. Review our exact retention timelines
-          and deletion methods across each platform subsystem.
-        </p>
-      </div>
-
-      <Reveal className="border-border/60 bg-card/40 overflow-hidden rounded-3xl border shadow-xl backdrop-blur-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-160 border-collapse text-left text-sm">
-            <caption className="sr-only">
-              Data retention, storage location, and deletion lifecycle matrix
-            </caption>
-
-            <thead>
-              <tr className="border-border/60 bg-muted/4 text-muted border-b font-mono text-[11px] font-bold tracking-wider uppercase">
-                <th scope="col" className="w-1/4 p-4 sm:p-5">
-                  Platform Area
-                </th>
-
-                <th scope="col" className="w-1/4 p-4 sm:p-5">
-                  Storage Location
-                </th>
-
-                <th scope="col" className="w-1/4 p-4 sm:p-5">
-                  Retention Period
-                </th>
-
-                <th scope="col" className="w-1/4 p-4 sm:p-5">
-                  Deletion Method
-                </th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-border/40 divide-y">
-              {DATA_RETENTION_MATRIX.map((row) => (
-                <tr key={row.platformArea} className="hover:bg-muted/3 transition-colors">
-                  <th
-                    scope="row"
-                    className="text-foreground p-4 text-xs font-semibold sm:p-5 sm:text-sm"
-                  >
-                    <div className="space-y-1">
-                      <span>{row.platformArea}</span>
-
-                      <span className="text-accent block font-mono text-[10px] font-normal">
-                        {row.encryption}
-                      </span>
-                    </div>
-                  </th>
-
-                  <td className="text-muted p-4 text-xs sm:p-5 sm:text-sm">
-                    {row.storageLocation}
-                  </td>
-
-                  <td className="p-4 text-xs sm:p-5 sm:text-sm">
-                    <span className="text-foreground font-medium">{row.retentionPeriod}</span>
-                  </td>
-
-                  <td className="text-muted p-4 text-xs sm:p-5 sm:text-sm">
-                    <div className="flex items-start gap-1.5">
-                      <Trash2 className="text-destructive mt-0.5 size-3.5 shrink-0" />
-
-                      <span>{row.deletionMethod}</span>
-                    </div>
-                  </td>
-                </tr>
+export const DataRetentionSection = () => (
+  <PageSection
+    id="retention"
+    tone="card"
+    title="How long we keep it."
+    lede="Every place your data can sit, how long it stays there, and how you remove it. We do not monetise your data or hold it indefinitely."
+  >
+    {/* A real table from md up. On a phone four columns cannot be read side by side, so each row becomes its own block. */}
+    <div className="reveal bg-background hidden overflow-hidden rounded-3xl md:block">
+      <table className="w-full border-collapse text-left text-base">
+        <caption className="sr-only">
+          Where each kind of data lives, how long, and how it is deleted
+        </caption>
+        <thead>
+          <tr className="text-muted text-sm">
+            <th scope="col" className="w-[22%] p-5 font-semibold lg:p-6">
+              Data
+            </th>
+            {COLUMNS.map((column) => (
+              <th key={column.key} scope="col" className="p-5 font-semibold lg:p-6">
+                {column.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {DATA_RETENTION_MATRIX.map((row) => (
+            <tr key={row.platformArea} className="border-border border-t align-top">
+              <th scope="row" className="p-5 font-semibold lg:p-6">
+                {row.platformArea}
+              </th>
+              {COLUMNS.map((column) => (
+                <td
+                  key={column.key}
+                  className={
+                    column.key === "retentionPeriod"
+                      ? "p-5 leading-7 font-medium lg:p-6"
+                      : "text-muted p-5 leading-7 lg:p-6"
+                  }
+                >
+                  {row[column.key]}
+                </td>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </Reveal>
-    </section>
-  );
-};
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+
+    <ul className="space-y-4 md:hidden">
+      {DATA_RETENTION_MATRIX.map((row) => (
+        <li key={row.platformArea} className="bg-background rounded-3xl p-6">
+          <h3 className="text-xl font-bold tracking-tight">{row.platformArea}</h3>
+          <dl className="mt-4 space-y-4 text-base leading-7">
+            {COLUMNS.map((column) => (
+              <div key={column.key}>
+                <dt className="text-muted text-sm font-semibold">{column.label}</dt>
+                <dd className="mt-0.5">{row[column.key]}</dd>
+              </div>
+            ))}
+          </dl>
+        </li>
+      ))}
+    </ul>
+  </PageSection>
+);
 
 export default DataRetentionSection;

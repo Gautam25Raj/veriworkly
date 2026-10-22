@@ -1,9 +1,8 @@
-import type { LucideIcon } from "lucide-react";
-
-export interface HeroPillar {
-  icon: LucideIcon;
+export interface FeatureIndexItem {
+  /** The id of the section on /features that this entry jumps to. */
+  id: string;
   title: string;
-  description: string;
+  summary: string;
 }
 
 export interface FeatureComparisonRow {
@@ -16,5 +15,4 @@ export interface ExportFormatItem {
   ext: string;
   name: string;
   desc: string;
-  badge: string;
 }

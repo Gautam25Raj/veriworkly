@@ -100,3 +100,33 @@ describe("ChangelogRichText inline markdown parser", () => {
     expect(renderInlineMarkdown("")).toEqual([]);
   });
 });
+
+describe("changelog entries are cleaned of release-body markdown", () => {
+  it("drops rules, repeats and the PR list that leak out of GitHub release bodies", async () => {
+    const { normalizeEntry } = await import("@/features/changelog/services/changelog-backend");
+
+    const entry = normalizeEntry({
+      id: "v1-0-0",
+      version: "1.0.0",
+      title: "Test",
+      summary: "---",
+      type: "minor",
+      publishedAt: "2026-01-01T00:00:00Z",
+      githubUrl: null,
+      added: ["Exports", "Exports", "---", "**#191** — [Feature] [Server]: add flags ---"],
+      improved: ["Faster previews ---", "**#221** - `[Chore] [Site]: bump engine` by @Gautam25Raj"],
+      fixed: [],
+      breaking: [],
+      security: [],
+      tags: [],
+      prRefs: [{ number: 190, title: "Known PR" }],
+    });
+
+    expect(entry.summary).toBeNull();
+    expect(entry.added).toEqual(["Exports"]);
+    expect(entry.improved).toEqual(["Faster previews"]);
+    expect(entry.prRefs?.map((pr) => pr.number)).toEqual([190, 191, 221]);
+    expect(entry.prRefs?.[1]?.title).toBe("[Feature] [Server]: add flags");
+    expect(entry.prRefs?.[2]?.title).toBe("[Chore] [Site]: bump engine");
+  });
+});

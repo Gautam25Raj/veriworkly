@@ -1,22 +1,17 @@
 import Link from "next/link";
-import Image from "next/image";
 import type { Metadata } from "next";
-import {
-  ArrowRight,
-  Clock,
-  FileText,
-  Globe2,
-  Layers,
-  LayoutTemplate,
-  Sparkles,
-} from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
+
 import { siteConfig } from "@/config/site";
 import { jsonLdScriptProps } from "@/utils/json-ld";
 import { buildPageMetadata } from "@/utils/metadata";
 import { documentTypeSummaries, templateSummaries } from "@/config/templates";
-import InteractiveCTA from "@/features/marketing/cta/InteractiveCTA";
-import { Reveal } from "@/components/marketing/Reveal";
-import { SectionEyebrow } from "@/components/marketing/SectionEyebrow";
+
+import { LandingButton } from "@/components/marketing/LandingButton";
+import { PageHero, PageSection, TYPE, PageClosing } from "@/components/marketing/PageLayout";
+
+import TemplatePreview from "@/features/templates/TemplatePreview";
+import { getTemplateHref, templatesHeading } from "@/features/templates/utils";
 
 export const metadata: Metadata = buildPageMetadata({
   path: "/templates",
@@ -41,40 +36,20 @@ export const metadata: Metadata = buildPageMetadata({
 });
 
 /**
- * One of each document type, chosen deliberately.
- *
- * This used to be `.slice(0, 3)` over the whole catalog, which takes whatever sorts
- * first - all four portfolios do - so the hero rendered three landscape web
- * screenshots cropped into a portrait 8.5x11 paper frame with `object-cover
- * object-top`. It also carried a `!previewImage.includes("veriworkly-logo")` filter
- * that matched nothing and was dead.
- *
- * The fan is always exactly three cards. `rotations[idx]` and `offsets[idx]` are
- * indexed positionally below, so a short array would interpolate `undefined` into a
- * `calc()` and collapse the layout. Rather than guard at the render site, we top the
- * selection back up from catalog order, which keeps the render unconditional.
+ * One real preview of each document type for the hero, in catalog order. If a type is
+ * ever missing from the catalog, the wall shows the ones that exist rather than a gap.
  */
-const HERO_FAN_TYPES = ["resume", "cover-letter", "portfolio-website"] as const;
-const HERO_FAN_SIZE = 3;
+const HERO_TYPES = ["resume", "cover-letter", "portfolio-website"] as const;
 
-const heroFan = (() => {
-  const picked = HERO_FAN_TYPES.map((type) =>
-    templateSummaries.find((template) => template.documentType === type),
-  ).filter((template): template is (typeof templateSummaries)[number] => Boolean(template));
+const heroWall = HERO_TYPES.map((type) =>
+  templateSummaries.find((template) => template.documentType === type),
+).filter((template): template is (typeof templateSummaries)[number] => Boolean(template));
 
-  if (picked.length === HERO_FAN_SIZE) return picked;
+/** How many previews each document type's band shows before linking to its full list. */
+const BAND_LIMIT = { documents: 4, portfolios: 2 } as const;
 
-  // A type is missing from the catalog. Backfill with anything not already chosen so
-  // the hero still renders a full fan.
-  const chosen = new Set(picked.map((template) => template.id));
-
-  for (const template of templateSummaries) {
-    if (picked.length === HERO_FAN_SIZE) break;
-    if (!chosen.has(template.id)) picked.push(template);
-  }
-
-  return picked;
-})();
+const previewLinkClass =
+  "group focus-visible:ring-accent/40 block rounded-2xl focus-visible:ring-2 focus-visible:ring-offset-4 focus-visible:outline-none";
 
 const TemplatesPortalPage = () => {
   const availableDocTypes = documentTypeSummaries.filter(
@@ -114,257 +89,162 @@ const TemplatesPortalPage = () => {
         dangerouslySetInnerHTML={jsonLdScriptProps(itemListSchema)}
       />
 
-      <section className="w-full bg-[#f3f4f6] p-2 md:p-3 lg:p-4 dark:bg-black">
-        <div className="relative grid w-full overflow-hidden rounded-4xl border border-black/5 bg-white px-6 py-20 md:px-12 md:py-24 lg:grid-cols-12 lg:items-center lg:gap-8 lg:py-28 dark:border-white/5 dark:bg-[#080808]">
-          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,rgba(120,119,198,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,119,198,0.05)_1px,transparent_1px)] mask-[radial-gradient(ellipse_60%_60%_at_20%_40%,#000_60%,transparent_100%)] bg-size-[24px_24px]" />
-          <div className="pointer-events-none absolute top-0 left-0 h-95 w-95 rounded-full bg-blue-500/10 blur-[120px] dark:bg-blue-500/15" />
+      <PageHero
+        title="Templates,"
+        highlight="seen first."
+        lede="Resumes, cover letters and portfolio websites do different jobs, so each has its own templates. Every one is shown as the real document it exports, before you open the editor."
+        aside={
+          <>
+            <dl className="mb-6 grid grid-cols-3 gap-4">
+              {[
+                { value: templateSummaries.length, label: "templates" },
+                { value: availableDocTypes.length, label: "document types" },
+                { value: plannedDocTypes.length, label: "coming soon" },
+              ].map((figure) => (
+                <div key={figure.label} className="flex flex-col-reverse">
+                  <dt className="text-muted mt-1 text-sm">{figure.label}</dt>
+                  <dd className={TYPE.figure}>{figure.value}</dd>
+                </div>
+              ))}
+            </dl>
 
-          <Reveal priority className="relative z-10 lg:col-span-7">
-            <SectionEyebrow
-              icon={LayoutTemplate}
-              label={`${templateSummaries.length} live layouts`}
-            />
-            <h1 className="mt-6 max-w-xl text-4xl font-semibold tracking-tighter text-balance text-zinc-900 sm:text-5xl md:text-6xl dark:text-white">
-              Pick the artifact. The right layout follows.
-            </h1>
-            <p className="mt-6 max-w-lg text-lg leading-relaxed text-zinc-500 dark:text-zinc-400">
-              Resumes, cover letters, and portfolio websites do different jobs. This directory
-              separates them from the start, then shows real previews, fit signals, and the exact
-              editor path for each template.
-            </p>
-            <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-              <Link
-                href={siteConfig.links.app}
-                className="group inline-flex h-14 items-center justify-center gap-2 rounded-full bg-zinc-950 px-8 text-base font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-600 active:scale-[0.97] dark:bg-white dark:text-zinc-950 dark:hover:bg-blue-500 dark:hover:text-white"
-              >
-                Start Building Free
-                <ArrowRight
-                  className="h-4 w-4 transition-transform group-hover:translate-x-1"
-                  aria-hidden="true"
-                />
-              </Link>
-              <Link
-                href="/features"
-                className="inline-flex h-14 items-center justify-center rounded-full border border-black/10 bg-white/70 px-8 text-base font-medium text-zinc-800 backdrop-blur-md transition-colors hover:border-blue-500/30 hover:text-blue-600 dark:border-white/10 dark:bg-black/40 dark:text-zinc-200 dark:hover:text-blue-400"
-              >
-                See Platform Features
-              </Link>
+            <div className="flex flex-wrap gap-3">
+              <LandingButton showArrow size="lg" variant="solid" href={siteConfig.links.app}>
+                Start building free
+              </LandingButton>
+              <LandingButton size="lg" variant="outline" href="/features">
+                See all features
+              </LandingButton>
             </div>
-          </Reveal>
-
-          <Reveal delay={0.15} className="relative z-10 mt-16 lg:col-span-5 lg:mt-0">
-            <div className="relative mx-auto h-72 w-full max-w-xs sm:h-80">
-              {heroFan.map((template, idx) => {
-                const rotations = [-8, 0, 8];
-                const offsets = [-24, 0, 24];
-
-                /**
-                 * Portfolio previews are landscape web screenshots. Forcing them into
-                 * the 8.5x11 paper frame the documents use crops away most of the page,
-                 * so they get a browser-window ratio and are contained, not cropped.
-                 *
-                 * Both branches size from the same container height rather than mixing
-                 * `h-full` with an intrinsic aspect-ratio box - two sizing models in one
-                 * absolutely-positioned stack made the z-order assumption below depend
-                 * on which type happened to land in the middle.
-                 */
-                const isPortfolio = template.documentType === "portfolio-website";
-
-                return (
-                  <div
-                    key={template.id}
-                    className={`absolute left-1/2 overflow-hidden rounded-lg border border-zinc-200 shadow-[0_24px_70px_-30px_rgba(15,23,42,0.5)] transition-transform duration-300 hover:-translate-y-2 dark:border-zinc-800 ${
-                      isPortfolio
-                        ? "aspect-16/10 bg-zinc-50 dark:bg-zinc-900"
-                        : "aspect-8.5/11 bg-white"
-                    }`}
-                    style={{
-                      // Portfolios are shorter and vertically centred in the stack;
-                      // documents fill it. Expressed the same way for both so the fan
-                      // stays predictable.
-                      top: isPortfolio ? "26%" : 0,
-                      height: isPortfolio ? "48%" : "100%",
-                      transform: `translateX(calc(-50% + ${offsets[idx]}px)) rotate(${rotations[idx]}deg)`,
-                      zIndex: idx === 1 ? 10 : 5 - idx,
-                    }}
-                  >
-                    <Image
-                      fill
-                      // The hero fan sits above the fold and is this page's LCP
-                      // element. Without `priority` these three are lazy-loaded,
-                      // which delays the largest paint by a round trip for no reason.
-                      priority
-                      alt={`${template.name} template preview`}
-                      src={template.previewImage}
-                      className={isPortfolio ? "object-contain" : "object-cover object-top"}
-                      sizes="220px"
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      <section className="mx-auto w-full max-w-350 px-6 py-16 md:px-8 md:py-20">
-        <Reveal className="grid grid-cols-1 divide-y divide-zinc-200 overflow-hidden rounded-3xl border border-zinc-200 bg-white sm:grid-cols-3 sm:divide-x sm:divide-y-0 dark:divide-zinc-800 dark:border-zinc-800 dark:bg-[#0c0c0c]">
-          <div className="flex items-center gap-4 p-6">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400">
-              <Sparkles className="h-4.5 w-4.5" aria-hidden="true" />
-            </span>
-            <div>
-              <p className="text-2xl font-semibold text-zinc-900 dark:text-white">
-                {availableDocTypes.length}
-              </p>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">live document types</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4 p-6">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400">
-              <LayoutTemplate className="h-4.5 w-4.5" aria-hidden="true" />
-            </span>
-            <div>
-              <p className="text-2xl font-semibold text-zinc-900 dark:text-white">
-                {templateSummaries.length}
-              </p>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">templates ready to use</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4 p-6">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100 text-zinc-500 dark:bg-white/5 dark:text-zinc-400">
-              <Clock className="h-4.5 w-4.5" aria-hidden="true" />
-            </span>
-            <div>
-              <p className="text-2xl font-semibold text-zinc-900 dark:text-white">
-                {plannedDocTypes.length}
-              </p>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">coming soon</p>
-            </div>
-          </div>
-        </Reveal>
-      </section>
-
-      <section className="mx-auto w-full max-w-350 border-t border-zinc-200/40 px-6 py-16 md:px-8 md:py-20 dark:border-zinc-800/20">
-        {/*
-          `aria-label` on a plain <div> is discarded - a generic element has no role to
-          attach a name to, so this grid was effectively unlabelled. A <section> can carry
-          one.
-        */}
-        <section className="grid gap-6 lg:grid-cols-2" aria-label="Available document types">
-          {availableDocTypes.map((docType, idx) => {
-            const templatesForType = templateSummaries.filter(
-              (template) => template.documentType === docType.id,
-            );
+          </>
+        }
+      >
+        {/* The page's picture: one real export of each kind, large enough to read. */}
+        <ul className="grid grid-cols-2 items-end gap-x-4 gap-y-10 sm:gap-x-6 lg:grid-cols-[0.77fr_0.77fr_2.03fr]">
+          {heroWall.map((template) => {
+            const isPortfolio = template.documentType === "portfolio-website";
 
             return (
-              <Reveal key={docType.id} delay={idx * 0.08}>
-                <Link
-                  href={docType.href}
-                  className="group block rounded-4xl focus-visible:ring-2 focus-visible:ring-blue-500/40 focus-visible:ring-offset-2 focus-visible:outline-none"
-                >
-                  <article className="grid min-h-136 overflow-hidden rounded-4xl border border-zinc-200 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 ease-out group-hover:-translate-y-1 group-hover:border-blue-500/30 group-hover:shadow-[0_8px_40px_rgba(59,130,246,0.12)] dark:border-zinc-800/80 dark:bg-[#0c0c0c]">
-                    <div className="relative min-h-80 overflow-hidden border-b border-zinc-100 bg-linear-to-br from-blue-500/5 to-transparent p-6 dark:border-zinc-900">
-                      <div className="absolute top-5 left-5 z-10 flex items-center gap-2 rounded-full border border-zinc-200 bg-white/90 px-3 py-1.5 text-xs font-semibold text-zinc-500 backdrop-blur dark:border-zinc-800 dark:bg-[#0c0c0c]/90 dark:text-zinc-400">
-                        <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-                        {templatesForType.length} templates
-                      </div>
-
-                      {templatesForType.slice(0, 2).map((template, index) => (
-                        <div
-                          key={template.id}
-                          className={[
-                            "absolute top-6 aspect-8.5/11 h-88 overflow-hidden rounded-sm border border-zinc-200 bg-white shadow-[0_24px_70px_-38px_rgba(15,23,42,0.8)] transition-transform duration-300 dark:border-zinc-800",
-                            index === 0
-                              ? "right-[22%] -rotate-3 group-hover:-translate-y-1.5"
-                              : "right-8 rotate-[4deg] group-hover:-translate-y-3",
-                          ].join(" ")}
-                        >
-                          <Image
-                            fill
-                            alt=""
-                            aria-hidden="true"
-                            src={template.previewImage}
-                            className="object-contain object-top"
-                            sizes="(min-width: 1024px) 260px, 70vw"
-                          />
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex min-h-0 flex-col justify-between gap-8 p-7 md:p-8">
-                      <div className="space-y-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <h2 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-white">
-                            {docType.pluralLabel}
-                          </h2>
-
-                          <ArrowRight
-                            className="mt-1 h-5 w-5 shrink-0 text-blue-600 transition-transform group-hover:translate-x-1 dark:text-blue-400"
-                            aria-hidden="true"
-                          />
-                        </div>
-
-                        <p className="text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-                          {docType.description}
-                        </p>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        {docType.highlights.map((highlight) => (
-                          <span
-                            key={highlight}
-                            className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-white/5 dark:text-zinc-400"
-                          >
-                            {highlight}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </article>
+              <li key={template.id} className={isPortfolio ? "col-span-2 lg:col-span-1" : ""}>
+                <Link href={getTemplateHref(template)} className={previewLinkClass}>
+                  <TemplatePreview
+                    priority
+                    template={template}
+                    sizes={
+                      isPortfolio
+                        ? "(min-width: 1024px) 640px, 92vw"
+                        : "(min-width: 1024px) 250px, 46vw"
+                    }
+                    className="transition-transform duration-300 ease-out group-hover:-translate-y-1.5"
+                  />
+                  <p className="mt-4 flex flex-wrap items-baseline justify-between gap-x-3 text-base">
+                    <span className="group-hover:text-accent font-semibold transition-colors duration-200">
+                      {template.name}
+                    </span>
+                    <span className="text-muted">{template.documentTypeLabel}</span>
+                  </p>
                 </Link>
-              </Reveal>
+              </li>
             );
           })}
-        </section>
-      </section>
+        </ul>
+      </PageHero>
 
-      <section className="mx-auto w-full max-w-350 border-t border-zinc-200/40 px-6 py-16 md:px-8 md:py-20 dark:border-zinc-800/20">
-        <div className="mb-8 flex items-center gap-2">
-          <Layers className="h-4 w-4 text-zinc-400" aria-hidden="true" />
-          <h2 className="text-sm font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
-            Coming soon
-          </h2>
-        </div>
-        <section className="grid gap-4 md:grid-cols-3" aria-label="Coming soon document types">
-          {plannedDocTypes.map((docType) => (
-            <div
-              key={docType.id}
-              className="rounded-3xl border border-dashed border-zinc-300 bg-zinc-50/50 p-6 dark:border-zinc-700 dark:bg-white/2"
+      {availableDocTypes.map((docType, index) => {
+        const templatesForType = templateSummaries.filter(
+          (template) => template.documentType === docType.id,
+        );
+        const isPortfolio = docType.id === "portfolio-website";
+        const shown = templatesForType.slice(
+          0,
+          isPortfolio ? BAND_LIMIT.portfolios : BAND_LIMIT.documents,
+        );
+
+        return (
+          <PageSection
+            key={docType.id}
+            id={docType.id}
+            tone={index % 2 === 0 ? "card" : "plain"}
+            title={templatesHeading(docType.label)}
+            lede={docType.description}
+          >
+            <ul
+              className={
+                isPortfolio
+                  ? "grid gap-x-6 gap-y-10 md:grid-cols-2"
+                  : "grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-6 lg:grid-cols-4"
+              }
             >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-400 dark:bg-white/5 dark:text-zinc-500">
-                    <Clock className="h-4 w-4" aria-hidden="true" />
-                  </span>
+              {shown.map((template) => (
+                <li key={template.id} className="reveal">
+                  <Link href={getTemplateHref(template)} className={previewLinkClass}>
+                    <TemplatePreview
+                      template={template}
+                      sizes={
+                        isPortfolio
+                          ? "(min-width: 768px) 570px, 92vw"
+                          : "(min-width: 1024px) 280px, 46vw"
+                      }
+                      className="transition-transform duration-300 ease-out group-hover:-translate-y-1.5"
+                    />
+                    <h3 className="group-hover:text-accent mt-4 text-xl font-bold tracking-tight transition-colors duration-200">
+                      {template.name}
+                    </h3>
+                    <p className="text-muted mt-1 text-base">{template.family}</p>
+                  </Link>
+                </li>
+              ))}
+            </ul>
 
-                  <h3 className="text-base font-semibold text-zinc-700 dark:text-zinc-300">
-                    {docType.pluralLabel}
-                  </h3>
-                </div>
+            <div className="mt-12 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+              <ul aria-label="Built for" className="flex flex-wrap gap-x-6 gap-y-2 text-base">
+                {docType.highlights.map((highlight) => (
+                  <li key={highlight} className="flex items-center gap-2">
+                    <Check aria-hidden="true" className="text-accent size-4 shrink-0" />
+                    {highlight}
+                  </li>
+                ))}
+              </ul>
 
-                <Globe2 className="h-4 w-4 text-zinc-300 dark:text-zinc-700" aria-hidden="true" />
-              </div>
-
-              <p className="mt-4 text-sm leading-6 text-zinc-500 dark:text-zinc-500">
-                {docType.description}
-              </p>
+              <Link
+                href={docType.href}
+                className="group bg-foreground text-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-accent/40 inline-flex h-12 w-fit shrink-0 items-center gap-2 rounded-full px-6 text-base font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none active:scale-[0.97]"
+              >
+                All {templatesForType.length} {docType.label.toLowerCase()} templates
+                <ArrowRight
+                  aria-hidden="true"
+                  className="size-4 transition-transform duration-200 group-hover:translate-x-1"
+                />
+              </Link>
             </div>
-          ))}
-        </section>
-      </section>
+          </PageSection>
+        );
+      })}
 
-      <InteractiveCTA />
+      {plannedDocTypes.length > 0 && (
+        <PageSection
+          tone={availableDocTypes.length % 2 === 0 ? "card" : "plain"}
+          title="Coming next."
+          lede="These document types are planned. They will ship the same way: real previews and a direct path into the editor."
+        >
+          <ul className="grid gap-x-12 gap-y-8 md:grid-cols-2">
+            {plannedDocTypes.map((docType) => (
+              <li key={docType.id} className="reveal border-border border-t pt-6">
+                <h3 className={TYPE.title}>{templatesHeading(docType.label)}</h3>
+                <p className="text-muted mt-3 max-w-lg text-base leading-7 text-pretty">
+                  {docType.description}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </PageSection>
+      )}
+
+      <PageClosing
+        title="Pick one. Change it later."
+        lede="Your content moves between templates, so trying another one costs nothing."
+        secondary={{ label: "See how it works", href: "/how-it-works" }}
+      />
     </>
   );
 };

@@ -34,7 +34,7 @@ export const ContactFloatingField = ({
   invalid,
 }: FloatingFieldProps) => {
   const sharedClassName =
-    "peer w-full rounded-2xl border border-border/60 bg-background/60 px-4 pt-6 pb-2.5 text-sm text-foreground transition-all duration-200 outline-none placeholder:text-transparent focus:border-accent focus:ring-4 focus:ring-accent/10 disabled:opacity-50 disabled:cursor-not-allowed";
+    "peer w-full rounded-2xl border border-border bg-card px-4 pt-8 pb-3 text-base text-foreground transition-[border-color,box-shadow] duration-200 outline-none placeholder:text-transparent focus:border-accent focus:ring-4 focus:ring-accent/15 aria-invalid:border-destructive/60 disabled:cursor-not-allowed disabled:opacity-50";
 
   const helperId = helper ? `${id}-helper` : undefined;
 
@@ -62,13 +62,13 @@ export const ContactFloatingField = ({
 
       <label
         htmlFor={id}
-        className="text-muted peer-placeholder-shown:text-muted peer-focus:text-accent pointer-events-none absolute top-2.5 left-4 font-mono text-[10px] font-bold tracking-wider uppercase transition-all duration-200 peer-placeholder-shown:top-4.5 peer-placeholder-shown:text-sm peer-placeholder-shown:font-normal peer-placeholder-shown:tracking-normal peer-placeholder-shown:normal-case peer-focus:top-2.5 peer-focus:font-mono peer-focus:text-[10px] peer-focus:font-bold peer-focus:tracking-wider peer-focus:uppercase"
+        className="text-muted peer-focus:text-accent pointer-events-none absolute top-2 left-4 text-sm font-semibold transition-[top,font-size,color] duration-200 peer-placeholder-shown:top-5 peer-placeholder-shown:text-base peer-placeholder-shown:font-normal peer-focus:top-2 peer-focus:text-sm peer-focus:font-semibold"
       >
         {label}
       </label>
 
       {helper ? (
-        <p id={helperId} className="text-muted mt-1.5 text-right font-mono text-[11px]">
+        <p id={helperId} className="text-muted mt-2 text-right text-sm tabular-nums">
           {helper}
         </p>
       ) : null}

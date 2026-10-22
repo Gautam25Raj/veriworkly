@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseReleaseBody } from "../../src/services/github/index.js";
+import { parseReleaseBody, reparseStoredRelease } from "../../src/services/github/index.js";
 
 describe("GitHub Release Body Parser", () => {
   it("parses release notes with preamble summary, categorized headers, and multi-line bullets", () => {
@@ -56,6 +56,97 @@ This release introduces the profile-core workspace package and major UI updates.
       fixed: [],
       breaking: [],
       security: [],
+      pullRequests: [],
     });
+  });
+
+  it("keeps rules, the intro and the PR list out of the change lists", () => {
+    // The shape of the real v3.22.0 and v3.29.0 release bodies.
+    const rawMarkdown = `
+## 🚀 v3.22.0
+
+This release adds profile imports and multi-page portfolios.
+
+---
+
+## Highlights
+
+* LinkedIn and GitHub profile imports
+
+---
+
+## New Features
+
+* **Multi-page portfolios**: Portfolios can now have multiple pages.
+
+---
+
+## Full Changelog
+
+* **#191** — [Feature] [Server/Studio]: add ambassador program
+* **#190** — [Refactor] [Server/Studio]: modularize affiliate service
+
+## 🔀 Pull Requests
+
+- **#221** - \`[Chore] [Site]: move to @veriworkly/ats-engine 0.16.0\` by @Gautam25Raj
+
+---
+`;
+
+    const result = parseReleaseBody(rawMarkdown);
+
+    expect(result.summary).toBe("This release adds profile imports and multi-page portfolios.");
+    expect(result.added).toEqual([
+      "LinkedIn and GitHub profile imports",
+      "**Multi-page portfolios**: Portfolios can now have multiple pages.",
+    ]);
+    expect(result.pullRequests).toEqual([
+      { number: 191, title: "[Feature] [Server/Studio]: add ambassador program" },
+      { number: 190, title: "[Refactor] [Server/Studio]: modularize affiliate service" },
+      { number: 221, title: "[Chore] [Site]: move to @veriworkly/ats-engine 0.16.0" },
+    ]);
+  });
+
+  it("repairs a stored release that was parsed before rules and PR lists were understood", () => {
+    const body = `
+## v1.0.0
+
+Intro.
+
+---
+
+## Highlights
+
+* Exports
+
+## Full Changelog
+
+* **#12** — [Fix] [Site]: tidy footer
+`;
+    const repoUrl = "https://github.com/acme/app";
+    const author = { login: "dev", avatarUrl: "a.png", htmlUrl: "https://github.com/dev" };
+
+    // What the old parser stored for this body.
+    const stored = {
+      summary: "---",
+      added: ["Exports ---", "**#12** — [Fix] [Site]: tidy footer"],
+      improved: [],
+      fixed: [],
+      breaking: [],
+      security: [],
+      prRefs: [{ number: 11, title: "Earlier PR", url: `${repoUrl}/pull/11`, author }],
+    };
+
+    const update = reparseStoredRelease(body, stored, repoUrl);
+
+    expect(update?.summary).toBe("Intro.");
+    expect(update?.added).toEqual(["Exports"]);
+    expect(update?.prRefs).toEqual([
+      stored.prRefs[0],
+      { number: 12, title: "[Fix] [Site]: tidy footer", url: `${repoUrl}/pull/12`, author: null },
+    ]);
+
+    // Already clean: nothing to write.
+    expect(reparseStoredRelease(body, update!, repoUrl)).toBeNull();
   });
 });

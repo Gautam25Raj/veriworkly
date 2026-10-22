@@ -1,6 +1,10 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
+
+import { cn } from "@veriworkly/ui";
+
+import { FRAME } from "@/components/marketing/PageLayout";
 
 import type { LegalSection } from "../types";
 
@@ -24,16 +28,21 @@ export function LegalSections({ sections }: LegalSectionsProps) {
   const filteredSections = useLegalSearch(sections, searchQuery);
 
   return (
-    <div className="relative">
-      <LegalMobileNav
-        sections={sections}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        activeSectionId={activeSectionId}
-        filteredSections={filteredSections}
-      />
+    <section aria-label="Full text" className="py-16 lg:py-24">
+      <div
+        className={cn(
+          FRAME,
+          "lg:grid lg:grid-cols-[minmax(0,18.5rem)_minmax(0,42rem)] lg:items-start lg:justify-between lg:gap-16",
+        )}
+      >
+        <LegalMobileNav
+          sections={sections}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          activeSectionId={activeSectionId}
+          filteredSections={filteredSections}
+        />
 
-      <div className="grid gap-8 lg:grid-cols-12 lg:items-start xl:gap-12">
         <LegalSidebarTOC
           sections={sections}
           searchQuery={searchQuery}
@@ -46,39 +55,33 @@ export function LegalSections({ sections }: LegalSectionsProps) {
             every marketing page, and two "main" regions make landmark navigation
             ambiguous for screen-reader users - on exactly the two pages that most
             need to be navigable. */}
-        <div className="space-y-8 lg:col-span-8">
+        <div className="min-w-0 space-y-16 lg:space-y-20">
           {filteredSections.length === 0 ? (
-            <div className="border-border/60 bg-card/20 text-muted rounded-3xl border p-12 text-center">
-              <p className="text-sm">No sections found matching &quot;{searchQuery}&quot;.</p>
+            <div className="bg-card rounded-3xl px-6 py-14 text-center">
+              <p className="text-xl font-bold tracking-tight">
+                No clauses mention &ldquo;{searchQuery}&rdquo;
+              </p>
 
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="text-accent mt-2 text-xs font-semibold hover:underline"
+                className="text-accent focus-visible:ring-accent/40 mt-3 cursor-pointer rounded-full text-base font-semibold underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:outline-none"
               >
-                Clear search filter
+                Show the whole document
               </button>
             </div>
           ) : (
-            filteredSections.map((section, idx) => {
-              const originalIndex = sections.findIndex((s) => s.id === section.id);
-
-              const displayIndex = originalIndex >= 0 ? originalIndex + 1 : idx + 1;
-              const isCurrent = activeSectionId === section.id;
-
-              return (
-                <LegalSectionCard
-                  key={section.id}
-                  section={section}
-                  displayIndex={displayIndex}
-                  isCurrent={isCurrent}
-                />
-              );
-            })
+            filteredSections.map((section) => (
+              <LegalSectionCard
+                key={section.id}
+                section={section}
+                displayIndex={sections.findIndex((s) => s.id === section.id) + 1}
+              />
+            ))
           )}
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 

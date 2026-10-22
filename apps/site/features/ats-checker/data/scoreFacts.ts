@@ -1,19 +1,14 @@
-import { Layers, Scale, Lock } from "lucide-react";
-
 export const SCORE_FACTS = [
   {
-    icon: Layers,
-    title: "Two scores, two different questions",
-    body: "Readiness measures format and parsing stability. Job match compares your resume directly against a job posting's specific requirements. Paste a job description to get tailored keyword scores.",
+    title: "Two scores answer two questions.",
+    body: "Readiness measures whether a parser can read your resume cleanly. Job match compares it with one posting's requirements; paste a job description to get it.",
   },
   {
-    icon: Scale,
-    title: "Transparent heuristic scoring",
-    body: "No commercial ATS vendor publishes a single universal score formula. Online tools claiming to provide an official third-party score are using their own estimations. We are fully transparent about the deterministic rules we check.",
+    title: "No ATS has one official score.",
+    body: "No ATS vendor publishes a universal score formula, so any tool claiming an official score is estimating. Ours is a public, deterministic rubric you can read rule by rule.",
   },
   {
-    icon: Lock,
-    title: "Nothing is stored, and no account is required",
-    body: "The free scan runs entirely in memory on our servers and is discarded when the response is sent. We do not retain your file or its text, and we do not train models on it. The optional AI analysis is the one exception: that step sends your resume text to a model provider to generate the write-up, so it does not stay on our infrastructure.",
+    title: "Nothing is stored.",
+    body: "The scan runs in memory and is discarded when the response is sent. We keep neither your file nor its text, and train nothing on it. The optional AI analysis is the one exception: it sends your resume text to a model provider to write the explanation.",
   },
 ] as const;

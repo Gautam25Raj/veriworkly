@@ -1,79 +1,62 @@
-import { Mail, MessageSquare, ShieldAlert, ArrowRight } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 
 import { siteConfig } from "@/config/site";
 
-import { Reveal } from "@/components/marketing/Reveal";
+import { PageSection } from "@/components/marketing/PageLayout";
 
 const contactChannels = [
   {
-    label: "Direct Email Support",
+    label: "Email",
+    value: siteConfig.email,
     href: `mailto:${siteConfig.email}`,
-    detail: "Billing questions, AI credits, document help",
-    badge: "Direct Founder Inbox",
-    icon: Mail,
+    detail: "Billing, AI credits and help with a document. Straight to the founder's inbox.",
   },
   {
-    label: "GitHub Community",
+    label: "GitHub Discussions",
+    value: "Public forum",
     href: `${siteConfig.links.github}/discussions`,
-    detail: "Feature requests, ideas, and open-source discussion",
-    badge: "Public Forum",
-    icon: MessageSquare,
+    detail: "Feature requests, ideas and open-source questions, answered in the open.",
   },
   {
-    label: "Security & Bug Reports",
-    href: `${siteConfig.links.github}/blob/main/SECURITY.md`,
-    detail: "Private vulnerability disclosure before public release",
-    badge: "Security Policy",
-    icon: ShieldAlert,
+    label: "Security reports",
+    value: "Private disclosure",
+    href: "/security#disclosure",
+    detail: "Found a vulnerability? Report it privately before anything goes public.",
   },
 ];
 
-export const ContactChannelsSection = () => {
-  return (
-    <Reveal className="divide-border/60 border-border/60 bg-card/40 grid divide-y overflow-hidden rounded-3xl border shadow-md backdrop-blur-sm sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-      {contactChannels.map((option) => {
-        const Icon = option.icon;
+export const ContactChannelsSection = () => (
+  <PageSection
+    title="Other ways in."
+    lede="Prefer email, or want the conversation in public? Pick the channel that fits."
+  >
+    <ul className="grid gap-6 md:grid-cols-3">
+      {contactChannels.map((channel) => {
+        const external = channel.href.startsWith("http");
+
         return (
-          <a
-            key={option.label}
-            href={option.href}
-            target={option.href.startsWith("http") ? "_blank" : undefined}
-            rel={option.href.startsWith("http") ? "noreferrer" : undefined}
-            className="group hover:bg-accent/4 flex flex-col justify-between p-6 transition-all duration-300 ease-out md:p-7"
-          >
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="bg-accent/10 text-accent ring-accent/20 flex size-10 items-center justify-center rounded-xl ring-1 transition-transform duration-300 group-hover:scale-105">
-                  <Icon className="size-5" aria-hidden="true" />
-                </span>
-
-                <span className="border-border/60 bg-muted/20 text-muted rounded-full border px-2.5 py-0.5 font-mono text-[9px] font-medium tracking-wider uppercase">
-                  {option.badge}
-                </span>
-              </div>
-
-              <div>
-                <p className="text-foreground group-hover:text-accent text-base font-bold tracking-tight transition-colors">
-                  {option.label}
-                </p>
-
-                <p className="text-muted mt-1 text-xs leading-relaxed">{option.detail}</p>
-              </div>
-            </div>
-
-            <div className="text-accent border-border/30 mt-5 flex items-center gap-1.5 border-t pt-2 text-xs font-semibold">
-              <span>Connect now</span>
-
-              <ArrowRight
-                className="size-3.5 transition-transform duration-200 group-hover:translate-x-1"
-                aria-hidden="true"
-              />
-            </div>
-          </a>
+          <li key={channel.label} className="reveal">
+            <Link
+              href={channel.href}
+              {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+              className="group bg-card focus-visible:ring-accent/40 flex h-full flex-col rounded-3xl p-6 transition-transform duration-200 hover:-translate-y-1 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.99] sm:p-8"
+            >
+              <span className="text-muted text-base">{channel.label}</span>
+              <span className="group-hover:text-accent mt-2 flex items-start justify-between gap-3 text-2xl font-bold tracking-tight wrap-anywhere transition-colors duration-200">
+                {channel.value}
+                <ArrowUpRight
+                  aria-hidden="true"
+                  className="mt-1 size-6 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                />
+              </span>
+              <span className="text-muted mt-6 text-base leading-7">{channel.detail}</span>
+            </Link>
+          </li>
         );
       })}
-    </Reveal>
-  );
-};
+    </ul>
+  </PageSection>
+);
 
 export default ContactChannelsSection;

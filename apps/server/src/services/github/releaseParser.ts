@@ -1,10 +1,11 @@
 import type { ParsedReleaseBody } from "./types.js";
 
-const CATEGORY_KEYWORDS: Array<{
-  pattern: RegExp;
-  category: keyof Omit<ParsedReleaseBody, "summary"> | "skip" | "summary";
-}> = [
+type ChangeList = "added" | "improved" | "fixed" | "breaking" | "security";
+type Section = ChangeList | "skip" | "summary" | "pulls";
+
+const CATEGORY_KEYWORDS: Array<{ pattern: RegExp; category: Section }> = [
   { pattern: /contributor|dependency|dependencies|artifact|asset/i, category: "skip" },
+  { pattern: /pull request|full changelog/i, category: "pulls" },
   { pattern: /summary|overview|highlights/i, category: "summary" },
   { pattern: /security/i, category: "security" },
   { pattern: /breaking/i, category: "breaking" },
@@ -15,6 +16,9 @@ const CATEGORY_KEYWORDS: Array<{
     category: "added",
   },
 ];
+
+/** "**#191** — [Feature] title" or "**#221** - `[Chore] title` by @user". */
+const PULL_REQUEST_LINE = /^\*{0,2}#(\d+)\*{0,2}\s+[—–-]\s+`?(.+?)`?(?:\s+by\s+@[\w-]+)?$/;
 
 /**
  * Robust markdown parser for GitHub release notes.
@@ -30,11 +34,12 @@ export function parseReleaseBody(body: string | null): ParsedReleaseBody {
     fixed: [],
     breaking: [],
     security: [],
+    pullRequests: [],
   };
 
   if (!body) return result;
 
-  let currentCategory: keyof Omit<ParsedReleaseBody, "summary"> | "skip" | "summary" | null = null;
+  let currentCategory: Section | null = null;
   const summaryLines: string[] = [];
   let isPreamble = true;
 
@@ -44,13 +49,14 @@ export function parseReleaseBody(body: string | null): ParsedReleaseBody {
     const rawLine = lines[i];
     const line = rawLine.trim();
 
-    if (!line) {
+    // Blank lines and horizontal rules ("---") carry no content.
+    if (!line || /^([-*_])(\s*\1){2,}$/.test(line)) {
       continue;
     }
 
-    // Check for Markdown headers: #, ##, ###, etc.
+    // Check for Markdown headers: #, ##, ###, etc. A heading does not end the preamble, so the
+    // intro paragraph under a release's title heading ("## v3.22.0") is still its summary.
     if (/^#{1,6}\s+/.test(line)) {
-      isPreamble = false;
       const header = line.replace(/^#{1,6}\s+/, "");
       const match = CATEGORY_KEYWORDS.find(({ pattern }) => pattern.test(header));
       currentCategory = match?.category ?? "added";
@@ -76,6 +82,12 @@ export function parseReleaseBody(body: string | null): ParsedReleaseBody {
         continue;
       }
 
+      if (currentCategory === "pulls") {
+        const pr = PULL_REQUEST_LINE.exec(item);
+        if (pr) result.pullRequests.push({ number: Number(pr[1]), title: pr[2].trim() });
+        continue;
+      }
+
       const targetCategory =
         currentCategory && currentCategory !== "summary" ? currentCategory : "added";
 
@@ -90,7 +102,8 @@ export function parseReleaseBody(body: string | null): ParsedReleaseBody {
       !isPreamble &&
       currentCategory &&
       currentCategory !== "skip" &&
-      currentCategory !== "summary"
+      currentCategory !== "summary" &&
+      currentCategory !== "pulls"
     ) {
       const targetCategory = currentCategory;
       const currentList = result[targetCategory];
@@ -111,4 +124,64 @@ export function parseReleaseBody(body: string | null): ParsedReleaseBody {
   }
 
   return result;
+}
+
+export interface ReleasePrRef {
+  number: number;
+  title: string;
+  url?: string;
+  author?: { login: string; avatarUrl: string; htmlUrl: string } | null;
+}
+
+/**
+ * Squash merges leave no "Merge pull request #n" commit, so the release's own PR list fills
+ * the gaps in the commit-derived refs. Existing refs come first: they carry the author.
+ */
+export function mergeReleasePullRequests<T extends ReleasePrRef>(
+  refs: T[],
+  pulls: ParsedReleaseBody["pullRequests"],
+  repoUrl: string,
+): Array<T | ReleasePrRef> {
+  const known = new Set(refs.map((pr) => pr.number));
+
+  return [
+    ...refs,
+    ...pulls
+      .filter((pr) => !known.has(pr.number))
+      .map((pr) => ({ ...pr, url: `${repoUrl}/pull/${pr.number}`, author: null })),
+  ];
+}
+
+export type StoredReleaseFields = Pick<
+  ParsedReleaseBody,
+  "summary" | "added" | "improved" | "fixed" | "breaking" | "security"
+> & { prRefs: ReleasePrRef[] };
+
+/**
+ * What a stored release becomes when its body is parsed again, or null when nothing changes.
+ * Entries synced before the parser learned about rules, intros and PR lists are repaired this
+ * way without re-fetching anything from GitHub.
+ */
+export function reparseStoredRelease(
+  body: string | null,
+  stored: StoredReleaseFields,
+  repoUrl: string,
+): StoredReleaseFields | null {
+  const parsed = parseReleaseBody(body);
+
+  const next: StoredReleaseFields = {
+    summary: parsed.summary,
+    added: parsed.added,
+    improved: parsed.improved,
+    fixed: parsed.fixed,
+    breaking: parsed.breaking,
+    security: parsed.security,
+    prRefs: mergeReleasePullRequests(stored.prRefs, parsed.pullRequests, repoUrl),
+  };
+
+  const same = (Object.keys(next) as Array<keyof StoredReleaseFields>).every(
+    (key) => JSON.stringify(next[key]) === JSON.stringify(stored[key]),
+  );
+
+  return same ? null : next;
 }

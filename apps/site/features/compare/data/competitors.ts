@@ -32,7 +32,7 @@ export const COMPETITORS: Competitor[] = [
       "You get the same job-description ATS keyword matching, but with unlimited free downloads in PDF, Word, and Markdown, plus a free online portfolio.",
     deepDive: [
       {
-        title: "ATS Keyword Checks",
+        title: "ATS keyword checks",
         competitorApproach:
           "Rezi compares your resume against a job post to calculate a score and list missing keywords.",
         veriworklyApproach:
@@ -41,7 +41,7 @@ export const COMPETITORS: Competitor[] = [
           "Both tools help you beat automated filters; VeriWorkly lets you download your fixed resume for free.",
       },
       {
-        title: "Download Limits",
+        title: "Download limits",
         competitorApproach:
           "Caps you at 3 PDF downloads on the free plan, then asks for $29/month.",
         veriworklyApproach:
@@ -49,7 +49,7 @@ export const COMPETITORS: Competitor[] = [
         takeaway: "No surprise paywalls when you are in the middle of sending job applications.",
       },
       {
-        title: "Sign-Up Friction & Privacy",
+        title: "Sign-up friction and privacy",
         competitorApproach:
           "You must register an email and create an account before you can even see the editor.",
         veriworklyApproach:
@@ -127,7 +127,7 @@ export const COMPETITORS: Competitor[] = [
       "If you already organize your job hunt in a spreadsheet or Notion and just want a fast, private builder with full ATS checks and a personal website, VeriWorkly gives you that for free.",
     deepDive: [
       {
-        title: "What Each Tool Is Built For",
+        title: "What each tool is built for",
         competitorApproach: "Teal is mainly a job application tracker with an added resume editor.",
         veriworklyApproach:
           "VeriWorkly is a focused workspace for creating resumes, cover letters, and web portfolios.",
@@ -135,14 +135,14 @@ export const COMPETITORS: Competitor[] = [
           "Use Teal if you need a job bookmarking board; use VeriWorkly if you want great documents and a live portfolio.",
       },
       {
-        title: "Where Your Data Stays",
+        title: "Where your data stays",
         competitorApproach: "Stored on central cloud servers under an account requirement.",
         veriworklyApproach:
           "Stored locally on your own computer first, with optional cloud backup when you want it.",
         takeaway: "Your career history and personal contact details stay under your control.",
       },
       {
-        title: "Developer & Portfolio Features",
+        title: "Developer and portfolio features",
         competitorApproach:
           "Only creates PDF documents; does not build personal websites or sync with GitHub.",
         veriworklyApproach:
@@ -223,7 +223,7 @@ export const COMPETITORS: Competitor[] = [
       "VeriWorkly does not hold fonts or styling hostage. You get great typography, free multi-format downloads, and no subscription traps.",
     deepDive: [
       {
-        title: "Design Customization",
+        title: "Design customization",
         competitorApproach:
           "Locks popular templates, colors, and custom fonts behind Kickresume Premium.",
         veriworklyApproach:
@@ -232,7 +232,7 @@ export const COMPETITORS: Competitor[] = [
           "You will never spend an hour formatting a resume only to find out your font is locked.",
       },
       {
-        title: "AI Writing & Credits",
+        title: "AI writing and credits",
         competitorApproach:
           "Bundles AI into recurring monthly plans with monthly limits that expire.",
         veriworklyApproach:
@@ -240,7 +240,7 @@ export const COMPETITORS: Competitor[] = [
         takeaway: "Only pay for AI when you actually use it, instead of paying every single month.",
       },
       {
-        title: "Online Portfolio Websites",
+        title: "Online portfolio websites",
         competitorApproach:
           "Basic website conversion is free, but custom themes and custom links require a subscription.",
         veriworklyApproach:
@@ -318,7 +318,7 @@ export const COMPETITORS: Competitor[] = [
       "Novoresume requires Premium once your experience spills onto page two. VeriWorkly lets you write multi-page resumes and check them against real job descriptions for free.",
     deepDive: [
       {
-        title: "Page Length Limits",
+        title: "Page length limits",
         competitorApproach:
           "Strict one-page cap on the free plan; page two requires a Premium purchase.",
         veriworklyApproach:
@@ -327,7 +327,7 @@ export const COMPETITORS: Competitor[] = [
           "People with multiple years of experience can share their full background without paying a monthly fee.",
       },
       {
-        title: "Job-Specific ATS Matching",
+        title: "Job-specific ATS matching",
         competitorApproach:
           "Scores general resume neatness, but cannot compare your resume against a specific job post.",
         veriworklyApproach:
@@ -335,7 +335,7 @@ export const COMPETITORS: Competitor[] = [
         takeaway: "Tailor your resume specifically for the job you are applying to today.",
       },
       {
-        title: "File Formats",
+        title: "File formats",
         competitorApproach: "PDF only. Cannot produce editable Word (.docx) or Markdown files.",
         veriworklyApproach: "Exports instant PDF, editable Word (.docx), and clean Markdown files.",
         takeaway: "Ready for recruiters who specifically request a Word document.",
@@ -409,7 +409,7 @@ export const COMPETITORS: Competitor[] = [
       "Zety lets you finish your entire resume before telling you that formatted downloads cost money. VeriWorkly gives you free PDF and Word downloads from the very start, with no card needed.",
     deepDive: [
       {
-        title: "Download Paywalls",
+        title: "Download paywalls",
         competitorApproach:
           "Free plan only exports an unformatted plain-text (.txt) file; formatted PDFs require entering card details.",
         veriworklyApproach:
@@ -417,7 +417,7 @@ export const COMPETITORS: Competitor[] = [
         takeaway: "We never hold your finished resume hostage after you spent time writing it.",
       },
       {
-        title: "Auto-Renewing Trials",
+        title: "Auto-renewing trials",
         competitorApproach:
           "Offers a $1.95 14-day trial that turns into a recurring $25.95 charge every 4 weeks unless cancelled before the trial ends.",
         veriworklyApproach:
@@ -426,7 +426,7 @@ export const COMPETITORS: Competitor[] = [
           "You never need to remember to cancel a subscription after sending out a job application.",
       },
       {
-        title: "Privacy & Account Safety",
+        title: "Privacy and account safety",
         competitorApproach:
           "Requires creating an account and entering payment details on central servers.",
         veriworklyApproach:
@@ -503,7 +503,7 @@ export const COMPETITORS: Competitor[] = [
       "Enhancv stamps its logo on your free resume. VeriWorkly never adds watermarks to your downloads, keeping your resume 100% clean and professional for free.",
     deepDive: [
       {
-        title: "Watermark Policy",
+        title: "Watermark policy",
         competitorApproach:
           "Free and trial downloads include a visible Enhancv logo and watermark on your resume.",
         veriworklyApproach:
@@ -512,14 +512,14 @@ export const COMPETITORS: Competitor[] = [
           "Your resume is about you, not an advertisement for the tool you used to make it.",
       },
       {
-        title: "Subscription Costs",
+        title: "Subscription costs",
         competitorApproach: "Plans cost $39 monthly, $69 for three months, or $99 for six months.",
         veriworklyApproach:
           "Core builder is free forever. AI credits are pay-as-you-go with no forced monthly subscriptions.",
         takeaway: "Save money during your job search while getting clean, professional results.",
       },
       {
-        title: "ATS Compatibility vs Graphics",
+        title: "ATS compatibility vs graphics",
         competitorApproach:
           "Visual widgets like pie charts and icons can sometimes confuse corporate ATS applicant parsers.",
         veriworklyApproach:

@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 
-import { Container } from "@veriworkly/ui";
-
 import { siteConfig } from "@/config/site";
 
 import { jsonLdScriptProps } from "@/utils/json-ld";
@@ -11,11 +9,10 @@ import {
   SecurityHero,
   DataRetentionSection,
   OAuthSecuritySection,
-  DataPartitioningSection,
   SecurityBoundaryDiagram,
   ResponsibleDisclosureSection,
 } from "@/features/security";
-import InteractiveCTA from "@/features/marketing/cta/InteractiveCTA";
+import { PageClosing, PageSection } from "@/components/marketing/PageLayout";
 
 export const revalidate = false;
 export const dynamic = "force-static";
@@ -24,7 +21,7 @@ const pageUrl = `${siteConfig.url}/security`;
 const pageOgImage = `${siteConfig.url}/api/og?title=${encodeURIComponent(
   "Security Architecture & Disclosure Policy",
 )}&description=${encodeURIComponent(
-  "Local-first browser sandboxes, Better Auth OTP verification, minimal OAuth scopes, and a 24-hour vulnerability SLA.",
+  "Local-first browser sandboxes, Better Auth OTP verification, minimal OAuth scopes, and a 24 to 48 hour acknowledgement on every report.",
 )}`;
 
 export const metadata: Metadata = buildPageMetadata({
@@ -32,15 +29,15 @@ export const metadata: Metadata = buildPageMetadata({
 
   title: `Security & Responsible Disclosure Policy | ${siteConfig.shortName}`,
   description:
-    "How we secure your career data: local-first browser storage, encrypted cloud sync, Better Auth OTP authentication, and a 24-hour responsible disclosure commitment.",
+    "How we secure your career data: local-first browser storage, encrypted cloud sync, Better Auth OTP authentication, and a 24 to 48 hour acknowledgement on every security report.",
 
   ogTitle: "Private Security for Your Career Records",
   ogDescription:
-    "Local-first storage, decoupled document sandboxes, and a 24-hour response commitment on every security report.",
+    "Local-first storage, decoupled document sandboxes, and a 24 to 48 hour acknowledgement on every security report.",
 
   twitterTitle: "Found a bug? Here is exactly what happens next.",
   twitterDescription:
-    "Our security architecture and responsible disclosure process in plain language: report privately and get acknowledged within 24 hours.",
+    "Our security architecture and responsible disclosure process in plain language: report privately and get acknowledged within 24 to 48 hours.",
 
   image: pageOgImage,
   imageAlt: `${siteConfig.shortName} Security Overview`,
@@ -91,41 +88,25 @@ const SecurityPage = () => {
         dangerouslySetInnerHTML={jsonLdScriptProps(webPageSchema)}
       />
 
-      <div className="relative flex min-h-screen flex-col overflow-hidden">
-        <div className="surface-grid pointer-events-none absolute inset-0 -z-10 opacity-[0.25]" />
-        <div className="bg-accent/5 pointer-events-none absolute top-0 left-1/4 -z-10 h-150 w-150 rounded-full blur-[140px]" />
-        <div className="pointer-events-none absolute top-96 right-10 -z-10 h-120 w-120 rounded-full bg-emerald-500/5 blur-[130px]" />
+      <SecurityHero />
 
-        <Container className="space-y-24 pt-28 pb-20 lg:pt-36">
-          <SecurityHero />
+      <PageSection
+        id="data-routes"
+        tone="card"
+        title="Follow your data."
+        lede="Choose something you do in VeriWorkly and see every place your text reaches while you do it."
+      >
+        <SecurityBoundaryDiagram />
+      </PageSection>
 
-          <section className="space-y-6">
-            <div className="mx-auto max-w-2xl space-y-2 text-center">
-              <span className="text-accent font-mono text-[10px] font-bold tracking-widest uppercase">
-                Interactive Architecture
-              </span>
+      <OAuthSecuritySection />
+      <DataRetentionSection />
+      <ResponsibleDisclosureSection />
 
-              <h2 className="text-foreground text-2xl font-bold tracking-tight sm:text-3xl">
-                Multi-Layer Security &amp; Privacy Boundaries
-              </h2>
-
-              <p className="text-muted text-xs leading-relaxed sm:text-sm">
-                Click across the 4 architecture layers to inspect how each environment protects your
-                data.
-              </p>
-            </div>
-
-            <SecurityBoundaryDiagram />
-          </section>
-
-          <DataPartitioningSection />
-          <OAuthSecuritySection />
-          <DataRetentionSection />
-          <ResponsibleDisclosureSection />
-        </Container>
-
-        <InteractiveCTA />
-      </div>
+      <PageClosing
+        title="See where your data lives."
+        lede="Open the studio and check your browser's storage yourself: your drafts are there, and nowhere else until you choose to sync."
+      />
     </>
   );
 };

@@ -18,7 +18,6 @@ export { default as ChangelogContributors } from "./controls/ChangelogContributo
 // List & Shell components
 export { default as CardAuthors } from "./list/CardAuthors";
 export { default as CardCategories } from "./list/CardCategories";
-export { default as ChangelogHeader } from "./list/ChangelogHeader";
 export { default as ChangelogTimeline } from "./list/ChangelogTimeline";
 export { default as ChangelogEntryCard } from "./list/ChangelogEntryCard";
 export { default as ChangelogPageShell } from "./list/ChangelogPageShell";

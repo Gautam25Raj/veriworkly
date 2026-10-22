@@ -1,7 +1,7 @@
 import type { ScopeClassification } from "../types";
 
 export const DISCLOSURE_IN_SCOPE: ScopeClassification = {
-  category: "In-Scope Vulnerabilities",
+  category: "In scope",
   items: [
     "Authentication bypass or broken session state in Better Auth",
     "Cross-Site Scripting (XSS) and Cross-Site Request Forgery (CSRF)",
@@ -14,7 +14,7 @@ export const DISCLOSURE_IN_SCOPE: ScopeClassification = {
 };
 
 export const DISCLOSURE_OUT_OF_SCOPE: ScopeClassification = {
-  category: "Out-of-Scope Findings",
+  category: "Out of scope",
   items: [
     "Volumetric Denial of Service (DDoS) or network flood testing",
     "Social engineering, phishing, or physical attacks against team members",

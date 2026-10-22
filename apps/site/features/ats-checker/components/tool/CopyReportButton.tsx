@@ -25,20 +25,17 @@ export function CopyReportButton({ report }: { report: AtsFullReport }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:outline-none dark:border-zinc-800 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10"
+      className="bg-background hover:bg-foreground hover:text-background focus-visible:ring-accent/40 inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none active:scale-[0.97]"
       aria-label="Copy report as plain text"
     >
       {copied ? (
         <>
-          <Check
-            className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400"
-            aria-hidden="true"
-          />
+          <Check className="text-success h-4 w-4" aria-hidden="true" />
           <span>Copied</span>
         </>
       ) : (
         <>
-          <Copy className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" aria-hidden="true" />
+          <Copy className="h-4 w-4" aria-hidden="true" />
           <span>Copy report</span>
         </>
       )}

@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
 
+import { cn } from "@veriworkly/ui";
+
 /** A shell command with a copy button, for install lines. */
-export function CopyCommand({ command }: { command: string }) {
+export function CopyCommand({ command, className }: { command: string; className?: string }) {
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
@@ -18,21 +20,31 @@ export function CopyCommand({ command }: { command: string }) {
   };
 
   return (
-    <div className="border-border/80 bg-card/60 flex w-full max-w-md items-center gap-3 rounded-full border py-1.5 pr-1.5 pl-5 shadow-xs backdrop-blur-md">
-      <span className="text-muted font-mono text-xs select-none" aria-hidden="true">
+    <div
+      className={cn(
+        "bg-card flex w-full max-w-md items-center gap-3 rounded-full py-1.5 pr-1.5 pl-5",
+        className,
+      )}
+    >
+      <span className="text-muted font-mono text-sm select-none" aria-hidden="true">
         $
       </span>
-      <code className="text-foreground min-w-0 flex-1 truncate font-mono text-xs sm:text-sm">
-        {command}
-      </code>
+      <code className="w-0 min-w-0 flex-1 truncate font-mono text-sm">{command}</code>
       <button
         type="button"
         onClick={copy}
         aria-label={copied ? "Copied" : `Copy "${command}"`}
-        className="text-muted hover:text-foreground hover:bg-background focus-visible:ring-accent inline-flex size-9 shrink-0 items-center justify-center rounded-full transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-none"
+        className="bg-foreground text-background focus-visible:ring-accent/40 inline-flex size-10 shrink-0 items-center justify-center rounded-full transition-transform duration-150 focus-visible:ring-2 focus-visible:outline-none active:scale-95"
       >
-        {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+        {copied ? (
+          <Check className="size-4" aria-hidden="true" />
+        ) : (
+          <Copy className="size-4" aria-hidden="true" />
+        )}
       </button>
+      <span className="sr-only" role="status" aria-live="polite">
+        {copied ? "Copied to clipboard" : ""}
+      </span>
     </div>
   );
 }

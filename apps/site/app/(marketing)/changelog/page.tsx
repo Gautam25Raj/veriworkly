@@ -138,9 +138,8 @@ const ChangelogPage = async ({ searchParams }: ChangelogPageProps) => {
       <ChangelogPageShell
         data={data}
         search={search}
-        title="Changelog"
         activeType={type ?? "all"}
-        description="Every VeriWorkly release, generated straight from our public GitHub history - new features, improvements, fixes, and security updates, with links back to the exact pull requests."
+        description="Every VeriWorkly release, generated from our public GitHub history: what was added, improved and fixed, with links to the pull requests behind it."
       />
 
       <ChangelogSEOContent />

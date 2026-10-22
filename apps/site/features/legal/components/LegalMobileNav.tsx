@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { BookOpen, Search, Menu, X } from "lucide-react";
+import { useEffect, useId, useState } from "react";
+import { ChevronDown } from "lucide-react";
+
+import { cn } from "@veriworkly/ui";
 
 import type { LegalSection } from "../types";
+
+import { LegalSearchField, LegalTocLinks } from "./LegalSidebarTOC";
 
 interface LegalMobileNavProps {
   sections: LegalSection[];
@@ -13,6 +17,7 @@ interface LegalMobileNavProps {
   onSearchChange: (query: string) => void;
 }
 
+/** The phone's table of contents: a sticky bar naming the current clause, opening to the index. */
 export function LegalMobileNav({
   sections,
   filteredSections,
@@ -20,68 +25,64 @@ export function LegalMobileNav({
   searchQuery,
   onSearchChange,
 }: LegalMobileNavProps) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
 
-  const currentSection = sections.find((s) => s.id === activeSectionId);
+  const currentIndex = sections.findIndex((s) => s.id === activeSectionId);
+  const currentSection = sections[currentIndex];
+
+  useEffect(() => {
+    if (!open) return;
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   return (
-    <div className="sticky top-20 z-30 mb-8 block lg:hidden">
-      <div className="border-border/80 bg-background/95 flex items-center justify-between rounded-2xl border p-3.5 shadow-lg backdrop-blur-md">
-        <div className="flex items-center gap-2 truncate pr-2">
-          <span className="bg-accent/15 text-accent flex size-7 shrink-0 items-center justify-center rounded-lg">
-            <BookOpen className="size-3.5" />
-          </span>
+    <div className="sticky top-20 z-30 mb-12 lg:hidden">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((value) => !value)}
+        className="bg-foreground text-background focus-visible:ring-accent/40 flex h-14 w-full cursor-pointer items-center gap-3 rounded-2xl px-5 text-left text-base font-semibold focus-visible:ring-2 focus-visible:outline-none"
+      >
+        <span className="min-w-0 flex-1 truncate">
+          {currentSection ? (
+            <>
+              <span className="mr-2 tabular-nums opacity-70">{currentIndex + 1}.</span>
+              {currentSection.title}
+            </>
+          ) : (
+            "Contents"
+          )}
+        </span>
+        <span className="text-sm font-medium opacity-70">Contents</span>
+        <ChevronDown
+          aria-hidden="true"
+          className={cn("size-5 shrink-0 transition-transform duration-200", open && "rotate-180")}
+        />
+      </button>
 
-          <span className="text-foreground truncate text-xs font-bold">
-            {currentSection?.title ?? "Table of Contents"}
-          </span>
-        </div>
-
-        <button
-          type="button"
-          aria-expanded={mobileMenuOpen}
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="border-border/60 bg-card text-foreground inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold"
+      {open && (
+        <div
+          id={panelId}
+          className="bg-card animate-scale-in ring-foreground/10 absolute inset-x-0 top-full mt-2 max-h-[min(28rem,70dvh)] origin-top overflow-y-auto rounded-2xl p-3 shadow-xl ring-1"
         >
-          {mobileMenuOpen ? <X className="size-3.5" /> : <Menu className="size-3.5" />}
-          <span>{mobileMenuOpen ? "Close" : "Index"}</span>
-        </button>
-      </div>
+          <LegalSearchField value={searchQuery} onChange={onSearchChange} />
 
-      {mobileMenuOpen && (
-        <div className="border-border/80 bg-card/95 absolute top-full right-0 left-0 mt-2 max-h-96 overflow-y-auto rounded-2xl border p-4 shadow-2xl backdrop-blur-xl">
-          <div className="relative mb-3">
-            <Search className="text-muted absolute top-1/2 left-3 size-3.5 -translate-y-1/2" />
-
-            <input
-              type="text"
-              value={searchQuery}
-              placeholder="Search clauses..."
-              onChange={(e) => onSearchChange(e.target.value)}
-              className="border-border/60 bg-background/90 text-foreground placeholder:text-muted focus:border-accent w-full rounded-xl border py-2 pr-3 pl-8 text-xs outline-none"
+          <nav aria-label="Table of contents" className="mt-3">
+            <LegalTocLinks
+              sections={sections}
+              filteredSections={filteredSections}
+              activeSectionId={activeSectionId}
+              onNavigate={() => setOpen(false)}
             />
-          </div>
-
-          <ol className="space-y-1">
-            {filteredSections.map((sec, idx) => (
-              <li key={sec.id}>
-                <a
-                  href={`#${sec.id}`}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs transition-colors ${
-                    activeSectionId === sec.id
-                      ? "bg-accent/15 text-accent font-bold"
-                      : "text-muted hover:text-foreground hover:bg-muted/10"
-                  }`}
-                >
-                  <span className="font-mono text-[10px] opacity-70">
-                    {String(idx + 1).padStart(2, "0")}.
-                  </span>
-                  <span className="truncate">{sec.title}</span>
-                </a>
-              </li>
-            ))}
-          </ol>
+          </nav>
         </div>
       )}
     </div>

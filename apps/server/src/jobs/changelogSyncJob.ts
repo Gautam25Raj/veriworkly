@@ -24,6 +24,7 @@ async function runSync(reason: "startup" | "cron") {
 
     logger.info(`Changelog release sync (${reason}) success`, {
       created: result.created,
+      refreshed: result.refreshed,
       skipped: result.skipped,
       total: result.total,
     });

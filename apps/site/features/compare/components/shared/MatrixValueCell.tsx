@@ -1,4 +1,4 @@
-import { Check, Minus, X, AlertTriangle } from "lucide-react";
+import { AlertTriangle, Check, Minus, X } from "lucide-react";
 
 import { type MatrixValue } from "../../types";
 
@@ -7,79 +7,54 @@ interface MatrixValueCellProps {
   emphasize?: boolean;
 }
 
+// Word starts, so "limit" does not match inside "unlimited".
+const LIMITED = /\b(limit|trial|capped|paid|watermark|required|only)/i;
+const POSITIVE = /\b(unlimited|included|no login)/i;
+
+/**
+ * One cell of a comparison. The icon and the word carry the state together, so colour is never
+ * the only signal: a tick says "Yes", a cross says "No", a warning sits beside a limit.
+ */
 export const MatrixValueCell = ({ value, emphasize }: MatrixValueCellProps) => {
-  if (value === undefined || value === null)
+  if (value === undefined || value === null) {
     return (
-      <span className="text-muted/40 inline-flex items-center">
+      <span className="text-muted inline-flex items-center gap-2 text-[15px]">
         <Minus className="size-4" aria-hidden="true" />
+        Not stated
       </span>
-    );
-
-  if (typeof value === "boolean") {
-    return value ? (
-      <div className="flex items-center gap-1.5">
-        <span
-          className={`inline-flex size-6 shrink-0 items-center justify-center rounded-full transition-transform ${
-            emphasize
-              ? "bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-400"
-              : "bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400"
-          }`}
-        >
-          <Check className="size-3.5 stroke-[2.5]" aria-hidden="true" />
-        </span>
-
-        <span className="text-foreground sr-only text-xs font-medium">Yes</span>
-      </div>
-    ) : (
-      <div className="flex items-center gap-1.5">
-        <span className="bg-destructive/10 text-destructive/80 ring-destructive/20 inline-flex size-6 shrink-0 items-center justify-center rounded-full ring-1">
-          <X className="size-3.5 stroke-[2.5]" aria-hidden="true" />
-        </span>
-
-        <span className="text-muted sr-only text-xs">No</span>
-      </div>
     );
   }
 
-  const isLimited =
-    value.toLowerCase().includes("limit") ||
-    value.toLowerCase().includes("trial") ||
-    value.toLowerCase().includes("capped") ||
-    value.toLowerCase().includes("paid") ||
-    value.toLowerCase().includes("watermark") ||
-    value.toLowerCase().includes("required");
+  if (typeof value === "boolean") {
+    return value ? (
+      <span className="text-success inline-flex items-center gap-2 text-[15px] font-semibold">
+        <Check className="size-4 stroke-[2.5]" aria-hidden="true" />
+        Yes
+      </span>
+    ) : (
+      <span className="text-muted inline-flex items-center gap-2 text-[15px]">
+        <X className="text-destructive size-4 stroke-[2.5]" aria-hidden="true" />
+        No
+      </span>
+    );
+  }
 
-  const isPositive =
-    value.toLowerCase().includes("unlimited") ||
-    value.toLowerCase().includes("included") ||
-    value.toLowerCase().includes("not required");
+  const isLimited = LIMITED.test(value);
+  const isPositive = !isLimited && POSITIVE.test(value);
 
   return (
-    <div className="flex items-start gap-1.5">
-      {isLimited && (
-        <span className="mt-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
-          <AlertTriangle className="size-2.5" aria-hidden="true" />
-        </span>
-      )}
-
-      {isPositive && !emphasize && (
-        <span className="mt-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400">
-          <Check className="size-2.5 stroke-[2.5]" aria-hidden="true" />
-        </span>
-      )}
-
-      <span
-        className={`text-xs leading-relaxed ${
-          emphasize
-            ? "text-foreground font-semibold"
-            : isLimited
-              ? "text-foreground/90 font-medium"
-              : "text-muted font-normal"
-        }`}
-      >
-        {value}
-      </span>
-    </div>
+    <span
+      className={`inline-flex items-start gap-2 text-[15px] leading-6 ${
+        emphasize ? "font-semibold" : isLimited ? "font-medium" : "text-muted"
+      }`}
+    >
+      {isLimited ? (
+        <AlertTriangle className="text-warning mt-1 size-4 shrink-0" aria-hidden="true" />
+      ) : isPositive || emphasize ? (
+        <Check className="text-success mt-1 size-4 shrink-0 stroke-[2.5]" aria-hidden="true" />
+      ) : null}
+      <span>{value}</span>
+    </span>
   );
 };
 

@@ -4,6 +4,8 @@ import { GitPullRequest } from "lucide-react";
 
 import { siteConfig } from "@/config/site";
 
+import { TYPE } from "@/components/marketing/PageLayout";
+
 import { type ChangelogPrRef } from "@/features/changelog/services/changelog-backend";
 
 interface ReleasePullRequestsProps {
@@ -14,35 +16,37 @@ export const ReleasePullRequests = ({ prRefs }: ReleasePullRequestsProps) => {
   if (prRefs.length === 0) return null;
 
   return (
-    <section className="border-border/30 space-y-3 border-t pt-6">
-      <h2 className="text-muted/70 font-mono text-[10px] font-bold tracking-widest uppercase">
+    <section id="pull-requests" className="scroll-mt-28">
+      <h2 className={TYPE.title}>
         Shipped in {prRefs.length} pull request{prRefs.length === 1 ? "" : "s"}
       </h2>
 
-      <ul className="space-y-2">
+      <ul className="bg-card mt-6 overflow-hidden rounded-3xl">
         {prRefs.map((pr) => (
-          <li key={pr.number} className="text-muted flex items-center gap-2 text-sm">
-            {pr.author ? (
-              <Image
-                width={18}
-                height={18}
-                alt={pr.author.login}
-                title={pr.author.login}
-                src={pr.author.avatarUrl}
-                className="ring-border/40 shrink-0 rounded-full ring-1"
-              />
-            ) : (
-              <GitPullRequest className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            )}
-
+          <li key={pr.number} className="border-border border-b last:border-b-0">
             <Link
               target="_blank"
               rel="noopener noreferrer"
               href={pr.url ?? `${siteConfig.links.github}/pull/${pr.number}`}
-              className="hover:text-foreground flex min-w-0 items-center gap-2 transition-colors"
+              className="hover:bg-background focus-visible:bg-background flex items-start gap-4 px-5 py-4 text-base transition-colors focus-visible:outline-none sm:px-6"
             >
-              <span className="font-mono text-xs">#{pr.number}</span>
-              <span className="truncate">{pr.title}</span>
+              {pr.author ? (
+                <Image
+                  width={28}
+                  height={28}
+                  alt={pr.author.login}
+                  title={pr.author.login}
+                  src={pr.author.avatarUrl}
+                  className="bg-background mt-0.5 shrink-0 rounded-full"
+                />
+              ) : (
+                <span className="bg-background mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full">
+                  <GitPullRequest className="text-muted size-4" aria-hidden="true" />
+                </span>
+              )}
+
+              <span className="min-w-0 flex-1 leading-7">{pr.title}</span>
+              <span className="text-muted shrink-0 leading-7 tabular-nums">#{pr.number}</span>
             </Link>
           </li>
         ))}

@@ -1,79 +1,39 @@
-import { BookOpen, Cpu, Sparkles } from "lucide-react";
-import { Reveal } from "@/components/marketing/Reveal";
+import { PageSection, TYPE } from "@/components/marketing/PageLayout";
+
+const ANSWERS = [
+  {
+    question: "What is an ATS?",
+    answer:
+      "An applicant tracking system is recruitment software that mid-market and enterprise employers use to collect, parse, sort and rank applications before a person reviews them.",
+  },
+  {
+    question: "How does it read a resume?",
+    answer:
+      "It strips the formatting to get plain text, maps your work history into database fields, and indexes keywords so recruiters can search for you.",
+  },
+  {
+    question: "How do you get through it?",
+    answer:
+      "Use one column, standard section titles (Experience, Education, Skills), concrete numbers in your achievements, and the terms the job description asks for.",
+  },
+];
 
 export function AtsDirectAnswer() {
   return (
-    <section className="border-border/40 space-y-8 border-t pt-16">
-      <div className="space-y-2 text-left">
-        <span className="text-accent font-mono text-[10px] font-bold tracking-widest uppercase">
-          Quick Guide &amp; Definitions
-        </span>
-        <h2 className="text-foreground text-2xl font-bold tracking-tight sm:text-3xl lg:text-4xl">
-          What is an ATS resume checker and how does it work?
-        </h2>
-        <p className="text-muted max-w-2xl text-xs leading-relaxed sm:text-sm">
-          The essential facts about Applicant Tracking Systems and how to make your resume pass
-          automated screening.
-        </p>
-      </div>
-
-      <Reveal>
-        <div className="border-border/60 bg-card/40 rounded-3xl border p-6 shadow-md backdrop-blur-sm sm:p-8">
-          <div className="grid gap-8 lg:grid-cols-3">
-            {/* Box 1: What is ATS */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2.5">
-                <span className="bg-accent/10 text-accent ring-accent/20 flex size-8 items-center justify-center rounded-lg ring-1">
-                  <Cpu className="size-4" />
-                </span>
-                <h3 className="text-foreground text-sm font-bold tracking-tight">
-                  1. What is an ATS?
-                </h3>
-              </div>
-              <p className="text-muted text-xs leading-relaxed">
-                An <strong className="text-foreground">Applicant Tracking System (ATS)</strong> is
-                recruitment management software used by mid-market and enterprise employers to
-                collect, parse, categorize, and rank job applications before human review.
-              </p>
-            </div>
-
-            {/* Box 2: How ATS reads your resume */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2.5">
-                <span className="flex size-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20 dark:text-emerald-400">
-                  <BookOpen className="size-4" />
-                </span>
-                <h3 className="text-foreground text-sm font-bold tracking-tight">
-                  2. How does ATS scan resumes?
-                </h3>
-              </div>
-              <p className="text-muted text-xs leading-relaxed">
-                The software strips formatting to extract plain text, maps work history into
-                database rows, and indexes keywords from the job description to calculate search
-                relevance for hiring managers.
-              </p>
-            </div>
-
-            {/* Box 3: How to score higher */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2.5">
-                <span className="flex size-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 ring-1 ring-blue-500/20 dark:text-blue-400">
-                  <Sparkles className="size-4" />
-                </span>
-                <h3 className="text-foreground text-sm font-bold tracking-tight">
-                  3. How to pass the scan?
-                </h3>
-              </div>
-              <p className="text-muted text-xs leading-relaxed">
-                Use a clean single-column structure, standard section titles (Experience, Education,
-                Skills), quantify achievements with concrete numbers, and include relevant keywords
-                from the job requirements.
-              </p>
-            </div>
+    <PageSection
+      tone="card"
+      title="What an ATS checker does."
+      lede="The short version, before you scan: what the software is, how it reads you, and what it rewards."
+    >
+      <dl className="grid gap-10 md:grid-cols-3 md:gap-8">
+        {ANSWERS.map((item) => (
+          <div key={item.question} className="reveal">
+            <dt className={`text-balance ${TYPE.title}`}>{item.question}</dt>
+            <dd className="text-muted mt-3 text-base leading-7 text-pretty">{item.answer}</dd>
           </div>
-        </div>
-      </Reveal>
-    </section>
+        ))}
+      </dl>
+    </PageSection>
   );
 }
 

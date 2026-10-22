@@ -1,10 +1,6 @@
 import type { Metadata } from "next";
 
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
-
-import { Container } from "@veriworkly/ui";
 
 import { siteConfig } from "@/config/site";
 import { jsonLdScriptProps } from "@/utils/json-ld";
@@ -16,7 +12,7 @@ import {
 } from "@/features/changelog/services/changelog-backend";
 import ChangelogEntryNav from "@/features/changelog/components/detail/ChangelogEntryNav";
 import ChangelogEntryDetail from "@/features/changelog/components/detail/ChangelogEntryDetail";
-import { categoriesFor, formatChangelogDate } from "@/features/changelog/utils/changelog-utils";
+import { categoriesFor } from "@/features/changelog/utils/changelog-utils";
 
 interface ChangelogDetailPageProps {
   params: Promise<{ id: string }>;
@@ -142,37 +138,8 @@ const ChangelogDetailPage = async ({ params }: ChangelogDetailPageProps) => {
         dangerouslySetInnerHTML={jsonLdScriptProps(articleSchema)}
       />
 
-      <div className="relative flex min-h-screen flex-col overflow-hidden">
-        <div className="surface-grid pointer-events-none absolute inset-0 -z-10 opacity-[0.25]" />
-        <div className="bg-accent/5 pointer-events-none absolute top-0 left-1/4 -z-10 h-150 w-150 rounded-full blur-[130px]" />
-
-        <Container className="pt-28 pb-20 lg:pt-36">
-          <div className="mx-auto max-w-3xl">
-            <Link
-              href="/changelog"
-              className="text-muted hover:text-foreground group mb-8 inline-flex items-center gap-2 text-xs font-bold tracking-widest uppercase transition-colors"
-            >
-              <ArrowLeft
-                aria-hidden="true"
-                className="size-4 transition-transform group-hover:-translate-x-1"
-              />
-              Back to Changelog
-            </Link>
-
-            <ChangelogEntryDetail entry={entry} older={older} isLatest={isLatest} />
-
-            <ChangelogEntryNav older={older} newer={newer} />
-
-            <p className="text-muted/70 mt-10 font-mono text-[11px] tracking-wide">
-              Released {formatChangelogDate(entry.publishedAt)}.{" "}
-              <Link href="/roadmap" className="text-accent underline underline-offset-2">
-                See what&apos;s planned next
-              </Link>
-              .
-            </p>
-          </div>
-        </Container>
-      </div>
+      <ChangelogEntryDetail entry={entry} older={older} isLatest={isLatest} />
+      <ChangelogEntryNav older={older} newer={newer} />
     </>
   );
 };

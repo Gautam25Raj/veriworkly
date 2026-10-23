@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 
 type ChildWithProps = {
   className?: string;
+  onClick?: React.MouseEventHandler<HTMLElement>;
   [key: string]: unknown;
 };
 
@@ -29,24 +30,23 @@ export function buttonClassName(
   className?: string,
 ) {
   return cn(
-    "inline-flex items-center justify-center rounded-full font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:pointer-events-none disabled:opacity-50 cursor-pointer",
+    "inline-flex cursor-pointer items-center justify-center rounded-full font-medium transition duration-150 ease-out active:scale-[0.97]",
+    "focus-visible:ring-accent focus-visible:ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+    "disabled:pointer-events-none disabled:opacity-50 data-disabled:pointer-events-none data-disabled:opacity-50",
     buttonVariants[variant],
     buttonSizes[size],
     className,
   );
 }
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps extends React.ComponentProps<"button"> {
   variant?: ButtonVariant;
   size?: ButtonSize;
 
-  /** Render as different element (e.g. Link) */
   asChild?: boolean;
 
-  /** Loading state */
   loading?: boolean;
 
-  /** Loading text */
   loadingText?: string;
 }
 
@@ -57,21 +57,33 @@ export const Button = ({
   type = "button",
   asChild = false,
   loading = false,
-  loadingText = "Loading...",
+  loadingText = "Loading…",
   disabled,
   children,
   ...props
 }: ButtonProps) => {
-  const isDisabled = disabled || loading;
+  const isDisabled = Boolean(disabled || loading);
 
   if (asChild && React.isValidElement(children)) {
     const child = children as React.ReactElement<ChildWithProps>;
+    const { onClick, ...rest } = props;
+    const childOnClick = child.props.onClick;
 
     return React.cloneElement(child, {
-      className: buttonClassName(variant, size, child.props.className),
-      "aria-disabled": isDisabled,
+      ...(rest as Record<string, unknown>),
+      className: buttonClassName(variant, size, cn(className, child.props.className)),
+      "aria-disabled": isDisabled || undefined,
+      "aria-busy": loading || undefined,
       "data-disabled": isDisabled ? "" : undefined,
-      ...props,
+      tabIndex: isDisabled ? -1 : (rest.tabIndex ?? (child.props.tabIndex as number | undefined)),
+      // No handler of our own: Button renders in Server Components around next/link.
+      onClick:
+        onClick && childOnClick
+          ? (event: React.MouseEvent<HTMLElement>) => {
+              childOnClick(event);
+              if (!event.defaultPrevented) onClick(event as React.MouseEvent<HTMLButtonElement>);
+            }
+          : (onClick ?? childOnClick),
     });
   }
 
@@ -80,13 +92,13 @@ export const Button = ({
       className={buttonClassName(variant, size, className)}
       type={type}
       disabled={isDisabled}
-      aria-disabled={isDisabled}
+      aria-busy={loading || undefined}
       data-disabled={isDisabled ? "" : undefined}
       {...props}
     >
       {loading ? (
         <span className="flex items-center gap-2">
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 aria-hidden="true" className="size-4 shrink-0 animate-spin" />
           <span>{loadingText}</span>
         </span>
       ) : (

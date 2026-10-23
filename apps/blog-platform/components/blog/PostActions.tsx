@@ -146,7 +146,12 @@ const PostActions = ({ title, url, path }: PostActionsProps) => {
           </Modal.Header>
 
           <Modal.Body className="space-y-4">
-            <Input readOnly value={url} />
+            <Input
+              readOnly
+              value={url}
+              aria-label="Article link"
+              onFocus={(e) => e.currentTarget.select()}
+            />
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Button variant="secondary" onClick={handleCopy}>

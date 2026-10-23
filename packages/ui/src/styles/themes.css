@@ -1,16 +1,6 @@
-/*
- * VeriWorkly theme tokens — the single source of truth for brand colour.
- *
- * Every token defined here is documented on /style-guide and /brand-kit, which read
- * their swatches from apps/site/config/brand.ts. If you add, remove, or recolour a
- * token, update that file in the same commit so the published pages stay truthful.
- *
- * Semantic status tokens (--success, --warning) are deliberately separate from
- * --accent: accent means "this is VeriWorkly", status means "this is the state of
- * your data". Reach for --destructive for errors and --accent for informational
- * states rather than introducing new hues.
- */
+/* Keep in sync with apps/site/config/brand.ts and DESIGN.md (npm run check:design). */
 :root {
+  color-scheme: light;
   --background: #f5f4ef;
   --foreground: #171717;
   --card: #ffffff;
@@ -19,7 +9,7 @@
   --border: rgba(23, 23, 23, 0.12);
   --accent: #2563eb;
   --accent-foreground: #f8fbff;
-  --destructive: #dc2626;
+  --destructive: #b91c1c;
   --destructive-foreground: #ffffff;
   --success: #047857;
   --success-foreground: #ffffff;
@@ -29,6 +19,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: #0d1117;
   --foreground: #f3f4f6;
   --card: #121924;
@@ -47,61 +38,49 @@
 }
 
 @theme {
-  /* --- LIGHT MODE (VeriWorkly Theme) --- */
   --color-fd-background: #f5f4ef;
   --color-fd-foreground: #171717;
 
-  /* Cards & Dropdowns */
   --color-fd-card: #ffffff;
   --color-fd-card-foreground: #171717;
   --color-fd-popover: #ffffff;
   --color-fd-popover-foreground: #171717;
 
-  /* Borders */
   --color-fd-border: rgba(23, 23, 23, 0.12);
   --color-fd-ring: #2563eb;
 
-  /* Muted elements (like inline code backgrounds and secondary text) */
-  --color-fd-muted: rgba(23, 23, 23, 0.06); /* Soft background */
-  --color-fd-muted-foreground: #5f5c54; /* Readable gray text */
+  --color-fd-muted: rgba(23, 23, 23, 0.06);
+  --color-fd-muted-foreground: #5f5c54;
 
-  /* Primary accents (Buttons, active states) */
   --color-fd-primary: #2563eb;
   --color-fd-primary-foreground: #ffffff;
 
-  /* Secondary/Hover states */
   --color-fd-secondary: rgba(37, 99, 235, 0.1);
   --color-fd-secondary-foreground: #2563eb;
-  --color-fd-accent: rgba(23, 23, 23, 0.05); /* Hover background for menu items */
+  --color-fd-accent: rgba(23, 23, 23, 0.05);
   --color-fd-accent-foreground: #171717;
 }
 
 .dark {
-  /* --- DARK MODE (VeriWorkly Theme) --- */
   --color-fd-background: #0d1117;
   --color-fd-foreground: #f3f4f6;
 
-  /* Cards & Dropdowns */
   --color-fd-card: #121924;
   --color-fd-card-foreground: #f3f4f6;
   --color-fd-popover: #121924;
   --color-fd-popover-foreground: #f3f4f6;
 
-  /* Borders */
   --color-fd-border: rgba(148, 163, 184, 0.24);
   --color-fd-ring: #60a5fa;
 
-  /* Muted elements (like inline code backgrounds and secondary text) */
-  --color-fd-muted: rgba(148, 163, 184, 0.1); /* Soft background */
-  --color-fd-muted-foreground: #94a3b8; /* Readable gray text */
+  --color-fd-muted: rgba(148, 163, 184, 0.1);
+  --color-fd-muted-foreground: #94a3b8;
 
-  /* Primary accents (Buttons, active states) */
   --color-fd-primary: #60a5fa;
   --color-fd-primary-foreground: #0f172a;
 
-  /* Secondary/Hover states */
   --color-fd-secondary: rgba(96, 165, 250, 0.1);
   --color-fd-secondary-foreground: #60a5fa;
-  --color-fd-accent: rgba(148, 163, 184, 0.1); /* Hover background for menu items */
+  --color-fd-accent: rgba(148, 163, 184, 0.1);
   --color-fd-accent-foreground: #f3f4f6;
 }

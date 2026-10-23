@@ -9,17 +9,20 @@ interface MarketingNavLogoProps {
 
 export const MarketingNavLogo = ({ homeHref, shortName, logoSrc }: MarketingNavLogoProps) => {
   return (
-    <Link href={homeHref} className="group flex items-center gap-3 transition-all active:scale-95">
-      <div className="relative h-10 w-10 shrink-0">
+    <Link
+      href={homeHref}
+      className="group focus-visible:ring-accent focus-visible:ring-offset-background flex items-center gap-3 rounded-xl transition-transform duration-150 ease-out focus-visible:ring-2 focus-visible:ring-offset-4 focus-visible:outline-hidden active:scale-[0.97]"
+    >
+      <span className="relative size-10 shrink-0">
         <Image
-          priority
+          preload
           width={40}
           height={40}
           src={logoSrc}
-          alt="VeriWorkly Logo"
-          className="h-full w-full object-contain"
+          alt=""
+          className="size-full object-contain"
         />
-      </div>
+      </span>
 
       <span className="font-mono text-2xl font-semibold tracking-tight">{shortName}</span>
     </Link>

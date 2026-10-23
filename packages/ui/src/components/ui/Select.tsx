@@ -1,17 +1,24 @@
-import type { SelectHTMLAttributes } from "react";
+import type * as React from "react";
 
 import { cn } from "../../utils";
 
-export function Select({ className, children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+import { fieldBase, fieldOutline } from "./field";
+
+export interface SelectProps extends React.ComponentProps<"select"> {
+  error?: boolean;
+}
+
+export function Select({ className, error, "aria-invalid": ariaInvalid, ...props }: SelectProps) {
   return (
     <select
+      aria-invalid={ariaInvalid ?? (error || undefined)}
       className={cn(
-        "border-border bg-background text-foreground focus:border-accent/40 focus:ring-accent/20 h-11 w-full rounded-2xl border px-4 text-sm shadow-sm transition outline-none focus:ring-2",
+        "h-11 cursor-pointer rounded-2xl px-4 text-sm shadow-sm max-sm:text-base",
+        fieldBase,
+        fieldOutline,
         className,
       )}
       {...props}
-    >
-      {children}
-    </select>
+    />
   );
 }

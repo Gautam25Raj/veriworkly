@@ -4,46 +4,42 @@ import * as React from "react";
 
 import { cn } from "../../utils";
 
-interface SwitchProps extends React.InputHTMLAttributes<HTMLInputElement> {
+export interface SwitchProps extends Omit<
+  React.ComponentProps<"input">,
+  "type" | "checked" | "onChange" | "children"
+> {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
 }
 
-export const Switch = React.forwardRef<HTMLInputElement, SwitchProps>(
-  ({ className, checked, onCheckedChange, disabled, id, ...props }, ref) => {
-    const generatedId = React.useId();
-    const switchId = id || generatedId;
+export function Switch({ className, checked, onCheckedChange, disabled, ...props }: SwitchProps) {
+  return (
+    <span
+      className={cn(
+        "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-out",
+        "has-focus-visible:ring-accent has-focus-visible:ring-offset-background has-focus-visible:ring-2 has-focus-visible:ring-offset-2",
+        checked ? "bg-accent" : "bg-muted/80",
+        disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+        className,
+      )}
+    >
+      <input
+        type="checkbox"
+        role="switch"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onCheckedChange(event.target.checked)}
+        className="absolute inset-0 m-0 size-full cursor-[inherit] appearance-none rounded-full opacity-0"
+        {...props}
+      />
 
-    return (
-      <label
-        htmlFor={switchId}
+      <span
+        aria-hidden="true"
         className={cn(
-          "focus-within:ring-accent focus-within:ring-offset-background relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out outline-none focus-within:ring-2 focus-within:ring-offset-2",
-          checked ? "bg-accent" : "bg-muted/80",
-          disabled && "cursor-not-allowed opacity-50",
-          className,
+          "bg-background pointer-events-none block size-5 rounded-full shadow-md transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]",
+          checked ? "translate-x-5" : "translate-x-0",
         )}
-      >
-        <input
-          ref={ref}
-          id={switchId}
-          type="checkbox"
-          checked={checked}
-          className="sr-only"
-          disabled={disabled}
-          onChange={(e) => onCheckedChange(e.target.checked)}
-          {...props}
-        />
-
-        <span
-          className={cn(
-            "bg-background pointer-events-none block h-5 w-5 rounded-full shadow-lg ring-0 transition-transform duration-200 ease-in-out",
-            checked ? "translate-x-5" : "translate-x-0",
-          )}
-        />
-      </label>
-    );
-  },
-);
-
-Switch.displayName = "Switch";
+      />
+    </span>
+  );
+}

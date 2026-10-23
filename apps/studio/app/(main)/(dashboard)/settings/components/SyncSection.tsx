@@ -106,11 +106,15 @@ export default function SyncSection() {
         </div>
 
         <div className="border-border/40 flex items-center gap-3 rounded-full border bg-zinc-500/5 p-2 px-4">
-          <span className="text-muted-foreground text-[10px] font-bold tracking-tighter uppercase">
+          <span
+            id="auto-sync-label"
+            className="text-muted-foreground text-[10px] font-bold tracking-tighter uppercase"
+          >
             Auto-Sync
           </span>
 
           <Switch
+            aria-labelledby="auto-sync-label"
             checked={autoSyncControl.checked}
             onCheckedChange={handleToggle}
             disabled={autoSyncControl.disabled}

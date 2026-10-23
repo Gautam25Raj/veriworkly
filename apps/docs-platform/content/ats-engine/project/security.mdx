@@ -11,17 +11,17 @@ Email **grievance@veriworkly.com** with a description, a reproducing input, the 
 
 ## Input limits
 
-| Input                                     | Limit                                                                                              |
-| ----------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Resume text                               | Cut at 50,000 characters                                                                           |
-| Job posting                               | Cut at 20,000 characters                                                                           |
-| Structured document                       | Bounded in depth, array length and node count before validation                                    |
-| Policy or locale pack                     | Nested deeper than 5,000 levels, or containing itself: refused with `AtsPolicyError`               |
-| DOCX                                      | Expands to at most 64 MB; at most 2 MB of the XML `mammoth` parses and 2 MB of headers and footers |
-| PDF text                                  | Stops at the cap or after the first 100 pages                                                      |
-| File on disk (CLI, MCP, `readResumeFile`) | A regular file at most 20 MB; a network path is refused, but only the path's form is checked       |
-| File name                                 | Read to its first 255 characters                                                                   |
-| MCP pasted text                           | Refused over 200,000 characters                                                                    |
+| Input                                     | Limit                                                                                                                                                           |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Resume text                               | Cut at 50,000 characters                                                                                                                                        |
+| Job posting                               | Cut at 20,000 characters                                                                                                                                        |
+| Structured document                       | Bounded in depth, array length and node count before validation                                                                                                 |
+| Policy or locale pack                     | Nested deeper than 5,000 levels, or containing itself: refused with `AtsPolicyError`                                                                            |
+| DOCX                                      | Expands to at most 64 MB; at most 2 MB of the XML `mammoth` parses, 2 MB of headers and footers, and 8 MB of embedded HTML pages (`w:altChunk`), each read once |
+| PDF text                                  | Stops at the cap or after the first 100 pages                                                                                                                   |
+| File on disk (CLI, MCP, `readResumeFile`) | A regular file at most 20 MB; a Windows network share (`\\host\share`) is refused, but only the path's form is checked                                          |
+| File name                                 | Read to its first 255 characters                                                                                                                                |
+| MCP pasted text                           | Refused over 200,000 characters                                                                                                                                 |
 
 A host should still bound request bodies. PDF images have no size cap: pdf.js decodes every image in full, so a small file with one huge image can hold gigabytes of memory.
 
@@ -47,13 +47,13 @@ The core holds no global state, does no I/O and makes no network calls. Only `/a
 - Keep API keys on your server. The AI code can run in a browser, but a key sent there is visible to anyone using the page.
 - `analyze` redacts contact details before the request leaves. This is best effort and covers only specific forms, so read the full SECURITY.md before you promise a user that a number or a name never leaves.
 - Without `--ai`, the CLI makes a request only for `--job-url`, and only to a job board's public API host. It sends no resume text and no key.
-- The MCP server runs over stdio, makes no network requests and calls no model. It reads a PDF or DOCX in its own child process, one per file, stopped after 60 seconds, so a file that exhausts memory or never ends takes down that process and not the server. Its answers include resume text, which the assistant sends to its own model provider.
+- The MCP server runs over stdio, makes no network requests and calls no model. It reads a PDF or DOCX in its own child process, one per file, stopped after 60 seconds or when the call is cancelled, so a file that exhausts memory or never ends takes down that process and not the server. It reads as many files at once as the machine has CPU cores; further calls wait their turn, so many calls at once cannot start a process each. Its answers include resume text, which the assistant sends to its own model provider.
 
 ## Model output
 
 Resume and posting text are passed to a model as JSON data, with a system prompt that says so. That lowers the risk of prompt injection; no prompt removes it. What does not depend on the model:
 
-- Every identity value a task returns (names, employers, titles, schools, emails, URLs, skills) must occur in the resume text. It is dropped and reported in `rejected` if it does not.
+- Every identity value a task returns (names, employers, titles, schools, emails, URLs, skills) must occur in the resume text. It is dropped and reported in `rejected` if it does not. A contact field a task fills must hold that kind of value: an email address; a phone number's characters and 7 to 15 digits, not a date range, an IP address or years alone; a name of up to twelve capitalised words, not a heading, a job title or an organisation.
 - Free text a model writes is advice and is not grounded. Show it as the model's words, not as facts about the candidate.
 
 ## Escaping advice and report text

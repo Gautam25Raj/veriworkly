@@ -99,13 +99,13 @@ Types: `AtsScoreTone`.
 
 Job posting text from a web page. Parsing only: it does not fetch. Fetching an untrusted URL safely is the host's job. See [Job postings](/ats-engine/guides/job-postings).
 
-| Export               | Purpose                                                                                    |
-| -------------------- | ------------------------------------------------------------------------------------------ |
-| `jobTextFromHtml`    | The posting text of a page: its `JobPosting` data when it has some, else its visible text. |
-| `extractJobPosting`  | The schema.org `JobPosting` a page publishes, or `null`.                                   |
-| `jobHtmlToText`      | The visible text of HTML, one line per block.                                              |
-| `normalizeJobText`   | Trims lines and caps the text.                                                             |
-| `MAX_JOB_TEXT_CHARS` | The default cap, 12,000 characters.                                                        |
+| Export               | Purpose                                                                                        |
+| -------------------- | ---------------------------------------------------------------------------------------------- |
+| `jobTextFromHtml`    | The posting text of a page: its `JobPosting` data when it has some, else its visible text.     |
+| `extractJobPosting`  | The schema.org `JobPosting` a page publishes, or `null`.                                       |
+| `jobHtmlToText`      | The visible text of HTML, one line per block.                                                  |
+| `normalizeJobText`   | Trims lines, and caps the text when given `maxChars`.                                          |
+| `MAX_JOB_TEXT_CHARS` | 20,000 characters, where `check` and `analyze` cut a posting. The helpers cut only when asked. |
 
 Types: `AtsJobPosting`.
 

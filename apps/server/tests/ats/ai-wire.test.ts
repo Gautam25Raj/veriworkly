@@ -83,8 +83,9 @@ import { AtsAiService } from "#services/ats/ai";
 import { AtsRepairService } from "#services/ats/repair";
 import { ProfileImportService } from "#services/profileImportService";
 
+// An analysis with something in it: the engine reads an all-empty one as no answer.
 const insights = {
-  explanation: "",
+  explanation: "Add numbers to the Globex role.",
   missingEvidence: [],
   keywordOpportunities: [],
   recommendedImprovements: [],

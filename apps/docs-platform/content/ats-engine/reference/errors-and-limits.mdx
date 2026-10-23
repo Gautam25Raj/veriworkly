@@ -76,26 +76,27 @@ Limits marked "cut" shorten the input and continue. Limits marked "refuse" stop 
 
 ### Text and postings
 
-| Limit                           | Value             | What happens                                                                                                         |
-| ------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Resume text                     | 50,000 characters | Cut. Applies to text, a structured document's rendered text, and text extracted from a file (`MAX_EXTRACTED_CHARS`). |
-| Job description in `check`      | 20,000 characters | Cut.                                                                                                                 |
-| `MAX_JOB_TEXT_CHARS` in `./job` | 12,000 characters | The default cap of `normalizeJobText`, `jobHtmlToText` and `jobTextFromHtml`. Pass `maxChars` to change it.          |
-| Requirements                    | 25                | At most 25 requirements are judged per posting.                                                                      |
-| Keyword groups                  | 12                | Each of the matched and missing keyword lists is at most 12.                                                         |
-| `prioritizedFixes`              | 6                 | The report keeps the six failed checks that cost the most.                                                           |
-| `strengths`                     | 5                 | The report keeps five.                                                                                               |
-| `lines`                         | 500               | With `includeLines`, the report holds at most 500 lines.                                                             |
+| Limit                           | Value             | What happens                                                                                                                                                            |
+| ------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Resume text                     | 50,000 characters | Cut. Applies to text, a structured document's rendered text, and text extracted from a file (`MAX_EXTRACTED_CHARS`).                                                    |
+| Job description in `check`      | 20,000 characters | Cut, with a note in `parsingWarnings`.                                                                                                                                  |
+| `MAX_JOB_TEXT_CHARS` in `./job` | 20,000 characters | The cut `check` and `analyze` apply, the same for a file, a page and a paste. `normalizeJobText`, `jobHtmlToText` and `jobTextFromHtml` cut only when given `maxChars`. |
+| Requirements                    | 25                | At most 25 requirements are judged per posting.                                                                                                                         |
+| Keyword groups                  | 12                | Each of the matched and missing keyword lists is at most 12.                                                                                                            |
+| `prioritizedFixes`              | 6                 | The report keeps the six failed checks that cost the most.                                                                                                              |
+| `strengths`                     | 5                 | The report keeps five.                                                                                                                                                  |
+| `lines`                         | 500               | With `includeLines`, the report holds at most 500 lines.                                                                                                                |
 
 ### Files
 
-| Limit                    | Value                    | What happens                                                                                      |
-| ------------------------ | ------------------------ | ------------------------------------------------------------------------------------------------- |
-| File size                | 20 MB (`MAX_FILE_BYTES`) | Refuse, before the file is read into memory.                                                      |
-| PDF pages                | First 100                | Cut. Reading also stops once the text reaches the character limit.                                |
-| DOCX expanded size       | 64 MB                    | Refuse, before `mammoth` sees it. A larger expansion is treated as a zip bomb.                    |
-| DOCX XML parsed          | 2 MB                     | Refuse. The most XML `mammoth` is given to parse, counted for each part as often as it is parsed. |
-| DOCX headers and footers | 2 MB between them        | A part past the budget is neither read nor measured. The budget is the same 2 MB.                 |
+| Limit                    | Value                    | What happens                                                                                                                     |
+| ------------------------ | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| File size                | 20 MB (`MAX_FILE_BYTES`) | Refuse, before the file is read into memory.                                                                                     |
+| PDF pages                | First 100                | Cut. Reading also stops once the text reaches the character limit.                                                               |
+| DOCX expanded size       | 64 MB                    | Refuse, before `mammoth` sees it. A larger expansion is treated as a zip bomb.                                                   |
+| DOCX XML parsed          | 2 MB                     | Refuse. The most XML `mammoth` is given to parse, counted for each part as often as it is parsed.                                |
+| DOCX headers and footers | 2 MB between them        | A part past the budget is neither read nor measured. The budget is the same 2 MB.                                                |
+| DOCX embedded HTML pages | 8 MB between them        | Each page (`w:altChunk`) is read once, however often the document names it. A page past the budget is neither read nor measured. |
 
 ### Structured documents
 
@@ -122,17 +123,19 @@ A JSON Resume is cut to the same limits when it is converted instead of refused.
 
 ### AI and tools
 
-| Limit                         | Value                   | What happens                                        |
-| ----------------------------- | ----------------------- | --------------------------------------------------- |
-| AI `analyze`, resume          | 50,000 characters       | Cut.                                                |
-| AI `analyze`, job description | 20,000 characters       | Cut.                                                |
-| AI `convertResume`            | 50,000 characters       | Cut.                                                |
-| AI `repairParse`              | 40,000 characters       | Cut.                                                |
-| Provider request timeout      | 120 seconds per attempt | Default of the HTTP adapters; set `timeoutMs`.      |
-| Provider answer               | 4 MB, an error's too    | Refused before it is parsed, as `LlmProviderError`. |
-| MCP PDF or DOCX reading       | 60 seconds a file       | Its child process is stopped; the call is refused.  |
-| MCP `text` and `job_text`     | 200,000 characters      | The tool call is refused.                           |
-| MCP and CLI files             | 20 MB                   | Refused, as above.                                  |
-| CLI `--job-url` answer        | 20 MB, 20 seconds       | Refused.                                            |
+| Limit                         | Value                        | What happens                                                                                                                                    |
+| ----------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| AI `analyze`, resume          | 50,000 characters            | Cut.                                                                                                                                            |
+| AI `analyze`, job description | 20,000 characters            | Cut.                                                                                                                                            |
+| AI `convertResume`            | 50,000 characters            | Cut.                                                                                                                                            |
+| AI `repairParse`              | 40,000 characters            | Cut.                                                                                                                                            |
+| Provider request timeout      | 120 seconds per attempt      | Default of the HTTP adapters; set `timeoutMs`. It holds even when a `fetch` you pass ignores the abort signal.                                  |
+| Retry waits                   | 1, 2, 4, 8 and 16 seconds    | Before each retry of a rate limit, server fault, timeout or network error, or the provider's `retry-after`; one over 60 seconds is not retried. |
+| Provider answer               | 4 MB, an error's too         | Refused before it is parsed, as `LlmProviderError`.                                                                                             |
+| MCP PDF or DOCX reading       | 60 seconds a file            | Its child process is stopped; the call is refused.                                                                                              |
+| MCP files read at once        | As many as the CPU has cores | Further calls wait their turn. A cancelled call stops its reading process.                                                                      |
+| MCP `text` and `job_text`     | 200,000 characters           | The tool call is refused.                                                                                                                       |
+| MCP and CLI files             | 20 MB                        | Refused, as above.                                                                                                                              |
+| CLI `--job-url` answer        | 20 MB, 20 seconds            | Refused.                                                                                                                                        |
 
 See [Check options](/ats-engine/reference/check-options) for the options that interact with these limits, and the [MCP server](/ats-engine/tools/mcp) for its refused paths.

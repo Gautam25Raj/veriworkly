@@ -97,7 +97,7 @@ If no rule has that id, the edit is skipped. The default policy's ids look like 
 | `policyFingerprint(policy)` | `version+hash`, where the hash covers the policy as applied, after locale packs. A report carries it in `engine.policy`. The same fingerprint and engine version, input and reference date give an identical report. |
 | `policyRubric(policy)`      | One `AtsRubricEntry` per rule: `id`, `category`, `severity`, `measures`, `points`, `deduction`, `passes` and `fix`. The [rubric page](/ats-engine/reference/rubric) is generated from it.                            |
 | `DEFAULT_POLICY`            | The bundled community policy.                                                                                                                                                                                        |
-| `ENGINE_VERSION`            | The engine version, such as `0.16.0`.                                                                                                                                                                                |
+| `ENGINE_VERSION`            | The engine version, such as `0.17.0`.                                                                                                                                                                                |
 
 ```ts
 import { AtsPolicyError, parseAtsPolicy } from "@veriworkly/ats-engine";

@@ -57,10 +57,10 @@ export function inspect(html: string, pasted: string) {
 | `extractJobPosting(html)`           | The page's `JobPosting` as `{ title, company, description, requirements }`, or `null` when it has none or no description |
 | `jobTextFromHtml(html, maxChars?)`  | The text to match: the posting when the page publishes a real one, else its visible text                                 |
 | `jobHtmlToText(html, maxChars?)`    | The visible text, one line per block. Scripts, styles, navigation, forms and hidden elements are dropped                 |
-| `normalizeJobText(text, maxChars?)` | One trimmed line per non-blank line, capped. The shape every posting takes before matching                               |
-| `MAX_JOB_TEXT_CHARS`                | 12,000, the default cap of these helpers                                                                                 |
+| `normalizeJobText(text, maxChars?)` | One trimmed line per non-blank line, capped at `maxChars` when given. The shape every posting takes before matching      |
+| `MAX_JOB_TEXT_CHARS`                | 20,000, where `check` and `analyze` cut a posting. The helpers cut only when given `maxChars`                            |
 
-Headings and bullets survive as separate lines, which the matcher uses to tell required skills from preferred ones and to leave out about-us and benefits blocks ([job matching](/ats-engine/concepts/job-matching)). `check` itself reads the first 20,000 characters of a `jobDescription`.
+Headings and bullets survive as separate lines, which the matcher uses to tell required skills from preferred ones and to leave out about-us and benefits blocks ([job matching](/ats-engine/concepts/job-matching)). `check` reads the first 20,000 characters of a `jobDescription`, from a file, a page or a paste alike, and says in `parsingWarnings` when it cut one. Pass `maxChars` to the helpers if you store or send their output.
 
 ## Fetching a page
 

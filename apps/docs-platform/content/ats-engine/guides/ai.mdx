@@ -61,7 +61,7 @@ export const local = createAtsAi({
 });
 ```
 
-Use the model ID your provider lists. A route can also set `temperature`, `retries`, `structuredOutputs`, `providerOptions` and `system`, and any call can override its route. `structuredOutputs` is off by default: the engine then asks for plain JSON and validates the reply against its own schema, which works with almost every model. Turn it on for providers and models that support JSON Schema output. For any other service, write your own `LlmProvider`: one `complete(request)` method that returns text.
+Use the model ID your provider lists. A route can also set `temperature`, `retries`, `structuredOutputs`, `providerOptions` and `system`, and any call can override its route. A rate limit, server fault, timeout or network error is retried after 1, 2, 4, 8 and 16 seconds, or after the provider's `retry-after`; one over a minute is not retried. `structuredOutputs` is off by default: the engine then asks for plain JSON and validates the reply against its own schema, which works with almost every model. Turn it on for providers and models that support JSON Schema output. For any other service, write your own `LlmProvider`: one `complete(request)` method that returns text.
 
 ## The three tasks
 
@@ -185,7 +185,10 @@ import { anthropic } from "@veriworkly/ats-engine/ai/anthropic";
 const ai = createAtsAi({
   provider: anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! }),
   routes: { analyze: { model: "claude-sonnet-5-5", maxTokens: 4000 } },
-  hooks: { onRetry: ({ task, attempt, error }) => console.warn(task, attempt, error.code) },
+  hooks: {
+    onRetry: ({ task, attempt, error, delayMs }) =>
+      console.warn(task, attempt, error.code, delayMs),
+  },
 });
 
 try {

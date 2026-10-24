@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { NextFunction, Request, Response } from "express";
 
+import { config } from "#config";
 import { requireAuthUser } from "#middleware/auth";
 
 import { UserService } from "#services/userService";
@@ -137,9 +138,10 @@ export class UserController {
         await invalidateSessionCache(cookieHeader);
       }
 
-      // Clear auth cookies
-      res.clearCookie("veriworkly-auth.session_token", { path: "/" });
-      res.clearCookie("__Secure-veriworkly-auth.session_token", { path: "/" });
+      // A cookie set with a Domain attribute is only cleared by a clear that repeats it.
+      const cookieOptions = { path: "/", domain: config.auth.cookieDomain };
+      res.clearCookie("veriworkly-auth.session_token", cookieOptions);
+      res.clearCookie("__Secure-veriworkly-auth.session_token", cookieOptions);
 
       res.json(
         createSuccessResponse(

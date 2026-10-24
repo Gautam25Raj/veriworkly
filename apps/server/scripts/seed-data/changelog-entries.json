@@ -1,5 +1,60 @@
 [
   {
+    "id": "v3-30-1",
+    "version": "3.30.1",
+    "title": "Next.js Security Update, Older Browser Tooltip Fix & API Reference Corrections",
+    "summary": "This patch updates Next.js to clear two critical security advisories, fixes a crash that older Safari and Firefox versions hit on pages with tooltips, and corrects the public API reference. It also fixes account deletion leaving the session cookie in the browser.",
+    "type": "patch",
+    "publishedAt": "2026-10-24T12:36:29Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.30.1",
+    "added": [],
+    "improved": [
+      "The API reference now matches the server: the sign-in limit is 3 per minute, too many wrong codes returns 403, roadmap, changelog and GitHub reads need an API key with the right scope, and the missing error responses, request fields and DELETE /users/me are documented.",
+      "There is one public openapi.json, at docs.veriworkly.com/openapi.json. The site, Studio, portfolio and blog redirect to it instead of each serving a copy.",
+      "A typo in the API spec now stops the docs build with a clear message instead of silently removing an endpoint, and CI fails when the generated API pages are out of date.",
+      "Dependencies updated: fumadocs 16.17.8, lucide-react 1.61, React 19.3.1, Prisma 7.10.1, Better Auth 1.6.33. The version pins in the root package.json are gone."
+    ],
+    "fixed": [
+      "Pages with a tooltip crashed in Safari 16 and Firefox ESR 115, including the collapsed portfolio sidebar. They load now.",
+      "The focus ring on the checkboxes in the API key form was cut off. Closed FAQ answers could be read by screen readers and reached with Tab in Safari and older Firefox. A dialog that was open on page load opened twice.",
+      "Tab in a dropdown menu moves on to the next control, opening a dialog no longer shifts the navbar, and switches can be told apart in Windows high-contrast mode.",
+      "Deleting your account now clears the session cookie properly when the sign-in cookie is shared across subdomains.",
+      "The 3.30.0 changelog entry had no publish date, which stopped the changelog from being saved. It has a date now and its notes are corrected."
+    ],
+    "breaking": [],
+    "security": [
+      "Next.js 16.3.8 to 16.4.3 fixes two critical remote code execution advisories and a denial of service in Server Actions.",
+      "proxy-addr (used for rate limits), nodemailer, multer, sharp, vite and vitest are updated to close their advisories."
+    ],
+    "tags": ["security", "dependencies", "docs", "accessibility"],
+    "prRefs": [
+      {
+        "number": 231,
+        "title": "[Fix] [Server]: clear session cookies with the cookie domain on account deletion"
+      },
+      {
+        "number": 230,
+        "title": "[Chore] [Site/Studio/Portfolio/Blog/Docs/Server/UI]: drop the npm overrides and refresh dependencies"
+      },
+      {
+        "number": 229,
+        "title": "[Fix] [UI/Studio]: fix the tooltip crash in older browsers and the other review findings"
+      },
+      {
+        "number": 228,
+        "title": "[Fix] [Server/Docs]: give the 3.30.0 changelog entry a date and correct its release notes"
+      },
+      {
+        "number": 227,
+        "title": "[Fix] [Docs/Site/Studio/Portfolio/Blog]: correct the API spec, harden its generator and check it in CI"
+      },
+      {
+        "number": 226,
+        "title": "[Fix] [Site/Studio/Portfolio/Blog/Docs/Server]: patch Next.js 16.4.3 and clear the open security advisories"
+      }
+    ]
+  },
+  {
     "id": "v3-30-0",
     "version": "3.30.0",
     "title": "ATS Engine 0.17.0, Redesigned Marketing Pages, Template Gallery & Accessibility Fixes",

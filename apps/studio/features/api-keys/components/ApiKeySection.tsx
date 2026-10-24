@@ -35,7 +35,7 @@ export default function ApiKeySection({
   const apiKeys = useApiKeys({ initialKeys, initialPagination, initialKeysLoaded });
 
   return (
-    <section id="api-keys" className="relative min-h-[400px] space-y-6">
+    <section id="api-keys" className="relative min-h-100 space-y-6">
       <div
         className={cn(
           "flex items-center justify-between",

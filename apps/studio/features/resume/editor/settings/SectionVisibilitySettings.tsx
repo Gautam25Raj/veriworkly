@@ -162,7 +162,7 @@ const SectionVisibilitySettings = ({
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => handleDropOnColumn("left")}
               className={cn(
-                "border-border/60 bg-background/40 flex min-h-[220px] flex-col gap-2 rounded-2xl border p-2.5 transition-all",
+                "border-border/60 bg-background/40 flex min-h-55 flex-col gap-2 rounded-2xl border p-2.5 transition-all",
                 draggedSectionKey ? "bg-accent/5 border-accent/40 border-dashed" : "",
               )}
             >
@@ -182,7 +182,7 @@ const SectionVisibilitySettings = ({
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => handleDropOnColumn("right")}
               className={cn(
-                "border-border/60 bg-background/40 flex min-h-[220px] flex-col gap-2 rounded-2xl border p-2.5 transition-all",
+                "border-border/60 bg-background/40 flex min-h-55 flex-col gap-2 rounded-2xl border p-2.5 transition-all",
                 draggedSectionKey ? "bg-accent/5 border-accent/40 border-dashed" : "",
               )}
             >

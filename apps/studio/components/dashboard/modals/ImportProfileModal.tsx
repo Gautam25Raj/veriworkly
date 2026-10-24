@@ -243,7 +243,7 @@ export function ImportProfileModal({
         descriptionId="import-profile-description"
       >
         {/* Header */}
-        <div className="border-border/70 from-card to-background flex items-start justify-between border-b bg-gradient-to-r p-5 sm:p-6">
+        <div className="border-border/70 from-card to-background flex items-start justify-between border-b bg-linear-to-r p-5 sm:p-6">
           <div>
             <span className="text-accent text-[10px] font-bold tracking-[0.2em] uppercase">
               AI Import

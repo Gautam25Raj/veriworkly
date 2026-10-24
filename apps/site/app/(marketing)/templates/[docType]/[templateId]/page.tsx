@@ -196,7 +196,7 @@ const TemplateDetailPage = async ({ params }: PageProps) => {
                       ? "(min-width: 1180px) 560px, (min-width: 1024px) 46vw, 92vw"
                       : "(min-width: 640px) 448px, 208px"
                   }
-                  className={isPortfolioTemplate ? "w-full" : "w-full max-w-[13rem] sm:max-w-md"}
+                  className={isPortfolioTemplate ? "w-full" : "w-full max-w-52 sm:max-w-md"}
                 />
               </div>
               <figcaption className="text-muted mt-3 text-center text-sm">

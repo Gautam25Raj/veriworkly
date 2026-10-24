@@ -14,13 +14,20 @@ import { validateAiRuntimeConfig } from "#services/aiPolicy";
 import { validateAtsAiRuntimeConfig } from "#services/ats/aiPolicy";
 import { validateAtsEngineRuntimeConfig } from "#services/ats/enginePolicy";
 import { ensureAdminUserExists, validateAuthRuntimeConfig } from "#auth/runtime";
-import { validateBillingAndStorageRuntimeConfig } from "#config/validateRuntimeConfig";
+import {
+  validateBillingAndStorageRuntimeConfig,
+  validateEnvironmentConfig,
+} from "#config/validateRuntimeConfig";
+// CRON_ROLE=all|none: which processes schedule background jobs (documented in the module).
+import { parseCronRole } from "#config/cronRole";
 
 import { startGitHubSyncJob, stopGitHubSyncJob } from "#jobs/githubSyncJob";
 import { startChangelogSyncJob, stopChangelogSyncJob } from "#jobs/changelogSyncJob";
 import { startViewsFlushJob, stopViewsFlushJob } from "#jobs/viewsFlushJob";
 import { startUsageMetricsJob, stopUsageMetricsJob } from "#jobs/usageMetricsJob";
 import { startPortfolioAccessJob, stopPortfolioAccessJob } from "#jobs/portfolioAccessJob";
+
+const SHUTDOWN_HTTP_GRACE_MS = 10_000;
 
 let serverInstance: ReturnType<typeof app.listen> | null = null;
 
@@ -38,28 +45,32 @@ async function shutdownWorker(id: number, disconnect: () => void) {
     logger.info(`Worker ${id}: Stopping HTTP server from accepting new requests...`);
 
     await new Promise<void>((resolve) => {
+      // Force timeout shutdown after the grace period. unref'd so it never holds the process
+      // open, and cleared once close completes so it doesn't fire (and log) after the fact.
+      const forceTimer = setTimeout(() => {
+        logger.warn(`Worker ${id}: Graceful HTTP shutdown timeout reached. Continuing.`);
+        resolve();
+      }, SHUTDOWN_HTTP_GRACE_MS);
+      forceTimer.unref();
+
       serverInstance!.close(() => {
+        clearTimeout(forceTimer);
         logger.info(`Worker ${id}: HTTP server stopped.`);
         resolve();
       });
-
-      // Force timeout shutdown in 10s
-      setTimeout(() => {
-        logger.warn(`Worker ${id}: Graceful HTTP shutdown timeout reached. Continuing.`);
-        resolve();
-      }, 10000);
     });
   }
 
   try {
-    if (id === 1) {
-      logger.info(`Worker ${id}: Stopping background cron jobs...`);
-      stopGitHubSyncJob();
-      stopChangelogSyncJob();
-      stopViewsFlushJob();
-      stopUsageMetricsJob();
-      stopPortfolioAccessJob();
-    }
+    // Every worker may have scheduled jobs (CRON_ROLE=all); the stop functions are no-ops when
+    // nothing was started. They stop scheduling only: the jobs expose no in-flight promise to
+    // await, so a run already in progress is not drained (Phase 4 item 1).
+    logger.info(`Worker ${id}: Stopping background cron jobs...`);
+    stopGitHubSyncJob();
+    stopChangelogSyncJob();
+    stopViewsFlushJob();
+    stopUsageMetricsJob();
+    stopPortfolioAccessJob();
 
     stopExtractPool();
 
@@ -109,20 +120,32 @@ async function startWorker(id: number, disconnect: () => void) {
     await initRedis();
     logger.info(`Worker ${id}: Redis connected`);
 
-    // Worker 1 handles initialization routines and cron jobs
+    // One-off boot routine: worker 1 only. It is idempotent, so a revived worker (never id 1)
+    // skipping it is fine.
     if (id === 1) {
       await ensureAdminUserExists();
 
       logger.info(`Worker ${id}: Database connected and admin user checked`);
+    }
 
+    // Cron jobs run on every worker; their Redis locks pick one runner per tick (V-053/V-086).
+    const cronRole = parseCronRole(process.env.CRON_ROLE);
+
+    if (cronRole === "all") {
       startGitHubSyncJob();
       startChangelogSyncJob();
       startViewsFlushJob();
       startUsageMetricsJob();
       startPortfolioAccessJob();
-
-      logger.info(`Worker ${id}: Background cron jobs started`);
     }
+
+    // One line per worker; per-job scheduling and lock-held skips log at debug.
+    logger.info(
+      `Worker ${id}: Background cron jobs ${cronRole === "all" ? "scheduled" : "disabled"}`,
+      {
+        cronRole,
+      },
+    );
 
     // Start Express server in worker
     serverInstance = app.listen(config.port, () => {
@@ -184,12 +207,17 @@ function main() {
   });
 
   try {
-    // Validate runtime environment configs in master process first (fail-fast)
+    // Validate runtime environment configs in master process first (fail-fast). The raw-env
+    // schema runs before the others: it reports every bad variable in one message, and in
+    // production refuses localhost URLs, example secrets, a missing TRUST_PROXY/WEB_CONCURRENCY
+    // and non-integer numbers (V-090, V-091, V-097).
+    validateEnvironmentConfig();
     validateAuthRuntimeConfig();
     validateAiRuntimeConfig();
     validateAtsAiRuntimeConfig();
     validateAtsEngineRuntimeConfig();
     validateBillingAndStorageRuntimeConfig();
+    parseCronRole(process.env.CRON_ROLE);
 
     const { clusteringEnabled, workers } = config.server;
 

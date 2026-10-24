@@ -72,10 +72,22 @@ async function pruneAuditLogs() {
 /**
  * Orchestrates the movement of metrics from Redis to Postgres.
  * Uses a distributed lock to ensure only one instance performs the flush.
+ *
+ * Never rejects: it is fired with `void` from the cron callback, and an unhandled rejection shuts
+ * the worker down (V-101). A Redis blip costs one skipped tick and a warning.
  */
 
-async function runFlush(reason: "startup" | "cron") {
-  const redis = getRedis();
+export async function runUsageMetricsFlush(reason: "startup" | "cron"): Promise<void> {
+  let redis: ReturnType<typeof getRedis>;
+
+  try {
+    redis = getRedis();
+  } catch (error) {
+    logger.warn(`Skipping usage metrics flush (${reason}): Redis not ready`, {
+      error: error instanceof Error ? error.message : error,
+    });
+    return;
+  }
 
   const lockKey = "usage:flush:lock";
   const lockValue = uuidv4();
@@ -92,7 +104,8 @@ async function runFlush(reason: "startup" | "cron") {
     lockAcquired = lockResult === "OK";
 
     if (!lockAcquired) {
-      logger.warn(`Skipping metrics flush (${reason}): lock already held`);
+      // Expected steady state: every worker schedules this job and the lock picks one runner.
+      logger.debug(`Skipping metrics flush (${reason}): lock held by another worker`);
       return;
     }
 
@@ -159,22 +172,23 @@ export function startUsageMetricsJob() {
   job = cron.schedule(
     flushCron,
     () => {
-      void runFlush("cron");
+      void runUsageMetricsFlush("cron");
     },
     { timezone: flushTimezone },
   );
 
-  logger.info("Usage metrics flush job scheduled", {
+  logger.debug("Usage metrics flush job scheduled", {
     cron: flushCron,
     timezone: flushTimezone,
   });
 
   // Check on startup in case the cron was missed during downtime
-  void runFlush("startup");
+  void runUsageMetricsFlush("startup");
 }
 
 /**
  * Cleanly stops the cron job during server shutdown.
+ * Stops scheduling only; an in-flight run is not tracked or awaited (Phase 4 item 1).
  */
 
 export function stopUsageMetricsJob() {

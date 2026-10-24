@@ -21,7 +21,18 @@ const RELEASE_LOCK_LUA_SCRIPT = `
 `;
 
 async function suspendExpiredGracePeriods() {
-  const redis = getRedis();
+  let redis: ReturnType<typeof getRedis>;
+
+  try {
+    redis = getRedis();
+  } catch (error) {
+    // The caller's .catch would also contain this; a Redis blip is a skipped tick, not an error.
+    logger.warn("Skipping portfolio grace suspension: Redis not ready", {
+      error: error instanceof Error ? error.message : error,
+    });
+    return;
+  }
+
   const lockKey = "portfolio:suspension:lock";
   const lockValue = uuidv4();
   const lockTTL = 300; // 5 minutes
@@ -95,6 +106,16 @@ async function suspendExpiredGracePeriods() {
 }
 
 function runPortfolioAccessSweep() {
+  // Both tasks below need Redis for their locks; a blip skips the tick with one warning.
+  try {
+    getRedis();
+  } catch (error) {
+    logger.warn("Skipping portfolio access sweep: Redis not ready", {
+      error: error instanceof Error ? error.message : error,
+    });
+    return;
+  }
+
   void suspendExpiredGracePeriods().catch((error) => {
     logger.error("Failed to suspend expired portfolio grace periods", {
       error: error instanceof Error ? error.message : error,
@@ -109,10 +130,13 @@ function runPortfolioAccessSweep() {
 }
 
 export function startPortfolioAccessJob() {
+  if (job) return;
+
   runPortfolioAccessSweep();
   job = cron.schedule("0 * * * *", runPortfolioAccessSweep);
 }
 
+// Stops scheduling only; an in-flight sweep is not tracked or awaited (Phase 4 item 1).
 export function stopPortfolioAccessJob() {
   job?.stop();
   job = null;

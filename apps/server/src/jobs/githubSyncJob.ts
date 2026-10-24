@@ -3,17 +3,28 @@ import cron, { ScheduledTask } from "node-cron";
 import { config } from "#config";
 import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
+import { getRedis } from "#lib/redis";
 
 import { shouldSyncGitHubStats, syncGitHubStatsFromGitHub } from "#services/github/index";
 
 let job: ScheduledTask | null = null;
 
-async function runSync(reason: "startup" | "cron") {
+/** Never rejects; a Redis blip is a skipped tick logged at warn, not an error (V-101). */
+export async function runGitHubSync(reason: "startup" | "cron"): Promise<void> {
+  try {
+    getRedis();
+  } catch (error) {
+    logger.warn(`Skipping GitHub sync (${reason}): Redis not ready`, {
+      error: error instanceof Error ? error.message : error,
+    });
+    return;
+  }
+
   try {
     const needsSync = await shouldSyncGitHubStats();
 
     if (!needsSync) {
-      logger.info(`GitHub sync (${reason}) skipped: Data is fresh.`);
+      logger.debug(`GitHub sync (${reason}) skipped: Data is fresh.`);
       return;
     }
 
@@ -47,13 +58,14 @@ export function startGitHubSyncJob() {
 
   if (job) return;
 
-  job = cron.schedule(syncCron, () => void runSync("cron"), { timezone: syncTimezone });
+  job = cron.schedule(syncCron, () => void runGitHubSync("cron"), { timezone: syncTimezone });
 
-  logger.info("GitHub sync cron started", { schedule: syncCron });
+  logger.debug("GitHub sync cron started", { schedule: syncCron });
 
-  void runSync("startup");
+  void runGitHubSync("startup");
 }
 
+// Stops scheduling only; an in-flight sync is not tracked or awaited (Phase 4 item 1).
 export function stopGitHubSyncJob() {
   if (job) {
     job.stop();

@@ -3,6 +3,7 @@ import cron, { ScheduledTask } from "node-cron";
 import { config } from "#config";
 import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
+import { getRedis } from "#lib/redis";
 
 import {
   shouldSyncChangelogReleases,
@@ -11,12 +12,22 @@ import {
 
 let job: ScheduledTask | null = null;
 
-async function runSync(reason: "startup" | "cron") {
+/** Never rejects; a Redis blip is a skipped tick logged at warn, not an error (V-101). */
+export async function runChangelogSync(reason: "startup" | "cron"): Promise<void> {
+  try {
+    getRedis();
+  } catch (error) {
+    logger.warn(`Skipping changelog release sync (${reason}): Redis not ready`, {
+      error: error instanceof Error ? error.message : error,
+    });
+    return;
+  }
+
   try {
     // Mirrors the GitHub stats job: a restart is not a reason to re-scan GitHub. The cron
     // is the schedule, so it always runs; only the boot path checks freshness.
     if (reason === "startup" && !(await shouldSyncChangelogReleases())) {
-      logger.info("Changelog release sync (startup) skipped: last sync is still fresh.");
+      logger.debug("Changelog release sync (startup) skipped: last sync is still fresh.");
       return;
     }
 
@@ -50,13 +61,14 @@ export function startChangelogSyncJob() {
 
   if (job) return;
 
-  job = cron.schedule(cronExpression, () => void runSync("cron"), { timezone });
+  job = cron.schedule(cronExpression, () => void runChangelogSync("cron"), { timezone });
 
-  logger.info("Changelog release sync cron started", { schedule: cronExpression });
+  logger.debug("Changelog release sync cron started", { schedule: cronExpression });
 
-  void runSync("startup");
+  void runChangelogSync("startup");
 }
 
+// Stops scheduling only; an in-flight sync is not tracked or awaited (Phase 4 item 1).
 export function stopChangelogSyncJob() {
   if (job) {
     job.stop();

@@ -10,8 +10,7 @@ interface PricingComparisonProps {
 }
 
 const PricingComparison = ({ loading, paymentsBlocked, onCheckout }: PricingComparisonProps) => {
-  // Hardcoding "$11.99" here contradicted the hero's cards for anyone on INR - the same
-  // plan quoted two different prices on one page.
+  // Never hardcode a price here: INR visitors would see two prices for one plan.
   const { formatPrice } = useCurrency();
 
   return (
@@ -30,12 +29,7 @@ const PricingComparison = ({ loading, paymentsBlocked, onCheckout }: PricingComp
           </p>
         </div>
 
-        {/*
-          A horizontally scrollable region has to be reachable by keyboard (WCAG 2.1.1) -
-          without tabIndex a keyboard-only visitor can never scroll to the Bundle column.
-          The ARIA table roles live on the inner grid so the focusable scroll container
-          does not sit between `table` and its `row` children and break the structure.
-        */}
+        {/* Keyboard-reachable scroll region (WCAG 2.1.1); ARIA table roles sit on the inner grid so the container doesn't break table > row. */}
         <div
           tabIndex={0}
           role="group"
@@ -68,20 +62,13 @@ const PricingComparison = ({ loading, paymentsBlocked, onCheckout }: PricingComp
                 key={label}
                 role="row"
               >
-                {/*
-                  Needs an explicit role: an element with no role inside role="row" is not
-                  a valid cell, and assistive tech drops the whole row's labels - every
-                  checkmark would be announced with nothing to say what it applies to.
-                */}
+                {/* Needs an explicit role: a role-less child of role="row" is not a cell, and assistive tech drops the row's labels. */}
                 <span role="rowheader" className="text-foreground/90 pr-4 font-medium">
                   {label}
                 </span>
                 {values.map((enabled, index) => (
                   <span className="grid place-items-center" key={`${label}-${index}`} role="cell">
-                    {/*
-                      Every cell is an icon, so without this the entire body of the table
-                      is announced as blank rows - the icons carry 100% of the meaning.
-                    */}
+                    {/* Every cell is an icon, so without this the table body is announced as blank rows. */}
                     <span className="sr-only">{enabled ? "Included" : "Not included"}</span>
                     {enabled ? (
                       <span

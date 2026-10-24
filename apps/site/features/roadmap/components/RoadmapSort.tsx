@@ -13,13 +13,7 @@ import { cn } from "@veriworkly/ui";
 
 import type { RoadmapSort } from "@/features/roadmap/services/roadmap-backend";
 
-/**
- * Sorting is view state over items already on the page. It used to be a `?sort=` link per
- * option, which made the four roadmap pages dynamic and gave Google 45 duplicate URLs to
- * crawl (W-037, SEO-REPORT section 2). The server renders each column newest first and
- * passes the id order for the other two sorts; this reorders the rendered cards by key, so
- * the DOM and tab order follow what is on screen.
- */
+/** Sorting is client view state: `?sort=` links made the pages dynamic and gave Google duplicate URLs. */
 
 const SortContext = createContext<{ sort: RoadmapSort; setSort: (sort: RoadmapSort) => void }>({
   sort: "newest",
@@ -67,7 +61,6 @@ export function RoadmapSortControls() {
   );
 }
 
-/** Children keyed by item id, in newest-first order; `orders` gives the other two orders. */
 export function SortedItems({
   orders,
   children,

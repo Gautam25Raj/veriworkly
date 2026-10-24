@@ -3,15 +3,7 @@ import { Crown, WandSparkles } from "lucide-react";
 export type ProductKey = "ai_credits" | "portfolio_pro" | "bundle";
 export type BillingInterval = "one_day" | "seven_day" | "monthly" | "annual";
 
-/**
- * Portfolio rows follow the launch model enforced in
- * `apps/server` (`portfolioService.publish`): Signal and Atelier are the free core
- * templates, Nimbus and Cipher require a subscription, and the "Built with
- * VeriWorkly" badge is removed by the `watermark_removal` entitlement.
- *
- * Document exports carry no watermark on any tier - the badge row below is
- * portfolio-only, and is labelled so it cannot be read as a document watermark.
- */
+/** Portfolio rows follow the launch model in portfolioService.publish; document exports carry no watermark on any tier. */
 export const comparisonRows = [
   ["Resume and cover letter editor", true, true, true, true],
   ["Document exports (PDF, DOCX, MD, HTML, TXT, JSON)", true, true, true, true],

@@ -8,11 +8,7 @@ import { compareDescription, compareTitle } from "@/features/compare/data/metada
 import { releaseHeadline, releaseSummary } from "@/features/changelog/utils/changelog-utils";
 import { DESCRIPTION_MAX, TITLE_MAX, fitTitle } from "@/utils/metadata";
 
-/**
- * Google truncates titles past ~60 characters and descriptions past ~160; the 2026-10-24 crawl
- * found 21 marketing pages and every release page over the limit (W-015). Static pages are
- * checked from their source literals, data-driven pages through the helpers that build them.
- */
+/** Google truncates titles past ~60 characters and descriptions past ~160. */
 
 const appDir = join(__dirname, "..", "..", "app");
 

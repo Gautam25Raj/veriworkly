@@ -17,7 +17,6 @@ interface LegalMobileNavProps {
   onSearchChange: (query: string) => void;
 }
 
-/** The phone's table of contents: a sticky bar naming the current clause, opening to the index. */
 export function LegalMobileNav({
   sections,
   filteredSections,

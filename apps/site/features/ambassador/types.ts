@@ -33,16 +33,9 @@ export type AmbassadorApplicationPayload = {
   socialHandle?: string;
 };
 
-/**
- * What the apply form knows about the person filling it in. A guest gets the full
- * seven-question run and signs in at the end; a signed-in visitor gets their school and
- * class year prefilled from the account instead of retyping them.
- */
 export type ApplyViewer = {
   isAuthenticated: boolean;
   name: string | null;
-  /** Previous answers, when re-applying after a rejection. */
   draft: Partial<AmbassadorApplicationPayload> | null;
-  /** Reviewer feedback from a prior rejected attempt, if any. */
   reviewNote: string | null;
 };

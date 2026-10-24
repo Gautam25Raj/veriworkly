@@ -24,7 +24,6 @@ export const HowItWorksHero = () => (
       </div>
     }
   >
-    {/* The route, in order. Each stop jumps to its step below. */}
     <nav aria-label="The five steps">
       <ol className="grid gap-2 lg:grid-cols-5">
         {WORKFLOW_STEPS.map((step) => (

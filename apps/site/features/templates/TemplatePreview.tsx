@@ -12,11 +12,7 @@ type Props = {
   className?: string;
 };
 
-/**
- * A template's real preview at its real shape: documents are a sheet of 8.5x11 paper,
- * portfolio websites are a wide browser screenshot (1900x937). Cropping either into the
- * other's frame throws away most of the picture, so the shape follows the document type.
- */
+/** The shape follows the document type: sheets are 8.5x11, portfolios a 1900x937 screenshot. */
 const TemplatePreview = ({ template, sizes, loading, className }: Props) => {
   const isPortfolio = template.documentType === "portfolio-website";
 

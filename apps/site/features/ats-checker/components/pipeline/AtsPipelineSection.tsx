@@ -9,10 +9,6 @@ import { SCORE_FACTS } from "../../data/scoreFacts";
 
 const FRAGMENT = "bg-background rounded-2xl p-4 text-sm leading-6";
 
-/**
- * One sample two-column resume followed through the four stages, so each stage shows what it
- * does to the same document. The data is a sample, and the figure says so.
- */
 const FRAGMENTS: Record<(typeof PIPELINE_STEPS)[number]["phase"], ReactNode> = {
   Upload: (
     <div data-ui className={FRAGMENT}>

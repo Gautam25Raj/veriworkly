@@ -6,7 +6,6 @@ interface CompareDeepDiveSectionProps {
   competitor: Competitor;
 }
 
-/** Each difference as one row: the topic, both approaches side by side, and what it means. */
 export const CompareDeepDiveSection = ({ competitor }: CompareDeepDiveSectionProps) => {
   if (competitor.deepDive.length === 0) return null;
 

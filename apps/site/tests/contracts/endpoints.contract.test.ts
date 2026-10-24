@@ -4,13 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 process.env.NEXT_PUBLIC_BACKEND_URL ??= "http://127.0.0.1:1/api/v1";
 
-/**
- * The server validates list queries with zod objects that strip unknown keys. A key the site
- * sends that the schema lacks is silently dropped, and the site renders unfiltered data as if
- * it were filtered: the /stats date filters did exactly that (W-045). This runs each site
- * fetcher with every option set, captures the query it sends, and checks each key against the
- * server's schema source.
- */
+/** Server zod schemas strip unknown keys, so every key a site fetcher sends is checked against the server schema source. */
 
 const serverSrc = join(__dirname, "..", "..", "..", "server", "src");
 

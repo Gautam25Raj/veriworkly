@@ -8,10 +8,7 @@ interface StatsOverviewProps {
   stats: GitHubProjectStats | null;
 }
 
-/**
- * The board in numbers. Without a sync there are no numbers, and showing zeros would read as
- * "nothing is happening", so the offline case says what is true instead.
- */
+/** Without a sync there are no numbers; zeros would read as "nothing is happening". */
 const StatsOverview = ({ stats }: StatsOverviewProps) => {
   if (!stats) {
     return (

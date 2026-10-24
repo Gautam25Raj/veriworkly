@@ -7,11 +7,7 @@ interface AtsCheckerFaqProps {
   faqs: FaqItem[];
 }
 
-/**
- * Native disclosure widgets: every answer is in the HTML for crawlers and for anyone without
- * script, the keyboard and screen-reader behaviour comes from the browser, and nothing here
- * needs to ship to the client.
- */
+/** Native disclosure widgets: every answer stays in the server HTML for crawlers and no-script visitors. */
 export function AtsCheckerFaq({ faqs }: AtsCheckerFaqProps) {
   return (
     <PageSection

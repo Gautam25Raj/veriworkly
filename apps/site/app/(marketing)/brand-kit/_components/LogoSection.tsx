@@ -32,7 +32,6 @@ const LogoSection = () => {
 
       <Card className="space-y-8 p-8">
         <div className="grid gap-8 md:grid-cols-2">
-          {/* Clear space, drawn rather than described. */}
           <div className="space-y-3">
             <p className="text-muted text-xs font-semibold tracking-[0.24em] uppercase">
               Clear space
@@ -43,8 +42,7 @@ const LogoSection = () => {
                 {clearSpacePct} of width
               </span>
 
-              {/* The inner box is 1 / (1 + 2 × ratio) of the frame, so the visible
-                  margin on each side is exactly the clear-space ratio. */}
+              {/* The inner box is 1 / (1 + 2 × ratio) of the frame, so each margin equals the clear-space ratio. */}
               <div
                 className="border-border bg-card grid place-items-center rounded-md border"
                 style={{ width: "66.67%", height: "66.67%", padding: "12%" }}
@@ -65,7 +63,6 @@ const LogoSection = () => {
             </p>
           </div>
 
-          {/* Minimum sizes, shown at true scale. */}
           <div className="space-y-3">
             <p className="text-muted text-xs font-semibold tracking-[0.24em] uppercase">
               Minimum size
@@ -133,7 +130,6 @@ const LogoSection = () => {
         </div>
       </Card>
 
-      {/* Which mark on which ground. */}
       <Card className="space-y-4 p-8">
         <p className="text-muted text-xs font-semibold tracking-[0.24em] uppercase">
           Choosing a variant

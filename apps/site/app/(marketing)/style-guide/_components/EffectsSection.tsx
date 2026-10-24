@@ -47,8 +47,7 @@ export const EffectsSection = () => {
           </p>
 
           <div className="grid gap-6 md:grid-cols-2">
-            {/* Both swatches read from the live tokens rather than baked hexes, so they
-                follow the page into dark mode the way the real surfaces do. */}
+            {/* Both swatches read the live tokens, not baked hexes, so they follow dark mode. */}
             <div className="space-y-3">
               <p className="text-muted text-xs font-semibold tracking-wider uppercase">
                 Page Background (Radial)

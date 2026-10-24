@@ -7,10 +7,6 @@ import { useRef, useState, type KeyboardEvent } from "react";
 import { COMPETITORS } from "../../data";
 import CompareScoreboard from "../shared/CompareScoreboard";
 
-/**
- * Pick a builder, see the head-to-head. A real tab widget: arrow keys move between builders,
- * Home and End jump to the ends, and only the selected tab sits in the tab order.
- */
 export const CompareHubPicker = () => {
   const [index, setIndex] = useState(0);
   const tabs = useRef<Array<HTMLButtonElement | null>>([]);

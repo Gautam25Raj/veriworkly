@@ -25,7 +25,6 @@ const PORTFOLIO_FACTS = [
   },
 ];
 
-/** A portfolio page as it renders on a subdomain. The person and projects are a sample. */
 const BrowserFigure = () => (
   <figure>
     <div data-ui className="bg-background text-foreground overflow-hidden rounded-3xl">

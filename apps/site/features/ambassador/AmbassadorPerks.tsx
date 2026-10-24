@@ -3,12 +3,7 @@
 import { m } from "framer-motion";
 
 const AmbassadorPerks = () => {
-  /**
-   * Framed as what the program is being built to do, not as live mechanics. The
-   * server implements apply, review, and status only: there is no points ledger,
-   * no voucher issuance, and no automated student verification behind any of this.
-   * Specific point values here would read as a running economy, so they are out.
-   */
+  /** Framed as what the program is being built to do: the server has no points ledger, vouchers or automated verification. */
   const perks = [
     {
       num: "01",

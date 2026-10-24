@@ -12,7 +12,6 @@ interface ApiSuccessResponse<T> {
 
 export class ApiRequestError extends Error {
   status: number;
-  /** The error envelope's `details`, e.g. the 400 field list or a 429 quota summary. */
   details?: unknown;
 
   constructor(message: string, status: number, details?: unknown) {
@@ -23,12 +22,7 @@ export class ApiRequestError extends Error {
   }
 }
 
-/**
- * Wall-clock budget for a single backend call. Without this, a backend that accepts
- * the connection but never responds pins a Node render worker indefinitely - a
- * connection *refused* fails fast, but a connection that hangs does not. Callers that
- * legitimately need longer can pass their own `signal`.
- */
+/** Wall-clock budget per backend call: a hanging connection would otherwise pin a Node render worker indefinitely. */
 
 export const DEFAULT_API_TIMEOUT_MS = 8_000;
 
@@ -96,17 +90,14 @@ export async function fetchApiData<T>(
       ...fetchOptions,
       signal: fetchOptions.signal ?? AbortSignal.timeout(timeoutMs ?? DEFAULT_API_TIMEOUT_MS),
       credentials: fetchOptions.credentials ?? "include",
-      // Content-Type only when there is a body: on a GET it made every browser request a
-      // non-simple one, so each read paid a CORS preflight first (W-040).
+      // Content-Type only with a body: on a GET it forces a CORS preflight.
       headers: {
         ...(typeof fetchOptions.body === "string" ? { "Content-Type": "application/json" } : {}),
         ...firstPartyServerHeaders(fetchOptions.headers),
       },
     });
   } catch (cause) {
-    // A timeout surfaces as DOMException(name: "TimeoutError"); a hard network failure
-    // as TypeError. Both are normalised to ApiRequestError so every caller's existing
-    // `instanceof ApiRequestError` handling keeps working.
+    // Timeouts and network failures are normalised to ApiRequestError so callers' instanceof checks keep working.
     const timedOut = cause instanceof DOMException && cause.name === "TimeoutError";
 
     throw new ApiRequestError(
@@ -127,7 +118,7 @@ export async function fetchApiData<T>(
 
   const payload = await response.json().catch(() => null);
 
-  // A 2xx with success:false or no data used to reach callers typed T as undefined (W-064).
+  // A 2xx with success:false or no data must not reach callers typed as T.
   const envelope = payload as Partial<ApiSuccessResponse<T>> | null;
 
   if (

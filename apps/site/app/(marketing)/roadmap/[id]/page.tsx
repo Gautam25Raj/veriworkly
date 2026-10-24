@@ -24,10 +24,7 @@ interface RoadmapDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
-/**
- * No prebuilt ids: items render on first request and are then cached per the fetch's
- * revalidate window, instead of a fresh backend call on every visit.
- */
+/** No prebuilt ids: items render on first request, then cache per the fetch's revalidate window. */
 export function generateStaticParams() {
   return [];
 }
@@ -35,8 +32,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: RoadmapDetailPageProps): Promise<Metadata> {
   const { id } = await params;
 
-  // `null` is a real 404. Anything else throws: swallowing it here emitted a noindex
-  // "not found" head for live items whenever the backend hiccupped (W-002).
+  // `null` is a real 404; anything else must throw, or a backend hiccup emits a noindex head for live items.
   const item = await fetchRoadmapFeatureById(id);
 
   if (!item) {
@@ -302,7 +298,6 @@ const RoadmapDetailPage = async ({ params }: RoadmapDetailPageProps) => {
                 </div>
               </div>
 
-              {/* Initiative Owner Card */}
               <div className="border-border/40 bg-card/10 space-y-4 rounded-3xl border p-6">
                 <span className="text-muted block font-mono text-[10px] font-bold tracking-widest uppercase">
                   Initiative Owner

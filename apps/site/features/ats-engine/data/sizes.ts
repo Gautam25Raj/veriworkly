@@ -2,11 +2,7 @@ import sizes from "@veriworkly/ats-engine/sizes.json";
 
 const measured = sizes as { subpaths: Record<string, { kb: number }> };
 
-/**
- * A subpath's size, minified and gzipped, as the installed engine measured it for its release
- * (`@veriworkly/ats-engine/sizes.json`), so the page moves with each engine bump. An unknown
- * subpath fails the build.
- */
+/** Read from the installed engine's sizes.json; an unknown subpath fails the build. */
 export function engineSize(subpath: string, whole = false): string {
   const size = measured.subpaths[subpath];
   if (!size)

@@ -5,11 +5,7 @@ import { templateSummaries } from "@/config/templates";
 import { categories, faqs } from "@/features/faq/data/faqItems";
 import { COMPETITORS } from "@/features/compare/data/competitors";
 
-/**
- * The whole site as one plain-text document for language models (llmstxt.org's llms-full.txt):
- * llms.txt, then the FAQ, the template catalogue, the comparisons and pricing.md. Built at
- * build time from the same data the pages render, so it cannot drift from them (W-018).
- */
+/** Built from the same data the pages render, so it cannot drift from them. */
 export const dynamic = "force-static";
 
 const publicFile = (name: string) => readFileSync(join(process.cwd(), "public", name), "utf8");

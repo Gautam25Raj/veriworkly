@@ -1,8 +1,4 @@
-/**
- * Invented resumes and postings for the demo on /ats-engine. No real person, employer contact or
- * posting: every name, email and phone number is made up (phone numbers use the 555-01xx range
- * reserved for fiction). The demo scores them in the browser with the same engine the checker runs.
- */
+/** Invented data only: phone numbers use the 555-01xx range reserved for fiction. */
 export interface EngineSample {
   id: string;
   label: string;

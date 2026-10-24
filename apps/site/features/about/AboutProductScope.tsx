@@ -32,7 +32,6 @@ const productScope = [
   },
 ];
 
-/** One sample fact, shown as each document would set it. Sample data. */
 const FACT = "38%";
 
 const views = [

@@ -18,12 +18,7 @@ const pageUrl = `${siteConfig.url}/ambassador/apply`;
 
 const loginUrl = `${siteConfig.links.app}/login?callbackURL=${encodeURIComponent(pageUrl)}`;
 
-/**
- * Never prerender. The page is per-visitor (session, prefill, application status) and the
- * feature-flag branch below short-circuits before anything touches `cookies()` - without
- * this, a build with the flag off bakes "applications open soon" into a static page that
- * flipping the env var at runtime would never undo.
- */
+/** Never prerender: with the flag off, a build would bake "applications open soon" into a page a runtime env flip never undoes. */
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
@@ -34,7 +29,6 @@ export const metadata: Metadata = {
   robots: { index: false, follow: true },
 };
 
-/** Guests get the full run of questions and sign in at the very end. */
 const GUEST_VIEWER: ApplyViewer = {
   isAuthenticated: false,
   name: null,
@@ -54,8 +48,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 export default async function AmbassadorApplyPage() {
-  // Checked before the request goes out. The backend answers 503 when the program flag is
-  // off, and a 503 read as "logged out" is what produced the login redirect loop.
+  // Checked first: the backend answers 503 when the flag is off, and reading that as "logged out" caused a login redirect loop.
   if (!isAmbassadorProgramEnabled()) {
     return (
       <Shell>
@@ -75,8 +68,7 @@ export default async function AmbassadorApplyPage() {
     );
   }
 
-  // No session (or a stale one). Let them answer everything anyway - the form parks the
-  // draft and signs them in at submit time.
+  // No session (or a stale one): the form parks the draft and signs them in at submit time.
   if (!result.ok) {
     return (
       <Shell>
@@ -107,9 +99,7 @@ export default async function AmbassadorApplyPage() {
   const viewer: ApplyViewer = {
     isAuthenticated: true,
     name: status.name,
-    // Prefill from the account, plus any previous answers if they're re-applying after a
-    // rejection. `/ambassador/me` already returned these - the form used to discard them
-    // and make people retype everything.
+    // Prefill from the account, plus previous answers when re-applying after a rejection.
     draft: {
       collegeName: application?.collegeName ?? status.collegeName ?? undefined,
       graduationYear: application?.graduationYear ?? status.graduationYear ?? undefined,

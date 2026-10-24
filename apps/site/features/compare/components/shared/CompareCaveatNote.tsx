@@ -1,7 +1,6 @@
 import { PRICING_VERIFIED_AT } from "../../data";
 
 interface CompareCaveatNoteProps {
-  /** One competitor's name, or omitted for a note that covers all of them. */
   competitorName?: string;
   className?: string;
 }

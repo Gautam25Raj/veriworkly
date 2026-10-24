@@ -8,10 +8,7 @@ import { TYPE } from "@/components/marketing/PageLayout";
 import { INSTALL_COMMAND, SURFACES as surfaces } from "../data/content";
 import { CopyCommand } from "./CopyCommand";
 
-/**
- * The four ways to run the engine, one tab each, with the code to start. Reads its data itself:
- * the surfaces carry icon components, which cannot be passed from a server component.
- */
+/** Reads its data itself: the surfaces carry icon components, which cannot be passed from a server component. */
 export function CodeTabs() {
   const [activeId, setActiveId] = useState(surfaces[0]?.id);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -19,7 +16,6 @@ export function CodeTabs() {
 
   if (!active) return null;
 
-  // Arrow keys move between tabs, as the WAI-ARIA tabs pattern expects.
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const index = surfaces.findIndex((surface) => surface.id === active.id);
     const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;

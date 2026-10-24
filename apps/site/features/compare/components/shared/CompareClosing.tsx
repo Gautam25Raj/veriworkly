@@ -9,11 +9,9 @@ import { type Competitor } from "../../types";
 
 interface CompareClosingProps {
   title: string;
-  /** On a comparison page, the other builders, so the next comparison is one tap away. */
   others?: Competitor[];
 }
 
-/** The page's one accent field: the decision, the button that acts on it, and where to go next. */
 export const CompareClosing = ({ title, others }: CompareClosingProps) => (
   <section className="bg-accent text-accent-foreground py-20 lg:py-28">
     <div className={FRAME}>

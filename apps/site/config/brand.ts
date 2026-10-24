@@ -1,27 +1,13 @@
 import { siteConfig } from "@/config/site";
 
-/**
- * The published description of the VeriWorkly design system.
- *
- * Both /brand-kit and /style-guide render from this file, and
- * scripts/build-brand-kit.mts writes the downloadable .zip from it, so a token
- * can never say one thing on the site and another in the archive.
- *
- * Colour values mirror packages/ui/src/styles/themes.css. That file is what the
- * product actually renders; this one is what we promise. Change them together.
- */
+/** Colour values mirror packages/ui/src/styles/themes.css; change them together. */
 
 export interface BrandColorToken {
   name: string;
-  /** CSS custom property, as authored in themes.css. */
   variable: string;
   light: string;
   dark: string;
   description: string;
-  /**
-   * Core tokens are the ones an outside designer or journalist needs, and are the
-   * only ones shown on /brand-kit. /style-guide shows every token.
-   */
   core: boolean;
 }
 
@@ -164,12 +150,9 @@ export const brandColors: BrandColorToken[] = [
 
 export const coreBrandColors = brandColors.filter((token) => token.core);
 
-/* ------------------------------------------------------------------ logo ---- */
-
 export interface LogoAsset {
   name: string;
   file: string;
-  /** Human-readable dimensions. */
   size: string;
   format: "PNG";
   usage: string;
@@ -218,13 +201,9 @@ export const logoRules = {
   geometry: { widthPct: 74, heightPct: 54 },
 } as const;
 
-/* ------------------------------------------------------------ typography ---- */
-
 export interface TypeScaleStep {
   label: string;
-  /** Tailwind classes that produce this step. */
   className: string;
-  /** Rendered size per breakpoint, smallest first. */
   sizes: string;
   weight: string;
   tracking: string;
@@ -318,8 +297,6 @@ export const fontStack = {
   },
 } as const;
 
-/* ---------------------------------------------------------------- motion ---- */
-
 export const motionTokens = [
   {
     name: "Micro transition",
@@ -350,11 +327,8 @@ export const motionTokens = [
   },
 ] as const;
 
-/* ------------------------------------------------------------------ press --- */
-
 export const pressFacts = {
   name: siteConfig.name,
-  /** How the name is written, and the ways it must not be. */
   spelling: "VeriWorkly",
   misspellings: ["Veriworkly", "veriworkly", "Veri Workly", "VeriWorkly.ai"],
   creator: siteConfig.creator,

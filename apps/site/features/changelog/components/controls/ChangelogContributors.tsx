@@ -6,10 +6,7 @@ import { siteConfig } from "@/config/site";
 
 import { type ChangelogStats } from "@/features/changelog/services/changelog-backend";
 
-/**
- * Everyone who has shipped a release, all of them, each a link to their GitHub profile. The
- * server already caps the list at a size a row of faces can hold.
- */
+/** The server already caps the list at what a row of faces can hold. */
 const ChangelogContributors = ({ stats }: { stats: ChangelogStats | null }) => {
   const contributors = stats?.topContributors ?? [];
 

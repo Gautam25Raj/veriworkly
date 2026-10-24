@@ -19,7 +19,6 @@ export const siteConfig = {
   creator: "Gautam Raj",
   email: "info@veriworkly.com",
 
-  /** The founder's own profiles, for Person.sameAs. The company profiles live in `links`. */
   creatorLinks: {
     github: "https://github.com/Gautam25Raj",
     twitter: "https://x.com/noober_boy",
@@ -27,17 +26,7 @@ export const siteConfig = {
     avatar: "https://github.com/Gautam25Raj.png",
   },
 
-  /**
-   * The single named human behind grievances, takedown notices, and data-protection
-   * questions. Published on /terms and /privacy.
-   *
-   * An India-based service that hosts user content and processes personal data is
-   * generally expected to publish a *named* contact, not a shared alias - and the
-   * legal pages previously named only roles that do not exist ("privacy officer",
-   * "privacy compliance team", "a designated security engineer") for what is one
-   * person. One named contact serves the grievance duty, the data-protection duty,
-   * and the takedown route, so it is defined once here.
-   */
+  /** One named person, not an alias: an India-based service hosting user content is expected to publish a named contact. */
   legalContact: {
     name: "Gautam Raj",
     role: "Grievance Officer & Data Protection Contact",
@@ -45,15 +34,7 @@ export const siteConfig = {
     postalAddress: "Phase-3, DLF Cyber City, Gurugram, Haryana 122010, India",
   },
 
-  /**
-   * `siteConfig` is imported by client components (Navbar, PricingExperience,
-   * ContactExperience), and only `NEXT_PUBLIC_*` vars are inlined into the client
-   * bundle - a bare `SITE_URL` reads as `undefined` in the browser, so server and
-   * client would silently disagree on the canonical origin.
-   *
-   * `NEXT_PUBLIC_SITE_URL` is the value that reaches both. `SITE_URL` is kept as a
-   * server-side fallback so existing deployments keep working unchanged.
-   */
+  /** Client components import siteConfig and only NEXT_PUBLIC_* vars reach the browser; SITE_URL is a server-only fallback. */
   url: process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || links.main,
 
   description:

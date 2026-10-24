@@ -85,8 +85,7 @@ export async function generateMetadata({ searchParams }: StatsPageProps): Promis
         }
       : {}),
     canonicalParams: { page: page > 1 ? page : undefined },
-    // The first page is the useful public overview. Every later page is a thin slice of the
-    // same live board, so keep its links crawlable without asking Google to index it separately.
+    // Later pages are thin slices of the same board: crawlable, but not indexed separately.
     noIndex: isFiltered || page > 1,
   });
 }

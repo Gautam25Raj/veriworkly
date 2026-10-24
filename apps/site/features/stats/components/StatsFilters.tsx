@@ -22,10 +22,7 @@ const pillClass = (isActive: boolean) =>
 
 const groupClass = "bg-card flex w-fit max-w-full flex-wrap gap-1 rounded-3xl p-1 sm:rounded-full";
 
-/**
- * Both filters are links: each view is a real server query, so it can be shared and works
- * without script. The page previously parsed `kind` without rendering a control for it.
- */
+/** Both filters are links: each view is a real server query, shareable and script-free. */
 const StatsFilters = ({ status, kind }: StatsFiltersProps) => (
   <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
     <nav aria-label="Filter by status" className={groupClass}>

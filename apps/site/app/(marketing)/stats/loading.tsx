@@ -1,6 +1,5 @@
 import { FRAME, PageHero } from "@/components/marketing/PageLayout";
 
-/** The real headline renders at once; only the figures and rows wait for the sync. */
 const StatsLoading = () => (
   <>
     <p className="sr-only" role="status" aria-live="polite">

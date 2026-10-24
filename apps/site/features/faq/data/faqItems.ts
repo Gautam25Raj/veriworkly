@@ -30,7 +30,6 @@ export interface FaqItem {
 }
 
 export const faqs: FaqItem[] = [
-  // 1. General & Privacy
   {
     id: "is-it-really-free",
     category: "general",
@@ -81,7 +80,6 @@ export const faqs: FaqItem[] = [
       "Yes. The editor is fully mobile friendly. You can adjust bullet points, change templates, and download PDFs directly on your phone or tablet browser.",
   },
 
-  // 2. Resumes & Cover Letters
   {
     id: "resume-length",
     category: "documents",
@@ -139,7 +137,6 @@ export const faqs: FaqItem[] = [
       "Yes. If you share a live web link to your resume or cover letter, you can add a password so only recruiters or contacts with the password can open it.",
   },
 
-  // 3. Free ATS Resume Checker
   {
     id: "ats-checker-overview",
     category: "ats",
@@ -176,7 +173,6 @@ export const faqs: FaqItem[] = [
       "Look at the missing keywords and skills identified in your report. Add the relevant tools, technologies, and responsibilities that you have real experience with into your work history and skills section.",
   },
 
-  // 4. Web Portfolios & Hosting
   {
     id: "portfolio-builder-overview",
     category: "portfolios",
@@ -220,7 +216,6 @@ export const faqs: FaqItem[] = [
       "Creator Pro and pass holders get a private visitor dashboard showing total views and referral sources over time, with no tracking cookies and no attempt to identify individual visitors. It becomes available when publishing opens at launch.",
   },
 
-  // 5. AI Assistant & Writing Credits
   {
     id: "ai-no-hallucinations",
     category: "ai",
@@ -257,7 +252,6 @@ export const faqs: FaqItem[] = [
       "Yes. All templates, document editors, manual writing tools, and PDF exports work without using AI. You have total control over every single word in your document.",
   },
 
-  // 6. Pricing, Passes & Billing
   {
     id: "flexible-passes-vs-subscriptions",
     category: "billing",
@@ -301,7 +295,6 @@ export const faqs: FaqItem[] = [
       "Yes. The affiliate program pays 2% to 5% recurring commission on referred customers, paid out once your balance reaches $25. The Student Ambassador program is in its first intake: applications are reviewed by hand, and the rewards (free access to paid features, not cash) will be published before anyone is asked to earn them.",
   },
 
-  // 7. Imports, API & Open Source
   {
     id: "linkedin-profile-import",
     category: "developer",

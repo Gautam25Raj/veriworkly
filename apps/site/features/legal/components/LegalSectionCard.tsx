@@ -14,7 +14,6 @@ interface LegalSectionCardProps {
 
 const PARAGRAPH = "text-foreground/85 mt-4 text-base leading-8 lg:text-[1.0625rem]";
 
-/** One clause of the document, set for reading: numbered, because people cite clauses. */
 export function LegalSectionCard({ section, displayIndex }: LegalSectionCardProps) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -27,8 +26,7 @@ export function LegalSectionCard({ section, displayIndex }: LegalSectionCardProp
     try {
       await navigator.clipboard.writeText(url);
     } catch {
-      // Clipboard access can be refused (permissions, insecure origin). The URL bar still
-      // gets the anchor, so the link is not lost.
+      // Clipboard can be refused; the URL bar still gets the anchor, so the link is not lost.
       window.location.hash = section.id;
       return;
     }

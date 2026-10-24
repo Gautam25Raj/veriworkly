@@ -1,10 +1,6 @@
 import type { KanbanItem } from "@/components/roadmap/KanbanBoard";
 
-/**
- * The id order for the sorts the server would have applied (roadmapService.getRoadmapOrderBy):
- * oldest = createdAt ascending; recently completed = completedAt descending with
- * never-completed items last, then updatedAt descending.
- */
+/** Mirrors the server's roadmapService.getRoadmapOrderBy for the oldest and recently-completed sorts. */
 export function sortOrders(items: KanbanItem[]) {
   const time = (value?: string) => (value ? Date.parse(value) : NaN);
   const ids = (list: KanbanItem[]) => list.map((item) => item.id);

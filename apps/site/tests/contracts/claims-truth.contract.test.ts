@@ -3,14 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-/**
- * The 2026-10-24 site audit found sixteen claims in copy that the code contradicts (FC-1 to
- * FC-16 in the site audit): "no login required" while the studio sends every
- * cookieless visitor to /login, "every preview is the real export" while half the previews
- * are wireframes, "unmetered imports" against a 50-a-day limit, and so on. These tests keep
- * the exact phrases out of everything the site ships, including the machine-readable files,
- * and tie the numbers the site quotes to the server constants that own them.
- */
+/** Keeps claims the code contradicts out of everything the site ships, and ties quoted numbers to the server constants that own them. */
 
 const siteRoot = join(__dirname, "..", "..");
 const publicDir = join(siteRoot, "public");
@@ -69,12 +62,7 @@ describe("copy stays free of the claims the audit found false", () => {
   }
 });
 
-/**
- * Every number the site quotes has one owner in apps/server. The site cannot import the
- * services that hold them (they pull in the server config and Prisma), so the constants are
- * read out of the source text with regexes anchored on the declarations. The affiliate
- * constants file is dependency-free and is imported directly.
- */
+/** Server constants are read from source text with anchored regexes: the services pull in server config and Prisma. */
 describe("the numbers on the site match the server's constants", () => {
   const serverServices = join(siteRoot, "..", "server", "src", "services");
   const readServer = (name: string) => readFileSync(join(serverServices, name), "utf8");
@@ -110,8 +98,7 @@ describe("the numbers on the site match the server's constants", () => {
       "AI Credits prices",
     );
 
-    // Each price must sit under its own plan heading: $5.99 is both the 7-day pass and AI
-    // Credits monthly, so a whole-file check would miss either one going missing.
+    // Each price must sit under its own plan heading: $5.99 is both the 7-day pass and AI Credits monthly.
     const section = (title: string) => {
       const start = pricingMd.indexOf(`. ${title}`);
       expect(start, `pricing.md has no "${title}" section`).toBeGreaterThan(-1);
@@ -205,8 +192,7 @@ describe("the numbers on the site match the server's constants", () => {
 });
 
 describe("the machine-readable files state that payments are closed (W-022)", () => {
-  // pricing/page.tsx hard-codes PAYMENTS_BLOCKED = true and shows a notice; an agent reading
-  // pricing.md or llms.txt must see the same thing, or it will recommend a plan nobody can buy.
+  // pricing.md and llms.txt must show PAYMENTS_BLOCKED too, or an agent recommends a plan nobody can buy.
   const pageSource = readFileSync(
     join(siteRoot, "app", "(marketing)", "pricing", "page.tsx"),
     "utf8",

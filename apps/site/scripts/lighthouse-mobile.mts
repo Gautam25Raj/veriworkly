@@ -1,12 +1,4 @@
-/**
- * Lighthouse, mobile preset, on the six pages the audit measured. Writes one JSON report per
- * page to `.lighthouse/` plus `.lighthouse/summary.md`, and prints the summary table.
- *
- *   npm run lighthouse:mobile -w @veriworkly/site -- http://localhost:3100
- *
- * Needs a running production build (`next start`) and a Chrome on the machine. Lighthouse
- * itself is fetched with `npx` on demand rather than added as a dependency.
- */
+/** Lighthouse mobile preset on the audited pages; needs a running `next start` and a local Chrome (Lighthouse comes via npx). */
 
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -50,8 +42,7 @@ const score = (report: LighthouseReport, id: string) =>
 const metric = (report: LighthouseReport, id: string) => report.audits[id]?.numericValue ?? NaN;
 
 function lcpElement(report: LighthouseReport) {
-  // Lighthouse 13 reports the element inside the LCP breakdown insight; older versions
-  // had a dedicated audit. Walk whatever is there for the first node snippet.
+  // Lighthouse 13 reports the LCP element inside the LCP breakdown insight; older versions had a dedicated audit.
   const details =
     report.audits["lcp-breakdown-insight"]?.details ??
     report.audits["largest-contentful-paint-element"]?.details;

@@ -14,9 +14,7 @@ export const getTemplateHref = (template: Pick<TemplateSummary, "documentType" |
 export const buildEditorUrl = (
   template: Pick<TemplateSummary, "editorTemplateId" | "documentType">,
 ) => {
-  // The portfolio dashboard ignores ?template= (W-059), so the visitor's choice used to be
-  // dropped silently. The portfolio app's own page for the template keeps it in view and
-  // carries that app's start button.
+  // The portfolio dashboard ignores ?template=, so link the portfolio app's own page for the template.
   if (template.documentType === "portfolio-website") {
     return `${portfolioBaseUrl}/templates/${encodeURIComponent(template.editorTemplateId)}`;
   }
@@ -36,6 +34,5 @@ export const buildPreviewUrl = (
   return null;
 };
 
-/** "Cover Letter" -> "Cover letter templates": headings on the page are sentence case. */
 export const templatesHeading = (label: string) =>
   `${label.charAt(0)}${label.slice(1).toLowerCase()} templates`;

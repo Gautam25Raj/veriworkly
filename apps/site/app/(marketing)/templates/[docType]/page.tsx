@@ -22,10 +22,6 @@ type PageProps = {
   params: Promise<{ docType: string }>;
 };
 
-/**
- * Every path is known at build time and unknown document types 404, so there is nothing
- * to render on demand.
- */
 export const dynamicParams = false;
 
 const sentenceCase = (value: string) => value.charAt(0) + value.slice(1).toLowerCase();
@@ -118,8 +114,7 @@ const TemplatesByDocumentTypePage = async ({ params }: PageProps) => {
             All templates
           </Link>
         }
-        // "Portfolio Website templates." runs to three lines at display size; the type
-        // name alone ("Portfolio") says the same thing.
+        // The full label runs to three lines at display size; the type name alone says the same.
         title={sentenceCase(docTypeData.label.replace(/ website$/i, ""))}
         highlight="templates."
         lede={`${docTypeData.description} Previews show the layout; the studio renders the final file.`}

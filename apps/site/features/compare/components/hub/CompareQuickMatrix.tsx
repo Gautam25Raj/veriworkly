@@ -7,11 +7,7 @@ import CompareCaveatNote from "../shared/CompareCaveatNote";
 
 import { COMPETITORS, SNAPSHOT_ROWS, VERIWORKLY_MATRIX, VERIWORKLY_PRICE } from "../../data";
 
-/**
- * All seven tools in one table. Every cell comes from the competitor data, the same values each
- * comparison page shows: this table used to keep its own hand-typed copy, which had drifted
- * (it listed one monthly plan as a one-time price).
- */
+/** Every cell comes from the competitor data; never keep a hand-typed copy here, it drifts. */
 const CompareQuickMatrix = () => (
   <PageSection
     id="table"

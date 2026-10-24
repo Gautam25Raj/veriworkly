@@ -5,17 +5,7 @@ import { siteConfig } from "@/config/site";
 import type { AtsRestrictedReport } from "../../types";
 import { ScoreSummary } from "./ScoreSummary";
 
-/**
- * The anonymous view.
- *
- * A real diagnosis — the score, the verdict, and the single most serious problem named in full —
- * followed by an honest inventory of what is still withheld, counted rather than described. The
- * counts are the offer: "7 required keywords missing" is true and specific and impossible to act
- * on without the list, which is exactly what an account unlocks.
- *
- * There is no category rollup and no recovered work-history table here, because the server never
- * sends them to an unauthenticated caller. Nothing on this screen is hidden client-side.
- */
+/** Nothing here is hidden client-side: the server never sends the category rollup or work-history table to anonymous callers. */
 export function RestrictedResults({ report }: { report: AtsRestrictedReport }) {
   const loginHref = `${siteConfig.links.app}/login?callbackURL=${encodeURIComponent(
     `${siteConfig.url}/ats-checker/scan`,

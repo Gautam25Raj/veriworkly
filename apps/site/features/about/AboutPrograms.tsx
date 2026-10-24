@@ -20,10 +20,7 @@ const PROGRAMS = [
   },
 ];
 
-/**
- * Both programs, always. Each program page shows its own "opens soon" state while its flag is
- * off, so /about needs no flag and stays a static page.
- */
+/** Each program page shows its own "opens soon" state, so /about needs no flag and stays static. */
 const AboutPrograms = () => {
   const open = PROGRAMS;
 

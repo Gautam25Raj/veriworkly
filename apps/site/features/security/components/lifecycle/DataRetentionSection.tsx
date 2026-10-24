@@ -16,7 +16,6 @@ export const DataRetentionSection = () => (
     title="How long we keep it."
     lede="Every place your data can sit, how long it stays there, and how you remove it. We do not monetise your data or hold it indefinitely."
   >
-    {/* A real table from md up. On a phone four columns cannot be read side by side, so each row becomes its own block. */}
     <div className="reveal bg-background hidden overflow-hidden rounded-3xl md:block">
       <table className="w-full border-collapse text-left text-base">
         <caption className="sr-only">

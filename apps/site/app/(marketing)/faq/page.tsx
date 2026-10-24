@@ -47,8 +47,7 @@ const FAQPage = () => {
     ],
   };
 
-  // The ATS Engine questions are answered on /ats-engine, which carries their FAQPage
-  // markup. They stay visible here, but only one page should mark up a given question.
+  // The ATS Engine questions carry their FAQPage markup on /ats-engine; only one page may mark up a question.
   const faqSchema = {
     "@context": "https://schema.org",
     "@type": "FAQPage",

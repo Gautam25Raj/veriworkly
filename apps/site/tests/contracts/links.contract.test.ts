@@ -2,11 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
-/**
- * Every root-relative link the site renders must land on a page, a public file, or a
- * redirect that exists. The Search Console 404 report of 2026-10-15 was eight footer
- * links to pages that never existed (W-003); this keeps that list from growing back.
- */
+/** Every root-relative link must land on a page, a public file, or an existing redirect. */
 
 const root = join(__dirname, "..", "..");
 
@@ -34,7 +30,6 @@ const routePatterns = walk(appDir, ["page.tsx", "route.ts"]).map((file) =>
     .join("/"),
 );
 
-/** Metadata routes: app/sitemap.ts serves /sitemap.xml, app/robots.ts /robots.txt. */
 for (const [file, route] of [
   ["sitemap.ts", "sitemap.xml"],
   ["robots.ts", "robots.txt"],

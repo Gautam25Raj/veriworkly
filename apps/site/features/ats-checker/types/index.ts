@@ -1,8 +1,4 @@
-/**
- * Report types come from the engine that produces them, so the checker cannot drift from the
- * shape the server sends. What stays declared here is the server's API envelope — quota and
- * pricing — which is a product contract rather than part of the engine.
- */
+/** Report types come from the engine so the checker cannot drift; only the API envelope (quota, pricing) is declared here. */
 export type {
   AtsCategoryScore,
   AtsFullReport,

@@ -10,13 +10,11 @@ import TemplateCard, { templateGridClass } from "./TemplateCard";
 
 type Props = {
   templates: TemplateCardData[];
-  /** "resume templates", for the result count. */
   noun: string;
 };
 
 const NO_FILTERS: TemplateFilterState = { query: "", family: ALL, layout: ALL };
 
-/** Everything a visitor might type to find a template, lowercased once. */
 const searchText = (template: TemplateCardData) =>
   [
     template.name,
@@ -29,14 +27,7 @@ const searchText = (template: TemplateCardData) =>
     .join(" ")
     .toLowerCase();
 
-/**
- * Search and filters over a document type's templates, shown as a gallery.
- *
- * The state starts empty so the server-rendered HTML contains *every* template: the names,
- * descriptions and links are the page's SEO value and must not wait for hydration. A shared
- * `?q=&family=&layout=` link is applied on mount rather than through `useSearchParams`, which
- * would bail the page out of static rendering.
- */
+/** State starts empty so the server HTML has every template (the SEO value); `useSearchParams` would bail out of static rendering. */
 const TemplateExplorer = ({ templates, noun }: Props) => {
   const [filters, setFilters] = useState(NO_FILTERS);
 
@@ -53,8 +44,7 @@ const TemplateExplorer = ({ templates, noun }: Props) => {
     [templates],
   );
 
-  // Adopt a deep link once on the client. Values that no longer exist are ignored rather than
-  // yielding an empty gallery.
+  // Adopt a deep link once on the client; values that no longer exist are ignored.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const family = params.get("family");
@@ -70,8 +60,7 @@ const TemplateExplorer = ({ templates, noun }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep the URL shareable without a navigation: this is view state over data already on the
-  // page, so a router push would round-trip the server for nothing.
+  // Update the URL without a navigation: a router push would round-trip the server for nothing.
   const update = useCallback((next: TemplateFilterState) => {
     setFilters(next);
 

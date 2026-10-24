@@ -44,7 +44,6 @@ const primaryAction =
 const secondaryAction =
   "mt-8 inline-flex items-center justify-center rounded-full border border-zinc-200 px-8 py-3.5 text-xs font-black tracking-wider text-zinc-700 uppercase transition-all hover:border-indigo-500/40 active:scale-[0.98] dark:border-white/15 dark:text-zinc-300";
 
-/** The program is switched off via AMBASSADOR_PROGRAM_ENABLED. */
 export function AmbassadorComingSoonCard() {
   return (
     <StatusShell
@@ -65,10 +64,7 @@ export function AmbassadorComingSoonCard() {
   );
 }
 
-/**
- * The backend could not be reached. Deliberately *not* a login redirect: bouncing a
- * signed-in visitor to login on a 503 just ping-pongs them back here forever.
- */
+/** Deliberately not a login redirect: bouncing a signed-in visitor to login on a 503 ping-pongs them forever. */
 export function AmbassadorUnavailableCard() {
   return (
     <StatusShell

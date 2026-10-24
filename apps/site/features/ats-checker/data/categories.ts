@@ -15,10 +15,7 @@ import {
   type AtsScoreTone,
 } from "@veriworkly/ats-engine/format";
 
-/**
- * Label, order and score bands come from the engine's format helpers so the checker, Studio and
- * the copied report agree. What stays here is the site's own presentation: icons and blurbs.
- */
+/** Label, order and score bands come from the engine so the checker, Studio and copied report agree. */
 export { scoreTone, sortByCategoryOrder };
 export type ScoreTone = AtsScoreTone;
 
@@ -71,10 +68,7 @@ export const TONE_CLASSES: Record<ScoreTone, { text: string; fill: string; chip:
   },
 };
 
-/**
- * Every claim here maps to a rule the engine actually runs. Keep it that way: if a check is
- * removed from the policy, the line describing it comes out of this list too.
- */
+/** Every claim must map to a rule the engine runs; remove the line when its check leaves the policy. */
 export const SCORING_DIMENSIONS = [
   {
     title: "Parsing and layout",

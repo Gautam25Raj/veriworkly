@@ -8,18 +8,12 @@ interface CurrencyContextType {
   currency: Currency;
   setCurrency: (currency: Currency) => void;
   exchangeRate: number;
-  /** Formats a USD list price in the active display currency. */
   formatPrice: (usdAmount: number, options?: { showDecimal?: boolean }) => string;
-  /** True while the display currency is anything other than the billing currency. */
   isConverted: boolean;
   detectedRegion: string;
 }
 
-/**
- * Display-only fallback, mirroring `FALLBACK_INR_PER_USD` in the server-side rate service.
- * The live figure is resolved on the server and handed down as `inrPerUsd` - see
- * `features/pricing/services/exchange-rate.ts` for why it is not fetched from the browser.
- */
+/** Display-only fallback, mirroring FALLBACK_INR_PER_USD in features/pricing/services/exchange-rate.ts. */
 const FALLBACK_INR_PER_USD = 98;
 
 const BILLING_CURRENCY: Currency = "USD";
@@ -53,19 +47,13 @@ const CurrencyContext = createContext<CurrencyContextType>({
 
 export const CurrencyProvider: React.FC<{
   children: React.ReactNode;
-  /**
-   * Resolved on the server so the rate is identical in the SSR markup and after
-   * hydration - a client-side lookup would have re-rendered every price mid-read.
-   */
+  /** Resolved on the server so SSR and hydration share one rate; a client lookup re-rendered every price mid-read. */
   inrPerUsd?: number;
 }> = ({ children, inrPerUsd = FALLBACK_INR_PER_USD }) => {
   const [currency, setCurrencyState] = useState<Currency>(BILLING_CURRENCY);
   const [detectedRegion, setDetectedRegion] = useState<string>("US");
 
-  // Adopts the stored preference and the locale-detected region once on mount. Both are
-  // browser-only values that cannot exist during SSR, so the first render must be the
-  // "USD" default and this reconciles afterwards - the one legitimate shape of
-  // setState-in-effect, matching the `mounted` pattern used elsewhere in this app.
+  // Stored preference and locale are browser-only, so the first render is USD and this reconciles after mount.
   useEffect(() => {
     let saved: Currency | null = null;
 
@@ -94,8 +82,7 @@ export const CurrencyProvider: React.FC<{
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (isIndia) setDetectedRegion("IN");
 
-    // An explicit choice always outranks detection, so someone in India who switched
-    // back to USD is not flipped to INR again on their next visit.
+    // An explicit choice outranks detection, so someone in India who chose USD is not flipped back to INR.
     if (saved) setCurrencyState(saved);
     else if (isIndia) setCurrencyState("INR");
   }, []);

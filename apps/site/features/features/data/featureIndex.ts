@@ -1,6 +1,5 @@
 import type { FeatureIndexItem } from "../types";
 
-/** The contents list under the /features headline. Each `id` is a section on the page. */
 export const FEATURE_INDEX: FeatureIndexItem[] = [
   {
     id: "studio",

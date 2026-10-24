@@ -26,8 +26,7 @@ export const metadata: Metadata = buildPageMetadata({
   noIndex: true,
 });
 
-// An unmatched URL never enters the (marketing) segment, so the root fallback brings the
-// site's own navigation with it rather than stranding the visitor on a bare page.
+// Unmatched URLs never enter the (marketing) segment, so the root fallback brings its own navigation.
 const NotFound = () => (
   <MainLayout>
     <NotFoundPage />

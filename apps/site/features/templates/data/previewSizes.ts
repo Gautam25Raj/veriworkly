@@ -1,9 +1,4 @@
-/**
- * Pixel sizes of the raster template previews, for og:image width/height. Social cards do
- * not render SVG, so a template whose preview is an SVG wireframe falls back to the generic
- * templates card. `claims-truth.contract.test.ts` reads the files with sharp and fails when
- * a size here is stale.
- */
+/** For og:image width/height; social cards don't render SVG. claims-truth.contract.test.ts fails when a size is stale. */
 export const PREVIEW_SIZES: Record<string, { width: number; height: number }> = {
   "/templates/resume/executive-clarity.png": { width: 630, height: 877 },
   "/templates/resume/precision-ats.png": { width: 631, height: 882 },
@@ -21,7 +16,6 @@ export const TEMPLATES_FALLBACK_CARD = {
   height: 630,
 } as const;
 
-/** The share image for a template: its own preview when that is a raster, otherwise the card. */
 export function shareImageFor(previewImage: string) {
   const size = PREVIEW_SIZES[previewImage];
 

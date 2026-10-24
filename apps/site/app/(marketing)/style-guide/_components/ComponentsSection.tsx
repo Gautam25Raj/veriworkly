@@ -6,11 +6,7 @@ import { siteConfig } from "@/config/site";
 
 import { SectionHeader } from "./SectionHeader";
 
-/**
- * Every status colour here resolves to a theme token, never a raw Tailwind shade.
- * A status painted in `emerald-500` is invisible to the design system: it will not
- * follow a theme change and it appears in no palette.
- */
+/** Status colours must resolve to theme tokens, never raw Tailwind shades, or they won't follow a theme change. */
 const STATUSES = [
   {
     label: "Success",
@@ -84,8 +80,7 @@ export const ComponentsSection = () => {
           <h3 className="text-lg font-semibold">Interactive Elements</h3>
 
           <div className="flex flex-col items-start gap-4">
-            {/* Docs live on their own subdomain. `/docs` is not a route on this app
-                and was a soft-404. */}
+            {/* Docs live on their own subdomain; `/docs` is not a route on this app. */}
             <Link
               target="_blank"
               rel="noreferrer"

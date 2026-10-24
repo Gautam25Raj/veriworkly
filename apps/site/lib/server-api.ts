@@ -5,16 +5,9 @@ import { cookies } from "next/headers";
 
 import { ApiRequestError, fetchApiData } from "@/utils/fetchApiData";
 
-/**
- * Why a server-side read failed. Collapsing all of these into `null` is fine for optional
- * data (a pricing page that just hides a badge), but it is actively harmful for a gated
- * page: "you are signed out" and "the backend returned 503" demand opposite responses,
- * and treating the second as the first bounces a signed-in user into a login redirect
- * loop.
- */
+/** "Signed out" and "backend returned 503" need opposite responses; treating the second as the first causes a login redirect loop. */
 
 export type ServerApiFailure =
-  /** No session cookie on the request at all - the visitor is browsing anonymously. */
   | "no-session"
   /** A session was sent but the backend rejected it (expired, revoked). */
   | "unauthorized"
@@ -24,16 +17,9 @@ export type ServerApiFailure =
 export type ServerApiResult<T> =
   { ok: true; data: T } | { ok: false; reason: ServerApiFailure; status?: number };
 
-// Server Component data fetching, authenticated as the visiting user. `fetchApiData` already
-// forwards a first-party Origin header when called server-side; the one thing it can't do on its
-// own is see the browser's cookies, since Node's fetch has no ambient cookie jar - so we read
-// them explicitly from the incoming request via next/headers and forward them along.
+// Node's fetch has no cookie jar, so the browser's cookies are read from next/headers and forwarded.
 
-/**
- * Only the auth cookies go to the backend. Forwarding the whole jar sent the theme, guest and
- * any third-party cookies on every server-side call (W-066). Better Auth names them with the
- * "veriworkly-auth." prefix (apps/server/src/auth/index.ts), plus "__Secure-" over HTTPS.
- */
+/** Only the auth cookies ("veriworkly-auth." prefix, plus "__Secure-" over HTTPS) go to the backend, never the whole jar. */
 export function sessionCookieHeader(all: { name: string; value: string }[]) {
   return all
     .filter(({ name }) => /^(__Secure-)?veriworkly-auth\./.test(name))

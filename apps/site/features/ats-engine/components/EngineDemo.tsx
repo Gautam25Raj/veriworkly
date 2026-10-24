@@ -23,11 +23,7 @@ const STATUS_STYLE: Record<AtsReport["requirements"][number]["status"], string> 
   unverifiable: "bg-muted/10 text-muted",
 };
 
-/**
- * Scores invented sample resumes with the real engine, in the visitor's browser. The engine is
- * loaded only when the demo scrolls into view, and nothing is sent anywhere. Visitors can edit
- * the posting, not the resume: checking their own resume is what /ats-checker is for.
- */
+/** Visitors edit the posting, not the resume: checking their own resume is what /ats-checker is for. */
 export function EngineDemo() {
   const sectionRef = useRef<HTMLDivElement>(null);
   const [check, setCheck] = useState<CheckFn | null>(null);
@@ -54,9 +50,7 @@ export function EngineDemo() {
     setResult({ report, ms: performance.now() - started });
   };
 
-  // Load the engine (115 KB gz) once the demo is near the viewport and the browser is idle,
-  // then score the selected sample. The demo sits in the hero, so "near the viewport" alone
-  // meant at page load, competing with the first paint (W-038).
+  // Load the engine (115 KB gz) only when near the viewport and idle: the demo is in the hero, so near-viewport alone meant page load.
   useEffect(() => {
     const node = sectionRef.current;
     if (!node || check) return;

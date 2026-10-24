@@ -10,15 +10,7 @@ interface ComparePricingSectionProps {
   competitor: Competitor;
 }
 
-/**
- * Rendered under an "Included for free" heading on all six /compare/* pages, so
- * every line here has to be true of the free tier specifically.
- *
- * The portfolio line is deliberately split from the document line: document
- * exports genuinely carry no watermark on any tier, while a free portfolio
- * publishes with a "Built with VeriWorkly" badge and only the two core
- * templates. Publishing itself is not live yet, hence the "at launch" label.
- */
+/** Rendered under "Included for free" on every /compare page, so each line must be true of the free tier. */
 const VERIWORKLY_PRICING_PILLARS = [
   "No account or credit card required to start",
   "Unlimited PDF, Word (DOCX), and Markdown downloads",

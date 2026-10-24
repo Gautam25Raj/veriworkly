@@ -1,10 +1,6 @@
 import { siteConfig } from "@/config/site";
 
-/**
- * The four entities every page's JSON-LD hangs off. The root layout defines them once with
- * these `@id`s; pages reference them instead of re-declaring an Organization or Person with a
- * different shape. One graph, one product name, one founder.
- */
+/** Pages reference these `@id`s from the root layout instead of re-declaring an Organization or Person. */
 export const SCHEMA_IDS = {
   website: `${siteConfig.url}/#website`,
   organization: `${siteConfig.url}/#organization`,

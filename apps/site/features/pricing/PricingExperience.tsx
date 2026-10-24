@@ -9,9 +9,7 @@ import PricingHero from "./components/PricingHero";
 import PricingAlaCarte from "./components/PricingAlaCarte";
 import PricingComparison from "./components/PricingComparison";
 
-// `paymentsBlocked` is the PAYMENTS_BLOCKED constant in app/(marketing)/pricing/page.tsx. It only
-// disables the buttons ahead of time; the backend's BillingController.assertPaymentsEnabled is
-// the real gate. There is no per-user bypass on the site (W-052, W-067).
+// `paymentsBlocked` only disables the buttons; BillingController.assertPaymentsEnabled is the real gate.
 import { CurrencyProvider } from "./context/CurrencyContext";
 
 const PricingExperience = ({
@@ -19,7 +17,6 @@ const PricingExperience = ({
   inrPerUsd,
 }: {
   paymentsBlocked: boolean;
-  /** Live USD→INR rate, resolved server-side. Omitted callers get the built-in fallback. */
   inrPerUsd?: number;
 }) => {
   const [bundleInterval, setBundleInterval] = useState<"monthly" | "annual">("annual");

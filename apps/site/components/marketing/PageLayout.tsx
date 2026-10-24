@@ -6,31 +6,14 @@ import { cn } from "@veriworkly/ui";
 
 import { siteConfig } from "@/config/site";
 
-/**
- * The page frame and section primitives every secondary marketing page is built from.
- *
- * They follow the pricing page: one 1180px frame, a left-aligned display headline whose last
- * line takes the accent, a split row of heading and lede, and sections separated by a step in
- * ground tone rather than by ornaments. Keeping it in one file means a change to the rhythm
- * lands on every page at once.
- */
-
 export const FRAME = "mx-auto w-[min(1180px,calc(100%-32px))]";
 
-/**
- * The type scale. Five sizes do the visible work on every page; anything larger than `title`
- * comes from here, never from a one-off clamp.
- */
+/** Anything larger than `title` comes from this scale, never from a one-off clamp. */
 export const TYPE = {
-  /** The page's h1. One per page. */
   display: "text-[clamp(2.75rem,6vw,5.5rem)] leading-[0.92] font-bold tracking-tighter",
-  /** A section's h2. */
   section: "text-[clamp(2rem,3.6vw,3.25rem)] leading-none font-bold tracking-tighter",
-  /** A large number in a figure or stat. */
   figure: "text-[clamp(2rem,3.4vw,3rem)] leading-none font-bold tracking-tighter tabular-nums",
-  /** A block or card heading inside a section. */
   title: "text-xl leading-snug font-bold tracking-tight lg:text-2xl",
-  /** The paragraph that introduces a page or section. */
   lede: "text-base leading-7 lg:text-lg lg:leading-8",
 } as const;
 
@@ -43,16 +26,11 @@ const TONES = {
 export type SectionTone = keyof typeof TONES;
 
 interface PageHeroProps {
-  /** The headline in the foreground colour. Keep each line short. */
   title: ReactNode;
-  /** Optional last line, set in the accent. */
   highlight?: ReactNode;
   lede: ReactNode;
-  /** Sits under the lede in the right column: actions, a meta line, a toggle. */
   aside?: ReactNode;
-  /** Above the headline: a back link or breadcrumb, never a label. */
   before?: ReactNode;
-  /** Full-width content under the headline row. */
   children?: ReactNode;
   className?: string;
 }
@@ -92,7 +70,6 @@ export function PageHero({
 interface SectionHeadingProps {
   title: ReactNode;
   lede?: ReactNode;
-  /** Heading level. Sections are h2; a nested block inside one is h3. */
   as?: "h2" | "h3";
   className?: string;
 }
@@ -122,7 +99,6 @@ interface PageSectionProps extends Omit<SectionHeadingProps, "as" | "className">
   tone?: SectionTone;
   children?: ReactNode;
   className?: string;
-  /** Spacing between the heading row and the content. */
   contentClassName?: string;
 }
 
@@ -151,14 +127,9 @@ export function PageSection({
 interface PageClosingProps {
   title?: ReactNode;
   lede?: ReactNode;
-  /** The quiet second action. Defaults to the template gallery. */
   secondary?: { label: string; href: string };
 }
 
-/**
- * The last section of a secondary page: one ink panel, one decision. The landing page keeps its
- * own closer; these pages end on the same frame and type as the rest of them.
- */
 export function PageClosing({
   title = "Your next resume starts here.",
   lede = "Free to build and free to export, in every format. Sign up only when you want sync.",

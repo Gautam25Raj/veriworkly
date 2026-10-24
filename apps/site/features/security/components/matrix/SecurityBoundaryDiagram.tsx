@@ -10,14 +10,7 @@ import { TYPE } from "@/components/marketing/PageLayout";
 import { ENCRYPTION_BOUNDARIES } from "../../data";
 import type { DataStop } from "../../types";
 
-/**
- * Pick something you do in VeriWorkly and see every place your text reaches while you do it.
- *
- * Every claim shown here comes from ENCRYPTION_BOUNDARIES, which is the copy we can back up
- * from the repository. The earlier version of this diagram carried its own list of specs
- * (local storage encryption, AES-256, TLS 1.3, a 24h SLA) that the code does not support, so
- * the diagram now has no copy of its own beyond the names of the stops.
- */
+/** Every claim comes from ENCRYPTION_BOUNDARIES; the diagram keeps no copy of its own beyond the stop names. */
 
 const STOPS: { id: DataStop; name: string; where: string }[] = [
   { id: "browser", name: "Your browser", where: "On your device" },
@@ -42,7 +35,6 @@ export const SecurityBoundaryDiagram = () => {
   const active = ENCRYPTION_BOUNDARIES.find((item) => item.id === activeId)!;
   const leavesDevice = active.route.some((stop) => stop !== "browser");
 
-  // Tabs pattern from the ARIA Authoring Practices: arrows move and wrap, Home and End jump.
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     const count = ENCRYPTION_BOUNDARIES.length;
     const step = KEY_STEPS[event.key];

@@ -2,12 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * A production build runs with the backend unreachable (CI builds against a dummy URL, and a
- * deploy can race a backend restart). These pin the behaviour that keeps such a build from
- * publishing a broken site: an outage must throw, not masquerade as "no such release", and
- * the sitemap must keep its last good copy instead of shrinking to the static routes.
- */
+/** Builds run with the backend unreachable: an outage must throw, not read as "no such release", and the sitemap must keep its last good copy. */
 
 process.env.NEXT_PUBLIC_BACKEND_URL ??= "http://127.0.0.1:1/api/v1";
 

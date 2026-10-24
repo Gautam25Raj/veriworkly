@@ -6,10 +6,6 @@ import { siteConfig } from "@/config/site";
 
 import { FRAME, TYPE } from "@/components/marketing/PageLayout";
 
-/**
- * The founder's note, set like a letter: the heading and signature hold the left column, the
- * text reads at a comfortable size on the right. On a phone it runs heading, letter, signature.
- */
 const AboutLetter = () => (
   <section className="bg-accent text-accent-foreground border-border border-b py-20 lg:py-28">
     <figure

@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { siteConfig } from "@/config/site";
 
 interface BuildPageMetadataOptions {
-  /** Path relative to the site root, e.g. "/about". Use "/" for the homepage. */
   path: string;
 
   /** <title> / Google SERP copy. Keyword-forward, ~50-60 chars, brand at the end. */
@@ -11,24 +10,14 @@ interface BuildPageMetadataOptions {
   /** Meta description for Google SERP. ~150-160 chars, includes a reason to click. */
   description: string;
 
-  /**
-   * og:title - shown in link unfurls (Slack, LinkedIn, iMessage, Discord). The site
-   * name renders separately in most unfurls, so this should lead with the hook/benefit
-   * rather than repeating "| VeriWorkly". Deliberately written, not a copy of `title`.
-   */
+  /** og:title for link unfurls; the site name renders separately, so lead with the hook rather than "| VeriWorkly". */
   ogTitle: string;
-  /** og:description - can be more benefit-driven / conversational than the SEO description. */
   ogDescription: string;
 
-  /**
-   * twitter:title - Twitter/X truncates card titles harder than OG unfurls, so this
-   * should be the tightest, punchiest variant. Deliberately written, not a copy of `ogTitle`.
-   */
+  /** twitter:title: X truncates card titles harder than OG unfurls, so this is the tightest variant. */
   twitterTitle: string;
-  /** twitter:description - short and scannable; the audience skims faster than a Slack unfurl. */
   twitterDescription: string;
 
-  /** Absolute or root-relative URL to the OG/Twitter share image. */
   image: string;
   imageAlt?: string;
 
@@ -40,42 +29,18 @@ interface BuildPageMetadataOptions {
 
   type?: "website" | "article";
 
-  /**
-   * Set true for pages that should not be indexed - the 404 boundaries, and any
-   * internal or utility route.
-   *
-   * Not the style guide: it is a public design-system reference, linked from the
-   * footer and llms.txt and listed in the sitemap deliberately. This docblock used to
-   * cite it as the example, which contradicted how the page is actually treated.
-   */
+  /** Not for the style guide: it is a public reference, deliberately in the sitemap. */
   noIndex?: boolean;
 
-  /**
-   * Query params to append to the canonical (and og:url). Paginated routes must pass their
-   * page number here - without it every page declares the bare path as its canonical, and
-   * Google drops page 2+ from the index as duplicates. Empty/undefined values are skipped,
-   * so page 1 still canonicalises to the clean path.
-   */
+  /** Paginated routes must pass their page here, or Google drops page 2+ as duplicates; empty values are skipped. */
   canonicalParams?: Record<string, string | number | undefined>;
 }
 
-/**
- * Builds a complete Next.js Metadata object with canonical, Open Graph, and Twitter
- * Card fields always present, so no marketing page ever ships with a partial <head>
- * block. Next.js does not deep-merge nested metadata fields (openGraph,
- * twitter) from the root layout into page-level metadata, so every field a page needs
- * must be set explicitly here rather than relied on to inherit.
- *
- * title / ogTitle / twitterTitle are three separate required inputs on purpose: each
- * surface (Google SERP, social unfurls, Twitter cards) has different length limits and
- * audience context, so they should read as distinct, purpose-written copy rather than
- * the same string echoed three times.
- */
+/** Next does not deep-merge openGraph/twitter from the root layout, so every field a page needs is set here explicitly. */
 
 export const TITLE_MAX = 60;
 export const DESCRIPTION_MAX = 160;
 
-/** Cuts `text` at a word boundary so it fits `max`, with an ellipsis when something was cut. */
 export function clampText(text: string, max: number) {
   const clean = text.replace(/\s+/g, " ").trim();
 
@@ -87,10 +52,6 @@ export function clampText(text: string, max: number) {
   return `${(atWord > max / 2 ? cut.slice(0, atWord) : cut).replace(/[\s,:;.-]+$/, "")}…`;
 }
 
-/**
- * `<main> | <suffix>`, with `main` cut so the whole title stays within the SERP limit. Used by
- * routes whose titles come from data (releases, roadmap items, templates, comparisons).
- */
 export function fitTitle(main: string, suffix: string, max = TITLE_MAX) {
   return `${clampText(main, max - suffix.length - 3)} | ${suffix}`;
 }
@@ -132,9 +93,7 @@ export function buildPageMetadata(options: BuildPageMetadataOptions): Metadata {
       : {}),
 
     openGraph: {
-      // `og:url` is omitted on noIndex pages for the same reason as the canonical
-      // below - it is a self-reference to a URL that should not be treated as a
-      // destination, and for the 404 boundaries it names a route that does not exist.
+      // No og:url on noIndex pages, for the same reason as the canonical below.
       ...(options.noIndex ? {} : { url }),
       title: options.ogTitle,
       type: options.type ?? "website",
@@ -160,27 +119,7 @@ export function buildPageMetadata(options: BuildPageMetadataOptions): Metadata {
       site: siteConfig.twitter.site,
     },
 
-    /**
-     * A noIndex page gets no canonical.
-     *
-     * Emitting one alongside `robots: noindex` is contradictory markup, and on the
-     * not-found boundaries it was worse: they pass `path: "/404"` and `"/roadmap/404"`,
-     * which are not real routes, so every 404 response advertised a canonical pointing
-     * at a URL that itself 404s.
-     *
-     * `null` rather than an omitted key, because Next.js merges page metadata over the
-     * root layout's - and the root layout sets `canonical: "/"`. Simply leaving the
-     * field out let that inherit through, which made every 404 declare itself the
-     * canonical homepage. `null` explicitly clears it.
-     *
-     * No `languages` map either. hreflang points search engines at alternate language
-     * or regional versions of a page, and there is exactly one version of every page
-     * here, so a self-referencing single-entry set tells Google nothing it can act on.
-     * It previously emitted `en-US`, which was the worst of the available options: it
-     * region-locks the page to United States English, while this is an India-based
-     * service with a global English-speaking audience and no US-specific content. If
-     * regional variants are ever added, the correct shape is `en` plus `x-default`.
-     */
+    /** noIndex gets canonical `null` (not omitted, or the root layout's "/" inherits); no hreflang, since every page has one version. */
     ...(options.noIndex ? { alternates: { canonical: null } } : { alternates: { canonical: url } }),
   };
 }

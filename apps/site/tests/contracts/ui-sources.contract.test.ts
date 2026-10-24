@@ -2,11 +2,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-/**
- * globals.css lists the @veriworkly/ui component files Tailwind scans, instead of the whole
- * package. A component the site starts importing without a matching @source line renders
- * with its utility classes missing, and nothing else would fail.
- */
+/** A UI component imported without a matching @source line in globals.css renders with its utility classes missing. */
 
 const siteRoot = join(__dirname, "..", "..");
 const uiComponents = resolve(siteRoot, "..", "..", "packages", "ui", "src", "components");

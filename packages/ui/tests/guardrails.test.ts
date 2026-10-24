@@ -47,10 +47,13 @@ const rules: { name: string; pattern: RegExp; why: string; allow?: string[] }[] 
   },
   {
     name: "arbitrary z-index",
-    pattern: /z-\[\d+\]|zIndex:\s*\d{3,}/,
-    why: "Use the scale: menu 30, navbar 100, modal 200, skip link 300.",
+    pattern: /z-\[\d+\]|\bz-(?!(?:30|90|100|200|300)\b)\d+\b|zIndex:\s*\d{3,}/,
+    why: "Use the scale: menu 30, mobile nav 90, navbar 100, modal 200, skip link 300.",
   },
 ];
+
+const ATTRIBUTE = String.raw`"[^"]*"|'[^']*'|\{(?:[^{}]|\{[^{}]*\})*\}|[^>"'{}]`;
+const LINK_TAG = new RegExp(String.raw`<(?:Link|a)\b(?:${ATTRIBUTE})*>`, "g");
 
 describe("source guardrails", () => {
   for (const rule of rules) {
@@ -66,8 +69,8 @@ describe("source guardrails", () => {
 
   it("never ships a target=_blank link without rel", () => {
     const offenders = files.filter((file) =>
-      [...file.text.matchAll(/<Link[\s\S]*?>/g)].some(
-        (match) => /target=/.test(match[0]) && !/rel=/.test(match[0]),
+      [...file.text.matchAll(LINK_TAG)].some(
+        (match) => /\starget=/.test(match[0]) && !/\srel=/.test(match[0]),
       ),
     );
 

@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { cn } from "../../utils";
+import { supportsPopover } from "../../lib/popover";
 
 export interface TooltipProps {
   children: React.ReactNode;
@@ -142,12 +143,18 @@ export function Tooltip({
     const trigger = triggerRef.current;
     if (!tooltip || !trigger) return;
 
+    const popover = supportsPopover(tooltip);
+
     if (!open) {
-      if (tooltip.matches(":popover-open")) tooltip.hidePopover();
+      if (popover && tooltip.matches(":popover-open")) tooltip.hidePopover();
       return;
     }
 
-    if (!tooltip.matches(":popover-open")) tooltip.showPopover();
+    if (popover && !tooltip.matches(":popover-open")) tooltip.showPopover();
+
+    // Measured where it last sat, a tip near the right edge shrinks to fit.
+    tooltip.style.top = "0px";
+    tooltip.style.left = "0px";
 
     const anchor = (trigger.firstElementChild as HTMLElement | null) ?? trigger;
     const placement = place(
@@ -202,9 +209,11 @@ export function Tooltip({
         id={tooltipId}
         role="tooltip"
         popover="manual"
+        data-open={open ? "" : undefined}
         data-instant={instant ? "" : undefined}
         className={cn(
           "fixed inset-auto m-0 overflow-visible border-0 bg-transparent p-0",
+          "not-supports-[selector(:popover-open)]:not-data-open:hidden",
           "transition-[opacity,transform] duration-150 ease-out starting:scale-[0.97] starting:opacity-0",
           "data-instant:transition-none motion-reduce:transition-none",
           ORIGIN[placedSide],

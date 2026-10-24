@@ -86,6 +86,7 @@ export function Menu({
     }
 
     if (event.key === "Tab") {
+      if (panelRef.current?.contains(event.target as Node)) focusTrigger();
       setOpen(false);
       return;
     }

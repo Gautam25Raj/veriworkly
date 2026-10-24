@@ -16,6 +16,7 @@ import {
   MarketingFooter,
   MarketingMobileNav,
   MarketingNavbar,
+  Modal,
   Select,
   Switch,
   TextArea,
@@ -45,6 +46,19 @@ describe("Button", () => {
     const out = html(
       <Button asChild disabled>
         <a href="/x">Go</a>
+      </Button>,
+    );
+
+    expect(out).toContain('aria-disabled="true"');
+    expect(out).toContain('tabindex="-1"');
+  });
+
+  it("keeps the aria-disabled and tabIndex an enabled asChild child set itself", () => {
+    const out = html(
+      <Button asChild>
+        <a href="/x" aria-disabled="true" tabIndex={-1}>
+          Go
+        </a>
       </Button>,
     );
 
@@ -112,6 +126,25 @@ describe("Switch", () => {
     expect(out).toContain('role="switch"');
     expect(out).toContain('aria-label="Auto-sync"');
   });
+
+  it("keeps its state visible in forced-colors mode", () => {
+    const out = html(<Switch checked onCheckedChange={() => {}} aria-label="Auto-sync" />);
+
+    expect(out).toContain("forced-colors:bg-[Highlight]");
+    expect(out).toContain("forced-colors:border-[ButtonText]");
+  });
+});
+
+describe("Modal", () => {
+  it("renders nothing on the server, so the portal mounts once", () => {
+    const out = html(
+      <Modal open onClose={() => {}}>
+        <Modal.Content>Body</Modal.Content>
+      </Modal>,
+    );
+
+    expect(out).toBe("");
+  });
 });
 
 describe("Badge and Card", () => {
@@ -143,6 +176,17 @@ describe("Tooltip", () => {
     expect(out).toContain('popover="manual"');
     expect(out).toContain("Rename document");
   });
+
+  it("stays hidden where the Popover API is missing", () => {
+    const out = html(
+      <Tooltip content="Rename document">
+        <button type="button">Rename</button>
+      </Tooltip>,
+    );
+
+    expect(out).toContain("not-supports-[selector(:popover-open)]:not-data-open:hidden");
+    expect(out).not.toMatch(/\sdata-open=/);
+  });
 });
 
 describe("Accordion", () => {
@@ -171,6 +215,15 @@ describe("Accordion", () => {
 
   it("keeps collapsed answers in the markup for crawlers and find-in-page", () => {
     expect(html(accordion)).toContain("Answer B");
+  });
+
+  it("hides only the collapsed region from assistive tech", () => {
+    const out = html(accordion);
+    const regions = [...out.matchAll(/<div[^>]*role="region"[^>]*>/g)].map((m) => m[0]);
+
+    expect(regions).toHaveLength(2);
+    expect(regions[0]).not.toContain("aria-hidden");
+    expect(regions[1]).toContain('aria-hidden="true"');
   });
 
   it("honours headingLevel", () => {
@@ -260,6 +313,7 @@ describe("MarketingFooter", () => {
   });
 
   it("does not announce the brand twice", () => {
+    expect(out).toMatch(/<img[^>]*\salt=""/);
     expect(out).not.toMatch(/alt="[^"]+"/);
   });
 });

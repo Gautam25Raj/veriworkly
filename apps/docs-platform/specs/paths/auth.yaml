@@ -50,9 +50,28 @@ sendOtp:
             example:
               success: true
       "400":
-        description: Missing or malformed email address.
+        description: |
+          Missing or malformed body, an invalid email address, or `type: change-email`, which this
+          endpoint rejects. Returned in Better Auth's error shape, not `ErrorResponse`.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                message:
+                  type: string
+            example:
+              code: "INVALID_EMAIL"
+              message: "Invalid email"
+      "403":
+        description: The request's `Origin` is not in the server's trusted origins.
       "429":
-        description: Too many OTP requests — 3 per minute per IP.
+        description: |
+          Too many OTP requests: 3 per minute per IP. Better Auth answers with `{ "message": "..." }`
+          and an `X-Retry-After` header. Outside development the server's own limiter (20 per
+          minute) can answer first, with `ErrorResponse` and a `Retry-After` header.
 
 verifyOtp:
   post:
@@ -69,9 +88,9 @@ verifyOtp:
       attempts by default. This endpoint returns Better Auth's payload, not the
       `{ success, message, data }` envelope.
 
-      Rate limited to 20 requests per minute per IP — the default for `/api/v1/auth/*`. (A tighter
-      5/minute rule exists in configuration but targets `/email-otp/verify-otp`, a path this Better
-      Auth version does not expose, so it never applies.)
+      Rate limited to 3 requests per minute per IP, by the email OTP plugin's own rule for this
+      path. (A 5 per minute rule in the server configuration targets `/email-otp/verify-otp`, a
+      path this Better Auth version does not expose, so it never applies.) Codes are 6 digits.
     requestBody:
       required: true
       content:
@@ -87,6 +106,13 @@ verifyOtp:
                 format: email
               otp:
                 type: string
+                description: The 6-digit code from the email.
+              name:
+                type: string
+                description: Used only when the account is created on this first sign-in.
+              image:
+                type: string
+                description: Used only when the account is created on this first sign-in.
           example:
             email: "user@example.com"
             otp: "123456"
@@ -106,9 +132,15 @@ verifyOtp:
                   type: object
                   additionalProperties: true
       "400":
-        description: The OTP is invalid, expired, or the attempt limit was exceeded.
+        description: |
+          The body is invalid, the code is wrong (`INVALID_OTP`), or it has expired
+          (`OTP_EXPIRED`). Returned in Better Auth's error shape, `{ code, message }`.
+      "403":
+        description: |
+          The attempt limit was reached (`TOO_MANY_ATTEMPTS`). The code is discarded, so request a
+          new one.
       "429":
-        description: Too many requests — 20 per minute per IP.
+        description: Too many requests. The limit is 3 per minute per IP, and Better Auth sends an `X-Retry-After` header.
 
 getSession:
   get:
@@ -120,6 +152,7 @@ getSession:
     security:
       - LocalSession: []
       - ProdSession: []
+      - {}
     description: |
       Returns the active session and its user, based on the request's session cookie. Returns
       `null` rather than an error when no valid session cookie is present.
@@ -152,9 +185,13 @@ signOut:
     security:
       - LocalSession: []
       - ProdSession: []
+      - {}
     description: |
       Revokes the current session and clears the session cookie. Also flushes the server-side
-      session cache for that cookie.
+      session cache for that cookie. It succeeds even when no session cookie is sent.
+
+      A request that carries a cookie must also send an `Origin` or `Referer` header from a trusted
+      origin, or it is rejected with `403`.
 
       This endpoint returns Better Auth's payload, not the `{ success, message, data }` envelope.
     responses:
@@ -169,3 +206,5 @@ signOut:
                   type: boolean
             example:
               success: true
+      "403":
+        description: A cookie was sent without an `Origin` or `Referer` from a trusted origin.

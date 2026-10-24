@@ -1,5 +1,5 @@
 # Generated files are written with LF. Keep them LF on Windows checkouts so a rebuild does not show them as modified.
-apps/*/public/openapi.json text eol=lf
+apps/docs-platform/public/openapi.json text eol=lf
 apps/docs-platform/openapi.yaml text eol=lf
 apps/docs-platform/public/openapi.yaml text eol=lf
 apps/docs-platform/content/api-reference/** text eol=lf

@@ -6,11 +6,11 @@
   "site_url": "https://app.veriworkly.com",
   "llms_txt": "https://app.veriworkly.com/llms.txt",
   "pricing_md": "https://app.veriworkly.com/pricing.md",
-  "openapi_spec": "https://app.veriworkly.com/openapi.json",
+  "openapi_spec": "https://docs.veriworkly.com/openapi.json",
 
   "api": {
     "type": "openapi",
-    "url": "https://app.veriworkly.com/openapi.json",
+    "url": "https://docs.veriworkly.com/openapi.json",
     "has_user_authentication": true,
     "auth_type": "cookie, bearer",
     "auth_details": "Web sessions authenticate via Better Auth Email OTP cookies ('veriworkly-auth.session_token' in development or '__Secure-veriworkly-auth.session_token' in production). Programmatic agents authenticate via hashed Bearer tokens ('Authorization: Bearer vw_...').",

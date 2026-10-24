@@ -39,12 +39,12 @@ The User profile returned by these endpoints _only_ contains top-level account m
 
 ## Security & Access Control
 
-| Feature                 | Enforcement                                                                                                          |
-| :---------------------- | :------------------------------------------------------------------------------------------------------------------- |
-| **Authentication**      | A **Better Auth** session cookie, or an API key with the `user:read` / `user:write` scope.                           |
-| **Data Integrity**      | Email addresses are strictly **read-only** to prevent account hijacking.                                             |
-| **Username immutable**  | A username can be claimed once. Changing it afterwards returns `409`, because it is baked into existing public URLs. |
-| **Unauthorized Access** | Requests with no valid session and no API key return `401 Unauthorized`.                                             |
+| Feature                 | Enforcement                                                                                                                           |
+| :---------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
+| **Authentication**      | A **Better Auth** session cookie, or an API key with the `user:read` / `user:write` scope. `DELETE /users/me` accepts a session only. |
+| **Data Integrity**      | Email addresses are strictly **read-only** to prevent account hijacking.                                                              |
+| **Username immutable**  | A username can be claimed once. Changing it afterwards returns `409`, because it is baked into existing public URLs.                  |
+| **Unauthorized Access** | Requests with no valid session and no API key return `401 Unauthorized`.                                                              |
 
 ---
 

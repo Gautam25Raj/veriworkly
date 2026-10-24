@@ -6,7 +6,6 @@ getChangelogEntries:
     summary: Get Changelog Entries
     security:
       - ApiKeyAuth: []
-      - {}
     description: |
       Fetch published changelog entries, newest first, with optional filtering and pagination.
 
@@ -140,6 +139,8 @@ getChangelogEntries:
 
       "401":
         $ref: "../components/responses.yaml#/UnauthorizedError"
+      "403":
+        $ref: "../components/responses.yaml#/InsufficientScopeError"
 
 getChangelogStats:
   get:
@@ -149,7 +150,6 @@ getChangelogStats:
     summary: Get Changelog Stats
     security:
       - ApiKeyAuth: []
-      - {}
     description: |
       Aggregated release counts by type, the latest published release, and contributor totals
       derived from the pull-request references recorded on each entry.
@@ -183,6 +183,8 @@ getChangelogStats:
 
       "401":
         $ref: "../components/responses.yaml#/UnauthorizedError"
+      "403":
+        $ref: "../components/responses.yaml#/InsufficientScopeError"
 
 getChangelogEntryById:
   get:
@@ -192,7 +194,6 @@ getChangelogEntryById:
     summary: Get Changelog Entry by ID
     security:
       - ApiKeyAuth: []
-      - {}
     description: |
       Fetch a single changelog entry by its id. Requires the `changelog:read` scope when called
       with an API key.
@@ -232,6 +233,8 @@ getChangelogEntryById:
 
       "401":
         $ref: "../components/responses.yaml#/UnauthorizedError"
+      "403":
+        $ref: "../components/responses.yaml#/InsufficientScopeError"
 
       "404":
         description: Changelog entry not found

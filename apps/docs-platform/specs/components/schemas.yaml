@@ -22,6 +22,42 @@ ErrorResponse:
           message:
             type: string
 
+UnauthorizedResponse:
+  type: object
+  description: |
+    The body of a `401`. Routes that accept an API key or a session answer with `code`; a
+    rejection thrown from inside a handler carries `statusCode` instead.
+  required:
+    - success
+    - message
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    statusCode:
+      type: integer
+    code:
+      type: string
+      enum: [API_KEY_REQUIRED, AUTH_REQUIRED]
+
+AtsQuotaErrorResponse:
+  type: object
+  description: The body of a `429` from the ATS quota. `details` is the caller's current quota.
+  required:
+    - success
+    - message
+    - statusCode
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    statusCode:
+      type: integer
+    details:
+      $ref: "#/AtsQuotaSummary"
+
 ##################################################
 # SHARED PAGINATION
 ##################################################

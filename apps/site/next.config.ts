@@ -112,6 +112,12 @@ const nextConfig: NextConfig = {
       { source: "/blog", destination: "https://blog.veriworkly.com", permanent: true },
       { source: "/docs", destination: "https://docs.veriworkly.com/docs", permanent: true },
       { source: "/dashboard", destination: "https://app.veriworkly.com", permanent: true },
+      // One generated copy of the API spec lives on the docs site; this was a duplicate of it.
+      {
+        source: "/openapi.json",
+        destination: "https://docs.veriworkly.com/openapi.json",
+        permanent: true,
+      },
 
       // Older template URLs used unprefixed slugs. Send the known legacy paths to the
       // current, canonical template detail pages instead of serving soft 404s.

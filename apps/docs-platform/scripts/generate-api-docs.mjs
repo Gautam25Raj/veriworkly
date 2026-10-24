@@ -29,13 +29,9 @@ const outputDir = path.join(appRoot, "content/api-reference");
 
 // Served at /openapi.json and /openapi.yaml, and advertised by `llms.txt` and the agent card.
 // Written from the same bundle as the MDX pages — they were hand-maintained once and drifted.
+// This is the only copy: the other apps redirect their /openapi.json here.
 const publicJsonPath = path.join(appRoot, "public/openapi.json");
 const publicYamlPath = path.join(appRoot, "public/openapi.yaml");
-
-const repoRoot = path.join(appRoot, "..", "..");
-const satelliteJsonPaths = ["site", "studio", "portfolio", "blog-platform"].map((appName) =>
-  path.join(repoRoot, "apps", appName, "public/openapi.json"),
-);
 
 /* ------------------------------------------------------------------ bundle */
 
@@ -122,10 +118,13 @@ function resolve(node, baseDir, selfPrefix) {
       throw new Error(`Circular $ref while inlining: ${[...inlining, key].join(" -> ")}`);
     }
 
+    // Resolved before the key goes on the stack, so a sibling that points at the same target is not
+    // mistaken for a cycle.
+    const extra = siblings();
+
     inlining.push(key);
     try {
       const inlined = resolve(pointer(load(abs), fragment), path.dirname(abs), selfPrefixFor(abs));
-      const extra = siblings();
 
       // Keys written next to the $ref (a summary, say) belong to the referencing file; keep them.
       return Object.keys(extra).length > 0 && inlined && typeof inlined === "object"
@@ -192,14 +191,11 @@ function writeIfChanged(file, text) {
 writeIfChanged(bundlePath, bundledYaml);
 writeIfChanged(publicYamlPath, bundledYaml);
 writeIfChanged(publicJsonPath, bundledJson);
-for (const targetPath of satelliteJsonPaths) {
-  if (fs.existsSync(path.dirname(targetPath))) writeIfChanged(targetPath, bundledJson);
-}
 
 const pathCount = Object.keys(bundled.paths ?? {}).length;
 const schemaCount = Object.keys(bundled.components?.schemas ?? {}).length;
 console.log(
-  `[api-docs] bundled ${pathCount} paths and ${schemaCount} schemas -> openapi.yaml, public/openapi.{json,yaml} across docs-platform, site, studio, portfolio, blog-platform`,
+  `[api-docs] bundled ${pathCount} paths and ${schemaCount} schemas -> openapi.yaml, public/openapi.{json,yaml}`,
 );
 
 /* ---------------------------------------------------------------- generate */
@@ -233,6 +229,7 @@ try {
   });
 
   const pages = stagedPages(stagingDir);
+  const formatted = new Map();
   let updated = 0;
   let removed = 0;
 
@@ -242,17 +239,19 @@ try {
     pages.map(async (relative) => {
       const destination = path.join(outputDir, relative);
       const source = fs.readFileSync(path.join(stagingDir, relative), "utf8");
-      const formatted = await prettier.format(source, {
-        ...(await prettier.resolveConfig(destination)),
-        filepath: destination,
-      });
 
-      fs.mkdirSync(path.dirname(destination), { recursive: true });
-      if (writeIfChanged(destination, formatted)) updated++;
+      formatted.set(
+        relative,
+        await prettier.format(source, {
+          ...(await prettier.resolveConfig(destination)),
+          filepath: destination,
+        }),
+      );
     }),
   );
 
-  // A renamed or removed operation would otherwise leave an orphaned page behind.
+  // Swept before writing: on a case-insensitive disk a page renamed only in case is written through
+  // the old file name, and a sweep after the write would delete it.
   const keep = new Set(pages);
   for (const entry of fs.readdirSync(outputDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
@@ -264,6 +263,13 @@ try {
         removed++;
       }
     }
+  }
+
+  for (const [relative, text] of formatted) {
+    const destination = path.join(outputDir, relative);
+
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    if (writeIfChanged(destination, text)) updated++;
   }
 
   console.log(
@@ -292,6 +298,9 @@ try {
     console.warn(
       `[api-docs] WARNING: ${unlisted.length} page(s) are missing from their folder's meta.json and will not appear in the sidebar:\n${list}`,
     );
+
+    // Strict only in the CI drift check: a hosted docs build must not fail over navigation.
+    if (process.env.API_DOCS_STRICT) process.exitCode = 1;
   }
 } finally {
   fs.rmSync(stagingDir, { recursive: true, force: true });

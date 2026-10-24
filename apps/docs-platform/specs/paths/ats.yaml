@@ -123,7 +123,7 @@ extractAtsResumeText:
         content:
           application/json:
             schema:
-              $ref: "../components/schemas.yaml#/ErrorResponse"
+              $ref: "../components/schemas.yaml#/AtsQuotaErrorResponse"
             example:
               success: false
               statusCode: 429
@@ -177,7 +177,7 @@ checkAtsResume:
         content:
           application/json:
             schema:
-              $ref: "../components/schemas.yaml#/ErrorResponse"
+              $ref: "../components/schemas.yaml#/AtsQuotaErrorResponse"
             example:
               success: false
               statusCode: 429
@@ -268,7 +268,7 @@ analyzeAtsResume:
         content:
           application/json:
             schema:
-              $ref: "../components/schemas.yaml#/ErrorResponse"
+              $ref: "../components/schemas.yaml#/AtsQuotaErrorResponse"
             example:
               success: false
               statusCode: 429
@@ -294,7 +294,7 @@ analyzeAtsResume:
               statusCode: 502
               message: "AI ATS analysis could not be completed."
       "503":
-        description: The ATS AI policy is invalid, or AI provider credentials are not configured on the server.
+        description: The ATS AI policy is invalid, AI provider credentials are not configured, or AI model routing is not configured on the server.
         content:
           application/json:
             schema:
@@ -388,7 +388,7 @@ convertAtsResume:
               statusCode: 502
               message: "AI resume conversion could not be completed."
       "503":
-        description: The ATS AI policy is invalid, or AI provider credentials are not configured on the server.
+        description: The ATS AI policy is invalid, AI provider credentials are not configured, or AI model routing is not configured on the server.
         content:
           application/json:
             schema:

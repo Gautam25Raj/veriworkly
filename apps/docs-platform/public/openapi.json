@@ -537,7 +537,7 @@
         "tags": ["Roadmap"],
         "operationId": "getRoadmap",
         "summary": "Get Roadmap Features",
-        "security": [{ "ApiKeyAuth": [] }, {}],
+        "security": [{ "ApiKeyAuth": [] }],
         "description": "Fetch roadmap features with optional filtering, sorting, and pagination.\n\nThis endpoint has no user session of its own: call it with an API key holding the\n`roadmap:read` scope, or from a whitelisted first-party origin. A request with neither is\nrejected with `401`.\n",
         "parameters": [
           {
@@ -649,7 +649,8 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/UnauthorizedError" }
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/InsufficientScopeError" }
         }
       }
     },
@@ -658,7 +659,7 @@
         "tags": ["Roadmap"],
         "operationId": "getRoadmapStats",
         "summary": "Get Roadmap Stats",
-        "security": [{ "ApiKeyAuth": [] }, {}],
+        "security": [{ "ApiKeyAuth": [] }],
         "description": "Retrieve aggregated roadmap statistics.",
         "responses": {
           "200": {
@@ -680,7 +681,8 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/UnauthorizedError" }
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/InsufficientScopeError" }
         }
       }
     },
@@ -689,7 +691,7 @@
         "tags": ["Roadmap"],
         "operationId": "getRoadmapFeatureById",
         "summary": "Get Roadmap Feature by ID",
-        "security": [{ "ApiKeyAuth": [] }, {}],
+        "security": [{ "ApiKeyAuth": [] }],
         "description": "Fetch detailed roadmap feature by ID.",
         "parameters": [
           {
@@ -732,6 +734,7 @@
             }
           },
           "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/InsufficientScopeError" },
           "404": {
             "description": "Feature not found",
             "content": {
@@ -753,7 +756,7 @@
         "tags": ["Changelog"],
         "operationId": "getChangelogEntries",
         "summary": "Get Changelog Entries",
-        "security": [{ "ApiKeyAuth": [] }, {}],
+        "security": [{ "ApiKeyAuth": [] }],
         "description": "Fetch published changelog entries, newest first, with optional filtering and pagination.\n\nThis endpoint has no user session of its own: call it with an API key holding the\n`changelog:read` scope, or from a whitelisted first-party origin. A request with neither is\nrejected with `401`.\n\nResults are cached per query for `CHANGELOG_CACHE_TTL_SECONDS` (default 30 days) and busted\nwhenever an admin writes an entry.\n",
         "parameters": [
           {
@@ -874,7 +877,8 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/UnauthorizedError" }
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/InsufficientScopeError" }
         }
       }
     },
@@ -883,7 +887,7 @@
         "tags": ["Changelog"],
         "operationId": "getChangelogStats",
         "summary": "Get Changelog Stats",
-        "security": [{ "ApiKeyAuth": [] }, {}],
+        "security": [{ "ApiKeyAuth": [] }],
         "description": "Aggregated release counts by type, the latest published release, and contributor totals\nderived from the pull-request references recorded on each entry.\n\nRequires the `changelog:read` scope when called with an API key.\n",
         "responses": {
           "200": {
@@ -918,7 +922,8 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/UnauthorizedError" }
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/InsufficientScopeError" }
         }
       }
     },
@@ -927,7 +932,7 @@
         "tags": ["Changelog"],
         "operationId": "getChangelogEntryById",
         "summary": "Get Changelog Entry by ID",
-        "security": [{ "ApiKeyAuth": [] }, {}],
+        "security": [{ "ApiKeyAuth": [] }],
         "description": "Fetch a single changelog entry by its id. Requires the `changelog:read` scope when called\nwith an API key.\n",
         "parameters": [
           {
@@ -968,6 +973,7 @@
             }
           },
           "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/InsufficientScopeError" },
           "404": {
             "description": "Changelog entry not found",
             "content": {
@@ -989,7 +995,7 @@
         "tags": ["GitHub"],
         "operationId": "getGitHubStats",
         "summary": "Get GitHub Stats",
-        "security": [{ "ApiKeyAuth": [] }, {}],
+        "security": [{ "ApiKeyAuth": [] }],
         "description": "Fetch aggregated issue and pull-request statistics for the configured repository, as of the\nlast sync. Served from the last synced snapshot, not live from GitHub — `syncedAt` tells you\nhow fresh it is. Cached for 12 hours.\n\nThis endpoint has no user session of its own: call it with an API key holding the\n`github:read` scope, or from a whitelisted first-party origin. A request with neither is\nrejected with `401`.\n",
         "responses": {
           "200": {
@@ -1030,7 +1036,8 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/UnauthorizedError" }
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/InsufficientScopeError" }
         }
       }
     },
@@ -1039,7 +1046,7 @@
         "tags": ["GitHub"],
         "operationId": "getGitHubIssues",
         "summary": "Get GitHub Issues",
-        "security": [{ "ApiKeyAuth": [] }, {}],
+        "security": [{ "ApiKeyAuth": [] }],
         "description": "Fetch paginated GitHub issues and pull requests with optional filters, from the last synced\nsnapshot rather than live from GitHub. Ordered by most recently updated. Returns an empty\npage when no sync has run yet.\n\nRequires the `github:read` scope when called with an API key.\n",
         "parameters": [
           {
@@ -1115,7 +1122,8 @@
             }
           },
           "400": { "$ref": "#/components/responses/ValidationError" },
-          "401": { "$ref": "#/components/responses/UnauthorizedError" }
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/InsufficientScopeError" }
         }
       }
     },
@@ -1227,8 +1235,24 @@
               }
             }
           },
-          "400": { "description": "Missing or malformed email address." },
-          "429": { "description": "Too many OTP requests — 3 per minute per IP." }
+          "400": {
+            "description": "Missing or malformed body, an invalid email address, or `type: change-email`, which this\nendpoint rejects. Returned in Better Auth's error shape, not `ErrorResponse`.\n",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "code": { "type": "string" }, "message": { "type": "string" } }
+                },
+                "example": { "code": "INVALID_EMAIL", "message": "Invalid email" }
+              }
+            }
+          },
+          "403": {
+            "description": "The request's `Origin` is not in the server's trusted origins."
+          },
+          "429": {
+            "description": "Too many OTP requests: 3 per minute per IP. Better Auth answers with `{ \"message\": \"...\" }`\nand an `X-Retry-After` header. Outside development the server's own limiter (20 per\nminute) can answer first, with `ErrorResponse` and a `Retry-After` header.\n"
+          }
         }
       }
     },
@@ -1237,7 +1261,7 @@
         "tags": ["Authentication"],
         "operationId": "verifyOTP",
         "summary": "Sign In With Email OTP",
-        "description": "Exchanges a valid OTP for a session. On success the session cookie is set via `Set-Cookie`\nand the session token plus the user record are returned.\n\nA user is created automatically on first sign-in. Codes expire after 5 minutes and allow 3\nattempts by default. This endpoint returns Better Auth's payload, not the\n`{ success, message, data }` envelope.\n\nRate limited to 20 requests per minute per IP — the default for `/api/v1/auth/*`. (A tighter\n5/minute rule exists in configuration but targets `/email-otp/verify-otp`, a path this Better\nAuth version does not expose, so it never applies.)\n",
+        "description": "Exchanges a valid OTP for a session. On success the session cookie is set via `Set-Cookie`\nand the session token plus the user record are returned.\n\nA user is created automatically on first sign-in. Codes expire after 5 minutes and allow 3\nattempts by default. This endpoint returns Better Auth's payload, not the\n`{ success, message, data }` envelope.\n\nRate limited to 3 requests per minute per IP, by the email OTP plugin's own rule for this\npath. (A 5 per minute rule in the server configuration targets `/email-otp/verify-otp`, a\npath this Better Auth version does not expose, so it never applies.) Codes are 6 digits.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -1247,7 +1271,15 @@
                 "required": ["email", "otp"],
                 "properties": {
                   "email": { "type": "string", "format": "email" },
-                  "otp": { "type": "string" }
+                  "otp": { "type": "string", "description": "The 6-digit code from the email." },
+                  "name": {
+                    "type": "string",
+                    "description": "Used only when the account is created on this first sign-in."
+                  },
+                  "image": {
+                    "type": "string",
+                    "description": "Used only when the account is created on this first sign-in."
+                  }
                 }
               },
               "example": { "email": "user@example.com", "otp": "123456" }
@@ -1274,9 +1306,14 @@
             }
           },
           "400": {
-            "description": "The OTP is invalid, expired, or the attempt limit was exceeded."
+            "description": "The body is invalid, the code is wrong (`INVALID_OTP`), or it has expired\n(`OTP_EXPIRED`). Returned in Better Auth's error shape, `{ code, message }`.\n"
           },
-          "429": { "description": "Too many requests — 20 per minute per IP." }
+          "403": {
+            "description": "The attempt limit was reached (`TOO_MANY_ATTEMPTS`). The code is discarded, so request a\nnew one.\n"
+          },
+          "429": {
+            "description": "Too many requests. The limit is 3 per minute per IP, and Better Auth sends an `X-Retry-After` header."
+          }
         }
       }
     },
@@ -1285,7 +1322,7 @@
         "tags": ["Authentication"],
         "operationId": "getSession",
         "summary": "Get Current Session",
-        "security": [{ "LocalSession": [] }, { "ProdSession": [] }],
+        "security": [{ "LocalSession": [] }, { "ProdSession": [] }, {}],
         "description": "Returns the active session and its user, based on the request's session cookie. Returns\n`null` rather than an error when no valid session cookie is present.\n\nThis endpoint returns Better Auth's payload, not the `{ success, message, data }` envelope.\n",
         "responses": {
           "200": {
@@ -1315,8 +1352,8 @@
         "tags": ["Authentication"],
         "operationId": "signOut",
         "summary": "Sign Out",
-        "security": [{ "LocalSession": [] }, { "ProdSession": [] }],
-        "description": "Revokes the current session and clears the session cookie. Also flushes the server-side\nsession cache for that cookie.\n\nThis endpoint returns Better Auth's payload, not the `{ success, message, data }` envelope.\n",
+        "security": [{ "LocalSession": [] }, { "ProdSession": [] }, {}],
+        "description": "Revokes the current session and clears the session cookie. Also flushes the server-side\nsession cache for that cookie. It succeeds even when no session cookie is sent.\n\nA request that carries a cookie must also send an `Origin` or `Referer` header from a trusted\norigin, or it is rejected with `403`.\n\nThis endpoint returns Better Auth's payload, not the `{ success, message, data }` envelope.\n",
         "responses": {
           "200": {
             "description": "Signed out. Clears the session cookie.",
@@ -1326,6 +1363,9 @@
                 "example": { "success": true }
               }
             }
+          },
+          "403": {
+            "description": "A cookie was sent without an `Origin` or `Referer` from a trusted origin."
           }
         }
       }
@@ -2161,7 +2201,7 @@
             "in": "query",
             "required": false,
             "schema": { "type": "string", "format": "date-time" },
-            "description": "Return only documents updated after this ISO 8601 date-time."
+            "description": "Return only documents updated after this date-time. It must be in UTC and end in `Z`, for example `2026-01-01T00:00:00Z`; a timezone offset is rejected with `400`."
           },
           {
             "name": "includeContent",
@@ -2521,7 +2561,7 @@
             "description": "ATS upload quota exceeded",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "schema": { "$ref": "#/components/schemas/AtsQuotaErrorResponse" },
                 "example": {
                   "success": false,
                   "statusCode": 429,
@@ -2578,7 +2618,7 @@
             "description": "ATS scan quota exceeded",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "schema": { "$ref": "#/components/schemas/AtsQuotaErrorResponse" },
                 "example": {
                   "success": false,
                   "statusCode": 429,
@@ -2686,7 +2726,7 @@
             "description": "ATS scan quota exceeded",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "schema": { "$ref": "#/components/schemas/AtsQuotaErrorResponse" },
                 "example": {
                   "success": false,
                   "statusCode": 429,
@@ -2709,7 +2749,7 @@
             }
           },
           "503": {
-            "description": "The ATS AI policy is invalid, or AI provider credentials are not configured on the server.",
+            "description": "The ATS AI policy is invalid, AI provider credentials are not configured, or AI model routing is not configured on the server.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" },
@@ -2820,7 +2860,7 @@
             }
           },
           "503": {
-            "description": "The ATS AI policy is invalid, or AI provider credentials are not configured on the server.",
+            "description": "The ATS AI policy is invalid, AI provider credentials are not configured, or AI model routing is not configured on the server.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" },
@@ -2851,7 +2891,7 @@
           },
           "401": { "$ref": "#/components/responses/UnauthorizedError" },
           "503": {
-            "description": "The AI policy is missing or invalid on the server.",
+            "description": "The AI policy is missing or invalid, or AI model routing is not configured on the server.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" },
@@ -2977,7 +3017,7 @@
             }
           },
           "503": {
-            "description": "The AI policy is missing or invalid, or AI provider credentials are not configured on the server.",
+            "description": "The AI policy is missing or invalid, AI provider credentials are not configured, or AI model routing is not configured on the server.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" },
@@ -4415,6 +4455,28 @@
               "properties": { "path": { "type": "string" }, "message": { "type": "string" } }
             }
           }
+        }
+      },
+      "UnauthorizedResponse": {
+        "type": "object",
+        "description": "The body of a `401`. Routes that accept an API key or a session answer with `code`; a\nrejection thrown from inside a handler carries `statusCode` instead.\n",
+        "required": ["success", "message"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "message": { "type": "string" },
+          "statusCode": { "type": "integer" },
+          "code": { "type": "string", "enum": ["API_KEY_REQUIRED", "AUTH_REQUIRED"] }
+        }
+      },
+      "AtsQuotaErrorResponse": {
+        "type": "object",
+        "description": "The body of a `429` from the ATS quota. `details` is the caller's current quota.",
+        "required": ["success", "message", "statusCode"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "message": { "type": "string" },
+          "statusCode": { "type": "integer" },
+          "details": { "$ref": "#/components/schemas/AtsQuotaSummary" }
         }
       },
       "OffsetPaginationMeta": {
@@ -7409,8 +7471,21 @@
         "description": "Unauthorized - Authentication failed or session expired.",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "schema": { "$ref": "#/components/schemas/UnauthorizedResponse" },
             "example": { "success": false, "statusCode": 401, "message": "Authentication required" }
+          }
+        }
+      },
+      "InsufficientScopeError": {
+        "description": "Forbidden - The API key does not carry the scope this operation needs.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": {
+              "success": false,
+              "statusCode": 403,
+              "message": "This API key does not have permission for this action."
+            }
           }
         }
       },

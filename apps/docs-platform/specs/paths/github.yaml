@@ -6,7 +6,6 @@ getGitHubStats:
     summary: Get GitHub Stats
     security:
       - ApiKeyAuth: []
-      - {}
     description: |
       Fetch aggregated issue and pull-request statistics for the configured repository, as of the
       last sync. Served from the last synced snapshot, not live from GitHub — `syncedAt` tells you
@@ -47,6 +46,8 @@ getGitHubStats:
                   data: null
       "401":
         $ref: "../components/responses.yaml#/UnauthorizedError"
+      "403":
+        $ref: "../components/responses.yaml#/InsufficientScopeError"
 
 getGitHubIssues:
   get:
@@ -56,7 +57,6 @@ getGitHubIssues:
     summary: Get GitHub Issues
     security:
       - ApiKeyAuth: []
-      - {}
     description: |
       Fetch paginated GitHub issues and pull requests with optional filters, from the last synced
       snapshot rather than live from GitHub. Ordered by most recently updated. Returns an empty
@@ -143,6 +143,8 @@ getGitHubIssues:
         $ref: "../components/responses.yaml#/ValidationError"
       "401":
         $ref: "../components/responses.yaml#/UnauthorizedError"
+      "403":
+        $ref: "../components/responses.yaml#/InsufficientScopeError"
 
 syncGitHubStats:
   post:

@@ -599,7 +599,6 @@ paths:
       summary: Get Roadmap Features
       security:
         - ApiKeyAuth: []
-        - {}
       description: |
         Fetch roadmap features with optional filtering, sorting, and pagination.
 
@@ -722,6 +721,8 @@ paths:
                     message: Number must be greater than or equal to 1
         "401":
           $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/InsufficientScopeError"
   /api/v1/roadmap/stats:
     get:
       tags:
@@ -730,7 +731,6 @@ paths:
       summary: Get Roadmap Stats
       security:
         - ApiKeyAuth: []
-        - {}
       description: Retrieve aggregated roadmap statistics.
       responses:
         "200":
@@ -750,6 +750,8 @@ paths:
                   completionRate: "30.00"
         "401":
           $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/InsufficientScopeError"
   /api/v1/roadmap/{id}:
     get:
       tags:
@@ -758,7 +760,6 @@ paths:
       summary: Get Roadmap Feature by ID
       security:
         - ApiKeyAuth: []
-        - {}
       description: Fetch detailed roadmap feature by ID.
       parameters:
         - name: id
@@ -797,6 +798,8 @@ paths:
                   interactions: []
         "401":
           $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/InsufficientScopeError"
         "404":
           description: Feature not found
           content:
@@ -815,7 +818,6 @@ paths:
       summary: Get Changelog Entries
       security:
         - ApiKeyAuth: []
-        - {}
       description: |
         Fetch published changelog entries, newest first, with optional filtering and pagination.
 
@@ -948,6 +950,8 @@ paths:
                     message: Number must be less than or equal to 50
         "401":
           $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/InsufficientScopeError"
   /api/v1/changelog/stats:
     get:
       tags:
@@ -956,7 +960,6 @@ paths:
       summary: Get Changelog Stats
       security:
         - ApiKeyAuth: []
-        - {}
       description: |
         Aggregated release counts by type, the latest published release, and contributor totals
         derived from the pull-request references recorded on each entry.
@@ -989,6 +992,8 @@ paths:
                       contributions: 9
         "401":
           $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/InsufficientScopeError"
   /api/v1/changelog/{id}:
     get:
       tags:
@@ -997,7 +1002,6 @@ paths:
       summary: Get Changelog Entry by ID
       security:
         - ApiKeyAuth: []
-        - {}
       description: |
         Fetch a single changelog entry by its id. Requires the `changelog:read` scope when called
         with an API key.
@@ -1040,6 +1044,8 @@ paths:
                   prRefs: null
         "401":
           $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/InsufficientScopeError"
         "404":
           description: Changelog entry not found
           content:
@@ -1058,7 +1064,6 @@ paths:
       summary: Get GitHub Stats
       security:
         - ApiKeyAuth: []
-        - {}
       description: |
         Fetch aggregated issue and pull-request statistics for the configured repository, as of the
         last sync. Served from the last synced snapshot, not live from GitHub — `syncedAt` tells you
@@ -1099,6 +1104,8 @@ paths:
                     data: null
         "401":
           $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/InsufficientScopeError"
   /api/v1/github/issues:
     get:
       tags:
@@ -1107,7 +1114,6 @@ paths:
       summary: Get GitHub Issues
       security:
         - ApiKeyAuth: []
-        - {}
       description: |
         Fetch paginated GitHub issues and pull requests with optional filters, from the last synced
         snapshot rather than live from GitHub. Ordered by most recently updated. Returns an empty
@@ -1201,6 +1207,8 @@ paths:
           $ref: "#/components/responses/ValidationError"
         "401":
           $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/InsufficientScopeError"
   /api/v1/github/admin/sync:
     post:
       tags:
@@ -1325,9 +1333,28 @@ paths:
               example:
                 success: true
         "400":
-          description: Missing or malformed email address.
+          description: |
+            Missing or malformed body, an invalid email address, or `type: change-email`, which this
+            endpoint rejects. Returned in Better Auth's error shape, not `ErrorResponse`.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  message:
+                    type: string
+              example:
+                code: INVALID_EMAIL
+                message: Invalid email
+        "403":
+          description: The request's `Origin` is not in the server's trusted origins.
         "429":
-          description: Too many OTP requests — 3 per minute per IP.
+          description: |
+            Too many OTP requests: 3 per minute per IP. Better Auth answers with `{ "message": "..." }`
+            and an `X-Retry-After` header. Outside development the server's own limiter (20 per
+            minute) can answer first, with `ErrorResponse` and a `Retry-After` header.
   /api/v1/auth/sign-in/email-otp:
     post:
       tags:
@@ -1342,9 +1369,9 @@ paths:
         attempts by default. This endpoint returns Better Auth's payload, not the
         `{ success, message, data }` envelope.
 
-        Rate limited to 20 requests per minute per IP — the default for `/api/v1/auth/*`. (A tighter
-        5/minute rule exists in configuration but targets `/email-otp/verify-otp`, a path this Better
-        Auth version does not expose, so it never applies.)
+        Rate limited to 3 requests per minute per IP, by the email OTP plugin's own rule for this
+        path. (A 5 per minute rule in the server configuration targets `/email-otp/verify-otp`, a
+        path this Better Auth version does not expose, so it never applies.) Codes are 6 digits.
       requestBody:
         required: true
         content:
@@ -1360,6 +1387,13 @@ paths:
                   format: email
                 otp:
                   type: string
+                  description: The 6-digit code from the email.
+                name:
+                  type: string
+                  description: Used only when the account is created on this first sign-in.
+                image:
+                  type: string
+                  description: Used only when the account is created on this first sign-in.
             example:
               email: user@example.com
               otp: "123456"
@@ -1381,9 +1415,15 @@ paths:
                     type: object
                     additionalProperties: true
         "400":
-          description: The OTP is invalid, expired, or the attempt limit was exceeded.
+          description: |
+            The body is invalid, the code is wrong (`INVALID_OTP`), or it has expired
+            (`OTP_EXPIRED`). Returned in Better Auth's error shape, `{ code, message }`.
+        "403":
+          description: |
+            The attempt limit was reached (`TOO_MANY_ATTEMPTS`). The code is discarded, so request a
+            new one.
         "429":
-          description: Too many requests — 20 per minute per IP.
+          description: Too many requests. The limit is 3 per minute per IP, and Better Auth sends an `X-Retry-After` header.
   /api/v1/auth/get-session:
     get:
       tags:
@@ -1393,6 +1433,7 @@ paths:
       security:
         - LocalSession: []
         - ProdSession: []
+        - {}
       description: |
         Returns the active session and its user, based on the request's session cookie. Returns
         `null` rather than an error when no valid session cookie is present.
@@ -1423,9 +1464,13 @@ paths:
       security:
         - LocalSession: []
         - ProdSession: []
+        - {}
       description: |
         Revokes the current session and clears the session cookie. Also flushes the server-side
-        session cache for that cookie.
+        session cache for that cookie. It succeeds even when no session cookie is sent.
+
+        A request that carries a cookie must also send an `Origin` or `Referer` header from a trusted
+        origin, or it is rejected with `403`.
 
         This endpoint returns Better Auth's payload, not the `{ success, message, data }` envelope.
       responses:
@@ -1440,6 +1485,8 @@ paths:
                     type: boolean
               example:
                 success: true
+        "403":
+          description: A cookie was sent without an `Origin` or `Referer` from a trusted origin.
   /api/v1/api-keys:
     get:
       tags:
@@ -2295,7 +2342,7 @@ paths:
           schema:
             type: string
             format: date-time
-          description: Return only documents updated after this ISO 8601 date-time.
+          description: Return only documents updated after this date-time. It must be in UTC and end in `Z`, for example `2026-01-01T00:00:00Z`; a timezone offset is rejected with `400`.
         - name: includeContent
           in: query
           required: false
@@ -2674,7 +2721,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/AtsQuotaErrorResponse"
               example:
                 success: false
                 statusCode: 429
@@ -2730,7 +2777,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/AtsQuotaErrorResponse"
               example:
                 success: false
                 statusCode: 429
@@ -2833,7 +2880,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/AtsQuotaErrorResponse"
               example:
                 success: false
                 statusCode: 429
@@ -2849,7 +2896,7 @@ paths:
                 statusCode: 502
                 message: AI ATS analysis could not be completed.
         "503":
-          description: The ATS AI policy is invalid, or AI provider credentials are not configured on the server.
+          description: The ATS AI policy is invalid, AI provider credentials are not configured, or AI model routing is not configured on the server.
           content:
             application/json:
               schema:
@@ -2945,7 +2992,7 @@ paths:
                 statusCode: 502
                 message: AI resume conversion could not be completed.
         "503":
-          description: The ATS AI policy is invalid, or AI provider credentials are not configured on the server.
+          description: The ATS AI policy is invalid, AI provider credentials are not configured, or AI model routing is not configured on the server.
           content:
             application/json:
               schema:
@@ -2986,7 +3033,7 @@ paths:
         "401":
           $ref: "#/components/responses/UnauthorizedError"
         "503":
-          description: The AI policy is missing or invalid on the server.
+          description: The AI policy is missing or invalid, or AI model routing is not configured on the server.
           content:
             application/json:
               schema:
@@ -3102,7 +3149,7 @@ paths:
                 statusCode: 502
                 message: The AI provider could not complete the request.
         "503":
-          description: The AI policy is missing or invalid, or AI provider credentials are not configured on the server.
+          description: The AI policy is missing or invalid, AI provider credentials are not configured, or AI model routing is not configured on the server.
           content:
             application/json:
               schema:
@@ -4590,6 +4637,42 @@ components:
                 type: string
               message:
                 type: string
+    UnauthorizedResponse:
+      type: object
+      description: |
+        The body of a `401`. Routes that accept an API key or a session answer with `code`; a
+        rejection thrown from inside a handler carries `statusCode` instead.
+      required:
+        - success
+        - message
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        statusCode:
+          type: integer
+        code:
+          type: string
+          enum:
+            - API_KEY_REQUIRED
+            - AUTH_REQUIRED
+    AtsQuotaErrorResponse:
+      type: object
+      description: The body of a `429` from the ATS quota. `details` is the caller's current quota.
+      required:
+        - success
+        - message
+        - statusCode
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        statusCode:
+          type: integer
+        details:
+          $ref: "#/components/schemas/AtsQuotaSummary"
     OffsetPaginationMeta:
       type: object
       description: |
@@ -8661,11 +8744,21 @@ components:
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/ErrorResponse"
+            $ref: "#/components/schemas/UnauthorizedResponse"
           example:
             success: false
             statusCode: 401
             message: Authentication required
+    InsufficientScopeError:
+      description: Forbidden - The API key does not carry the scope this operation needs.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            statusCode: 403
+            message: This API key does not have permission for this action.
     BadRequestError:
       description: Bad Request - The request parameters or body are invalid.
       content:

@@ -5,7 +5,6 @@ import { Check, Copy } from "lucide-react";
 
 import { cn } from "@veriworkly/ui";
 
-/** A shell command with a copy button, for install lines. */
 export function CopyCommand({ command, className }: { command: string; className?: string }) {
   const [copied, setCopied] = useState(false);
 

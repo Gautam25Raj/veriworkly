@@ -1,17 +1,6 @@
 import type { OAuthScopeItem } from "../types";
 
-/**
- * Corrections against the code, because this table is read as a specification:
- *
- * - The GitHub row claimed "read:user, public_repo". No scopes are configured for the
- *   GitHub provider in `apps/server/src/auth/index.ts`, so Better Auth's defaults
- *   apply. `public_repo` is also a *write* scope, which contradicted the
- *   "zero write permissions" cell sitting beside it either way.
- * - The LinkedIn row claimed "Local Processing Only" and "zero remote credential
- *   transmission". Import POSTs the pasted text to /profiles/import/linkedin, which
- *   forwards it to a third-party model. The first half was the opposite of the truth;
- *   the second half was true but framed to imply the first.
- */
+/** Read as a specification: GitHub uses Better Auth's default scopes, and LinkedIn import sends the text to a third-party model. */
 export const OAUTH_SCOPES: OAuthScopeItem[] = [
   {
     provider: "GitHub sign-in",

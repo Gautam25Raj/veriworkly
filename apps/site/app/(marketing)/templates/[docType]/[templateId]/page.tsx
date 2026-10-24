@@ -22,10 +22,8 @@ import TemplatePreview from "@/features/templates/TemplatePreview";
 import TemplateCard, { templateGridClass } from "@/features/templates/TemplateCard";
 import { buildEditorUrl, buildPreviewUrl } from "@/features/templates/utils";
 
-/** How many sibling templates the closing row suggests: one full gallery row. */
 const MORE_COUNT = 4;
 
-/** Each block in the details column opens below a rule, like a spec sheet. */
 const DETAIL_BLOCK = "border-border mt-10 border-t pt-8";
 
 type PageProps = {
@@ -80,10 +78,6 @@ export function generateStaticParams() {
   }));
 }
 
-/**
- * The template catalogue is a build-time constant and anything outside it 404s, so
- * unknown slugs should be rejected by the router rather than server-rendered.
- */
 export const dynamicParams = false;
 
 const TemplateDetailPage = async ({ params }: PageProps) => {
@@ -180,7 +174,6 @@ const TemplateDetailPage = async ({ params }: PageProps) => {
             All {template.documentTypeLabel.toLowerCase()} templates
           </Link>
 
-          {/* A product page: the export stays in view while the reasons to pick it scroll past. */}
           <div className="mt-8 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-16">
             <figure className="lg:sticky lg:top-28">
               <div
@@ -225,6 +218,7 @@ const TemplateDetailPage = async ({ params }: PageProps) => {
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link
                   href={editorUrl}
+                  rel="nofollow"
                   className="group bg-foreground text-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-accent/40 inline-flex h-12 items-center gap-2 rounded-full px-6 text-base font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none active:scale-[0.97]"
                 >
                   {isPortfolioTemplate ? "Use in Portfolio Builder" : "Use this template"}

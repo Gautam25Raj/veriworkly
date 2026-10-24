@@ -39,7 +39,6 @@ const FaqInteractiveSection = () => {
     });
   }, [deferredSearchQuery, selectedCategory]);
 
-  // Grouped by topic, so the page reads as a document even with every question shown.
   const groups = useMemo(
     () =>
       TOPICS.map((topic) => ({
@@ -159,7 +158,6 @@ const FaqInteractiveSection = () => {
                     </span>
                   </h2>
 
-                  {/* One panel per topic, rows split by a hairline: 47 separate cards read as noise. */}
                   <Accordion
                     type="single"
                     collapsible

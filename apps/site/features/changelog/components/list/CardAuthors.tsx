@@ -7,7 +7,6 @@ import {
   type ChangelogPrAuthor,
 } from "@/features/changelog/services/changelog-backend";
 
-/** The distinct authors of a release's pull requests, in the order they first appear. */
 export function prAuthors(prRefs: ChangelogPrRef[]): ChangelogPrAuthor[] {
   const seen = new Map<string, ChangelogPrAuthor>();
 
@@ -58,10 +57,7 @@ export const AvatarStack = ({
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
-/**
- * Who shipped a release, in one fixed place on every row: the authors' faces, then the counts.
- * A release with no linked pull request says so, so the column never just disappears.
- */
+/** A release with no linked pull request says so, so the column never disappears. */
 export const CardAuthors = ({
   prRefs,
   className,

@@ -31,7 +31,6 @@ const AI_FACTS: Array<{
   },
 ];
 
-/** The review step, drawn as the studio shows it. The bullets are an illustration. */
 const DiffFigure = () => (
   <figure>
     <div data-ui className="bg-card overflow-hidden rounded-3xl">

@@ -1,17 +1,4 @@
-/**
- * Proves the three descriptions of the colour system agree:
- *
- *   1. packages/ui/src/styles/themes.css   - what the product renders
- *   2. apps/site/config/brand.ts           - what /style-guide and /brand-kit publish
- *   3. DESIGN.md                           - what the team is told
- *
- * DESIGN.md tells contributors to change these together. This makes that checkable
- * instead of aspirational. Also flags tokens that exist but were never mapped into a
- * Tailwind `@theme` block, which silently produce dead utility classes.
- *
- * Run:  npm run check:design   (from apps/site)
- * Exits non-zero on any drift, so it is safe to put in CI.
- */
+/** Proves themes.css, config/brand.ts and DESIGN.md agree, and flags tokens mapped into no Tailwind `@theme` block. Exits non-zero on drift. */
 
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -26,8 +13,6 @@ const DESIGN = join(REPO, "DESIGN.md");
 const THEME_APPS = ["site", "studio", "blog-platform", "docs-platform"];
 
 const norm = (value: string) => value.trim().toLowerCase().replace(/\s+/g, " ");
-
-/** Reads the plain (non `--color-*`) custom properties out of one CSS rule block. */
 
 const readBlock = (css: string, selector: string): Record<string, string> => {
   const start = css.indexOf(`${selector} {`);
@@ -162,24 +147,7 @@ const partial = Object.entries(unmappedPerApp)
 
 if (partial.length) problems.push(...partial.map((p) => `mapped unevenly: ${p}`));
 
-/**
- * A token that is defined but mapped into no `@theme` block produces no Tailwind
- * utility. Referencing it in source is then silent: the class name is valid-looking,
- * emits no CSS, and the element quietly inherits its parent colour.
- *
- * That is how `text-muted-foreground` once reached 36 usages across /affiliate while
- * rendering uncoloured body copy. Those are now fixed, so this guard currently catches
- * nothing in apps/site - it exists to keep it that way. The report below already
- * listed the token as "mapped in no app"; it just never failed anything, so nobody
- * acted on it.
- *
- * Note apps/studio still has ~100 `text-muted-foreground` usages with the same dead
- * mapping. This script only scans apps/site, so they are not caught here.
- *
- * Defining a token without a utility is fine on its own (--fd-accent is consumed
- * directly by Fumadocs). Defining one *and using it as a utility* is the bug, so that
- * is what fails here.
- */
+/** A token mapped into no `@theme` block emits no utility, so using it as a class silently renders nothing; that use is what fails. */
 const utilityPrefixes = ["text", "bg", "border", "ring", "fill", "stroke", "from", "to", "via"];
 
 const sourceGlobs = ["app", "components", "features", "hooks", "utils"].map((dir) =>

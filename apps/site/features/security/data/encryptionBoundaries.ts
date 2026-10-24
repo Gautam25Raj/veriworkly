@@ -1,21 +1,6 @@
 import type { EncryptionBoundary } from "../types";
 
-/**
- * Every spec on this page has to be something the repository can back up, because
- * this is the page a reader will quote back at us. Claims we could not support have
- * been removed rather than softened:
- *
- * - "LocalStorage encryption" - the studio writes plaintext JSON.
- * - "In-memory vector rendering (WASM / Canvas)" - exports run through
- *   @react-pdf/renderer, which is neither.
- * - "Zero unauthenticated uploads" - POST /ats/extract accepts a 5 MB file from
- *   anonymous callers by design; that is the ATS checker's own upload path.
- * - "AES-256 database encryption at rest", "TLS 1.3", "edge SSL rotation",
- *   "encrypted API gateways" - provider-dependent, with nothing in this repo behind
- *   them. Our privacy policy deliberately claims none of these, and this page now
- *   matches its restraint: where a provider makes the guarantee, we attribute it to
- *   the provider instead of asserting it ourselves.
- */
+/** Every spec here must be backed by the repository; where a provider makes a guarantee, attribute it to the provider. */
 export const ENCRYPTION_BOUNDARIES: EncryptionBoundary[] = [
   {
     id: "drafting",

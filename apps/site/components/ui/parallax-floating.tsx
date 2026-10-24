@@ -18,13 +18,7 @@ interface FloatingProps {
   easingFactor?: number;
 }
 
-/**
- * Elements drift toward the pointer. The frame loop runs only while something is still
- * moving: a mousemove starts it, and it stops once every element has settled. It used to be
- * a framer useAnimationFrame that ran every frame for the life of the page, plus window
- * mousemove/touchmove listeners that read layout on each event (W-035). Touch input never
- * drove anything useful here, so it no longer registers a listener.
- */
+/** The frame loop runs only while something is still moving, not for the life of the page. */
 const Floating = ({
   children,
   className,
@@ -46,8 +40,6 @@ const Floating = ({
   }, []);
 
   useEffect(() => {
-    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
-
     const pointer = { x: 0, y: 0 };
     let frame = 0;
 
@@ -76,16 +68,23 @@ const Floating = ({
       if (moving) frame = requestAnimationFrame(step);
     };
 
-    const onMove = (event: MouseEvent) => {
-      pointer.x = event.clientX;
-      pointer.y = event.clientY;
+    const moveTo = (x: number, y: number) => {
+      pointer.x = x;
+      pointer.y = y;
       if (!frame) frame = requestAnimationFrame(step);
     };
+    const onMouse = (event: MouseEvent) => moveTo(event.clientX, event.clientY);
+    const onTouch = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (touch) moveTo(touch.clientX, touch.clientY);
+    };
 
-    window.addEventListener("mousemove", onMove, { passive: true });
+    window.addEventListener("mousemove", onMouse, { passive: true });
+    window.addEventListener("touchmove", onTouch, { passive: true });
 
     return () => {
-      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mousemove", onMouse);
+      window.removeEventListener("touchmove", onTouch);
       cancelAnimationFrame(frame);
     };
   }, [sensitivity, easingFactor]);

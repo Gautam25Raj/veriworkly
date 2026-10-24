@@ -150,7 +150,7 @@ const TemplateShowcaseTracks = () => {
 
   return (
     <div
-      className="relative flex w-full flex-col gap-6 overflow-x-hidden py-4 pb-16"
+      className="relative flex w-full flex-col gap-6 overflow-x-clip py-4 pb-16"
       style={{
         maskImage: "linear-gradient(to right, transparent, black 6%, black 94%, transparent)",
         WebkitMaskImage: "linear-gradient(to right, transparent, black 6%, black 94%, transparent)",

@@ -18,11 +18,6 @@ interface ChangelogEntryCardProps {
   isLatest: boolean;
 }
 
-/**
- * One release as a ledger row with three fixed columns: when it shipped, what changed, and who
- * shipped it. Every row keeps the same columns whatever the release holds, so a long list scans
- * straight down.
- */
 const ChangelogEntryCard = ({ entry, isLatest }: ChangelogEntryCardProps) => {
   const typeMeta = TYPE_META[entry.type];
 

@@ -9,10 +9,7 @@ interface FeatureMatrixTableProps {
   competitor: Competitor;
 }
 
-/**
- * The full matrix. The scroll wrapper is focusable so a keyboard user can reach the right-hand
- * column on a narrow screen (WCAG 2.1.1), the same pattern as the pricing comparison.
- */
+/** The scroll wrapper is focusable so keyboard users can reach the right-hand column (WCAG 2.1.1). */
 export const FeatureMatrixTable = ({ competitor }: FeatureMatrixTableProps) => (
   <div
     tabIndex={0}

@@ -47,9 +47,7 @@ export const FEATURE_ROWS: FeatureRowItem[] = [
   },
   {
     key: "freePlan",
-    // Accurate again as of Sep 2026: trials were removed from the product entirely
-    // (see billingService.createCheckoutSession), so there is no expiring trial on any
-    // plan. The free tier is how you try VeriWorkly.
+    // No trials on any plan (see billingService.createCheckoutSession); the free tier is how you try VeriWorkly.
     label: "Real free plan (no expiring trials)",
     category: "builder",
     description:
@@ -64,9 +62,7 @@ export const FEATURE_ROWS: FeatureRowItem[] = [
   },
   {
     key: "watermarkFree",
-    // Scoped to documents on purpose. Free published portfolios do carry a small
-    // "Built with VeriWorkly" badge, which paid plans remove - stating this row
-    // unqualified read as covering portfolios too.
+    // Scoped to documents: free published portfolios carry a "Built with VeriWorkly" badge.
     label: "No watermarks on downloaded documents",
     category: "builder",
     description:
@@ -113,11 +109,7 @@ export const FEATURE_ROWS: FeatureRowItem[] = [
   },
 ];
 
-/**
- * The short list every summary view shows (the hub picker, the hub table, each page's
- * scoreboard), so all three read the same fields from the same data instead of keeping their
- * own hand-written copies of each competitor's limits.
- */
+/** Every summary view (hub picker, hub table, scoreboards) reads these rows, so none keeps its own copy of the limits. */
 export const SNAPSHOT_ROWS = [
   { key: "loginRequired", label: "Sign-up" },
   { key: "freeExport", label: "Free downloads" },

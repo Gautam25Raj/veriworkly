@@ -1,15 +1,12 @@
-// Hub components (Used on /compare)
 export { default as CompareDifferences } from "./hub/CompareDifferences";
 export { default as CompareHubPicker } from "./hub/CompareHubPicker";
 export { default as CompareQuickMatrix } from "./hub/CompareQuickMatrix";
 export { default as CompetitorList } from "./hub/CompetitorList";
 
-// Detail components (Used on /compare/[tool])
 export { default as CompareDeepDiveSection } from "./detail/CompareDeepDiveSection";
 export { default as CompareHighlights } from "./detail/CompareHighlights";
 export { default as ComparePricingSection } from "./detail/ComparePricingSection";
 
-// Shared components
 export { default as CompareCaveatNote } from "./shared/CompareCaveatNote";
 export { default as CompareClosing } from "./shared/CompareClosing";
 export { default as CompareFAQSection } from "./shared/CompareFAQSection";

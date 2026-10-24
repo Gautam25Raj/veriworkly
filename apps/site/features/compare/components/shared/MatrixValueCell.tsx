@@ -11,10 +11,7 @@ interface MatrixValueCellProps {
 const LIMITED = /\b(limit|trial|capped|paid|watermark|required|only)/i;
 const POSITIVE = /\b(unlimited|included|no login)/i;
 
-/**
- * One cell of a comparison. The icon and the word carry the state together, so colour is never
- * the only signal: a tick says "Yes", a cross says "No", a warning sits beside a limit.
- */
+/** Icon and word carry the state together, so colour is never the only signal. */
 export const MatrixValueCell = ({ value, emphasize }: MatrixValueCellProps) => {
   if (value === undefined || value === null) {
     return (

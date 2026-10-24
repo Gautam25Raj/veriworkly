@@ -14,14 +14,12 @@ type Props = {
   shown: number;
   total: number;
   noun: string;
-  /** Present only while a filter is active. */
   onReset?: () => void;
 };
 
 const control =
   "bg-card text-foreground focus-visible:ring-accent/40 h-12 w-full rounded-full text-base transition-shadow focus-visible:ring-2 focus-visible:outline-none";
 
-/** A native select: it scales to any number of options and works with every input method. */
 const Select = ({
   label,
   options,
@@ -54,10 +52,6 @@ const Select = ({
   </label>
 );
 
-/**
- * Search, the two filters and the result count on one row. Filtering is view state over a list
- * already on the page, so nothing here navigates.
- */
 const TemplateFilters = ({
   value,
   onChange,

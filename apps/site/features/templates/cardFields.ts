@@ -1,10 +1,6 @@
 import type { TemplateSummary } from "@/config/templates";
 
-/**
- * The fields a gallery card and the explorer's search read. The explorer is a client
- * component, so whatever the page passes it is serialized into the RSC payload; the full
- * summaries also carry SEO copy, section outlines and design notes it never shows (W-034).
- */
+/** The explorer is a client component, so only these fields go into the RSC payload, not the full summaries. */
 const CARD_FIELDS = [
   "id",
   "name",

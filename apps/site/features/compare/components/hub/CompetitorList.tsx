@@ -5,7 +5,6 @@ import { PageSection, TYPE } from "@/components/marketing/PageLayout";
 
 import { COMPETITORS } from "../../data";
 
-/** Every comparison as one row: who it is, what it is good at, what it costs. */
 const CompetitorList = () => (
   <PageSection
     id="comparisons"

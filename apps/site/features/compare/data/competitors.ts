@@ -211,10 +211,7 @@ export const COMPETITORS: Competitor[] = [
       "Quarterly: $54 every 3 months ($18/month)",
       "Yearly: $96 every 12 months ($8/month)",
     ],
-    // Previously quoted "20,000+ bullet points" and "1,500+ real resumes" as fact,
-    // with no source and no date. Third-party figures stated flatly are the highest-
-    // liability content on these pages and, unlike pricing, sit outside what
-    // PRICING_VERIFIED_AT covers - so the claim is kept qualitative.
+    // Kept qualitative: unsourced third-party figures fall outside PRICING_VERIFIED_AT and are the highest-liability content here.
     standoutFeature:
       "A large library of pre-written bullet points and example resumes drawn from hired applicants.",
     knownLimitation:

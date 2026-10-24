@@ -5,14 +5,10 @@ import { SNAPSHOT_ROWS, VERIWORKLY_MATRIX, VERIWORKLY_PRICE } from "../../data";
 
 interface CompareScoreboardProps {
   competitor: Competitor;
-  /** Heading level for the board's title, so it nests correctly wherever it is placed. */
   headingLevel?: "h2" | "h3";
 }
 
-/**
- * The head-to-head on one card: the five limits people hit first, and the price. Everything is
- * read from the competitor data, so this, the hub table and the full matrix cannot disagree.
- */
+/** Everything is read from the competitor data, so this, the hub table and the full matrix cannot disagree. */
 export const CompareScoreboard = ({
   competitor,
   headingLevel: Heading = "h2",

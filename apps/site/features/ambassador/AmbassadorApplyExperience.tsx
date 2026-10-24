@@ -76,9 +76,7 @@ export const AmbassadorApplyExperience = ({
         clearDraft();
         setSubmitted(true);
       } catch (err) {
-        // The session ran out between loading the page and submitting (W-054): keep the answers
-        // and go through sign-in, which comes back here and submits them. Only once: a second
-        // 401 straight after sign-in would otherwise bounce between here and login forever.
+        // Session expired before submit: keep the answers and sign in, which returns and submits. Only once, or a second 401 loops.
         if (err instanceof ApiRequestError && err.status === 401 && !afterSignIn) {
           writeDraft({ form: payload, stepIndex: REVIEW_INDEX, pendingSubmit: true });
           window.location.href = loginUrl;

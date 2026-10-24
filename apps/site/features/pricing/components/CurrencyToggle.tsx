@@ -50,19 +50,6 @@ export const CurrencyToggle: React.FC<CurrencyToggleProps> = ({ className = "" }
           INR (₹)
         </button>
       </div>
-
-      {/*
-        Checkout is billed in USD, so an INR figure is an estimate and has to read as one.
-        Quoting a precise-looking converted number with no qualifier is the kind of detail
-        people notice on their card statement rather than on this page.
-      */}
-      {/* Rounded: the live rate arrives with full float precision, and ₹88.2371/$1 implies
-          an exactness that a USD-billed checkout cannot honour anyway. */}
-      {/* {currency === "INR" && (
-        <span className="pr-3 font-mono text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
-          approx. ₹{Math.round(exchangeRate)}/$1 · billed in USD
-        </span>
-      )} */}
     </div>
   );
 };

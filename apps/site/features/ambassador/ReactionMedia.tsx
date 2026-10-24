@@ -6,17 +6,7 @@ import { m, useReducedMotion } from "framer-motion";
 
 import type { ApplyReaction } from "@/features/ambassador/apply-reactions";
 
-/**
- * The meme slot for a question. Renders a self-hosted image when one is configured, and
- * an animated emoji sticker otherwise, so the flow looks intentional whether or not
- * anyone has committed assets yet.
- *
- * Degrades in three directions:
- *  - no `src` configured  -> emoji sticker
- *  - `src` fails to load  -> emoji sticker (a 404 must not leave a broken-image icon in
- *                            the middle of a signup flow)
- *  - reduced motion       -> emoji sticker, unanimated
- */
+/** Falls back to the emoji sticker when no src is set, the image fails to load (no broken icon mid-signup), or motion is reduced. */
 export function ReactionMedia({
   reaction,
   className = "",

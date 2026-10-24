@@ -1,7 +1,6 @@
 import { TYPE } from "@/components/marketing/PageLayout";
 import { type ChangelogStats } from "@/features/changelog/services/changelog-backend";
 
-/** The release history in four figures. Without stats there is nothing honest to show. */
 const ChangelogStatsGrid = ({ stats }: { stats: ChangelogStats | null }) => {
   if (!stats) return null;
 

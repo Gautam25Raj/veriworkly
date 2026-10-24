@@ -147,9 +147,7 @@ const AmbassadorFooter = () => {
             >
               Terms of Use
             </Link>
-            {/* `/cookies` is not a route and was a soft-404. There is also no cookie
-                preference UI to link to - we set only essential cookies, so there is
-                nothing to toggle. This points at the policy section that says so. */}
+            {/* Only essential cookies are set, so there is no preference UI; this links the policy section that says so. */}
             <Link
               href="/privacy#cookies"
               className="transition-colors duration-200 hover:text-zinc-950 dark:hover:text-white"

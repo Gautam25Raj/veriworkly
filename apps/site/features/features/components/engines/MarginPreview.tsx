@@ -5,10 +5,7 @@ import { useId, useState } from "react";
 const MIN = 16;
 const MAX = 52;
 
-/**
- * The studio's page-margin control, working. The range is the studio's own (16px to 52px); the
- * preview page is drawn at half size, so the margin it shows is half the value too.
- */
+/** The range is the studio's own (16px to 52px); the preview is half size, so the margin shown is half too. */
 const MarginPreview = () => {
   const [margin, setMargin] = useState(24);
   const inputId = useId();

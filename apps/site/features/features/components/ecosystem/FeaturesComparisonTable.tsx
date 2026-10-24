@@ -7,7 +7,6 @@ import { PageSection, TYPE } from "@/components/marketing/PageLayout";
 
 import { COMPARISON_ROWS } from "../../data";
 
-/** Where to verify the table's last row, "MIT-licensed open core", for yourself. */
 const RESOURCES = [
   {
     title: "Documentation",
@@ -41,10 +40,7 @@ export const FeaturesComparisonTable = () => (
     title="How we compare."
     lede="Against traditional resume websites: clean tools, plain policies, and no paywall when you click download."
   >
-    {/*
-      A horizontally scrollable region has to be reachable by keyboard (WCAG 2.1.1), so the
-      scroll container takes focus and names itself.
-    */}
+    {/* A horizontally scrollable region must be keyboard-reachable (WCAG 2.1.1), so the container takes focus and names itself. */}
     <div
       tabIndex={0}
       role="region"
@@ -92,7 +88,6 @@ export const FeaturesComparisonTable = () => (
       </table>
     </div>
 
-    {/* On a phone the same rows read top to bottom instead of scrolling sideways. */}
     <ul className="reveal bg-card overflow-hidden rounded-3xl md:hidden">
       {COMPARISON_ROWS.map((row) => (
         <li key={row.feature} className="border-border border-t px-5 py-5 first:border-t-0">

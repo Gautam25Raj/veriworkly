@@ -6,7 +6,6 @@ import { siteConfig } from "@/config/site";
 
 import { FRAME, TYPE } from "./PageLayout";
 
-/** Where a lost visitor usually meant to go. */
 const DESTINATIONS = [
   {
     href: "/templates",
@@ -27,16 +26,10 @@ interface StatusPageProps {
   highlight: ReactNode;
   lede: ReactNode;
   actions: ReactNode;
-  /** Show the list of common destinations under the headline. */
   destinations?: boolean;
-  /** `main` when the page renders outside the marketing layout. */
   as?: "main" | "section";
 }
 
-/**
- * The 404, error and offline screens. Same frame and headline as every other page, so a dead
- * end still looks like the site rather than a separate system.
- */
 export function StatusPage({
   title,
   highlight,
@@ -93,13 +86,11 @@ export function StatusPage({
 const ACTION_BASE =
   "focus-visible:ring-accent/40 inline-flex h-12 items-center justify-center gap-2 rounded-full px-6 text-base font-semibold transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none active:scale-[0.97]";
 
-/** Shared button looks for the status screens; they render as links or buttons. */
 export const statusAction = {
   primary: `${ACTION_BASE} bg-foreground text-background hover:bg-accent hover:text-accent-foreground`,
   secondary: `${ACTION_BASE} border-border bg-card text-foreground hover:bg-background border`,
 };
 
-/** The 404 body, shared by the marketing segment and the root fallback. */
 export function NotFoundPage() {
   return (
     <StatusPage
@@ -128,7 +119,6 @@ const Bone = ({ className }: { className: string }) => (
   />
 );
 
-/** A quiet outline of the page hero, so content lands where the skeleton already was. */
 export function LoadingPage({ as: Tag = "section" }: { as?: "main" | "section" }) {
   return (
     <Tag className="pt-28 pb-20 lg:pt-36 lg:pb-28">

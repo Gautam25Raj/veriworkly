@@ -9,8 +9,7 @@ const AffiliateBento = () => {
   const [username, setUsername] = useState("yourcode");
   const [copied, setCopied] = useState(false);
 
-  // The link the studio hands out (apps/studio/features/affiliate/CopyReferralLinkButton.tsx).
-  // The code is assigned when you join; this only previews the shape (W-051).
+  // Mirrors the studio's CopyReferralLinkButton; the real code is assigned on join, so this only previews the shape.
   const referralLink = `${siteConfig.links.app}/login?ref=${username || "yourcode"}`;
   const [scans, setScans] = useState<string[]>(["Filter initialized.", "Network trace: OK."]);
 

@@ -32,11 +32,7 @@ afterEach(() => {
 });
 
 describe("ATS quota reset copy", () => {
-  /**
-   * The window differs per tier (48h anonymous, 24h free, billing period on a paid plan), which
-   * is why this has to be derived from `resetsAt`. A hard-coded "resets in a couple of days" was
-   * wrong for two of the three tiers.
-   */
+  /** The window differs per tier (48h anonymous, 24h free, billing period on paid), so the copy must derive from `resetsAt`. */
 
   it("scales the unit with the distance to the reset", () => {
     expect(resetCopy(inHours(0.25))).toBe("in 15 minutes");

@@ -35,17 +35,13 @@ export const metadata: Metadata = buildPageMetadata({
   ],
 });
 
-/**
- * One real preview of each document type for the hero, in catalog order. If a type is
- * ever missing from the catalog, the wall shows the ones that exist rather than a gap.
- */
+/** If a type is ever missing from the catalog, the wall shows the ones that exist rather than a gap. */
 const HERO_TYPES = ["resume", "cover-letter", "portfolio-website"] as const;
 
 const heroWall = HERO_TYPES.map((type) =>
   templateSummaries.find((template) => template.documentType === type),
 ).filter((template): template is (typeof templateSummaries)[number] => Boolean(template));
 
-/** How many previews each document type's band shows before linking to its full list. */
 const BAND_LIMIT = { documents: 4, portfolios: 2 } as const;
 
 const previewLinkClass =
@@ -122,7 +118,6 @@ const TemplatesPortalPage = () => {
           </>
         }
       >
-        {/* The page's picture: one real export of each kind, large enough to read. */}
         <ul className="grid grid-cols-2 items-end gap-x-4 gap-y-10 sm:gap-x-6 lg:grid-cols-[0.77fr_0.77fr_2.03fr]">
           {heroWall.map((template, index) => {
             const isPortfolio = template.documentType === "portfolio-website";

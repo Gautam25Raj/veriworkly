@@ -17,15 +17,7 @@ const ROTATING_WORDS = [
   "yours 🔥",
 ];
 
-/**
- * `programEnabled` mirrors AMBASSADOR_PROGRAM_ENABLED, the same flag the apply page
- * already respects. Without it the pitch rendered fully in production while "Join
- * Campus Crew" dead-ended on a coming-soon card.
- *
- * The floating cards deliberately carry no point totals or licence keys: the server
- * implements apply, approve, and status only - there is no points model, no voucher
- * model, and no automated .edu verification behind them.
- */
+/** The floating cards carry no points or licence keys: the server implements apply, approve and status only. */
 const AmbassadorHero = ({ programEnabled }: { programEnabled: boolean }) => {
   return (
     <section className="ambassador-bg-noise relative flex min-h-dvh w-full flex-col items-center justify-center overflow-hidden pt-24 pb-20 md:overflow-visible">
@@ -150,13 +142,12 @@ const AmbassadorHero = ({ programEnabled }: { programEnabled: boolean }) => {
           <span>Campus Network Program</span>
         </m.div>
 
-        {/*
-          TextRotate splits its text into one element per grapheme to animate them, so
-          the rendered heading exposes an accessible name like "Make it f u n". A static
-          aria-label gives assistive tech (and anything reading the accessibility tree)
-          the real sentence, and the animated subtree is hidden from it entirely.
-        */}
-        <h1
+        {/* TextRotate splits text per grapheme, so a static aria-label gives assistive tech the real sentence. */}
+        <m.h1
+          // Rises but does not fade: the heading is the page's largest paint.
+          animate={{ y: 0 }}
+          initial={{ y: 20 }}
+          transition={{ duration: 0.2, ease: "easeOut", delay: 0.1 }}
           aria-label="Represent VeriWorkly. Make it fun."
           className="text-3xl leading-[1.05] font-extrabold tracking-tight text-zinc-950 sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl dark:text-white"
         >
@@ -184,15 +175,25 @@ const AmbassadorHero = ({ programEnabled }: { programEnabled: boolean }) => {
               />
             </span>
           </span>
-        </h1>
+        </m.h1>
 
-        <p className="hero-rise mx-auto max-w-xl pt-6 text-sm font-semibold text-zinc-500 sm:pt-8 sm:text-base md:pt-10 md:text-lg lg:text-xl dark:text-zinc-400">
+        <m.p
+          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, y: 20 }}
+          transition={{ duration: 0.2, ease: "easeOut", delay: 0.3 }}
+          className="mx-auto max-w-xl pt-6 text-sm font-semibold text-zinc-500 sm:pt-8 sm:text-base md:pt-10 md:text-lg lg:text-xl dark:text-zinc-400"
+        >
           Share local-first career editors with classmates on campus. We are building the campus
           crew now — apply to be one of the first ambassadors, and help shape how the program
           rewards its leaders.
-        </p>
+        </m.p>
 
-        <div className="hero-rise mt-8 flex w-full flex-col items-center justify-center gap-4 sm:mt-12 sm:w-auto sm:flex-row">
+        <m.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2, ease: "easeOut", delay: 0.5 }}
+          className="mt-8 flex w-full flex-col items-center justify-center gap-4 sm:mt-12 sm:w-auto sm:flex-row"
+        >
           {programEnabled ? (
             <Link
               href="/ambassador/apply"
@@ -218,7 +219,7 @@ const AmbassadorHero = ({ programEnabled }: { programEnabled: boolean }) => {
           >
             See the plan
           </button>
-        </div>
+        </m.div>
 
         <m.div
           initial={{ opacity: 0 }}

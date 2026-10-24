@@ -1,18 +1,4 @@
-/**
- * Builds public/brand/veriworkly-brand-kit.zip.
- *
- * The archive is generated from apps/site/config/brand.ts - the same file
- * /brand-kit and /style-guide render from - so the palette in the download can
- * never drift from the palette on the page. That drift is exactly what this
- * script exists to prevent: the previous kit was assembled by hand and its
- * README had already fallen out of step with the site.
- *
- * Run:  npm run build:brand-kit  (from apps/site)
- *
- * Deliberately dependency-free. The ZIP writer below is a minimal but spec-correct
- * implementation, which is cheaper than owning another supply-chain dependency for
- * one build artefact.
- */
+/** Builds public/brand/veriworkly-brand-kit.zip from config/brand.ts, so the download cannot drift from the site. Dependency-free on purpose. */
 
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
@@ -34,8 +20,6 @@ const PUBLIC_DIR = join(HERE, "..", "public");
 const LOGO_DIR = join(PUBLIC_DIR, "brand", "logo");
 
 const OUT = join(PUBLIC_DIR, "brand", "veriworkly-brand-kit.zip");
-
-/* ------------------------------------------------------------- zip writer ---- */
 
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256);
@@ -64,10 +48,7 @@ interface Entry {
   data: Buffer;
 }
 
-/**
- * Timestamps are pinned so the archive is byte-identical across runs - a kit that
- * changes hash on every build produces noisy diffs and defeats caching.
- */
+/** Timestamps are pinned so the archive is byte-identical across runs. */
 
 const DOS_TIME = 0;
 const DOS_DATE = ((2026 - 1980) << 9) | (1 << 5) | 1;
@@ -137,8 +118,6 @@ const buildZip = (entries: Entry[]) => {
 
   return Buffer.concat([...locals, ...centrals, end]);
 };
-
-/* ---------------------------------------------------------------- content ---- */
 
 const pad = (value: string, width: number) => value.padEnd(width);
 
@@ -244,8 +223,6 @@ const palette = () => ({
   ),
 });
 
-/* ------------------------------------------------------------------- build --- */
-
 const entries: Entry[] = [];
 
 const wanted = new Set(logoAssets.map((a) => a.file));
@@ -271,7 +248,7 @@ entries.push({ path: "README.txt", data: Buffer.from(readme(), "utf8") });
 
 const zip = buildZip(entries);
 
-// --check: fail when the committed zip is not what the sources build (W-057), without writing.
+// --check: fail when the committed zip is not what the sources build, without writing.
 if (process.argv.includes("--check")) {
   const committed = readFileSync(OUT);
 

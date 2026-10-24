@@ -2,10 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 process.env.NEXT_PUBLIC_BACKEND_URL ??= "http://127.0.0.1:1/api/v1";
 
-/**
- * A Content-Type header makes a browser request "non-simple", so it pays a CORS preflight
- * before the real request. Reads have no body and must not send one (W-040).
- */
+/** Reads must not send Content-Type: it makes a browser request non-simple and costs a CORS preflight. */
 describe("fetchApiData headers", () => {
   afterEach(() => vi.unstubAllGlobals());
 

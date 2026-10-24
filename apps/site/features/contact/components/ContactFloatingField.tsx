@@ -11,7 +11,6 @@ export interface FloatingFieldProps {
   as?: "input" | "textarea";
   rows?: number;
   helper?: string;
-  /** Shown under the field and announced with it. */
   error?: string;
   maxLength?: number;
   autoComplete?: string;

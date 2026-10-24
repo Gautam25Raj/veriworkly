@@ -4,11 +4,7 @@ import { describe, expect, it } from "vitest";
 import FAQList from "@/features/landing/faq/FAQList";
 import { faqs } from "@/features/landing/faq/data/faqItems";
 
-/**
- * The landing page emits FAQPage structured data for these ten questions. Google treats
- * markup for text that is not in the page as a mismatch, so every answer must be in the
- * server-rendered HTML, not mounted on click (W-005).
- */
+/** FAQPage markup must describe text in the page, so every answer must be in the server HTML, not mounted on click. */
 
 const decode = (html: string) =>
   html

@@ -1,4 +1,10 @@
+"use client";
+
+import { useState } from "react";
 import { ChevronDown, HelpCircle } from "lucide-react";
+import { m } from "framer-motion";
+
+import { AnimatedDetails } from "@/components/ui/animated-details";
 
 const faqItems = [
   {
@@ -34,6 +40,8 @@ const faqItems = [
 ];
 
 const AffiliateFAQ = () => {
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+
   return (
     <section className="border-border/30 mx-auto max-w-7xl border-t px-6 py-24 md:py-32">
       <div className="grid items-start gap-12 lg:grid-cols-[1.2fr_2fr]">
@@ -50,31 +58,51 @@ const AffiliateFAQ = () => {
         </div>
 
         <div className="space-y-4">
-          {faqItems.map((faq) => (
-            <details
-              key={faq.question}
-              name="affiliate-faq"
-              className="reveal group border-border/60 bg-card/35 rounded-2xl border p-6 backdrop-blur-sm transition-colors duration-300 hover:border-blue-500/35 dark:border-zinc-800 dark:bg-zinc-900/25"
-            >
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 select-none [&::-webkit-details-marker]:hidden">
-                <span className="flex items-center gap-3">
-                  <HelpCircle
-                    aria-hidden="true"
-                    className="h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400"
-                  />
-                  <span className="text-foreground text-base font-semibold">{faq.question}</span>
-                </span>
-                <ChevronDown
-                  aria-hidden="true"
-                  className="text-muted/75 h-5 w-5 transition-transform duration-200 group-open:rotate-180"
-                />
-              </summary>
+          {faqItems.map((faq, idx) => {
+            const isOpen = openIndex === idx;
 
-              <p className="text-muted/85 mt-4 border-l-2 border-blue-500/30 pl-4 text-sm leading-relaxed">
-                {faq.answer}
-              </p>
-            </details>
-          ))}
+            return (
+              <AnimatedDetails
+                key={faq.question}
+                open={isOpen}
+                onOpenChange={(open) => setOpenIndex(open ? idx : null)}
+                panelTransition={{ duration: 0.25, ease: "easeInOut" }}
+                motionProps={{
+                  initial: { opacity: 0, y: 20 },
+                  whileInView: { opacity: 1, y: 0 },
+                  viewport: { once: true, margin: "-50px" },
+                  transition: { duration: 0.5, delay: idx * 0.05 },
+                }}
+                className="border-border/60 bg-card/35 rounded-2xl border p-6 backdrop-blur-sm transition-colors duration-300 hover:border-blue-500/35 dark:border-zinc-800 dark:bg-zinc-900/25"
+                summaryClassName="flex cursor-pointer list-none items-center justify-between gap-4 select-none [&::-webkit-details-marker]:hidden"
+                summary={
+                  <>
+                    <span className="flex items-center gap-3">
+                      <HelpCircle
+                        aria-hidden="true"
+                        className="h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400"
+                      />
+                      <span className="text-foreground text-base font-semibold">
+                        {faq.question}
+                      </span>
+                    </span>
+                    <m.span
+                      aria-hidden="true"
+                      animate={{ rotate: isOpen ? 180 : 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="text-muted/75"
+                    >
+                      <ChevronDown className="h-5 w-5" />
+                    </m.span>
+                  </>
+                }
+              >
+                <p className="text-muted/85 mt-4 border-l-2 border-blue-500/30 pl-4 text-sm leading-relaxed">
+                  {faq.answer}
+                </p>
+              </AnimatedDetails>
+            );
+          })}
         </div>
       </div>
     </section>

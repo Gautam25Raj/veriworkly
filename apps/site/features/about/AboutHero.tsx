@@ -14,11 +14,6 @@ const EXPORT_FORMATS = [
   { name: "JSON", note: "Your data, portable" },
 ];
 
-/**
- * The page's picture is the moment the product was built to remove: the export dialog.
- * Two real-looking dialogs side by side, the category's and ours, so the story in the
- * headline is shown rather than told.
- */
 const ExportContrast = () => (
   <div className="grid gap-6 lg:grid-cols-[.85fr_1.15fr]">
     <figure className="flex flex-col">

@@ -67,11 +67,7 @@ const PricingHero = ({
               <ShieldCheck className="size-4" aria-hidden="true" /> Secure checkout by Dodo Payments
             </div>
 
-            {/*
-              The provider auto-selects INR for visitors it detects in India. Without a
-              visible control that choice was one-way: nothing on the page could put them
-              back on the currency they are actually charged in.
-            */}
+            {/* The provider auto-selects INR in India; without a visible toggle that choice could not be undone. */}
             <CurrencyToggle className="mt-6" />
           </div>
         </div>

@@ -113,7 +113,6 @@ const ChangelogEntryDetail = ({ entry, older, isLatest }: ChangelogEntryDetailPr
 
           <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-16">
             <div className="min-w-0">
-              {/* The version is the release's own name, so it is the display line. */}
               <h1>
                 <span className={cn("block", TYPE.display)}>v{entry.version}</span>
                 <span className={cn("mt-5 block max-w-3xl text-balance", TYPE.title)}>
@@ -130,7 +129,6 @@ const ChangelogEntryDetail = ({ entry, older, isLatest }: ChangelogEntryDetailPr
               )}
             </div>
 
-            {/* The release at a glance: the same facts, in the same order, on every release. */}
             <aside
               aria-label="Release facts"
               className="bg-card hero-rise self-start rounded-3xl p-6 sm:p-7"

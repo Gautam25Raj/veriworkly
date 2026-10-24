@@ -63,14 +63,12 @@ const TextRotate = forwardRef<TextRotateRef, TextRotateProps>(
   ) => {
     const [currentTextIndex, setCurrentTextIndex] = useState(0);
 
-    // handy function to split text into characters with support for unicode and emojis
     const splitIntoCharacters = (text: string): string[] => {
       if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
         const segmenter = new Intl.Segmenter("en", { granularity: "grapheme" });
         return Array.from(segmenter.segment(text), ({ segment }) => segment);
       }
 
-      // Fallback for browsers that don't support Intl.Segmenter
       return Array.from(text);
     };
 
@@ -115,7 +113,6 @@ const TextRotate = forwardRef<TextRotateRef, TextRotateProps>(
       [staggerFrom, staggerDuration],
     );
 
-    // Helper function to handle index changes and trigger callback
     const handleIndexChange = useCallback(
       (newIndex: number) => {
         setCurrentTextIndex(newIndex);
@@ -160,7 +157,6 @@ const TextRotate = forwardRef<TextRotateRef, TextRotateProps>(
       if (currentTextIndex !== 0) handleIndexChange(0);
     }, [currentTextIndex, handleIndexChange]);
 
-    // Expose all navigation functions via ref
     useImperativeHandle(
       ref,
       () => ({

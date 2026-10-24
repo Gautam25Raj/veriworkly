@@ -1,18 +1,6 @@
 import { CheckCircle2, TriangleAlert, XCircle } from "lucide-react";
 
-/**
- * A static, server-rendered rendition of the real report, shown on the landing page so the page
- * is not asking people to imagine what they get. Deliberately not the live component: it must
- * paint on the server with no API call, no client bundle, and no fabricated interactivity.
- *
- * The numbers are illustrative and labelled as such below the figure.
- */
-/**
- * Labels must match `categoryMeta` in ../../data/categories.ts exactly - this preview
- * promises the report's own vocabulary, and previously used four labels the real
- * report never renders ("Parsing & extraction", "Document structure", "Evidence &
- * impact", "Format risk profile").
- */
+/** Labels must match `categoryMeta` in ../../data/categories.ts exactly. */
 const AREAS = [
   { label: "Parsing", score: 100, tone: "good" },
   { label: "Contact & links", score: 86, tone: "good" },

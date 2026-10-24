@@ -10,9 +10,7 @@ interface ChangelogRichTextProps {
   multiline?: boolean;
 }
 
-/**
- * Safely validates URLs to prevent javascript: or data: injection.
- */
+/** Rejects javascript: and data: URLs. */
 function sanitizeUrl(rawUrl: string): string | null {
   const trimmed = rawUrl.trim();
 
@@ -28,17 +26,6 @@ function sanitizeUrl(rawUrl: string): string | null {
   return null;
 }
 
-/**
- * Parses inline markdown tokens:
- * - `**bold**` or `__bold__`
- * - `*italic*` or `_italic_`
- * - `` `code` ``
- * - `[text](url)`
- * - `~~strikethrough~~`
- * - `#123` (GitHub PR/issue auto-link)
- * - `@scope/pkg` (Scoped package)
- * - `@username` (Contributor mention)
- */
 export function renderInlineMarkdown(text: string, keyPrefix = "inline"): React.ReactNode[] {
   if (!text) return [];
 
@@ -64,7 +51,6 @@ export function renderInlineMarkdown(text: string, keyPrefix = "inline"): React.
     const matchIndex = match.index;
     const matchedStr = match[0];
 
-    // Push preceding plain text
     if (matchIndex > lastIndex) nodes.push(text.slice(lastIndex, matchIndex));
 
     const key = `${keyPrefix}-${tokenCount++}`;
@@ -218,11 +204,6 @@ export function renderInlineMarkdown(text: string, keyPrefix = "inline"): React.
 
   return nodes;
 }
-
-/**
- * Component to render changelog text with full inline markdown support,
- * highlighting bold tags, inline code chips, links, and structured prefixes.
- */
 
 export const ChangelogRichText: React.FC<ChangelogRichTextProps> = ({
   content,

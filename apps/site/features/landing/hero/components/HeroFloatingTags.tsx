@@ -1,11 +1,7 @@
 import type { CSSProperties } from "react";
 import { Briefcase, FileText, Globe, Sparkles } from "lucide-react";
 
-/**
- * Drifting tags beside the hero, desktop only. A CSS animation (`.hero-float` in globals.css)
- * stops while the element is display:none, so nothing ticks on mobile; the framer loops these
- * replaced ran on the main thread on every screen size (W-035).
- */
+/** A CSS animation (`.hero-float`) stops while display:none, so nothing ticks on mobile. */
 const TAGS = [
   {
     icon: FileText,

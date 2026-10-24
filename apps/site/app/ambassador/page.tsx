@@ -48,8 +48,7 @@ const AmbassadorPage = async () => {
   // Read the program flag at request time, not at build time.
   await connection();
 
-  // Mirrors /affiliate. Without this the pitch rendered in full while the Apply
-  // button dead-ended on the flagged-off apply page (B-08).
+  // Without this the pitch rendered while Apply dead-ended on the flagged-off apply page.
   const programEnabled = isAmbassadorProgramEnabled();
 
   const ambassadorSchema = {
@@ -64,7 +63,6 @@ const AmbassadorPage = async () => {
 
   return (
     <MotionIsland>
-      {/* Uses the shared helper rather than a hand-rolled copy of the same escaping. */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={jsonLdScriptProps(ambassadorSchema)}

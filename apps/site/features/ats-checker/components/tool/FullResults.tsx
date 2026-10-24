@@ -39,14 +39,7 @@ const TABS = [
   { id: "parsed", label: "What the ATS sees", icon: ScanEye },
 ] as const;
 
-/**
- * Both halves of one scan.
- *
- * The score and the recovered record come from a single deterministic pass, so switching between
- * them costs nothing and — more to the point — never costs a second scan from the caller's quota.
- * They are separated here because they answer different questions: the first is how well the
- * resume reads, the second is what survives being turned into database rows.
- */
+/** Score and parsed record come from one deterministic pass, so switching views never spends a second scan from the quota. */
 export function FullResults({ report, quota }: { report: AtsFullReport; quota: AtsQuota }) {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("score");
   const categories = groupByCategory(report.rules);

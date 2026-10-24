@@ -6,7 +6,6 @@ interface LegalHeroMetaProps {
   links: { label: string; href: string }[];
 }
 
-/** The date a reader checks first, then where to go with a question. */
 export function LegalHeroMeta({ effectiveDate, links }: LegalHeroMetaProps) {
   return (
     <div className="space-y-6">

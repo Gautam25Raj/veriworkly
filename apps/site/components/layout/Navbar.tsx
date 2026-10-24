@@ -3,7 +3,7 @@
 import { useTheme } from "next-themes";
 import { Menu, X } from "lucide-react";
 import nextDynamic from "next/dynamic";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 
 import { cn } from "@veriworkly/ui";
 
@@ -24,6 +24,16 @@ const Navbar = () => {
   const { resolvedTheme, setTheme } = useTheme();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // The menu stays mounted for its 200 ms closing transition after it is closed.
+  const [menuMounted, setMenuMounted] = useState(false);
+  const unmountTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const setMenu = useCallback((open: boolean) => {
+    clearTimeout(unmountTimer.current);
+    setMobileMenuOpen(open);
+    if (open) setMenuMounted(true);
+    else unmountTimer.current = setTimeout(() => setMenuMounted(false), 200);
+  }, []);
 
   const isDark = resolvedTheme === "dark";
 
@@ -49,7 +59,7 @@ const Navbar = () => {
             aria-haspopup="dialog"
             aria-expanded={mobileMenuOpen}
             aria-controls={MOBILE_MENU_ID}
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            onClick={() => setMenu(!mobileMenuOpen)}
             aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             className="pointer-events-auto rounded-full border border-black/5 bg-white/70 p-2.5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] backdrop-blur-md lg:hidden dark:border-white/5 dark:bg-[#111]/70"
           >
@@ -62,12 +72,13 @@ const Navbar = () => {
         </div>
       </header>
 
-      {mobileMenuOpen && (
+      {menuMounted && (
         <MobileMenu
+          open={mobileMenuOpen}
           isDark={isDark}
           mounted={mounted}
           onToggleTheme={toggleTheme}
-          onClose={() => setMobileMenuOpen(false)}
+          onClose={() => setMenu(false)}
         />
       )}
     </>

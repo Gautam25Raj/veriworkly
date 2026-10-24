@@ -20,11 +20,6 @@ const STATUS: Record<
   },
 };
 
-/**
- * The posting's requirements one by one, the way a per-qualification screener reads them: each
- * met or not, with the resume's own lines as evidence. Required ones lead; within each, the gaps
- * come first, because they are what to act on.
- */
 export function RequirementsPanel({ requirements }: { requirements: AtsRequirement[] }) {
   if (!requirements.length) return null;
 

@@ -29,8 +29,7 @@ const TodoRoadmapPage = async () => {
     status: "todo",
   });
 
-  // A failed column is not cached as the page; that render goes per request. At build the
-  // page stays static; the column Refresh button or the next deploy refills it.
+  // A failed column must not be cached as the page; at build the page stays static and Refresh or the next deploy refills it.
   if (data.failedStatuses.length > 0 && process.env.NEXT_PHASE !== "phase-production-build")
     await connection();
 

@@ -19,7 +19,6 @@ import {
 
 import type { AtsParsedResume } from "../../types";
 
-/** A field the parser could not recover, shown as the empty column it actually is. */
 function Missing({ label }: { label: string }) {
   return (
     <span className="bg-warning/10 text-warning inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-sm font-medium">
@@ -51,14 +50,6 @@ function Panel({
   );
 }
 
-/**
- * The recovered record, shown as the database rows it becomes.
- *
- * This is the half of the report that is not a score. An applicant tracking system does not rank
- * a resume — it shreds it into a row per job and lets recruiters filter those rows, so a blank
- * employer or a missing date range is a column their search cannot match on. Seeing the table is
- * what makes that concrete in a way no number does.
- */
 export function ParsedView({ parsed }: { parsed: AtsParsedResume }) {
   const contact: Array<[string, string]> = [
     ["Name", parsed.name],

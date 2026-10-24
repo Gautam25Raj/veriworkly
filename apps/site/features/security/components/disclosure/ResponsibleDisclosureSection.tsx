@@ -11,14 +11,10 @@ import {
   DISCLOSURE_SAFE_HARBOUR,
 } from "../../data";
 
-/*
- * "Bug Bounty" and "24h SLA Guarantee" both came out of this section earlier. There is no
- * bounty anywhere in the repository, and advertising one attracts researchers under a false
- * premise. The badge also contradicted SECURITY.md, which says 24-48 hours.
- */
+/* No bug bounty exists, and response times must match SECURITY.md (24-48 hours). */
 
 const linkClass =
-  "inline-flex min-h-12 items-center gap-2 rounded-full px-6 text-base font-semibold transition-[opacity,transform] duration-200 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2 focus-visible:ring-offset-accent focus-visible:outline-none active:scale-[0.97]";
+  "inline-flex min-h-12 items-center gap-2 rounded-full px-6 text-base font-semibold transition-[opacity,scale] duration-200 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-2 focus-visible:ring-offset-accent focus-visible:outline-none active:scale-[0.97]";
 
 export const ResponsibleDisclosureSection = () => (
   <>

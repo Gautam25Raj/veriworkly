@@ -27,8 +27,7 @@ export const ReleaseCategorySections = ({ entry }: ReleaseCategorySectionsProps)
   return (
     <div className="space-y-16">
       {categories.map(({ category, items, label, dot }) => {
-        // Short bullets first, then the detailed items: the order release notes use
-        // (highlights, then the detail behind them).
+        // Short bullets first, then the detailed items: the order release notes use.
         const bullets = items.filter((item) => !TITLED_ITEM.test(item));
         const detailed = items.flatMap((item) => {
           const match = TITLED_ITEM.exec(item);

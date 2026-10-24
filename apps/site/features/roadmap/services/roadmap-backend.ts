@@ -247,18 +247,12 @@ function normalizeFeature(feature: RoadmapFeature): RoadmapFeature {
 const STATUS_PAGE_SIZE = 50;
 const STATUS_MAX_PAGES = 20;
 
-/**
- * Every item in one status column. The first page reports the total, so the rest are fetched
- * in parallel; this used to walk up to 50 pages of 20 one after another, each with its own
- * 8 s timeout, on every uncached render (W-037).
- */
+/** The first page reports the total, so the rest are fetched in parallel. */
 async function fetchRoadmapStatusItems(
   status: RoadmapStatus,
   sort: RoadmapSort,
 ): Promise<RoadmapFeature[]> {
-  // Always cached. Manual refresh goes through `refreshRoadmapPath` (a Server Action
-  // calling revalidatePath) rather than a per-request `cache: "no-store"` bypass, so a
-  // refresh refills the shared cache instead of fanning out uncached backend calls.
+  // Always cached; manual refresh goes through refreshRoadmapPath, never a per-request no-store bypass.
   const cacheOptions: RequestInit = { next: { revalidate: ROADMAP_REVALIDATE_SECONDS } };
 
   const page = (offset: number) =>
@@ -301,8 +295,7 @@ export async function fetchRoadmapFromBackend(query: RoadmapQuery = {}): Promise
         try {
           return [status, await fetchRoadmapStatusItems(status, sort), false] as const;
         } catch (err) {
-          // One column failing should not blank the others, but it must not read as an
-          // empty column either (W-047).
+          // One column failing must not blank the others, nor read as an empty column.
           console.error(`Roadmap column "${status}" failed to load:`, err);
           return [status, [] as RoadmapFeature[], true] as const;
         }
@@ -351,13 +344,9 @@ export async function fetchRoadmapFromBackend(query: RoadmapQuery = {}): Promise
 /** One week - the sitemap's own cadence, kept apart from the page reads' cache entries. */
 const SITEMAP_REVALIDATE_SECONDS = 604800;
 
-/**
- * The backend caps `limit` at 50. Deliberately different from the pages' `limit=20` so
- * this keeps its own Data Cache entry - see `fetchRoadmapSitemapEntries`.
- */
+/** Deliberately different from the pages' `limit=20` so this keeps its own Data Cache entry. */
 const SITEMAP_PAGE_SIZE = 50;
 
-/** 50 x 20 = 1000 roadmap items per status, far beyond any realistic board. */
 const SITEMAP_MAX_PAGES = 20;
 
 export interface RoadmapSitemapEntry {
@@ -365,18 +354,7 @@ export interface RoadmapSitemapEntry {
   updatedAt: string;
 }
 
-/**
- * Roadmap URLs for the sitemap, cached on the sitemap's own schedule.
- *
- * Next collapses a route's revalidate to the
- * minimum of its segment value and every fetch inside it, so calling those helpers here
- * silently dragged /sitemap.xml down to 5 minutes no matter what the segment declared.
- *
- * Requesting the backend's maximum `limit=50` produces a different URL from the pages'
- * `limit=20`, so this gets its own Data Cache entry and its own lifetime - rather than
- * two different revalidate values fighting over one key. It also fetches in far fewer
- * round trips, which is all a list of ids and timestamps needs.
- */
+/** Next collapses a route's revalidate to its shortest fetch, so the sitemap uses its own URLs (limit=50) and cache entry. */
 export async function fetchRoadmapSitemapEntries(): Promise<RoadmapSitemapEntry[]> {
   const statuses: RoadmapStatus[] = ["todo", "in-progress", "done"];
 
@@ -385,9 +363,7 @@ export async function fetchRoadmapSitemapEntries(): Promise<RoadmapSitemapEntry[
       const entries: RoadmapSitemapEntry[] = [];
       let offset = 0;
 
-      // A failed page throws. Returning the partial list looked safer, but it handed the
-      // sitemap a shorter list that it then cached for a week; throwing lets the sitemap
-      // keep its last complete copy instead.
+      // A failed page throws: a partial list would be cached for a week, while throwing keeps the last complete sitemap.
       for (let page = 0; page < SITEMAP_MAX_PAGES; page++) {
         const query = new URLSearchParams({
           status,

@@ -5,7 +5,6 @@ import { fontStack, typeScale } from "@/config/brand";
 
 import BrandSectionHeader from "./BrandSectionHeader";
 
-/** The steps an outside designer actually needs; the rest live on /style-guide. */
 const PRESS_STEPS = ["Display", "Section", "Component", "Eyebrow"];
 
 const BrandTypographySection = () => {

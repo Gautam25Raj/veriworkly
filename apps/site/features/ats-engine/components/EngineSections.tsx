@@ -34,10 +34,6 @@ import { EngineDemo } from "./EngineDemo";
 
 const inlineLink = "font-semibold underline underline-offset-4 hover:no-underline";
 
-/**
- * The hero carries the page's live thing: the real engine, loaded into the page and scoring an
- * invented resume. What the library does is shown before it is described.
- */
 export function EngineHero() {
   return (
     <PageHero
@@ -371,7 +367,6 @@ export function EngineFaq({ faqs }: { faqs: FaqItem[] }) {
   );
 }
 
-/** The close: install it yourself, or call the hosted API that runs the same engine. */
 export function EngineCTA() {
   return (
     <section className="bg-card border-border border-b py-20 lg:py-28">

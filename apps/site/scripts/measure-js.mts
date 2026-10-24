@@ -1,10 +1,4 @@
-/**
- * Initial JavaScript per prerendered route, gzipped, read from a finished `next build`:
- * every module <script src> (noModule polyfills excluded) in the route's HTML, resolved under .next/static, gzip -9 summed.
- * Also flags framer's layout projection (`layoutId`) in the loaded chunks.
- *
- *   npx tsx scripts/measure-js.mts [route ...]
- */
+/** Initial gzipped JS per prerendered route from a finished `next build`, plus framer layout-projection flags. Run: npx tsx scripts/measure-js.mts [route ...] */
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";

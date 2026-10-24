@@ -6,7 +6,6 @@ import type {
 
 export const PAGE_SIZE = 20;
 
-/** Board status as a word and a dot, on status tokens so both themes keep their contrast. */
 export const STATUS_META: Record<GitHubStatus, { label: string; dot: string }> = {
   todo: { label: "To do", dot: "bg-foreground/25" },
   "in-progress": { label: "In progress", dot: "bg-warning" },
@@ -72,17 +71,7 @@ export function formatRelativeTime(input: string | null | undefined): string {
   return rtf.format(-Math.floor(diffInSeconds / 86400), "day");
 }
 
-/**
- * Formats an absolute timestamp in UTC, labelled as such.
- *
- * This used to be a bare `toLocaleString()` on a *server*-rendered component. Node picks
- * the container's locale and timezone - in practice `en-US` and UTC - so every visitor was
- * shown a UTC clock time with no indication that it was not their own. Someone in IST read
- * "next sync 6:00:00 PM" and was five and a half hours out.
- *
- * Rendering it explicitly in UTC is unambiguous for everyone and, unlike a client-side
- * conversion, produces the same string on the server and after hydration.
- */
+/** Explicit UTC: server locale showed an unlabelled UTC time, and a client conversion would mismatch on hydration. */
 export function formatAbsoluteTime(input: string | null | undefined) {
   if (!input) {
     return "not scheduled";

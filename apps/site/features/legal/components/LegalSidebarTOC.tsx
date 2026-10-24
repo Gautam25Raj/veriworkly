@@ -101,8 +101,7 @@ export function LegalSidebarTOC({
 
     const activeLink = navRef.current.querySelector<HTMLElement>(`a[href="#${activeSectionId}"]`);
 
-    // `nearest` keeps the index from jumping, and `instant` avoids fighting the page's own
-    // smooth scroll while the reader is moving.
+    // `nearest` keeps the index from jumping; `instant` avoids fighting the page's own smooth scroll.
     activeLink?.scrollIntoView({ block: "nearest", behavior: "instant" });
   }, [activeSectionId]);
 

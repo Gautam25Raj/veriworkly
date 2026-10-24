@@ -8,10 +8,7 @@ interface CompareFAQSectionProps {
   competitor: Competitor;
 }
 
-/**
- * Native disclosure elements: open and close without a script, searchable with find-in-page,
- * and announced as expandable by every screen reader. The first answer starts open.
- */
+/** Native disclosure elements: answers work without script, with find-in-page and with screen readers. */
 export const CompareFAQSection = ({ competitor }: CompareFAQSectionProps) => {
   if (competitor.faqs.length === 0) return null;
 

@@ -7,11 +7,6 @@ import { FRAME, TYPE } from "@/components/marketing/PageLayout";
 
 import { WORKFLOW_STEPS } from "../../data";
 
-/*
- * One picture per step, each a fragment of the real studio. Names, counts and bullets are a
- * sample person's, the same sample used on /about and /features.
- */
-
 const ProfileJson = () => (
   <div data-ui className="bg-foreground text-background overflow-hidden rounded-3xl">
     <p className="px-6 pt-5 text-sm font-semibold opacity-70 sm:px-8">master-profile.json</p>

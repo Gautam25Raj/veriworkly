@@ -1,6 +1,6 @@
 import type { WorkflowStepItem } from "../types";
 
-/** The five steps, in order. `title` and `description` also feed the page's HowTo schema. */
+/** `title` and `description` also feed the page's HowTo schema. */
 export const WORKFLOW_STEPS: WorkflowStepItem[] = [
   {
     id: "import",

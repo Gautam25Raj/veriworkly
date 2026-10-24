@@ -1,15 +1,7 @@
 import { fetchApiData, ApiRequestError } from "@/utils/fetchApiData";
 import { siteConfig } from "@/config/site";
 
-/**
- * One week. The changelog only changes when a release ships, and every release ships
- * with a deploy - which rebuilds the app and drops this cache anyway. So the deploy is
- * the real invalidation event, and the timer is just a backstop for the case where an
- * entry is edited in the backend without a corresponding release.
- *
- * The previous 5-minute window spent far more effort revalidating than the data ever
- * changed.
- */
+/** One week: every release ships with a deploy that drops this cache; the timer only backstops backend edits. */
 
 const CHANGELOG_REVALIDATE_SECONDS = 604800;
 
@@ -126,12 +118,7 @@ function parsePrRefs(raw: unknown): ChangelogPrRef[] | undefined {
     .filter((entry): entry is ChangelogPrRef => entry !== null);
 }
 
-/**
- * The backend parses GitHub release bodies line by line, so markdown structure leaks into the
- * entries: `---` rules arrive as a summary or glued to the last bullet, the "Highlights" list
- * repeats, and the release's own "**#191** — [Feature] …" PR list lands in `added`. Cleaned
- * here, once, so the listing and the detail page both read tidy data.
- */
+/** Release bodies are parsed line by line, so markdown structure leaks into entries; cleaned once here for list and detail. */
 const RULE_LINE = /^\s*[-*_]{3,}\s*$/;
 const TRAILING_RULE = /\s+[-*_]{3,}\s*$/;
 const PR_LINE = /^\*{0,2}#(\d+)\*{0,2}\s+[—–-]\s+`?(.+?)`?(?:\s+by\s+@[\w-]+)?$/;
@@ -242,14 +229,7 @@ export async function fetchChangelogFromBackend(
   }
 }
 
-/**
- * Publish date of the newest release, for the /changelog row in the sitemap.
- *
- * `limit=1` keeps this on a different Data Cache key from the page's `limit=15` read,
- * so the sitemap can hold it for a week without pulling the whole sitemap route down to
- * the changelog page's revalidate window. Returns null when unavailable so the caller
- * can fall back to the deploy timestamp rather than emitting a wrong `lastmod`.
- */
+/** `limit=1` keeps a separate Data Cache key from the page's read; null lets the caller avoid a wrong lastmod. */
 
 export async function fetchLatestChangelogPublishedAt(): Promise<Date | null> {
   try {
@@ -277,26 +257,11 @@ export interface ChangelogIndexItem {
   publishedAt: string;
 }
 
-/**
- * Hard ceiling on how far back the index walk goes. Each page is a separate week-cached
- * fetch, so the cost is a handful of upstream requests per deploy no matter how many
- * detail pages render - but an unbounded loop against a misbehaving backend is not
- * something a page render should be able to start.
- */
+/** Hard ceiling on the index walk: a render must not start an unbounded loop against a misbehaving backend. */
 
 const MAX_INDEX_PAGES = 8;
 
-/**
- * Every release, newest first, assembled from the same paginated `/changelog?limit=15&offset=…`
- * URLs the listing page already fetches. Reusing those exact URLs matters: they are Data Cache
- * hits, so the detail pages and `generateStaticParams` cost no extra backend round trips beyond
- * the listing's own - page 1, which covers almost every lookup, is already warm.
- *
- * Throws when the backend cannot be reached. Swallowing the error here used to turn an
- * outage into an empty index, which `generateStaticParams` and the detail page read as
- * "no such release": with the backend down at build time every release page was baked
- * as a 404 for the ISR week. Callers decide what an outage means for them.
- */
+/** Reuses the listing's exact URLs (Data Cache hits). Throws on outage: an empty index would bake every release as a 404. */
 
 async function fetchAllChangelogEntries(): Promise<ChangelogEntry[]> {
   const collected: ChangelogEntry[] = [];
@@ -329,22 +294,12 @@ export async function fetchChangelogIndex(): Promise<ChangelogIndexItem[]> {
 
 export interface ChangelogDetail {
   entry: ChangelogEntry;
-  /** The release immediately before this one chronologically. */
   older: ChangelogIndexItem | null;
-  /** The release immediately after this one chronologically. */
   newer: ChangelogIndexItem | null;
-  /** True when this is the most recent release overall. */
   isLatest: boolean;
 }
 
-/**
- * Everything a detail page needs in one shot. The entry itself comes out of the cached index
- * rather than a second `/changelog/:id` call - the listing already carries the full record, so
- * the by-id endpoint is only touched for entries older than the index window.
- *
- * `null` means the release does not exist (404). Any other failure throws, so the page
- * reaches its error boundary and ISR keeps serving the last good copy.
- */
+/** `null` means the release does not exist (404); any other failure throws so ISR keeps the last good copy. */
 
 export async function fetchChangelogDetail(id: string): Promise<ChangelogDetail | null> {
   const all = await fetchAllChangelogEntries();

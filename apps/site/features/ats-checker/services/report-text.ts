@@ -39,7 +39,6 @@ export function reportToPlainText(
     lines.push("FIX THESE FIRST");
     lines.push("----------------------------------------");
 
-    // Sort by scoreImpact descending
     const sortedFixes = [...report.failedChecks].sort(
       (a: AtsRuleResult, b: AtsRuleResult) => b.scoreImpact - a.scoreImpact,
     );

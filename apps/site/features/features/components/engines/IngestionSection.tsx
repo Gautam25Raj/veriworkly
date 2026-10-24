@@ -19,11 +19,7 @@ export const IngestionSection = () => (
             <p className="text-base font-semibold">GitHub import</p>
           </div>
 
-          {/*
-            A generic placeholder, not a real repository. This once read
-            "veriworkly/core-engine · 342 stars": a repository that does not exist, with an
-            invented star count, rendered as if it were live data. A mockup should look like one.
-          */}
+          {/* A generic placeholder, not a real repository: a mockup should look like one. */}
           <ul className="mt-6 space-y-2">
             {["your-name/your-project", "your-name/another-project"].map((repo, idx) => (
               <li
@@ -89,12 +85,7 @@ export const IngestionSection = () => (
           certifications and skills become structured entries, and informal bullets become clear
           achievements.
         </p>
-        {/*
-          This once read "Processed client-side in your browser for total privacy", the opposite
-          of what happens: the pasted text is POSTed to /profiles/import/linkedin and forwarded to
-          a third-party model through parseTextToResumeSchema. The privacy policy describes the
-          real behaviour, so this copy matches it.
-        */}
+        {/* The pasted text goes to the server and a third-party model; this copy must match the privacy policy, never claim client-side. */}
         <p className="mt-4 max-w-lg text-base leading-7 text-pretty">
           Parsed on our servers by an AI model, then discarded. Not used for training.
         </p>

@@ -1,5 +1,5 @@
 "use client";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { FileText, Globe, Mail } from "lucide-react";
 import { AnimatePresence, m } from "framer-motion";
 
@@ -50,6 +50,25 @@ const DocumentPortfolioSwitcher = ({ previews }: DocumentPortfolioSwitcherProps)
 
   const activeMeta = tabs.find((tab) => tab.id === activeTab)!;
 
+  // Not layoutId: that pulls in framer's layout bundle. Measured on the first click only.
+  const tabRefs = useRef<Partial<Record<DocumentPreviewTabId, HTMLButtonElement | null>>>({});
+  const [pill, setPill] = useState<{ x: number; width: number } | null>(null);
+
+  const measure = (id: DocumentPreviewTabId) => {
+    const button = tabRefs.current[id];
+    return button ? { x: button.offsetLeft, width: button.offsetWidth } : null;
+  };
+
+  const selectTab = (id: DocumentPreviewTabId) => {
+    const to = measure(id);
+    if (pill) setPill(to);
+    else {
+      setPill(measure(activeTab));
+      requestAnimationFrame(() => setPill(to));
+    }
+    setActiveTab(id);
+  };
+
   return (
     <section className="relative w-full overflow-hidden bg-white py-32 md:py-48 dark:bg-zinc-950/20">
       <div className="mx-auto max-w-350 px-6 md:px-8">
@@ -66,6 +85,16 @@ const DocumentPortfolioSwitcher = ({ previews }: DocumentPortfolioSwitcherProps)
 
         <div className="mt-10 flex justify-center sm:mt-12">
           <div className="relative inline-flex w-full max-w-md items-center justify-between gap-1 rounded-full border border-zinc-200/90 bg-zinc-100/90 p-1.5 shadow-2xs backdrop-blur-xl sm:w-auto sm:max-w-none sm:justify-center dark:border-white/10 dark:bg-zinc-900/90">
+            {pill && (
+              <m.span
+                aria-hidden="true"
+                initial={false}
+                animate={{ x: pill.x, width: pill.width }}
+                transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                className="absolute inset-y-1.5 left-0 rounded-full border border-black/5 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.08)] dark:border-white/10 dark:bg-zinc-800 dark:shadow-[0_2px_12px_rgba(0,0,0,0.5)]"
+              />
+            )}
+
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = tab.id === activeTab;
@@ -73,21 +102,22 @@ const DocumentPortfolioSwitcher = ({ previews }: DocumentPortfolioSwitcherProps)
               return (
                 <button
                   key={tab.id}
+                  ref={(node) => {
+                    tabRefs.current[tab.id] = node;
+                  }}
                   type="button"
                   aria-pressed={isActive}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => selectTab(tab.id)}
                   className={`group relative flex flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-colors duration-200 select-none sm:flex-initial sm:gap-2 sm:px-5 sm:py-2.5 sm:text-sm ${
                     isActive
                       ? "text-zinc-950 dark:text-white"
                       : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
                   }`}
                 >
-                  {/* Fades in under the new tab instead of sliding: a layoutId slide needs
-                      framer's layout projection for the whole page. */}
-                  {isActive && (
+                  {isActive && !pill && (
                     <span
                       aria-hidden="true"
-                      className="absolute inset-0 rounded-full border border-black/5 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.08)] transition-[opacity,transform] duration-200 dark:border-white/10 dark:bg-zinc-800 dark:shadow-[0_2px_12px_rgba(0,0,0,0.5)] starting:scale-95 starting:opacity-0"
+                      className="absolute inset-0 rounded-full border border-black/5 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.08)] dark:border-white/10 dark:bg-zinc-800 dark:shadow-[0_2px_12px_rgba(0,0,0,0.5)]"
                     />
                   )}
 

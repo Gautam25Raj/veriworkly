@@ -1,23 +1,9 @@
-/**
- * Reaction media for each question in the apply flow.
- *
- * `src` points at a self-hosted file under `public/ambassador/reactions/`. Leave it
- * `null` and the question falls back to an animated emoji sticker, which is why this
- * ships working without a single binary asset committed. Dropping a real GIF in is a
- * one-line change here - see `public/ambassador/reactions/README.md`.
- *
- * Self-hosted on purpose: `next.config.ts` only whitelists `images.unsplash.com` and
- * `avatars.githubusercontent.com` as remote image hosts, and the CSP sets
- * `frame-src 'none'`, so hotlinked Giphy images and Giphy iframe embeds are both blocked.
- */
+/** Self-hosted on purpose: next.config.ts allowlists remote image hosts and the CSP sets frame-src 'none', so Giphy is blocked. */
 export type ApplyReaction = {
   /** Path under /public, or null to use the emoji sticker fallback. */
   src: string | null;
-  /** Shown as the sticker when `src` is null, and as a decorative badge when it isn't. */
   emoji: string;
-  /** Caption under the media. Keep it short and funny. */
   caption: string;
-  /** Alt text used when `src` is set. */
   alt: string;
 };
 

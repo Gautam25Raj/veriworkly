@@ -2,12 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-/**
- * Framer is loaded per page through <MotionIsland> (LazyMotion + MotionConfig), not from the
- * root layout. Two ways that breaks silently: a component imports the full `motion` (which
- * re-bundles every feature), or a page renders `m.*` components without an island (they then
- * never animate, and anything starting at opacity 0 stays invisible).
- */
+/** Catches components importing the full `motion` and pages rendering `m.*` without a <MotionIsland> (they never animate). */
 
 const root = join(__dirname, "..", "..");
 
@@ -23,7 +18,6 @@ const sources = ["features", "components", "providers", "app"].flatMap((dir) =>
   files(join(root, dir), ".tsx"),
 );
 
-/** Resolves an "@/..." or relative import to a file in this app, or null for packages. */
 function resolveImport(from: string, spec: string): string | null {
   const base = spec.startsWith("@/")
     ? join(root, spec.slice(2))
@@ -40,7 +34,6 @@ function resolveImport(from: string, spec: string): string | null {
 
 const usesM = (source: string) => /import \{[^}]*\bm\b[^}]*\} from "framer-motion"/.test(source);
 
-/** True when the file, or anything it imports (statically or via dynamic()), renders `m.*`. */
 function rendersMotion(file: string, seen = new Set<string>()): boolean {
   if (seen.has(file)) return false;
   seen.add(file);

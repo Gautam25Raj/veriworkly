@@ -29,7 +29,6 @@ export async function generateStaticParams() {
 
     return index.map((entry) => ({ id: entry.id }));
   } catch (err) {
-    // No index means no prerendered release pages; they render on first request instead.
     // Prerendering from an empty index would bake every release as a 404 for the ISR week.
     console.error("Changelog index unavailable at build; release pages render on demand:", err);
 

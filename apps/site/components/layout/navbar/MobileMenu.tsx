@@ -13,29 +13,30 @@ import { useFocusTrap } from "@/hooks/use-focus-trap";
 import { MOBILE_MENU_ID, NAVIGATION_ITEMS } from "./constants";
 
 interface MobileMenuProps {
+  /** False while the menu plays its closing transition before the navbar unmounts it. */
+  open: boolean;
   onClose: () => void;
   mounted: boolean;
   isDark: boolean;
   onToggleTheme: () => void;
 }
 
-/**
- * Rendered only while open and loaded with next/dynamic on first open, so the menu is not in
- * the initial bundle. Entry is a CSS transition from @starting-style (the starting: variant);
- * there is no exit animation.
- */
-export const MobileMenu = ({ onClose, mounted, isDark, onToggleTheme }: MobileMenuProps) => {
+/** Tailwind 4 puts translate and scale in their own properties, so the transitions list them explicitly. */
+export const MobileMenu = ({ open, onClose, mounted, isDark, onToggleTheme }: MobileMenuProps) => {
   const pathname = usePathname();
   const menuRef = useRef<HTMLDivElement>(null);
 
-  useFocusTrap(true, menuRef, { onEscape: onClose });
+  useFocusTrap(open, menuRef, { onEscape: onClose });
 
   return (
     <>
       <div
         onClick={onClose}
         aria-hidden="true"
-        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-md transition-opacity duration-200 lg:hidden dark:bg-black/75 starting:opacity-0"
+        className={cn(
+          "fixed inset-0 z-40 bg-black/40 backdrop-blur-md transition-opacity duration-200 lg:hidden dark:bg-black/75 starting:opacity-0",
+          !open && "pointer-events-none opacity-0",
+        )}
       />
 
       <div
@@ -45,7 +46,10 @@ export const MobileMenu = ({ onClose, mounted, isDark, onToggleTheme }: MobileMe
         aria-modal="true"
         id={MOBILE_MENU_ID}
         aria-label="Site navigation"
-        className="fixed inset-x-3 top-20 z-50 flex max-h-[calc(100dvh-6rem)] flex-col justify-between overflow-hidden rounded-3xl border border-zinc-200/90 bg-white/95 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.2)] backdrop-blur-2xl transition-[opacity,transform] duration-250 ease-[cubic-bezier(0.23,1,0.32,1)] sm:top-22 lg:hidden dark:border-white/12 dark:bg-[#121212]/95 dark:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] starting:-translate-y-3 starting:scale-[0.98] starting:opacity-0"
+        className={cn(
+          "fixed inset-x-3 top-20 z-50 flex max-h-[calc(100dvh-6rem)] flex-col justify-between overflow-hidden rounded-3xl border border-zinc-200/90 bg-white/95 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.2)] backdrop-blur-2xl transition-[opacity,translate,scale] duration-250 ease-[cubic-bezier(0.23,1,0.32,1)] sm:top-22 lg:hidden dark:border-white/12 dark:bg-[#121212]/95 dark:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] starting:-translate-y-3 starting:scale-[0.98] starting:opacity-0",
+          !open && "pointer-events-none -translate-y-3 scale-[0.98] opacity-0 duration-200",
+        )}
       >
         <div className="flex items-center justify-between border-b border-zinc-100/90 px-5 py-3.5 dark:border-white/8">
           <div className="flex items-center gap-2">
@@ -64,7 +68,7 @@ export const MobileMenu = ({ onClose, mounted, isDark, onToggleTheme }: MobileMe
 
         <div className="flex-1 overflow-y-auto p-3.5">
           <nav className="flex flex-col gap-1.5">
-            {NAVIGATION_ITEMS.map((item) => {
+            {NAVIGATION_ITEMS.map((item, index) => {
               const isActive = pathname === item.href;
 
               const Icon = item.icon;
@@ -82,7 +86,11 @@ export const MobileMenu = ({ onClose, mounted, isDark, onToggleTheme }: MobileMe
                   };
 
               return (
-                <div key={item.href}>
+                <div
+                  key={item.href}
+                  className="transition-[opacity,translate] duration-200 ease-out starting:-translate-y-2 starting:opacity-0"
+                  style={{ transitionDelay: open ? `${30 + index * 40}ms` : "0ms" }}
+                >
                   <LinkComponent
                     {...linkProps}
                     onClick={onClose}

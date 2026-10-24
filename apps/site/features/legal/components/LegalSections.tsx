@@ -51,10 +51,7 @@ export function LegalSections({ sections }: LegalSectionsProps) {
           filteredSections={filteredSections}
         />
 
-        {/* Not <main>: AppShell already renders the page-level main landmark around
-            every marketing page, and two "main" regions make landmark navigation
-            ambiguous for screen-reader users - on exactly the two pages that most
-            need to be navigable. */}
+        {/* Not <main>: AppShell already renders the page's main landmark, and two confuse screen-reader navigation. */}
         <div className="min-w-0 space-y-16 lg:space-y-20">
           {filteredSections.length === 0 ? (
             <div className="bg-card rounded-3xl px-6 py-14 text-center">

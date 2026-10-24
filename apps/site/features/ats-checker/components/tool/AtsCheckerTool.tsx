@@ -35,10 +35,8 @@ export function AtsCheckerTool() {
   const [phase, setPhase] = useState<Phase>("resume");
   const [resume, setResume] = useState("");
   const [sourceLabel, setSourceLabel] = useState("");
-  // Page geometry from an uploaded file, held alongside its text and sent with the scan so the
-  // format checks can see the layout. Pasted text has none, and the checks are skipped.
+  // Page geometry from an uploaded file, sent with the scan so format checks see the layout; pasted text has none.
   const [layout, setLayout] = useState<AtsLayoutSignals | undefined>(undefined);
-  // The uploaded file's name and size, for the advice on them; none for pasted text.
   const [upload, setUpload] = useState<{ name: string; bytes: number } | undefined>(undefined);
   const [jobDescription, setJobDescription] = useState("");
   const [quota, setQuota] = useState<AtsQuota | null>(null);
@@ -114,8 +112,7 @@ export function AtsCheckerTool() {
       return;
     }
     setResume(text);
-    // Pasted text carries no geometry, so any layout measured from a previous upload no longer
-    // describes this resume and must not be scored against it.
+    // Pasted text has no geometry; a layout from a previous upload must not be scored against it.
     setLayout(undefined);
     setUpload(undefined);
     setSourceLabel("Pasted resume text");
@@ -196,8 +193,7 @@ export function AtsCheckerTool() {
         <Stepper steps={STEP_LABELS} current={currentStep} />
       </div>
 
-      {/* One line is held for the notice while the quota loads, so the tool does not jump
-          down when it arrives (W-042). */}
+      {/* Hold one line for the notice while the quota loads, so the tool does not jump. */}
       {phase !== "results" ? (
         quota ? (
           <QuotaNotice quota={quota} />
@@ -362,7 +358,6 @@ export function AtsCheckerTool() {
 
 export default AtsCheckerTool;
 
-/** The server's quota summary, as sent in a 429's details. */
 function isQuota(value: unknown): value is AtsQuota {
   return (
     typeof value === "object" &&

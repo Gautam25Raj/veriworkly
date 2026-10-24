@@ -10,15 +10,9 @@ import { getTemplateHref } from "./utils";
 type TemplateCardProps = {
   template: TemplateCardData;
   loading?: "eager";
-  /** h2 directly under the page H1 (gallery), h3 inside a titled section. */
   heading?: "h2" | "h3";
 };
 
-/**
- * One template as a gallery tile: the real export, its name, its style and one line about it.
- * Small enough that a row holds three or four, so a long catalogue stays browsable; the detail
- * page carries everything else.
- */
 const TemplateCard = ({ template, loading, heading: Heading = "h2" }: TemplateCardProps) => {
   const isPortfolio = template.documentType === "portfolio-website";
 
@@ -67,7 +61,6 @@ const TemplateCard = ({ template, loading, heading: Heading = "h2" }: TemplateCa
   );
 };
 
-/** The grid a set of tiles sits in. Documents are tall sheets, portfolios are wide screens. */
 export const templateGridClass = (isPortfolio: boolean) =>
   isPortfolio
     ? "grid gap-x-6 gap-y-10 sm:grid-cols-2 xl:grid-cols-3"

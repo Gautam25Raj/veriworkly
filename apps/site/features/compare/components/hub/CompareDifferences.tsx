@@ -15,10 +15,6 @@ const DIFFERENCES = [
   },
 ];
 
-/**
- * Most builders let you write for an hour, then put the subscription on the download button.
- * These are the three places VeriWorkly does the opposite, stated once for the whole hub.
- */
 const CompareDifferences = () => (
   <PageSection
     tone="card"

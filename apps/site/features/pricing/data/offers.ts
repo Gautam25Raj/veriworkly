@@ -1,11 +1,4 @@
-/**
- * Every price the pricing page's Product markup lists, in USD. The server's
- * `productCatalog.ts` owns these numbers; `claims-truth.contract.test.ts` checks this list
- * against it, so a catalog change fails CI here instead of drifting.
- *
- * `billing` marks a recurring subscription (one payment per month or year). `days` marks a
- * one-time pass that expires on its own.
- */
+/** The server's productCatalog.ts owns these prices; claims-truth.contract.test.ts fails CI if they drift. */
 export const PRICING_OFFERS = [
   { name: "Free", price: 0 },
   { name: "3-Day Sprint Pass", price: 2.99, days: 3 },
@@ -20,11 +13,7 @@ export const PRICING_OFFERS = [
 
 export type PricingOffer = (typeof PRICING_OFFERS)[number];
 
-/**
- * schema.org Offer for one row. Subscriptions carry a UnitPriceSpecification with the billing
- * duration, passes carry their eligible duration, and nothing paid is "InStock" while the
- * checkout is closed.
- */
+/** Nothing paid is "InStock" while checkout is closed. */
 export function toSchemaOffer(offer: PricingOffer, url: string, paymentsBlocked: boolean) {
   const price = offer.price.toFixed(2);
   const free = offer.price === 0;

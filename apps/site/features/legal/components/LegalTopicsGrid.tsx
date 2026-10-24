@@ -2,7 +2,6 @@ import { PageSection, TYPE } from "@/components/marketing/PageLayout";
 
 import type { LegalTopicsGridProps } from "../types";
 
-/** The plain-language summary above a legal document. The document itself stays authoritative. */
 export function LegalTopicsGrid({ title, lede, topics }: LegalTopicsGridProps) {
   return (
     <PageSection tone="card" title={title} lede={lede}>

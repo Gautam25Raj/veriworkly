@@ -1,3 +1,7 @@
+"use client";
+
+import { createRef, useMemo, type ReactNode, type RefObject } from "react";
+import { m, useReducedMotion, useScroll, useTransform } from "framer-motion";
 import { UserCheck, Award, ClipboardList, Send } from "lucide-react";
 
 type PlaybookStep = {
@@ -9,13 +13,7 @@ type PlaybookStep = {
   icon: React.ComponentType<{ className?: string }>;
 };
 
-/**
- * Describes the flow the server actually implements: apply, human review, decision.
- * An earlier revision claimed an "automated node validator" that "issues campus
- * ambassador badges instantly" and points that score "automatically" - none of
- * which exists. Review is AmbassadorService.reviewApplication, run by an admin
- * against a PENDING row.
- */
+/** Describes only the flow the server implements: apply, human review (AmbassadorService.reviewApplication), decision. */
 const steps: PlaybookStep[] = [
   {
     num: "01",
@@ -46,19 +44,52 @@ const steps: PlaybookStep[] = [
   },
 ];
 
-/**
- * A stack of full-height cards, each sticky at the top so the next one slides over it. This
- * was gsap + ScrollTrigger pinning with a scrubbed scale, fade and blur (46.6 KB gz on this
- * route alone, W-030); position: sticky does the stacking with no script, so the section
- * renders on the server.
- */
+/** Sticky does the pinning and framer (already on the page) does the scrub, so this route needs no gsap. */
+const RecedingCard = ({
+  cardRef,
+  next,
+  className,
+  children,
+}: {
+  cardRef: RefObject<HTMLDivElement | null>;
+  next?: RefObject<HTMLDivElement | null>;
+  className: string;
+  children: ReactNode;
+}) => {
+  const reduce = useReducedMotion();
+  const { scrollYProgress } = useScroll({ target: next, offset: ["start end", "start start"] });
+  const scale = useTransform(scrollYProgress, [0, 1], [1, 0.96]);
+  const opacity = useTransform(scrollYProgress, [0, 1], [1, 0.5]);
+  const filter = useTransform(scrollYProgress, [0, 1], ["blur(0px)", "blur(1px)"]);
+
+  return (
+    <m.div
+      ref={cardRef}
+      style={next && !reduce ? { scale, opacity, filter } : undefined}
+      className={className}
+    >
+      {children}
+    </m.div>
+  );
+};
+
 const AmbassadorPlaybook = () => {
+  // The intro card plus one per step.
+  const cardRefs = useMemo(
+    () => Array.from({ length: steps.length + 1 }, () => createRef<HTMLDivElement>()),
+    [],
+  );
+
   return (
     <div
       id="playbook"
       className="bg-background relative z-25 border-b border-zinc-200/80 dark:border-white/10"
     >
-      <div className="playbook-card bg-background sticky top-0 flex min-h-dvh items-center justify-center px-6">
+      <RecedingCard
+        cardRef={cardRefs[0]}
+        next={cardRefs[1]}
+        className="playbook-card bg-background sticky top-0 flex min-h-dvh items-center justify-center px-6"
+      >
         <div className="max-w-xl space-y-6 text-center">
           <span className="flex items-center justify-center gap-2 text-[10px] font-black tracking-widest text-indigo-600 uppercase dark:text-indigo-400">
             <ClipboardList className="h-4 w-4" />
@@ -81,13 +112,15 @@ const AmbassadorPlaybook = () => {
             <span className="h-1 w-1 rounded-full bg-zinc-300 dark:bg-zinc-800" />
           </div>
         </div>
-      </div>
+      </RecedingCard>
 
       {steps.map((step, idx) => {
         const Icon = step.icon;
         return (
-          <div
+          <RecedingCard
             key={idx}
+            cardRef={cardRefs[idx + 1]}
+            next={cardRefs[idx + 2]}
             className="playbook-card bg-background sticky top-0 flex min-h-dvh items-center justify-center border-t border-zinc-200/80 px-6 md:px-24 dark:border-white/10"
           >
             <div className="grid w-full max-w-5xl grid-cols-1 items-center gap-12 py-16 lg:grid-cols-2 lg:gap-20">
@@ -233,7 +266,7 @@ const AmbassadorPlaybook = () => {
                 )}
               </div>
             </div>
-          </div>
+          </RecedingCard>
         );
       })}
     </div>

@@ -11,8 +11,7 @@ import { type ChangelogEntry } from "@/features/changelog/services/changelog-bac
 
 export type ChangelogCategory = "added" | "improved" | "fixed" | "security" | "breaking";
 
-// Status tokens, not raw palette colours, so both themes keep their contrast. Security uses the
-// ink because it is neither good news nor bad: it is the thing to read first.
+// Status tokens keep contrast in both themes; Security uses the ink because it is neither good nor bad news.
 export const CATEGORY_META: Record<
   ChangelogCategory,
   { label: string; icon: LucideIcon; dot: string; text: string }
@@ -45,10 +44,6 @@ export function categoriesFor(entry: ChangelogEntry) {
   }));
 }
 
-/**
- * Per-category counts for the listing card, which shows how much changed rather than the
- * change lists themselves - those live on the detail page now.
- */
 export function categoryCountsFor(entry: ChangelogEntry) {
   return CATEGORY_ORDER.filter((category) => entry[category]?.length).map((category) => ({
     category,
@@ -57,10 +52,7 @@ export function categoryCountsFor(entry: ChangelogEntry) {
   }));
 }
 
-/**
- * The backend's release title often repeats the version ("v3.21.0 - AI Experience Refresh"),
- * which doubled it in the <title>. Strip a leading version so the page can place it once.
- */
+/** Strips a leading version from the backend title, which otherwise doubled it in the <title>. */
 export function releaseHeadline(title: string) {
   return title.replace(/^v?\d+(?:\.\d+)+(?:-[\w.]+)?\s*[-\u2013\u2014:]\s*/i, "").trim() || title;
 }

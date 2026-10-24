@@ -6,10 +6,7 @@ import { RotateCw } from "lucide-react";
 
 import { StatusPage, statusAction } from "@/components/marketing/StatusPage";
 
-/**
- * Catches failures outside the marketing layout (and in the layout itself), so it cannot lean
- * on the navbar or footer being able to render.
- */
+/** Catches failures outside the marketing layout (and in it), so it cannot rely on the navbar or footer rendering. */
 const Error = ({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) => {
   useEffect(() => {
     console.error("Root error boundary caught error:", error);

@@ -88,7 +88,9 @@ for (const page of PAGES) {
     "--quiet",
   ].join(" ");
 
-  const result = spawnSync(command, { stdio: "inherit", shell: true });
+  // Lighthouse sometimes loses the trace (NO_NAVSTART) and asks to be run again; retry once.
+  let result = spawnSync(command, { stdio: "inherit", shell: true });
+  if (result.status !== 0) result = spawnSync(command, { stdio: "inherit", shell: true });
 
   if (result.status !== 0) {
     failures.push(page);

@@ -3,7 +3,8 @@ import type { Instrumentation } from "next";
 /**
  * Server-side errors (render, route handler, server action, revalidation) used to end as a
  * console line in the container log and nothing else. This forwards them to whatever
- * `ERROR_REPORT_URL` points at (an OTel collector, a webhook) as one JSON record per error.
+ * `ERROR_REPORT_URL` points at (a webhook or any endpoint that takes plain JSON; not an OTLP collector directly) as one
+ * JSON record per error.
  * Without the variable it falls back to one structured line on stderr, so a log scraper can
  * still pick it up. Request headers are left out on purpose: they carry cookies.
  */

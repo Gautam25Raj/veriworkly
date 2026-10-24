@@ -15,7 +15,7 @@ type OnMetric = (callback: (metric: Metric) => void) => void;
 
 /**
  * Field Core Web Vitals: each metric is sent as one small JSON beacon to NEXT_PUBLIC_VITALS_URL
- * (an OTel collector or any endpoint that accepts POST), so the Phase 2 budgets can be checked
+ * (any endpoint that accepts a plain JSON POST; an OTLP collector needs a converter in front), so the Phase 2 budgets can be checked
  * on real devices and not only in the lab (W-061).
  *
  * The web-vitals library (the copy Next bundles) is imported inside the effect, so it is its own

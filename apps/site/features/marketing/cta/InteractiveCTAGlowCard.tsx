@@ -4,7 +4,7 @@ import InteractiveCTAMockup from "@/features/marketing/cta/InteractiveCTAMockup"
 
 const InteractiveCTAGlowCard = ({ children }: { children: ReactNode }) => {
   return (
-    <div className="relative overflow-hidden rounded-[3rem] border border-zinc-200 bg-zinc-50/50 p-10 md:p-20 dark:border-zinc-800/80 dark:bg-[#080808]">
+    <div className="relative overflow-clip rounded-[3rem] border border-zinc-200 bg-zinc-50/50 p-10 md:p-20 dark:border-zinc-800/80 dark:bg-[#080808]">
       <div className="glow-scroll pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,var(--color-accent)_0%,transparent_60%)] blur-2xl" />
 
       <div className="glow-scroll-still pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,#06b6d4_0%,transparent_55%)] opacity-30 blur-2xl" />

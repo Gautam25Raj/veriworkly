@@ -1,7 +1,6 @@
 @import "tailwindcss";
 
-/* Only the UI components the site renders; scanning the whole package put the studio's
-   components' classes into every marketing page's render-blocking stylesheet (W-041). */
+/* Only the UI components the site renders; scanning the whole package puts studio classes into the render-blocking stylesheet. */
 @source "../../../packages/ui/src/components/layout/AppShell.tsx";
 @source "../../../packages/ui/src/components/layout/Container.tsx";
 @source "../../../packages/ui/src/components/layout/social/SocialIcons.tsx";
@@ -89,13 +88,7 @@ body {
   margin: 0;
 }
 
-/*
- * Entrances for the secondary marketing pages (components/marketing/PageLayout.tsx).
- * `.reveal` is driven by the scroll position itself, so it needs no script and no client
- * component; a browser without scroll timelines simply shows the content. `.hero-rise` plays
- * once on load for what sits beside the headline. The headline itself never fades: it is the
- * largest paint on the page.
- */
+/* The headline itself never fades: it is the LCP element. Browsers without scroll timelines just show the content. */
 @keyframes rise-in {
   from {
     opacity: 0;
@@ -124,19 +117,14 @@ body {
 
 @keyframes shimmer-run {
   from {
-    transform: translateX(-100%);
+    transform: translateX(-300%);
   }
   to {
     transform: translateX(300%);
   }
 }
 
-/*
- * Scroll-linked drift for the landing page, driven by the element's own view timeline and
- * set per element with the --sx/--sy/--sr custom properties. These replaced framer
- * useScroll + useSpring chains that ran JavaScript on every scroll frame (W-035). Browsers
- * without scroll timelines show the elements at rest.
- */
+/* Clip ancestors with overflow-clip, never overflow-hidden: a hidden ancestor becomes the timeline's scroller and the animation freezes. */
 @keyframes scroll-shift {
   from {
     transform: translate(var(--sx0, 0), var(--sy0, 0)) rotateX(var(--sr0, 0deg))
@@ -169,8 +157,7 @@ body {
   }
 }
 
-/* Off-screen sections skip style, layout and paint until they near the viewport. The home
-   page has about 1,600 elements; styling them all held its first paint back. */
+/* Off-screen sections skip style, layout and paint; styling all ~1,600 home-page elements held back first paint. */
 .below-fold {
   content-visibility: auto;
   contain-intrinsic-size: auto 900px;

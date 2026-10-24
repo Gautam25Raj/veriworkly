@@ -7,11 +7,13 @@ import { ArrowLeft, Sun, Moon } from "lucide-react";
 import { m, AnimatePresence } from "framer-motion";
 
 import { useMounted } from "@/hooks/use-mounted";
+import { useSlidingPill } from "@/hooks/use-sliding-pill";
 
 const AmbassadorNav = () => {
   const mounted = useMounted();
 
   const { resolvedTheme, setTheme } = useTheme();
+  const pill = useSlidingPill(null);
 
   const navItems = [
     { label: "Home", target: "hero" },
@@ -47,10 +49,29 @@ const AmbassadorNav = () => {
           </Link>
         </m.div>
 
-        <nav className="relative hidden items-center gap-2 rounded-full border border-zinc-200/50 bg-white/60 px-3 py-2 shadow-[0_8px_30px_rgba(0,0,0,0.05)] backdrop-blur-xl md:flex dark:border-white/5 dark:bg-zinc-950/60 dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+        <nav
+          onMouseLeave={pill.onLeave}
+          className="relative hidden items-center gap-2 rounded-full border border-zinc-200/50 bg-white/60 px-3 py-2 shadow-[0_8px_30px_rgba(0,0,0,0.05)] backdrop-blur-xl md:flex dark:border-white/5 dark:bg-zinc-950/60 dark:shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+        >
+          {pill.box && (
+            <m.span
+              aria-hidden="true"
+              initial={false}
+              animate={{ x: pill.box.x, width: pill.box.width, opacity: pill.visible ? 1 : 0 }}
+              transition={
+                pill.box.instant
+                  ? { x: { duration: 0 }, width: { duration: 0 }, opacity: { duration: 0.15 } }
+                  : { type: "spring", stiffness: 350, damping: 30 }
+              }
+              className="pointer-events-none absolute inset-y-2 left-0 rounded-full bg-zinc-100/85 dark:bg-white/5"
+            />
+          )}
+
           {navItems.map((item) => (
             <button
               key={item.label}
+              ref={pill.itemRef(item.label)}
+              onMouseEnter={() => pill.onItemEnter(item.label)}
               onClick={() => {
                 if (item.target === "hero") {
                   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -58,7 +79,7 @@ const AmbassadorNav = () => {
                   document.getElementById(item.target)?.scrollIntoView({ behavior: "smooth" });
                 }
               }}
-              className="relative cursor-pointer px-4 py-2 text-[11px] font-black tracking-widest text-zinc-600 uppercase transition-colors duration-200 before:absolute before:inset-0 before:scale-95 before:rounded-full before:bg-zinc-100/85 before:opacity-0 before:transition-[opacity,transform] before:duration-200 hover:text-zinc-900 hover:before:scale-100 hover:before:opacity-100 dark:text-zinc-400 dark:before:bg-white/5 dark:hover:text-white"
+              className="relative cursor-pointer px-4 py-2 text-[11px] font-black tracking-widest text-zinc-600 uppercase transition-colors duration-200 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
             >
               <span className="relative z-10">{item.label}</span>
             </button>

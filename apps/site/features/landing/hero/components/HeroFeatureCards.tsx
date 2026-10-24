@@ -15,15 +15,15 @@ import {
 import Link from "next/link";
 import { m } from "framer-motion";
 
-/**
- * The scores, match percentages and view counts in these cards are illustrative - they
- * show what the interface looks like, not anything measured. They are captioned as
- * such below, following the same convention as ReportPreview on /ats-checker: a
- * fabricated number rendered without a label reads as a product fact.
- */
+/** These figures are illustrative and captioned as such; an unlabelled fabricated number reads as a product fact. */
 export const HeroFeatureCards = () => {
   return (
-    <figure className="hero-rise pointer-events-auto relative z-20 mt-10 -mb-16 grid w-full max-w-5xl grid-cols-1 gap-3.5 sm:mt-14 sm:-mb-24 sm:grid-cols-2 sm:gap-4 md:-mb-28 lg:mt-20 lg:-mb-36 lg:grid-cols-3 lg:gap-5.5">
+    <m.figure
+      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: 30 }}
+      transition={{ duration: 0.7, delay: 0.45, ease: [0.23, 1, 0.32, 1] }}
+      className="pointer-events-auto relative z-20 mt-10 -mb-16 grid w-full max-w-5xl grid-cols-1 gap-3.5 sm:mt-14 sm:-mb-24 sm:grid-cols-2 sm:gap-4 md:-mb-28 lg:mt-20 lg:-mb-36 lg:grid-cols-3 lg:gap-5.5"
+    >
       <div className="group flex flex-col justify-between rounded-3xl border border-black/5 bg-white p-4.5 shadow-[0_4px_24px_rgba(0,0,0,0.04)] backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-1.5 hover:shadow-[0_8px_32px_rgba(59,130,246,0.12)] sm:p-5 lg:translate-y-4 lg:p-6 lg:hover:translate-y-2 dark:border-white/10 dark:bg-[#111]">
         <div>
           <div className="mb-3.5 flex items-center justify-between sm:mb-4">
@@ -315,7 +315,7 @@ export const HeroFeatureCards = () => {
       <figcaption className="text-muted/70 col-span-full mt-4 text-center font-mono text-[11px] lg:mt-8">
         Interface preview. Scores, match percentages and view counts shown here are illustrative.
       </figcaption>
-    </figure>
+    </m.figure>
   );
 };
 

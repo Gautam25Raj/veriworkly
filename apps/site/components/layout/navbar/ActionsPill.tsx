@@ -19,11 +19,10 @@ export const ActionsPill = ({ mounted, isDark, onToggleTheme }: ActionsPillProps
         className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-black/5 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/10 dark:hover:text-white"
         aria-label={mounted ? `Switch to ${isDark ? "light" : "dark"} theme` : "Toggle theme"}
       >
-        {/* Both icons render; the html.dark class picks one, so the right icon is there from
-            the first paint instead of after hydration, and the swap is a CSS transition. */}
+        {/* Both icons render and html.dark picks one, so the right icon shows from first paint, not after hydration. */}
         <span className="relative h-4 w-4" aria-hidden="true">
-          <Moon className="absolute inset-0 h-4 w-4 text-indigo-500 transition-[opacity,transform] duration-200 dark:scale-75 dark:-rotate-45 dark:opacity-0" />
-          <Sun className="absolute inset-0 h-4 w-4 scale-75 -rotate-45 text-amber-500 opacity-0 transition-[opacity,transform] duration-200 dark:scale-100 dark:rotate-0 dark:opacity-100" />
+          <Moon className="absolute inset-0 h-4 w-4 text-indigo-500 transition-[opacity,scale,rotate] duration-200 dark:scale-75 dark:-rotate-45 dark:opacity-0" />
+          <Sun className="absolute inset-0 h-4 w-4 scale-75 -rotate-45 text-amber-500 opacity-0 transition-[opacity,scale,rotate] duration-200 dark:scale-100 dark:rotate-0 dark:opacity-100" />
         </span>
       </button>
 

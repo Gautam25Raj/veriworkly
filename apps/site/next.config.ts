@@ -3,20 +3,13 @@ import type { NextConfig } from "next";
 import { version } from "./package.json";
 import { HTML_LIMITED_BOT_UA_RE } from "next/dist/shared/lib/router/utils/html-bots";
 
-/**
- * Crawlers that read <head> from the first bytes and do not wait for streamed metadata. Next's
- * default list covers search and link-preview bots but no AI crawlers, so on the dynamic routes
- * (/changelog, /roadmap/*, /stats) they got <title> streamed into <body> (W-060). Setting the
- * option replaces the default, so the default is extended rather than restated.
- */
+/** Extends Next's default list (setting it replaces the default) so AI crawlers get <title> in <head>, not streamed. */
 export const HTML_LIMITED_BOTS = new RegExp(
   `${HTML_LIMITED_BOT_UA_RE.source}|GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|Claude-User|Claude-SearchBot|PerplexityBot|Perplexity-User|CCBot|Amazonbot|Applebot-Extended|meta-externalagent`,
   "i",
 );
 
-// The backend origin has to be reachable from the browser (contact form, checkout,
-// ambassador apply), so it is added to connect-src explicitly rather than opening the
-// directive up to all of `https:`.
+// The backend origin is added to connect-src explicitly rather than opening the directive to all of `https:`.
 const backendOrigin = (() => {
   try {
     const raw = process.env.NEXT_PUBLIC_BACKEND_URL;
@@ -27,7 +20,6 @@ const backendOrigin = (() => {
   }
 })();
 
-// The field Web Vitals collector (components/WebVitals.tsx), when one is configured.
 const vitalsOrigin = (() => {
   try {
     const raw = process.env.NEXT_PUBLIC_VITALS_URL;
@@ -46,25 +38,20 @@ const isProd = process.env.NODE_ENV === "production";
 
 const contentSecurityPolicy = [
   "default-src 'self'",
-  // 'unsafe-inline' is required for next-themes and inline JSON-LD.
-  // 'unsafe-eval' is enabled ONLY in development mode so React Fast Refresh and dev tools can reconstruct callstacks.
+  // 'unsafe-inline' is for next-themes and Next's inline bootstrap scripts (JSON-LD is data, not script); 'unsafe-eval' only in development.
   `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' blob: data: https:",
   "font-src 'self' data:",
   `connect-src ${connectSrc}`,
   "frame-ancestors 'self'",
-  // Hardening that costs nothing here: the app has no <object>/<embed>, never needs to
-  // rewrite <base>, and only ever posts to itself or the backend.
   "object-src 'none'",
   "base-uri 'none'",
   `form-action 'self'${backendOrigin ? ` ${backendOrigin}` : ""}`,
   "frame-src 'none'",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
-  // Production only. Locally the backend is plain http://localhost:8080, and although
-  // browsers treat localhost as a trustworthy origin, a non-localhost dev backend (a LAN
-  // IP, a tunnel) would get silently upgraded to https and fail to connect.
+  // Production only: a non-localhost dev backend (LAN IP, tunnel) would be upgraded to https and fail.
   ...(process.env.NODE_ENV === "production" ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
@@ -78,8 +65,7 @@ const securityHeaders = [
     value: "camera=(), microphone=(), geolocation=(), browsing-topics=()",
   },
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains; preload" },
-  // Cross-origin isolation. `same-origin-allow-popups` (not `same-origin`) so the
-  // hosted-checkout redirect and OAuth popups keep working.
+  // `same-origin-allow-popups`, not `same-origin`, so the checkout redirect and OAuth popups keep working.
   { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
   { key: "Cross-Origin-Resource-Policy", value: "same-site" },
 
@@ -87,11 +73,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  /**
-   * `.dev.tsx` and `.dev.ts` files are only treated as routes outside production,
-   * keeping internal development-only pages out of production builds cleanly without
-   * soft-404 prerender issues.
-   */
+  /** `.dev.tsx` and `.dev.ts` files are routes only outside production. */
   pageExtensions: [
     "tsx",
     "ts",
@@ -100,27 +82,16 @@ const nextConfig: NextConfig = {
     ...(process.env.NODE_ENV === "production" ? [] : ["dev.tsx", "dev.ts"]),
   ],
 
-  // Cloud deploys run `next start`, which warns and gains nothing from a standalone
-  // bundle. Only the container build (which runs `node apps/site/server.js`) opts in.
+  // Only the container build (`node apps/site/server.js`) needs standalone; `next start` gains nothing.
   output: process.env.BUILD_STANDALONE === "1" ? "standalone" : undefined,
   transpilePackages: ["@veriworkly/ui"],
-  // The site's own version, for the mobile menu badge; it moves with every release bump.
   env: { NEXT_PUBLIC_APP_VERSION: version },
   reactStrictMode: true,
   poweredByHeader: false,
   htmlLimitedBots: HTML_LIMITED_BOTS,
   images: {
     formats: ["image/avif", "image/webp"],
-    /**
-     * Only hosts we actually render from. Both entries serve GitHub contributor
-     * avatars on /changelog - `avatars.githubusercontent.com` for the API-supplied
-     * URL, `github.com/<user>.png` as the fallback shape.
-     *
-     * `images.unsplash.com` used to be here for two stock photos on /ambassador.
-     * Those were replaced with product UI, so the pattern came out with them: every
-     * allowed host is a host the optimizer will fetch and cache on request, so the
-     * list should never outlive its usage.
-     */
+    /** Only hosts we actually render from: every allowed host is one the optimizer fetches on request. */
     remotePatterns: [
       {
         protocol: "https",
@@ -136,21 +107,16 @@ const nextConfig: NextConfig = {
 
   async redirects() {
     return [
-      // Historical root-domain URLs appeared in Search Console as 404s. These have direct,
-      // durable homes on the public subdomains, so preserve their accumulated links instead of
-      // asking crawlers and visitors to rediscover them.
+      // Legacy root-domain URLs that Search Console reported as 404s; keep their accumulated links.
       { source: "/blog", destination: "https://blog.veriworkly.com", permanent: true },
       { source: "/docs", destination: "https://docs.veriworkly.com/docs", permanent: true },
       { source: "/dashboard", destination: "https://app.veriworkly.com", permanent: true },
-      // One generated copy of the API spec lives on the docs site; this was a duplicate of it.
       {
         source: "/openapi.json",
         destination: "https://docs.veriworkly.com/openapi.json",
         permanent: true,
       },
 
-      // The ambassador footer linked these for months; they never existed and sit in the
-      // Search Console 404 report. Each goes to the page that holds what the label promised.
       { source: "/support", destination: "/contact", permanent: true },
       { source: "/cookies", destination: "/privacy#cookies", permanent: true },
       { source: "/careers", destination: "/about", permanent: true },
@@ -159,8 +125,6 @@ const nextConfig: NextConfig = {
       { source: "/tutorials", destination: "https://docs.veriworkly.com/docs", permanent: true },
       { source: "/Free", destination: "/", permanent: true },
 
-      // Older template URLs used unprefixed slugs. Send the known legacy paths to the
-      // current, canonical template detail pages instead of serving soft 404s.
       {
         source: "/templates/executive-clarity",
         destination: "/templates/resume/resume-executive-clarity",
@@ -186,10 +150,7 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
-        // These files keep their names when their content changes (template previews, og
-        // cards, the logo), so they cannot be immutable: a year-long immutable copy would
-        // outlive every replacement. A day fresh, then a week served stale while it
-        // revalidates (W-036). Hashed build assets under /_next/static keep Next's own header.
+        // Same-name files change content, so they cannot be immutable: a day fresh, then a week stale-while-revalidate.
         source: "/:all*(svg|jpg|jpeg|png|webp|avif|ico)",
         headers: [
           { key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" },

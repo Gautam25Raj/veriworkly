@@ -18,7 +18,9 @@ import {
   fetchRoadmapSitemapEntries,
 } from "@/features/roadmap/services/roadmap-backend";
 
-export const revalidate = 604800;
+// Hourly: a build made with the backend down lists static routes only, and the data fetches
+// underneath are cached for a week, so a short window costs nothing.
+export const revalidate = 3600;
 
 const publicRoutes = [
   {
@@ -147,9 +149,7 @@ const publicRoutes = [
     priority: 0.5,
   },
 
-  // Pages that state their own date carry it here. The rest get none: a lastmod that moves
-  // on every deploy teaches Google to ignore the field. ponytail: git-derived dates need the
-  // repository in the build context, which the Docker build excludes.
+  // Only pages that state their own date carry lastmod: one that moves every deploy teaches Google to ignore it.
   {
     url: `${siteConfig.url}/privacy`,
     lastModified: privacyLastUpdated,
@@ -172,12 +172,7 @@ const publicRoutes = [
   },
 ] satisfies MetadataRoute.Sitemap;
 
-/**
- * The backend-driven rows. At build time an unreachable backend yields the static routes
- * only, and the first ISR revalidation fills the rest in. At runtime the error is rethrown
- * on purpose: a revalidation that throws keeps the last successfully generated sitemap, which
- * is better than publishing one that silently lost every roadmap and changelog URL for a week.
- */
+/** At runtime errors are rethrown on purpose: a failed ISR revalidation keeps the last good sitemap instead of one missing every backend URL. */
 async function fetchDynamicEntries(): Promise<
   [RoadmapSitemapEntry[], Date | null, ChangelogIndexItem[]]
 > {
@@ -248,8 +243,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...(changelogLastModified ? { lastModified: changelogLastModified } : {}),
   };
 
-  // The program pages exist either way, but while a program is closed they only say so;
-  // they should not be submitted as pages worth indexing (W-012).
+  // Closed programs' pages only say so; they should not be submitted for indexing.
   const closed = new Set([
     ...(isAffiliateProgramEnabled() ? [] : [`${siteConfig.url}/affiliate`]),
     ...(isAmbassadorProgramEnabled() ? [] : [`${siteConfig.url}/ambassador`]),

@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import { ArrowLeft, CornerDownLeft } from "lucide-react";
 
+import { ApiRequestError } from "@/utils/fetchApiData";
 import { submitAmbassadorApplication } from "@/features/ambassador/ambassador-api";
 import type { AmbassadorApplicationPayload, ApplyViewer } from "@/features/ambassador/types";
 
@@ -55,32 +56,44 @@ export const AmbassadorApplyExperience = ({
 
   const autofilledSchool = Boolean(prefilled.collegeName || prefilled.graduationYear);
 
-  const submitApplication = useCallback(async (payload: FormState) => {
-    setSubmitting(true);
-    setError("");
+  const submitApplication = useCallback(
+    async (payload: FormState, afterSignIn = false) => {
+      setSubmitting(true);
+      setError("");
 
-    try {
-      const body: AmbassadorApplicationPayload = {
-        collegeName: payload.collegeName.trim(),
-        graduationYear: payload.graduationYear.trim(),
-        whyJoin: payload.whyJoin.trim(),
-        superpower: payload.superpower.trim(),
-        funFact: payload.funFact.trim(),
-        vibeCheck: payload.vibeCheck || undefined,
-        socialHandle: payload.socialHandle.trim() || undefined,
-      };
+      try {
+        const body: AmbassadorApplicationPayload = {
+          collegeName: payload.collegeName.trim(),
+          graduationYear: payload.graduationYear.trim(),
+          whyJoin: payload.whyJoin.trim(),
+          superpower: payload.superpower.trim(),
+          funFact: payload.funFact.trim(),
+          vibeCheck: payload.vibeCheck || undefined,
+          socialHandle: payload.socialHandle.trim() || undefined,
+        };
 
-      await submitAmbassadorApplication(body);
-      clearDraft();
-      setSubmitted(true);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Something glitched. Mind giving it another shot?",
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  }, []);
+        await submitAmbassadorApplication(body);
+        clearDraft();
+        setSubmitted(true);
+      } catch (err) {
+        // The session ran out between loading the page and submitting (W-054): keep the answers
+        // and go through sign-in, which comes back here and submits them. Only once: a second
+        // 401 straight after sign-in would otherwise bounce between here and login forever.
+        if (err instanceof ApiRequestError && err.status === 401 && !afterSignIn) {
+          writeDraft({ form: payload, stepIndex: REVIEW_INDEX, pendingSubmit: true });
+          window.location.href = loginUrl;
+          return;
+        }
+
+        setError(
+          err instanceof Error ? err.message : "Something glitched. Mind giving it another shot?",
+        );
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [loginUrl],
+  );
 
   const restored = useRef(false);
   useEffect(() => {
@@ -109,7 +122,7 @@ export const AmbassadorApplyExperience = ({
       }
 
       setStepIndex(REVIEW_INDEX);
-      void submitApplication(merged);
+      void submitApplication(merged, true);
       return;
     }
 
@@ -190,7 +203,7 @@ export const AmbassadorApplyExperience = ({
             aria-valuetext={`Question ${questionNumber} of ${QUESTION_STEPS.length}`}
             className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-200/70 dark:bg-white/10"
           >
-            <motion.div
+            <m.div
               className="h-full rounded-full bg-indigo-500"
               animate={{ width: `${progress}%` }}
               transition={{ type: "spring", stiffness: 200, damping: 30 }}
@@ -209,7 +222,7 @@ export const AmbassadorApplyExperience = ({
         className="glass-card relative min-h-100 overflow-hidden rounded-3xl border border-zinc-200/60 p-8 shadow-2xl sm:p-12 dark:border-white/10"
       >
         <AnimatePresence mode="wait" custom={direction}>
-          <motion.div
+          <m.div
             key={step}
             custom={direction}
             variants={stepVariants}
@@ -384,18 +397,18 @@ export const AmbassadorApplyExperience = ({
             {step === "review" && (
               <ApplyStepReview form={form} viewer={viewer} submitting={submitting} />
             )}
-          </motion.div>
+          </m.div>
         </AnimatePresence>
 
         <div id={FORM_ERROR_ID} role="alert" aria-live="assertive">
           {error && (
-            <motion.p
+            <m.p
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
               className="mt-5 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-xs font-semibold text-red-600 dark:text-red-400"
             >
               {error}
-            </motion.p>
+            </m.p>
           )}
         </div>
 

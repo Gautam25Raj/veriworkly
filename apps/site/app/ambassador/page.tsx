@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import dynamic from "next/dynamic";
 import { siteConfig } from "@/config/site";
 import { isAmbassadorProgramEnabled } from "@/lib/feature-flags";
 import { buildPageMetadata } from "@/utils/metadata";
 import { jsonLdScriptProps } from "@/utils/json-ld";
+import { webSiteRef } from "@/utils/schema";
 import AmbassadorNav from "@/features/ambassador/AmbassadorNav";
 import AmbassadorHero from "@/features/ambassador/AmbassadorHero";
 import AmbassadorPerks from "@/features/ambassador/AmbassadorPerks";
@@ -11,6 +13,7 @@ import AmbassadorLeaderboard from "@/features/ambassador/AmbassadorLeaderboard";
 import AmbassadorFAQ from "@/features/ambassador/AmbassadorFAQ";
 import AmbassadorFooter from "@/features/ambassador/AmbassadorFooter";
 import "./ambassador.css";
+import { MotionIsland } from "@/providers/motion-island";
 
 const AmbassadorPlaybook = dynamic(() => import("@/features/ambassador/AmbassadorPlaybook"));
 
@@ -27,7 +30,7 @@ export const metadata: Metadata = buildPageMetadata({
   title: `Student Ambassador Program | ${siteConfig.shortName}`,
 
   description:
-    "A campus program for college students, in its founding phase. Apply to represent VeriWorkly, shape what ambassadors get, and help build privacy-first career tools for students.",
+    "A campus program for college students in its founding phase. Apply to represent VeriWorkly, shape what ambassadors get, and build career tools for students.",
 
   ogTitle: "Represent VeriWorkly on Campus",
   ogDescription:
@@ -41,7 +44,10 @@ export const metadata: Metadata = buildPageMetadata({
   imageAlt: "VeriWorkly Student Ambassador Program",
 });
 
-const AmbassadorPage = () => {
+const AmbassadorPage = async () => {
+  // Read the program flag at request time, not at build time.
+  await connection();
+
   // Mirrors /affiliate. Without this the pitch rendered in full while the Apply
   // button dead-ended on the flagged-off apply page (B-08).
   const programEnabled = isAmbassadorProgramEnabled();
@@ -51,12 +57,13 @@ const AmbassadorPage = () => {
     "@type": "WebPage",
     name: "VeriWorkly Student Ambassador Program",
     url: pageUrl,
+    isPartOf: webSiteRef,
     description:
       "A founding-phase campus program. Apply to represent VeriWorkly at your college and help shape how the program rewards its ambassadors.",
   };
 
   return (
-    <>
+    <MotionIsland>
       {/* Uses the shared helper rather than a hand-rolled copy of the same escaping. */}
       <script
         type="application/ld+json"
@@ -76,7 +83,7 @@ const AmbassadorPage = () => {
 
         <AmbassadorFooter />
       </div>
-    </>
+    </MotionIsland>
   );
 };
 

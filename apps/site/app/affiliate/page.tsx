@@ -1,4 +1,5 @@
 import dynamic from "next/dynamic";
+import { connection } from "next/server";
 
 import type { Metadata } from "next";
 
@@ -6,6 +7,7 @@ import "./affiliate.css";
 
 import { siteConfig } from "@/config/site";
 import { jsonLdScriptProps } from "@/utils/json-ld";
+import { webSiteRef } from "@/utils/schema";
 import { isAffiliateProgramEnabled } from "@/lib/feature-flags";
 
 import AffiliateNav from "@/features/affiliate/AffiliateNav";
@@ -16,6 +18,7 @@ import AffiliateBento from "@/features/affiliate/AffiliateBento";
 import AffiliateFooter from "@/features/affiliate/AffiliateFooter";
 import AffiliateResources from "@/features/affiliate/AffiliateResources";
 import AffiliateComparison from "@/features/affiliate/AffiliateComparison";
+import { MotionIsland } from "@/providers/motion-island";
 
 const AffiliateCalculator = dynamic(() => import("@/features/affiliate/AffiliateCalculator"));
 
@@ -61,7 +64,10 @@ export const metadata: Metadata = {
   },
 };
 
-const AffiliatePage = () => {
+const AffiliatePage = async () => {
+  // Read the program flag at request time, not at build time.
+  await connection();
+
   const programEnabled = isAffiliateProgramEnabled();
 
   const affiliateSchema = {
@@ -69,12 +75,13 @@ const AffiliatePage = () => {
     "@type": "WebPage",
     name: "VeriWorkly Affiliate Program",
     url: pageUrl,
+    isPartOf: webSiteRef,
     description:
       "Earn recurring partner commissions by sharing VeriWorkly with your professional network.",
   };
 
   return (
-    <>
+    <MotionIsland>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={jsonLdScriptProps(affiliateSchema)}
@@ -97,7 +104,7 @@ const AffiliatePage = () => {
 
         <AffiliateFooter />
       </div>
-    </>
+    </MotionIsland>
   );
 };
 

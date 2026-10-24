@@ -70,8 +70,12 @@ That does two things, both in `scripts/generate-api-docs.mjs`:
 
 1. Bundles `specs/openapi.yaml` (plus `specs/paths/*` and `specs/components/*`) into the flat
    `openapi.yaml`, resolving every `$ref` and failing loudly on a broken one.
-2. Regenerates one MDX page per operation under `content/api-reference/`, after clearing the
-   previously generated pages so a removed or renamed operation cannot leave an orphan behind.
+2. Regenerates one MDX page per operation under `content/api-reference/`. Pages are built in a
+   temporary folder first and only the ones that changed are written, so a failed run leaves the
+   existing pages alone; pages for operations that no longer exist are removed. It warns when a
+   page is missing from its folder's `meta.json`, because that page would not appear in the sidebar.
+3. Writes `public/openapi.json` and `public/openapi.yaml`, the served copies of the spec. The other
+   apps do not carry a copy: their `/openapi.json` redirects here.
 
 Step 1 replaces `npx @redocly/cli bundle`, which required a network install; the output is
 byte-for-byte equivalent.

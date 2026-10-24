@@ -6,7 +6,7 @@ VeriWorkly Studio (`app.veriworkly.com`) is engineered around a **local-first st
 
 ## Machine-Readable Resources
 - **Agent Card**: `https://app.veriworkly.com/.well-known/agent.json`
-- **OpenAPI Spec**: `https://app.veriworkly.com/openapi.json`
+- **OpenAPI Spec**: `https://docs.veriworkly.com/openapi.json`
 - **Pricing & Credit Ledger**: `https://app.veriworkly.com/pricing.md`
 - **API Reference**: `https://docs.veriworkly.com/docs/api-reference`
 

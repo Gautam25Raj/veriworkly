@@ -50,7 +50,7 @@ The site runs on `http://localhost:3000`. Sibling apps have fixed dev ports that
   - `public/llms.txt` and `public/pricing.md` - structured Markdown for AI assistants and LLM crawlers.
   - `public/.well-known/agent.json` - Web Agent Card / AEO discovery manifest.
   - `public/.well-known/security.txt` - RFC 9116 security reporting contact.
-  - `public/openapi.json` - backend API specification.
+  - `/openapi.json` - redirects to `https://docs.veriworkly.com/openapi.json`, the one generated copy of the backend API specification.
   - `app/robots.ts` - explicit crawler allowlists (`GPTBot`, `ClaudeBot`, `PerplexityBot`, `Google-Extended`, etc.).
 
 ## ✅ Content Accuracy Contract

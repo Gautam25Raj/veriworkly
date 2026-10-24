@@ -105,7 +105,21 @@ jobs:
       - name: Check generated ATS Engine pages are current
         run: |
           npm run generate:engine -w @veriworkly/docs-platform
-          git diff --exit-code -- apps/docs-platform/content/ats-engine
+          changes="$(git status --porcelain -- apps/docs-platform/content/ats-engine)"
+          test -z "$changes" || { echo "$changes"; git diff; exit 1; }
+
+      # The API reference is bundled from apps/docs-platform/specs and committed, together with the
+      # served openapi.json and openapi.yaml. A spec edit without regenerating them fails here.
+      # `git status`, not `git diff`, so a page the generator newly creates is caught too. The
+      # assignment is on its own line so a failing `git status` stops the step instead of reading
+      # as "no changes".
+      - name: Check generated API reference is current
+        env:
+          API_DOCS_STRICT: "1"
+        run: |
+          npm run generate:api -w @veriworkly/docs-platform
+          changes="$(git status --porcelain -- apps/docs-platform/openapi.yaml apps/docs-platform/public apps/docs-platform/content/api-reference)"
+          test -z "$changes" || { echo "$changes"; git diff; exit 1; }
 
       - name: Type-check ATS Engine docs samples
         run: npm run check:engine-samples -w @veriworkly/docs-platform

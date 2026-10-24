@@ -4,7 +4,14 @@ description: >
   Revokes the current session and clears the session cookie. Also flushes the
   server-side
 
-  session cache for that cookie.
+  session cache for that cookie. It succeeds even when no session cookie is
+  sent.
+
+
+  A request that carries a cookie must also send an `Origin` or `Referer` header
+  from a trusted
+
+  origin, or it is rejected with `403`.
 
 
   This endpoint returns Better Auth's payload, not the `{ success, message, data
@@ -23,7 +30,14 @@ _openapi:
           Revokes the current session and clears the session cookie. Also
           flushes the server-side
 
-          session cache for that cookie.
+          session cache for that cookie. It succeeds even when no session cookie
+          is sent.
+
+
+          A request that carries a cookie must also send an `Origin` or
+          `Referer` header from a trusted
+
+          origin, or it is rejected with `403`.
 
 
           This endpoint returns Better Auth's payload, not the `{ success,

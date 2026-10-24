@@ -6,8 +6,6 @@ getRoadmap:
     summary: Get Roadmap Features
     security:
       - ApiKeyAuth: []
-      - LocalSession: []
-      - ProdSession: []
     description: |
       Fetch roadmap features with optional filtering, sorting, and pagination.
 
@@ -129,6 +127,11 @@ getRoadmap:
                 - path: "limit"
                   message: "Number must be greater than or equal to 1"
 
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "403":
+        $ref: "../components/responses.yaml#/InsufficientScopeError"
+
 getRoadmapStats:
   get:
     tags:
@@ -137,8 +140,6 @@ getRoadmapStats:
     summary: Get Roadmap Stats
     security:
       - ApiKeyAuth: []
-      - LocalSession: []
-      - ProdSession: []
     description: Retrieve aggregated roadmap statistics.
     responses:
       "200":
@@ -157,6 +158,11 @@ getRoadmapStats:
                 done: 3
                 completionRate: "30.00"
 
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "403":
+        $ref: "../components/responses.yaml#/InsufficientScopeError"
+
 getRoadmapFeatureById:
   get:
     tags:
@@ -165,8 +171,6 @@ getRoadmapFeatureById:
     summary: Get Roadmap Feature by ID
     security:
       - ApiKeyAuth: []
-      - LocalSession: []
-      - ProdSession: []
     description: Fetch detailed roadmap feature by ID.
     parameters:
       - name: id
@@ -203,6 +207,11 @@ getRoadmapFeatureById:
                 timeline: "In progress"
                 details: null
                 interactions: []
+
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "403":
+        $ref: "../components/responses.yaml#/InsufficientScopeError"
 
       "404":
         description: Feature not found

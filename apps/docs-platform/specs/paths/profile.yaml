@@ -71,10 +71,10 @@ masterProfile:
       Replaces the authenticated user's master profile. Requires the `resume:write` scope when
       called with an API key.
 
-      **This is a full replacement, not a patch.** `profile` is validated strictly: every property
-      of `MasterProfileContent` must be present, and any key not in the schema is rejected. Send
-      empty arrays for sections you have no data for. Read the profile first, modify the object you
-      got back, and send the whole thing.
+      **This is a full replacement, not a patch.** `templateId`, `basics`, `links`, `summary` and
+      `customization` are required. Any section array you omit is stored as `[]`, so leaving one
+      out clears it. Keys not in the schema are dropped, not rejected. Read the profile first,
+      modify the object you got back, and send the whole thing.
 
       Pass the `updatedAt` you last read as `expectedUpdatedAt` for optimistic concurrency; omit it
       only when creating the profile for the first time. The example below is a complete minimal

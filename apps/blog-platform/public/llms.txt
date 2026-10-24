@@ -9,7 +9,7 @@ VeriWorkly Blog (`blog.veriworkly.com`) publishes evidence-backed career writing
 
 ## Machine-Readable Resources
 - **Agent Card**: `https://blog.veriworkly.com/.well-known/agent.json`
-- **OpenAPI Spec**: `https://blog.veriworkly.com/openapi.json`
+- **OpenAPI Spec**: `https://docs.veriworkly.com/openapi.json`
 - **Pricing Reference**: `https://blog.veriworkly.com/pricing.md`
 - **RSS Syndication Feed**: `https://blog.veriworkly.com/rss.xml`
 - **Atom Syndication Feed**: `https://blog.veriworkly.com/atom.xml`

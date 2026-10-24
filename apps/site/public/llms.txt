@@ -6,7 +6,7 @@ VeriWorkly is a privacy-first AI career workspace engineered for professional do
 
 ## Machine-Readable Resources for AI Agents & Search Engines
 - **Agent Card**: `https://veriworkly.com/.well-known/agent.json` (Open-agent discovery spec)
-- **OpenAPI Specification**: `https://veriworkly.com/openapi.json` (Complete 72-path / 78-operation API spec)
+- **OpenAPI Specification**: `https://docs.veriworkly.com/openapi.json` (complete API specification)
 - **Structured Pricing**: `https://veriworkly.com/pricing.md` (Agent-parseable pricing tiers)
 - **XML Sitemap**: `https://veriworkly.com/sitemap.xml` (Full indexable route map)
 - **Technical Documentation**: `https://docs.veriworkly.com` (Fumadocs API reference & guides)

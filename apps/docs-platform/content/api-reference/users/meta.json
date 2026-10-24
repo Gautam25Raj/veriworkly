@@ -7,6 +7,7 @@
     "updateUserName",
     "setUsername",
     "checkUsernameAvailability",
-    "updateAutoSync"
+    "updateAutoSync",
+    "deleteCurrentUser"
   ]
 }

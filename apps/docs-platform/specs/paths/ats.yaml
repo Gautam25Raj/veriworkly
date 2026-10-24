@@ -40,6 +40,8 @@ getAtsQuota:
                   jobUrlAnalysisCredits: { min: 2, max: 12 }
                   resumeConversionCredits: 2
                 extract: { limit: 6, used: 0, remaining: 6 }
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
 
 extractAtsResumeText:
   post:
@@ -54,7 +56,9 @@ extractAtsResumeText:
     description: |
       Extracts plain text from an uploaded resume file (PDF, DOCX, TXT, Markdown, or JSON, max 5MB)
       for use as the `resume` field on `/ats/check` or `/ats/analyze`. Does not consume ATS scan
-      quota — only the check/analyze endpoints do.
+      quota. Uploads are metered by a separate extract budget instead (`quota.extract`), and a
+      request over it is rejected with `429`. The multipart body must carry only the `resume`
+      file; any other field is rejected with `400`.
     requestBody:
       required: true
       content:
@@ -74,7 +78,7 @@ extractAtsResumeText:
             schema:
               $ref: "../components/schemas.yaml#/AtsExtractResponse"
       "400":
-        description: Missing file, or unsupported/unreadable file
+        description: Missing file, unsupported/unreadable file, or a multipart field other than `resume`
         content:
           application/json:
             schema:
@@ -92,6 +96,8 @@ extractAtsResumeText:
                   success: false
                   statusCode: 400
                   message: "Upload a PDF, DOCX, TXT, Markdown, or JSON resume."
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
       "408":
         description: Extraction took too long
         content:
@@ -102,6 +108,36 @@ extractAtsResumeText:
               success: false
               statusCode: 408
               message: "Resume extraction took too long to process."
+      "413":
+        description: The file is larger than 5MB
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 413
+              message: "The file is larger than the 5 MB upload limit."
+      "429":
+        description: ATS upload quota exceeded
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/AtsQuotaErrorResponse"
+            example:
+              success: false
+              statusCode: 429
+              message: "ATS upload quota exceeded."
+      "503":
+        description: Extraction is busy or unavailable. The upload is returned to the extract budget.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 503
+              message: "Too many resume extractions in progress. Please retry shortly."
 
 checkAtsResume:
   post:
@@ -134,12 +170,14 @@ checkAtsResume:
               $ref: "../components/schemas.yaml#/AtsCheckResponse"
       "400":
         $ref: "../components/responses.yaml#/ValidationError"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
       "429":
         description: ATS scan quota exceeded
         content:
           application/json:
             schema:
-              $ref: "../components/schemas.yaml#/ErrorResponse"
+              $ref: "../components/schemas.yaml#/AtsQuotaErrorResponse"
             example:
               success: false
               statusCode: 429
@@ -230,11 +268,21 @@ analyzeAtsResume:
         content:
           application/json:
             schema:
-              $ref: "../components/schemas.yaml#/ErrorResponse"
+              $ref: "../components/schemas.yaml#/AtsQuotaErrorResponse"
             example:
               success: false
               statusCode: 429
               message: "ATS scan quota exceeded."
+      "409":
+        description: requestId was already used, or is still processing
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 409
+              message: "This AI request id can no longer be reused."
       "502":
         description: AI provider error
         content:
@@ -245,6 +293,16 @@ analyzeAtsResume:
               success: false
               statusCode: 502
               message: "AI ATS analysis could not be completed."
+      "503":
+        description: The ATS AI policy is invalid, AI provider credentials are not configured, or AI model routing is not configured on the server.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 503
+              message: "AI ATS policy is invalid."
 
 convertAtsResume:
   post:
@@ -281,17 +339,26 @@ convertAtsResume:
       "401":
         $ref: "../components/responses.yaml#/UnauthorizedError"
       "402":
-        description: Not enough AI credits
+        description: No active AI Credits or Bundle plan, or not enough AI credits
         content:
           application/json:
             schema:
               $ref: "../components/schemas.yaml#/ErrorResponse"
-            example:
-              success: false
-              statusCode: 402
-              message: "Not enough AI credits."
+            examples:
+              noEntitlement:
+                summary: No active AI Credits or Bundle plan
+                value:
+                  success: false
+                  statusCode: 402
+                  message: "Resume conversion requires an active AI Credits or Bundle plan."
+              notEnoughCredits:
+                summary: Not enough AI credits
+                value:
+                  success: false
+                  statusCode: 402
+                  message: "Not enough AI credits."
       "403":
-        description: Missing entitlement, or API key is missing the ai:write scope
+        description: API key is missing the ai:write scope
         content:
           application/json:
             schema:
@@ -299,7 +366,17 @@ convertAtsResume:
             example:
               success: false
               statusCode: 403
-              message: "Resume conversion requires an active AI Credits or Bundle plan."
+              message: "This API key does not have permission for this action."
+      "409":
+        description: requestId was already used, or is still processing
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 409
+              message: "This AI request id can no longer be reused."
       "502":
         description: AI provider error
         content:
@@ -310,3 +387,13 @@ convertAtsResume:
               success: false
               statusCode: 502
               message: "AI resume conversion could not be completed."
+      "503":
+        description: The ATS AI policy is invalid, AI provider credentials are not configured, or AI model routing is not configured on the server.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 503
+              message: "AI ATS policy is invalid."

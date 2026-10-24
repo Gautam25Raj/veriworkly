@@ -6,7 +6,7 @@ VeriWorkly Portfolio (`portfolio.veriworkly.com`) enables developers, designers,
 
 ## Machine-Readable Resources
 - **Agent Card**: `https://portfolio.veriworkly.com/.well-known/agent.json`
-- **OpenAPI Spec**: `https://portfolio.veriworkly.com/openapi.json`
+- **OpenAPI Spec**: `https://docs.veriworkly.com/openapi.json`
 - **Pricing & Hosting Plans**: `https://portfolio.veriworkly.com/pricing.md`
 
 ## Template Catalog & Design Systems

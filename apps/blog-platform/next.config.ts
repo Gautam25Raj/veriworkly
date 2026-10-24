@@ -18,6 +18,12 @@ const nextConfig: NextConfig = {
         destination: "/ats-resume-myths-what-the-evidence-shows",
         permanent: true,
       },
+      // One generated copy of the API spec lives on the docs site; this was a duplicate of it.
+      {
+        source: "/openapi.json",
+        destination: "https://docs.veriworkly.com/openapi.json",
+        permanent: true,
+      },
     ];
   },
 };

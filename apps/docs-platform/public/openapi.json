@@ -3,7 +3,7 @@
   "info": {
     "title": "VeriWorkly API",
     "version": "1.0.0",
-    "description": "The official API reference for VeriWorkly.\n\n### Authentication Methods\n\nVeriWorkly supports two authentication methods:\n\n#### 1. API Key Authentication (recommended for scripts and integrations)\nFor programmatic access, send your key either way — both are accepted:\n\n- `X-API-Key: vw_...`\n- `Authorization: Bearer vw_...`\n\nA key is **required** for any request that does not originate from a whitelisted VeriWorkly\norigin, including requests made from these documentation pages.\n\n- **Format**: `vw_` followed by 64 hexadecimal characters.\n- **Rate limit**: 20 requests per 15 minutes per key by default, configurable per key at\n  creation. Responses carry `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and\n  `X-RateLimit-Reset`.\n- **Scopes**: keys are scope-gated. A key missing a route's required scope gets `403`. Session\n  callers are never scope-gated.\n\n#### 2. Session Authentication (dashboard only)\nUsed internally by the VeriWorkly dashboard and resume builder, via secure HTTP-only cookies\nissued by Better Auth.\n\n- **Cookies**:\n  - Local: `veriworkly-auth.session_token`\n  - Production: `__Secure-veriworkly-auth.session_token`\n- **Note**: sessions are only honoured for whitelisted origins. Send `credentials: 'include'`\n  (fetch) or `withCredentials: true` (axios). Requests from these documentation pages **must**\n  use an API key.\n\n#### Endpoints that need neither\nOnly `GET /api/v1/health` and `GET /api/v1/health/ready` are fully open. Everything else —\nincluding the endpoints labelled \"public\", such as public portfolios and share links — still\nrequires an API key or a whitelisted first-party origin, and returns `401` without one.\n\n### Response Envelope\n\nEvery endpoint under `/api/v1` except the Better Auth routes at `/api/v1/auth/*` returns\n`{ success, message, data }` on success and `{ success, message, statusCode, details? }` on\nfailure. Better Auth endpoints return their own payload shapes.\n"
+    "description": "The official API reference for VeriWorkly.\n\n### Authentication Methods\n\nVeriWorkly supports two authentication methods:\n\n#### 1. API Key Authentication (recommended for scripts and integrations)\nFor programmatic access, send your key either way — both are accepted:\n\n- `X-API-Key: vw_...`\n- `Authorization: Bearer vw_...`\n\nA key is **required** for any request that does not originate from a whitelisted VeriWorkly\norigin, including requests made from these documentation pages.\n\n- **Format**: `vw_` followed by 64 hexadecimal characters.\n- **Rate limit**: 20 requests per 15 minutes per key by default, configurable per key at\n  creation. Responses carry `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and\n  `X-RateLimit-Reset`.\n- **Scopes**: keys are scope-gated. A key missing a route's required scope gets `403`. Session\n  callers are never scope-gated.\n\n#### 2. Session Authentication (dashboard only)\nUsed internally by the VeriWorkly dashboard and resume builder, via secure HTTP-only cookies\nissued by Better Auth.\n\n- **Cookies**:\n  - Local: `veriworkly-auth.session_token`\n  - Production: `__Secure-veriworkly-auth.session_token`\n- **Note**: sessions are only honoured for whitelisted origins. Send `credentials: 'include'`\n  (fetch) or `withCredentials: true` (axios). Requests from these documentation pages **must**\n  use an API key.\n\n#### Endpoints that need neither\nOnly `GET /api/v1/health` and `GET /api/v1/health/ready` are fully open. Everything else —\nincluding the endpoints labelled \"public\", such as public portfolios and share links — still\nrequires an API key or a whitelisted first-party origin, and returns `401` without one.\n\n### Response Envelope\n\nEvery endpoint under `/api/v1` except the Better Auth routes at `/api/v1/auth/*` returns\n`{ success, message, data }` on success and `{ success, message, statusCode, details? }` on\nfailure. Better Auth endpoints return their own payload shapes.\n\n### Not Documented Here\n\n`/api/v1/contact`, `/api/v1/stats/events` and everything under `/api/v1/admin/*` are internal\nfirst-party routes. They are left out of this reference on purpose and are not part of the\nsupported public API.\n"
   },
   "servers": [
     { "url": "https://api.veriworkly.com", "description": "Production Server" },
@@ -167,6 +167,64 @@
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" },
                 "example": { "success": false, "statusCode": 404, "message": "User not found" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Users"],
+        "operationId": "deleteCurrentUser",
+        "security": [{ "LocalSession": [] }, { "ProdSession": [] }],
+        "summary": "Delete Current User",
+        "description": "Permanently deletes the authenticated user's account and every document, portfolio, share\nlink, API key, credit and payout record attached to it, then clears the session cookies.\nThis cannot be undone.\n\nSession only: a request authenticated with an API key is rejected with `403`, whatever its\nscopes. While a subscription is active or past due and not set to cancel, the request is\nrefused with `409`; cancel it from Billing first.\n",
+        "responses": {
+          "200": {
+            "description": "Account deleted.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NullDataResponse" },
+                "example": {
+                  "success": true,
+                  "message": "Your account and all associated documents, portfolios, and data have been permanently deleted.",
+                  "data": null
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": {
+            "description": "The request was authenticated with an API key.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "statusCode": 403,
+                  "message": "This action cannot be performed with an API key. Sign in and delete your account from Settings."
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "success": false, "statusCode": 404, "message": "User not found" }
+              }
+            }
+          },
+          "409": {
+            "description": "A live subscription must be cancelled first.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "statusCode": 409,
+                  "message": "Cancel your subscription before deleting your account. Open Billing and use Manage Subscription — we cannot cancel it for you, and deleting now would leave you being charged for an account that no longer exists."
+                }
               }
             }
           }
@@ -479,7 +537,7 @@
         "tags": ["Roadmap"],
         "operationId": "getRoadmap",
         "summary": "Get Roadmap Features",
-        "security": [{ "ApiKeyAuth": [] }, { "LocalSession": [] }, { "ProdSession": [] }],
+        "security": [{ "ApiKeyAuth": [] }],
         "description": "Fetch roadmap features with optional filtering, sorting, and pagination.\n\nThis endpoint has no user session of its own: call it with an API key holding the\n`roadmap:read` scope, or from a whitelisted first-party origin. A request with neither is\nrejected with `401`.\n",
         "parameters": [
           {
@@ -590,7 +648,9 @@
                 }
               }
             }
-          }
+          },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/InsufficientScopeError" }
         }
       }
     },
@@ -599,7 +659,7 @@
         "tags": ["Roadmap"],
         "operationId": "getRoadmapStats",
         "summary": "Get Roadmap Stats",
-        "security": [{ "ApiKeyAuth": [] }, { "LocalSession": [] }, { "ProdSession": [] }],
+        "security": [{ "ApiKeyAuth": [] }],
         "description": "Retrieve aggregated roadmap statistics.",
         "responses": {
           "200": {
@@ -620,7 +680,9 @@
                 }
               }
             }
-          }
+          },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/InsufficientScopeError" }
         }
       }
     },
@@ -629,7 +691,7 @@
         "tags": ["Roadmap"],
         "operationId": "getRoadmapFeatureById",
         "summary": "Get Roadmap Feature by ID",
-        "security": [{ "ApiKeyAuth": [] }, { "LocalSession": [] }, { "ProdSession": [] }],
+        "security": [{ "ApiKeyAuth": [] }],
         "description": "Fetch detailed roadmap feature by ID.",
         "parameters": [
           {
@@ -671,6 +733,8 @@
               }
             }
           },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/InsufficientScopeError" },
           "404": {
             "description": "Feature not found",
             "content": {
@@ -692,7 +756,7 @@
         "tags": ["Changelog"],
         "operationId": "getChangelogEntries",
         "summary": "Get Changelog Entries",
-        "security": [{ "ApiKeyAuth": [] }, { "LocalSession": [] }, { "ProdSession": [] }],
+        "security": [{ "ApiKeyAuth": [] }],
         "description": "Fetch published changelog entries, newest first, with optional filtering and pagination.\n\nThis endpoint has no user session of its own: call it with an API key holding the\n`changelog:read` scope, or from a whitelisted first-party origin. A request with neither is\nrejected with `401`.\n\nResults are cached per query for `CHANGELOG_CACHE_TTL_SECONDS` (default 30 days) and busted\nwhenever an admin writes an entry.\n",
         "parameters": [
           {
@@ -813,7 +877,8 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/UnauthorizedError" }
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/InsufficientScopeError" }
         }
       }
     },
@@ -822,7 +887,7 @@
         "tags": ["Changelog"],
         "operationId": "getChangelogStats",
         "summary": "Get Changelog Stats",
-        "security": [{ "ApiKeyAuth": [] }, { "LocalSession": [] }, { "ProdSession": [] }],
+        "security": [{ "ApiKeyAuth": [] }],
         "description": "Aggregated release counts by type, the latest published release, and contributor totals\nderived from the pull-request references recorded on each entry.\n\nRequires the `changelog:read` scope when called with an API key.\n",
         "responses": {
           "200": {
@@ -857,7 +922,8 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/UnauthorizedError" }
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/InsufficientScopeError" }
         }
       }
     },
@@ -866,7 +932,7 @@
         "tags": ["Changelog"],
         "operationId": "getChangelogEntryById",
         "summary": "Get Changelog Entry by ID",
-        "security": [{ "ApiKeyAuth": [] }, { "LocalSession": [] }, { "ProdSession": [] }],
+        "security": [{ "ApiKeyAuth": [] }],
         "description": "Fetch a single changelog entry by its id. Requires the `changelog:read` scope when called\nwith an API key.\n",
         "parameters": [
           {
@@ -907,6 +973,7 @@
             }
           },
           "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/InsufficientScopeError" },
           "404": {
             "description": "Changelog entry not found",
             "content": {
@@ -928,7 +995,7 @@
         "tags": ["GitHub"],
         "operationId": "getGitHubStats",
         "summary": "Get GitHub Stats",
-        "security": [{ "ApiKeyAuth": [] }, { "LocalSession": [] }, { "ProdSession": [] }],
+        "security": [{ "ApiKeyAuth": [] }],
         "description": "Fetch aggregated issue and pull-request statistics for the configured repository, as of the\nlast sync. Served from the last synced snapshot, not live from GitHub — `syncedAt` tells you\nhow fresh it is. Cached for 12 hours.\n\nThis endpoint has no user session of its own: call it with an API key holding the\n`github:read` scope, or from a whitelisted first-party origin. A request with neither is\nrejected with `401`.\n",
         "responses": {
           "200": {
@@ -968,7 +1035,9 @@
                 }
               }
             }
-          }
+          },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/InsufficientScopeError" }
         }
       }
     },
@@ -977,7 +1046,7 @@
         "tags": ["GitHub"],
         "operationId": "getGitHubIssues",
         "summary": "Get GitHub Issues",
-        "security": [{ "ApiKeyAuth": [] }, { "LocalSession": [] }, { "ProdSession": [] }],
+        "security": [{ "ApiKeyAuth": [] }],
         "description": "Fetch paginated GitHub issues and pull requests with optional filters, from the last synced\nsnapshot rather than live from GitHub. Ordered by most recently updated. Returns an empty\npage when no sync has run yet.\n\nRequires the `github:read` scope when called with an API key.\n",
         "parameters": [
           {
@@ -1052,7 +1121,9 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/ValidationError" }
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
+          "403": { "$ref": "#/components/responses/InsufficientScopeError" }
         }
       }
     },
@@ -1164,8 +1235,24 @@
               }
             }
           },
-          "400": { "description": "Missing or malformed email address." },
-          "429": { "description": "Too many OTP requests — 3 per minute per IP." }
+          "400": {
+            "description": "Missing or malformed body, an invalid email address, or `type: change-email`, which this\nendpoint rejects. Returned in Better Auth's error shape, not `ErrorResponse`.\n",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "code": { "type": "string" }, "message": { "type": "string" } }
+                },
+                "example": { "code": "INVALID_EMAIL", "message": "Invalid email" }
+              }
+            }
+          },
+          "403": {
+            "description": "The request's `Origin` is not in the server's trusted origins."
+          },
+          "429": {
+            "description": "Too many OTP requests: 3 per minute per IP. Better Auth answers with `{ \"message\": \"...\" }`\nand an `X-Retry-After` header. Outside development the server's own limiter (20 per\nminute) can answer first, with `ErrorResponse` and a `Retry-After` header.\n"
+          }
         }
       }
     },
@@ -1174,7 +1261,7 @@
         "tags": ["Authentication"],
         "operationId": "verifyOTP",
         "summary": "Sign In With Email OTP",
-        "description": "Exchanges a valid OTP for a session. On success the session cookie is set via `Set-Cookie`\nand the session token plus the user record are returned.\n\nA user is created automatically on first sign-in. Codes expire after 5 minutes and allow 3\nattempts by default. This endpoint returns Better Auth's payload, not the\n`{ success, message, data }` envelope.\n\nRate limited to 20 requests per minute per IP — the default for `/api/v1/auth/*`. (A tighter\n5/minute rule exists in configuration but targets `/email-otp/verify-otp`, a path this Better\nAuth version does not expose, so it never applies.)\n",
+        "description": "Exchanges a valid OTP for a session. On success the session cookie is set via `Set-Cookie`\nand the session token plus the user record are returned.\n\nA user is created automatically on first sign-in. Codes expire after 5 minutes and allow 3\nattempts by default. This endpoint returns Better Auth's payload, not the\n`{ success, message, data }` envelope.\n\nRate limited to 3 requests per minute per IP, by the email OTP plugin's own rule for this\npath. (A 5 per minute rule in the server configuration targets `/email-otp/verify-otp`, a\npath this Better Auth version does not expose, so it never applies.) Codes are 6 digits.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -1184,7 +1271,15 @@
                 "required": ["email", "otp"],
                 "properties": {
                   "email": { "type": "string", "format": "email" },
-                  "otp": { "type": "string" }
+                  "otp": { "type": "string", "description": "The 6-digit code from the email." },
+                  "name": {
+                    "type": "string",
+                    "description": "Used only when the account is created on this first sign-in."
+                  },
+                  "image": {
+                    "type": "string",
+                    "description": "Used only when the account is created on this first sign-in."
+                  }
                 }
               },
               "example": { "email": "user@example.com", "otp": "123456" }
@@ -1211,9 +1306,14 @@
             }
           },
           "400": {
-            "description": "The OTP is invalid, expired, or the attempt limit was exceeded."
+            "description": "The body is invalid, the code is wrong (`INVALID_OTP`), or it has expired\n(`OTP_EXPIRED`). Returned in Better Auth's error shape, `{ code, message }`.\n"
           },
-          "429": { "description": "Too many requests — 20 per minute per IP." }
+          "403": {
+            "description": "The attempt limit was reached (`TOO_MANY_ATTEMPTS`). The code is discarded, so request a\nnew one.\n"
+          },
+          "429": {
+            "description": "Too many requests. The limit is 3 per minute per IP, and Better Auth sends an `X-Retry-After` header."
+          }
         }
       }
     },
@@ -1222,7 +1322,7 @@
         "tags": ["Authentication"],
         "operationId": "getSession",
         "summary": "Get Current Session",
-        "security": [{ "LocalSession": [] }, { "ProdSession": [] }],
+        "security": [{ "LocalSession": [] }, { "ProdSession": [] }, {}],
         "description": "Returns the active session and its user, based on the request's session cookie. Returns\n`null` rather than an error when no valid session cookie is present.\n\nThis endpoint returns Better Auth's payload, not the `{ success, message, data }` envelope.\n",
         "responses": {
           "200": {
@@ -1252,8 +1352,8 @@
         "tags": ["Authentication"],
         "operationId": "signOut",
         "summary": "Sign Out",
-        "security": [{ "LocalSession": [] }, { "ProdSession": [] }],
-        "description": "Revokes the current session and clears the session cookie. Also flushes the server-side\nsession cache for that cookie.\n\nThis endpoint returns Better Auth's payload, not the `{ success, message, data }` envelope.\n",
+        "security": [{ "LocalSession": [] }, { "ProdSession": [] }, {}],
+        "description": "Revokes the current session and clears the session cookie. Also flushes the server-side\nsession cache for that cookie. It succeeds even when no session cookie is sent.\n\nA request that carries a cookie must also send an `Origin` or `Referer` header from a trusted\norigin, or it is rejected with `403`.\n\nThis endpoint returns Better Auth's payload, not the `{ success, message, data }` envelope.\n",
         "responses": {
           "200": {
             "description": "Signed out. Clears the session cookie.",
@@ -1263,6 +1363,9 @@
                 "example": { "success": true }
               }
             }
+          },
+          "403": {
+            "description": "A cookie was sent without an `Origin` or `Referer` from a trusted origin."
           }
         }
       }
@@ -1743,7 +1846,7 @@
         "operationId": "updateMasterProfile",
         "security": [{ "ApiKeyAuth": [] }, { "LocalSession": [] }, { "ProdSession": [] }],
         "summary": "Update Master Profile",
-        "description": "Replaces the authenticated user's master profile. Requires the `resume:write` scope when\ncalled with an API key.\n\n**This is a full replacement, not a patch.** `profile` is validated strictly: every property\nof `MasterProfileContent` must be present, and any key not in the schema is rejected. Send\nempty arrays for sections you have no data for. Read the profile first, modify the object you\ngot back, and send the whole thing.\n\nPass the `updatedAt` you last read as `expectedUpdatedAt` for optimistic concurrency; omit it\nonly when creating the profile for the first time. The example below is a complete minimal\npayload that validates.\n",
+        "description": "Replaces the authenticated user's master profile. Requires the `resume:write` scope when\ncalled with an API key.\n\n**This is a full replacement, not a patch.** `templateId`, `basics`, `links`, `summary` and\n`customization` are required. Any section array you omit is stored as `[]`, so leaving one\nout clears it. Keys not in the schema are dropped, not rejected. Read the profile first,\nmodify the object you got back, and send the whole thing.\n\nPass the `updatedAt` you last read as `expectedUpdatedAt` for optimistic concurrency; omit it\nonly when creating the profile for the first time. The example below is a complete minimal\npayload that validates.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -2081,7 +2184,7 @@
         "operationId": "listDocuments",
         "security": [{ "ApiKeyAuth": [] }, { "LocalSession": [] }, { "ProdSession": [] }],
         "summary": "List Documents",
-        "description": "Lists the authenticated user's documents (resumes, cover letters, portfolios, link-in-bio\npages), optionally filtered by type. Soft-deleted documents are excluded.\n",
+        "description": "Lists the authenticated user's documents (resumes, cover letters, portfolios, link-in-bio\npages), optionally filtered by type. Soft-deleted documents are excluded. Results are\nordered by most recently updated and capped at 500 documents.\n\nDocument bodies are left out unless `includeContent=true`.\n",
         "parameters": [
           {
             "name": "type",
@@ -2092,6 +2195,20 @@
               "enum": ["RESUME", "COVER_LETTER", "PORTFOLIO", "LINK_IN_BIO"]
             },
             "description": "Filter documents by type."
+          },
+          {
+            "name": "updatedSince",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "date-time" },
+            "description": "Return only documents updated after this date-time. It must be in UTC and end in `Z`, for example `2026-01-01T00:00:00Z`; a timezone offset is rejected with `400`."
+          },
+          {
+            "name": "includeContent",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["true", "false"], "default": "false" },
+            "description": "Set to `true` to include each document's `content`."
           }
         ],
         "responses": {
@@ -2106,21 +2223,17 @@
                   "data": [
                     {
                       "id": "doc_123",
-                      "userId": "user_123",
                       "type": "RESUME",
                       "title": "My Resume",
                       "slug": "my-resume",
                       "tags": [],
-                      "content": {},
                       "metadata": {},
                       "templateId": "modern",
-                      "schemaVersion": 1,
                       "revision": 1,
                       "visibility": "PRIVATE",
                       "lastSyncedAt": "2026-04-20T10:00:00.000Z",
                       "createdAt": "2026-04-01T10:00:00.000Z",
-                      "updatedAt": "2026-04-20T10:00:00.000Z",
-                      "deletedAt": null
+                      "updatedAt": "2026-04-20T10:00:00.000Z"
                     }
                   ]
                 }
@@ -2358,7 +2471,8 @@
                 }
               }
             }
-          }
+          },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" }
         }
       }
     },
@@ -2368,7 +2482,7 @@
         "operationId": "extractAtsResumeText",
         "security": [{ "ApiKeyAuth": [] }, { "LocalSession": [] }, { "ProdSession": [] }],
         "summary": "Extract Resume Text",
-        "description": "Extracts plain text from an uploaded resume file (PDF, DOCX, TXT, Markdown, or JSON, max 5MB)\nfor use as the `resume` field on `/ats/check` or `/ats/analyze`. Does not consume ATS scan\nquota — only the check/analyze endpoints do.\n",
+        "description": "Extracts plain text from an uploaded resume file (PDF, DOCX, TXT, Markdown, or JSON, max 5MB)\nfor use as the `resume` field on `/ats/check` or `/ats/analyze`. Does not consume ATS scan\nquota. Uploads are metered by a separate extract budget instead (`quota.extract`), and a\nrequest over it is rejected with `429`. The multipart body must carry only the `resume`\nfile; any other field is rejected with `400`.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -2391,7 +2505,7 @@
             }
           },
           "400": {
-            "description": "Missing file, or unsupported/unreadable file",
+            "description": "Missing file, unsupported/unreadable file, or a multipart field other than `resume`",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" },
@@ -2416,6 +2530,7 @@
               }
             }
           },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
           "408": {
             "description": "Extraction took too long",
             "content": {
@@ -2425,6 +2540,45 @@
                   "success": false,
                   "statusCode": 408,
                   "message": "Resume extraction took too long to process."
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The file is larger than 5MB",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "statusCode": 413,
+                  "message": "The file is larger than the 5 MB upload limit."
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "ATS upload quota exceeded",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AtsQuotaErrorResponse" },
+                "example": {
+                  "success": false,
+                  "statusCode": 429,
+                  "message": "ATS upload quota exceeded."
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Extraction is busy or unavailable. The upload is returned to the extract budget.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "statusCode": 503,
+                  "message": "Too many resume extractions in progress. Please retry shortly."
                 }
               }
             }
@@ -2459,11 +2613,12 @@
             }
           },
           "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/UnauthorizedError" },
           "429": {
             "description": "ATS scan quota exceeded",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "schema": { "$ref": "#/components/schemas/AtsQuotaErrorResponse" },
                 "example": {
                   "success": false,
                   "statusCode": 429,
@@ -2554,11 +2709,24 @@
               }
             }
           },
+          "409": {
+            "description": "requestId was already used, or is still processing",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "statusCode": 409,
+                  "message": "This AI request id can no longer be reused."
+                }
+              }
+            }
+          },
           "429": {
             "description": "ATS scan quota exceeded",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "schema": { "$ref": "#/components/schemas/AtsQuotaErrorResponse" },
                 "example": {
                   "success": false,
                   "statusCode": 429,
@@ -2576,6 +2744,19 @@
                   "success": false,
                   "statusCode": 502,
                   "message": "AI ATS analysis could not be completed."
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The ATS AI policy is invalid, AI provider credentials are not configured, or AI model routing is not configured on the server.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "statusCode": 503,
+                  "message": "AI ATS policy is invalid."
                 }
               }
             }
@@ -2614,27 +2795,53 @@
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/UnauthorizedError" },
           "402": {
-            "description": "Not enough AI credits",
+            "description": "No active AI Credits or Bundle plan, or not enough AI credits",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" },
-                "example": {
-                  "success": false,
-                  "statusCode": 402,
-                  "message": "Not enough AI credits."
+                "examples": {
+                  "noEntitlement": {
+                    "summary": "No active AI Credits or Bundle plan",
+                    "value": {
+                      "success": false,
+                      "statusCode": 402,
+                      "message": "Resume conversion requires an active AI Credits or Bundle plan."
+                    }
+                  },
+                  "notEnoughCredits": {
+                    "summary": "Not enough AI credits",
+                    "value": {
+                      "success": false,
+                      "statusCode": 402,
+                      "message": "Not enough AI credits."
+                    }
+                  }
                 }
               }
             }
           },
           "403": {
-            "description": "Missing entitlement, or API key is missing the ai:write scope",
+            "description": "API key is missing the ai:write scope",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" },
                 "example": {
                   "success": false,
                   "statusCode": 403,
-                  "message": "Resume conversion requires an active AI Credits or Bundle plan."
+                  "message": "This API key does not have permission for this action."
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "requestId was already used, or is still processing",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "statusCode": 409,
+                  "message": "This AI request id can no longer be reused."
                 }
               }
             }
@@ -2648,6 +2855,19 @@
                   "success": false,
                   "statusCode": 502,
                   "message": "AI resume conversion could not be completed."
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The ATS AI policy is invalid, AI provider credentials are not configured, or AI model routing is not configured on the server.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "statusCode": 503,
+                  "message": "AI ATS policy is invalid."
                 }
               }
             }
@@ -2671,7 +2891,7 @@
           },
           "401": { "$ref": "#/components/responses/UnauthorizedError" },
           "503": {
-            "description": "The AI policy is missing or invalid on the server.",
+            "description": "The AI policy is missing or invalid, or AI model routing is not configured on the server.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" },
@@ -2792,6 +3012,19 @@
                   "success": false,
                   "statusCode": 502,
                   "message": "The AI provider could not complete the request."
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The AI policy is missing or invalid, AI provider credentials are not configured, or AI model routing is not configured on the server.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "statusCode": 503,
+                  "message": "AI provider credentials are not configured."
                 }
               }
             }
@@ -4224,6 +4457,28 @@
           }
         }
       },
+      "UnauthorizedResponse": {
+        "type": "object",
+        "description": "The body of a `401`. Routes that accept an API key or a session answer with `code`; a\nrejection thrown from inside a handler carries `statusCode` instead.\n",
+        "required": ["success", "message"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "message": { "type": "string" },
+          "statusCode": { "type": "integer" },
+          "code": { "type": "string", "enum": ["API_KEY_REQUIRED", "AUTH_REQUIRED"] }
+        }
+      },
+      "AtsQuotaErrorResponse": {
+        "type": "object",
+        "description": "The body of a `429` from the ATS quota. `details` is the caller's current quota.",
+        "required": ["success", "message", "statusCode"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "message": { "type": "string" },
+          "statusCode": { "type": "integer" },
+          "details": { "$ref": "#/components/schemas/AtsQuotaSummary" }
+        }
+      },
       "OffsetPaginationMeta": {
         "type": "object",
         "description": "Offset-pagination metadata returned alongside `items` by every paginated list endpoint.\nRequests may use either `page`/`pageSize` or `limit`/`offset`; the response always echoes both\nviews of the same window.\n",
@@ -4690,29 +4945,15 @@
       },
       "MasterProfileContent": {
         "type": "object",
-        "description": "The resume-shaped JSON stored in `MasterProfile.content`.\n\n**On `PUT /profiles/master` this object is validated strictly and every property listed below\nis required.** Send an empty array for sections you have no data for — omitting a key fails\nwith `400`, and so does sending any key not listed here. Every array item carries a\nclient-generated `id`. Field limits (string lengths, 200 items per array, 10-digit phone\nnumbers, `YYYY-MM` / `YYYY` date formats) are enforced server-side.\n",
-        "required": [
-          "templateId",
-          "basics",
-          "links",
-          "summary",
-          "experience",
-          "education",
-          "projects",
-          "skills",
-          "languages",
-          "interests",
-          "awards",
-          "certificates",
-          "publications",
-          "volunteer",
-          "references",
-          "achievements",
-          "customSections",
-          "sections",
-          "customization"
-        ],
+        "description": "The resume-shaped JSON stored in `MasterProfile.content`.\n\nOn `PUT /profiles/master`, `templateId`, `basics`, `links`, `summary` and `customization` are\nrequired. An omitted array is stored as `[]`, and keys not listed here are dropped rather than\nrejected. Every array item carries a client-generated `id`. Field limits (string lengths, 200\nitems per array, 10-digit phone numbers, `YYYY-MM` / `YYYY` date formats) are enforced\nserver-side.\n",
+        "required": ["templateId", "basics", "links", "summary", "customization"],
         "properties": {
+          "schemaVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 2,
+            "description": "Version of the profile content format. Defaults to the current version when omitted."
+          },
           "templateId": { "type": "string" },
           "basics": { "$ref": "#/components/schemas/MasterProfileBasics" },
           "links": {
@@ -4783,7 +5024,7 @@
             "items": { "$ref": "#/components/schemas/MasterProfileSectionItem" }
           },
           "customization": { "$ref": "#/components/schemas/MasterProfileCustomization" },
-          "updatedAt": { "type": "string", "format": "date-time", "nullable": true }
+          "updatedAt": { "type": "string", "format": "date-time" }
         }
       },
       "MasterProfileResponse": {
@@ -5435,7 +5676,49 @@
         "properties": {
           "success": { "type": "boolean" },
           "message": { "type": "string" },
-          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Document" } }
+          "data": {
+            "type": "array",
+            "maxItems": 500,
+            "items": { "$ref": "#/components/schemas/DocumentSummary" }
+          }
+        }
+      },
+      "DocumentSummary": {
+        "type": "object",
+        "description": "A document as the list endpoint returns it. Carries no `userId`, `schemaVersion` or\n`deletedAt`, and carries `content` only when the request sets `includeContent=true`.\n",
+        "required": [
+          "id",
+          "type",
+          "title",
+          "slug",
+          "tags",
+          "templateId",
+          "revision",
+          "visibility",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": ["RESUME", "COVER_LETTER", "PORTFOLIO", "LINK_IN_BIO"]
+          },
+          "title": { "type": "string" },
+          "slug": { "type": "string" },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "content": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Present only when `includeContent=true`."
+          },
+          "metadata": { "type": "object", "nullable": true, "additionalProperties": true },
+          "templateId": { "type": "string" },
+          "revision": { "type": "integer" },
+          "visibility": { "type": "string", "enum": ["PRIVATE", "UNLISTED", "PUBLIC"] },
+          "lastSyncedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
         }
       },
       "DocumentResponse": {
@@ -5886,7 +6169,7 @@
       "AtsLayoutSignals": {
         "type": "object",
         "required": ["columnRatio", "tableCount", "pageCount"],
-        "description": "Page geometry measured while parsing an uploaded document, for the format checks that text\nalone cannot answer. Returned by `POST /ats/extract` and accepted back by `/ats/check` and\n`/ats/analyze`. When it is omitted, the rules that depend on it are left out of the report\nentirely — neither passed nor failed — and out of the score's denominator.\n",
+        "description": "Page geometry measured while parsing an uploaded document, for the format checks that text\nalone cannot answer. Returned by `POST /ats/extract` and accepted back by `/ats/check` and\n`/ats/analyze`. When it is omitted, the rules that depend on it are left out of the report\nentirely — neither passed nor failed — and out of the score's denominator.\n\nA count above its bound is held at the bound rather than rejected: 500 for `tableCount` and\n`imageCount`, 200 for `pageCount` and `imageOnlyPages`, 100,000 for `hiddenTextChars`,\n`trackedChanges` and `comments`.\n",
         "properties": {
           "columnRatio": {
             "type": "number",
@@ -5911,10 +6194,15 @@
             "minimum": 0,
             "description": "Characters an ATS reads but a reader cannot see — in the background's colour or close to\nit, under 2pt, off the page, invisible, transparent, or covered by an image. The OCR text\nlayer of a scan is not counted. Feeds the integrity check `ats-v2.integrity.hiddenText`.\n"
           },
-          "hiddenTextSample": {
+          "hiddenText": {
             "type": "string",
-            "maxLength": 200,
-            "description": "The start of that hidden text, quoted back in the check's evidence."
+            "maxLength": 5000,
+            "description": "All of that hidden text, whitespace collapsed, cut to 5,000 characters."
+          },
+          "hiddenTextRead": {
+            "type": "string",
+            "maxLength": 5000,
+            "description": "The part of `hiddenText` that the document's text also holds, which is what an ATS reads."
           },
           "imageOnlyPages": {
             "type": "integer",
@@ -5925,6 +6213,20 @@
             "type": "string",
             "maxLength": 2000,
             "description": "The file's title, subject, keywords and author. Never scored as resume text; read only for instructions aimed at an AI screener."
+          },
+          "encrypted": {
+            "type": "boolean",
+            "description": "A PDF that opened without a password but is encrypted. Read by the advice only, never the score."
+          },
+          "trackedChanges": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Tracked changes still in a Word document. Read by the advice only, never the score."
+          },
+          "comments": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Comments still in a Word document. Read by the advice only, never the score."
           }
         }
       },
@@ -5941,9 +6243,18 @@
                 "type": "string",
                 "description": "Plain text extracted from the uploaded PDF, DOCX, TXT, Markdown, or JSON resume file (max ~50,000 characters)."
               },
-              "layout": { "$ref": "#/components/schemas/AtsLayoutSignals" }
+              "layout": { "$ref": "#/components/schemas/AtsLayoutSignals" },
+              "quota": { "$ref": "#/components/schemas/AtsQuotaSummary" }
             }
           }
+        }
+      },
+      "AtsFileInfo": {
+        "type": "object",
+        "description": "The uploaded file's name and size, sent back by the client for the file advice. Never scored.",
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "bytes": { "type": "integer", "minimum": 0, "maximum": 104857600 }
         }
       },
       "AtsCheckRequest": {
@@ -5955,7 +6266,8 @@
             "type": "string",
             "description": "Optional plain-text job description to compute a jobMatchScore against."
           },
-          "layout": { "$ref": "#/components/schemas/AtsLayoutSignals" }
+          "layout": { "$ref": "#/components/schemas/AtsLayoutSignals" },
+          "file": { "$ref": "#/components/schemas/AtsFileInfo" }
         }
       },
       "AtsCheckResponse": {
@@ -5993,6 +6305,10 @@
             "description": "Client-generated idempotency key for the underlying AI credit reservation."
           },
           "layout": { "$ref": "#/components/schemas/AtsLayoutSignals" },
+          "file": {
+            "$ref": "#/components/schemas/AtsFileInfo",
+            "description": "Accepted for parity with `/ats/check`, but not read by this endpoint."
+          },
           "repairParse": {
             "type": "boolean",
             "default": false,
@@ -7155,8 +7471,21 @@
         "description": "Unauthorized - Authentication failed or session expired.",
         "content": {
           "application/json": {
-            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "schema": { "$ref": "#/components/schemas/UnauthorizedResponse" },
             "example": { "success": false, "statusCode": 401, "message": "Authentication required" }
+          }
+        }
+      },
+      "InsufficientScopeError": {
+        "description": "Forbidden - The API key does not carry the scope this operation needs.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": {
+              "success": false,
+              "statusCode": 403,
+              "message": "This API key does not have permission for this action."
+            }
           }
         }
       },

@@ -2,24 +2,18 @@
 
 import { useState } from "react";
 import { CheckCircle2 } from "lucide-react";
-import { motion, useTransform, useSpring, type MotionValue } from "framer-motion";
+import { m } from "framer-motion";
 
 import { useMediaQuery } from "@/hooks/use-media-query";
 
-const InteractiveCTAMockup = ({ scrollYProgress }: { scrollYProgress: MotionValue<number> }) => {
+const InteractiveCTAMockup = () => {
   const [isHovered, setIsHovered] = useState(false);
 
-  const isDesktop = useMediaQuery("(min-width: 1024px)");
   const canHover = useMediaQuery("(hover: hover) and (pointer: fine)");
 
-  const mockupYRaw = useTransform(scrollYProgress, [0, 1], [30, -30]);
-  const springY = useSpring(mockupYRaw, { stiffness: 50, damping: 20 });
-
-  const mockupY = useTransform(springY, (v) => (isDesktop ? v : 0));
-
   return (
-    <motion.div style={{ y: mockupY }} className="flex w-full justify-center">
-      <motion.div
+    <div className="scroll-shift flex w-full justify-center lg:[--sy0:30px] lg:[--sy1:-30px]">
+      <m.div
         className="group/card relative w-full max-w-sm cursor-pointer overflow-hidden rounded-4xl border border-zinc-200 bg-white p-7 shadow-xs dark:border-zinc-800 dark:bg-[#0c0c0c]"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -49,7 +43,7 @@ const InteractiveCTAMockup = ({ scrollYProgress }: { scrollYProgress: MotionValu
               {!isHovered ? (
                 <span>Built responsive templates using standard styling protocols.</span>
               ) : (
-                <motion.span
+                <m.span
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className="font-medium text-zinc-900 dark:text-white"
@@ -59,7 +53,7 @@ const InteractiveCTAMockup = ({ scrollYProgress }: { scrollYProgress: MotionValu
                     Next.js responsive design systems
                   </span>{" "}
                   to optimize Core Web Vitals.
-                </motion.span>
+                </m.span>
               )}
             </p>
           </div>
@@ -84,8 +78,8 @@ const InteractiveCTAMockup = ({ scrollYProgress }: { scrollYProgress: MotionValu
             </div>
           </div>
         </div>
-      </motion.div>
-    </motion.div>
+      </m.div>
+    </div>
   );
 };
 

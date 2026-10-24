@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { FolderOpen, ArrowRight, FileType, Check } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
@@ -51,7 +51,7 @@ const AffiliateResources = () => {
               <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200/30 bg-zinc-100 text-blue-600 dark:border-zinc-700/30 dark:bg-zinc-800/50 dark:text-blue-400">
                 <FolderOpen className="h-5 w-5" />
               </span>
-              <h4 className="text-foreground text-lg font-bold">Official Media Kit</h4>
+              <h3 className="text-foreground text-lg font-bold">Official Media Kit</h3>
             </div>
 
             <p className="text-muted max-w-md text-xs leading-relaxed">
@@ -60,7 +60,7 @@ const AffiliateResources = () => {
             </p>
 
             <div className="pt-2">
-              <motion.a
+              <m.a
                 whileTap={{ scale: 0.97 }}
                 href="/veriworkly-logo.png"
                 download
@@ -78,7 +78,7 @@ const AffiliateResources = () => {
                     <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                   </>
                 )}
-              </motion.a>
+              </m.a>
             </div>
           </div>
 

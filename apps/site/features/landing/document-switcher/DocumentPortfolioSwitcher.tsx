@@ -1,7 +1,7 @@
 "use client";
 import { useState, type ReactNode } from "react";
 import { FileText, Globe, Mail } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 
 export type DocumentPreviewTabId = "resume" | "cover-letter" | "portfolio";
 
@@ -74,6 +74,7 @@ const DocumentPortfolioSwitcher = ({ previews }: DocumentPortfolioSwitcherProps)
                 <button
                   key={tab.id}
                   type="button"
+                  aria-pressed={isActive}
                   onClick={() => setActiveTab(tab.id)}
                   className={`group relative flex flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-colors duration-200 select-none sm:flex-initial sm:gap-2 sm:px-5 sm:py-2.5 sm:text-sm ${
                     isActive
@@ -81,11 +82,12 @@ const DocumentPortfolioSwitcher = ({ previews }: DocumentPortfolioSwitcherProps)
                       : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
                   }`}
                 >
+                  {/* Fades in under the new tab instead of sliding: a layoutId slide needs
+                      framer's layout projection for the whole page. */}
                   {isActive && (
-                    <motion.div
-                      layoutId="active-tab-indicator"
-                      className="absolute inset-0 rounded-full border border-black/5 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.08)] dark:border-white/10 dark:bg-zinc-800 dark:shadow-[0_2px_12px_rgba(0,0,0,0.5)]"
-                      transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-0 rounded-full border border-black/5 bg-white shadow-[0_2px_10px_rgba(0,0,0,0.08)] transition-[opacity,transform] duration-200 dark:border-white/10 dark:bg-zinc-800 dark:shadow-[0_2px_12px_rgba(0,0,0,0.5)] starting:scale-95 starting:opacity-0"
                     />
                   )}
 
@@ -123,7 +125,7 @@ const DocumentPortfolioSwitcher = ({ previews }: DocumentPortfolioSwitcherProps)
 
             <div className="relative h-122.5 w-full overflow-hidden sm:h-125">
               <AnimatePresence mode="wait">
-                <motion.div
+                <m.div
                   key={activeTab}
                   className="h-full w-full"
                   exit={{ opacity: 0, y: -8 }}
@@ -132,7 +134,7 @@ const DocumentPortfolioSwitcher = ({ previews }: DocumentPortfolioSwitcherProps)
                   transition={{ duration: 0.18, ease: "easeOut" }}
                 >
                   {previews[activeTab]}
-                </motion.div>
+                </m.div>
               </AnimatePresence>
             </div>
           </div>

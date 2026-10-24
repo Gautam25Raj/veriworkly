@@ -682,32 +682,23 @@ MasterProfileContent:
   description: |
     The resume-shaped JSON stored in `MasterProfile.content`.
 
-    **On `PUT /profiles/master` this object is validated strictly and every property listed below
-    is required.** Send an empty array for sections you have no data for — omitting a key fails
-    with `400`, and so does sending any key not listed here. Every array item carries a
-    client-generated `id`. Field limits (string lengths, 200 items per array, 10-digit phone
-    numbers, `YYYY-MM` / `YYYY` date formats) are enforced server-side.
+    On `PUT /profiles/master`, `templateId`, `basics`, `links`, `summary` and `customization` are
+    required. An omitted array is stored as `[]`, and keys not listed here are dropped rather than
+    rejected. Every array item carries a client-generated `id`. Field limits (string lengths, 200
+    items per array, 10-digit phone numbers, `YYYY-MM` / `YYYY` date formats) are enforced
+    server-side.
   required:
     - templateId
     - basics
     - links
     - summary
-    - experience
-    - education
-    - projects
-    - skills
-    - languages
-    - interests
-    - awards
-    - certificates
-    - publications
-    - volunteer
-    - references
-    - achievements
-    - customSections
-    - sections
     - customization
   properties:
+    schemaVersion:
+      type: integer
+      minimum: 1
+      default: 2
+      description: Version of the profile content format. Defaults to the current version when omitted.
     templateId:
       type: string
     basics:
@@ -785,7 +776,6 @@ MasterProfileContent:
     updatedAt:
       type: string
       format: date-time
-      nullable: true
 
 MasterProfileResponse:
   type: object
@@ -1644,8 +1634,65 @@ DocumentListResponse:
       type: string
     data:
       type: array
+      maxItems: 500
       items:
-        $ref: "#/Document"
+        $ref: "#/DocumentSummary"
+
+DocumentSummary:
+  type: object
+  description: |
+    A document as the list endpoint returns it. Carries no `userId`, `schemaVersion` or
+    `deletedAt`, and carries `content` only when the request sets `includeContent=true`.
+  required:
+    - id
+    - type
+    - title
+    - slug
+    - tags
+    - templateId
+    - revision
+    - visibility
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+    type:
+      type: string
+      enum: [RESUME, COVER_LETTER, PORTFOLIO, LINK_IN_BIO]
+    title:
+      type: string
+    slug:
+      type: string
+    tags:
+      type: array
+      items:
+        type: string
+    content:
+      type: object
+      additionalProperties: true
+      description: Present only when `includeContent=true`.
+    metadata:
+      type: object
+      nullable: true
+      additionalProperties: true
+    templateId:
+      type: string
+    revision:
+      type: integer
+    visibility:
+      type: string
+      enum: [PRIVATE, UNLISTED, PUBLIC]
+    lastSyncedAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
 
 DocumentResponse:
   type: object
@@ -2216,6 +2263,10 @@ AtsLayoutSignals:
     alone cannot answer. Returned by `POST /ats/extract` and accepted back by `/ats/check` and
     `/ats/analyze`. When it is omitted, the rules that depend on it are left out of the report
     entirely — neither passed nor failed — and out of the score's denominator.
+
+    A count above its bound is held at the bound rather than rejected: 500 for `tableCount` and
+    `imageCount`, 200 for `pageCount` and `imageOnlyPages`, 100,000 for `hiddenTextChars`,
+    `trackedChanges` and `comments`.
   properties:
     columnRatio:
       type: number
@@ -2241,10 +2292,14 @@ AtsLayoutSignals:
         Characters an ATS reads but a reader cannot see — in the background's colour or close to
         it, under 2pt, off the page, invisible, transparent, or covered by an image. The OCR text
         layer of a scan is not counted. Feeds the integrity check `ats-v2.integrity.hiddenText`.
-    hiddenTextSample:
+    hiddenText:
       type: string
-      maxLength: 200
-      description: The start of that hidden text, quoted back in the check's evidence.
+      maxLength: 5000
+      description: All of that hidden text, whitespace collapsed, cut to 5,000 characters.
+    hiddenTextRead:
+      type: string
+      maxLength: 5000
+      description: The part of `hiddenText` that the document's text also holds, which is what an ATS reads.
     imageOnlyPages:
       type: integer
       minimum: 0
@@ -2253,6 +2308,17 @@ AtsLayoutSignals:
       type: string
       maxLength: 2000
       description: The file's title, subject, keywords and author. Never scored as resume text; read only for instructions aimed at an AI screener.
+    encrypted:
+      type: boolean
+      description: A PDF that opened without a password but is encrypted. Read by the advice only, never the score.
+    trackedChanges:
+      type: integer
+      minimum: 0
+      description: Tracked changes still in a Word document. Read by the advice only, never the score.
+    comments:
+      type: integer
+      minimum: 0
+      description: Comments still in a Word document. Read by the advice only, never the score.
 
 AtsExtractResponse:
   type: object
@@ -2270,6 +2336,21 @@ AtsExtractResponse:
           description: Plain text extracted from the uploaded PDF, DOCX, TXT, Markdown, or JSON resume file (max ~50,000 characters).
         layout:
           $ref: "#/AtsLayoutSignals"
+        quota:
+          $ref: "#/AtsQuotaSummary"
+
+AtsFileInfo:
+  type: object
+  description: The uploaded file's name and size, sent back by the client for the file advice. Never scored.
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 255
+    bytes:
+      type: integer
+      minimum: 0
+      maximum: 104857600
 
 AtsCheckRequest:
   type: object
@@ -2282,6 +2363,8 @@ AtsCheckRequest:
       description: Optional plain-text job description to compute a jobMatchScore against.
     layout:
       $ref: "#/AtsLayoutSignals"
+    file:
+      $ref: "#/AtsFileInfo"
 
 AtsCheckResponse:
   type: object
@@ -2325,6 +2408,9 @@ AtsAnalyzeRequest:
       description: Client-generated idempotency key for the underlying AI credit reservation.
     layout:
       $ref: "#/AtsLayoutSignals"
+    file:
+      $ref: "#/AtsFileInfo"
+      description: Accepted for parity with `/ats/check`, but not read by this endpoint.
     repairParse:
       type: boolean
       default: false

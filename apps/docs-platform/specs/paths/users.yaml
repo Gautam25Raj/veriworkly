@@ -50,6 +50,66 @@ getCurrentUser:
               statusCode: 404
               message: "User not found"
 
+  delete:
+    tags:
+      - Users
+    operationId: deleteCurrentUser
+    security:
+      - LocalSession: []
+      - ProdSession: []
+    summary: Delete Current User
+    description: |
+      Permanently deletes the authenticated user's account and every document, portfolio, share
+      link, API key, credit and payout record attached to it, then clears the session cookies.
+      This cannot be undone.
+
+      Session only: a request authenticated with an API key is rejected with `403`, whatever its
+      scopes. While a subscription is active or past due and not set to cancel, the request is
+      refused with `409`; cancel it from Billing first.
+    responses:
+      "200":
+        description: Account deleted.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/NullDataResponse"
+            example:
+              success: true
+              message: "Your account and all associated documents, portfolios, and data have been permanently deleted."
+              data: null
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
+      "403":
+        description: The request was authenticated with an API key.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 403
+              message: "This action cannot be performed with an API key. Sign in and delete your account from Settings."
+      "404":
+        description: User not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 404
+              message: "User not found"
+      "409":
+        description: A live subscription must be cancelled first.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 409
+              message: "Cancel your subscription before deleting your account. Open Billing and use Manage Subscription — we cannot cancel it for you, and deleting now would leave you being charged for an account that no longer exists."
+
 updateUserName:
   put:
     tags:

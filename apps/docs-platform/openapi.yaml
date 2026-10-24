@@ -46,6 +46,12 @@ info:
     Every endpoint under `/api/v1` except the Better Auth routes at `/api/v1/auth/*` returns
     `{ success, message, data }` on success and `{ success, message, statusCode, details? }` on
     failure. Better Auth endpoints return their own payload shapes.
+
+    ### Not Documented Here
+
+    `/api/v1/contact`, `/api/v1/stats/events` and everything under `/api/v1/admin/*` are internal
+    first-party routes. They are left out of this reference on purpose and are not part of the
+    supported public API.
 servers:
   - url: https://api.veriworkly.com
     description: Production Server
@@ -208,6 +214,65 @@ paths:
                 success: false
                 statusCode: 404
                 message: User not found
+    delete:
+      tags:
+        - Users
+      operationId: deleteCurrentUser
+      security:
+        - LocalSession: []
+        - ProdSession: []
+      summary: Delete Current User
+      description: |
+        Permanently deletes the authenticated user's account and every document, portfolio, share
+        link, API key, credit and payout record attached to it, then clears the session cookies.
+        This cannot be undone.
+
+        Session only: a request authenticated with an API key is rejected with `403`, whatever its
+        scopes. While a subscription is active or past due and not set to cancel, the request is
+        refused with `409`; cancel it from Billing first.
+      responses:
+        "200":
+          description: Account deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NullDataResponse"
+              example:
+                success: true
+                message: Your account and all associated documents, portfolios, and data have been permanently deleted.
+                data: null
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          description: The request was authenticated with an API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                statusCode: 403
+                message: This action cannot be performed with an API key. Sign in and delete your account from Settings.
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                statusCode: 404
+                message: User not found
+        "409":
+          description: A live subscription must be cancelled first.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                statusCode: 409
+                message: Cancel your subscription before deleting your account. Open Billing and use Manage Subscription — we cannot cancel it for you, and deleting now would leave you being charged for an account that no longer exists.
   /api/v1/users/me/name:
     put:
       tags:
@@ -534,8 +599,7 @@ paths:
       summary: Get Roadmap Features
       security:
         - ApiKeyAuth: []
-        - LocalSession: []
-        - ProdSession: []
+        - {}
       description: |
         Fetch roadmap features with optional filtering, sorting, and pagination.
 
@@ -656,6 +720,8 @@ paths:
                 details:
                   - path: limit
                     message: Number must be greater than or equal to 1
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
   /api/v1/roadmap/stats:
     get:
       tags:
@@ -664,8 +730,7 @@ paths:
       summary: Get Roadmap Stats
       security:
         - ApiKeyAuth: []
-        - LocalSession: []
-        - ProdSession: []
+        - {}
       description: Retrieve aggregated roadmap statistics.
       responses:
         "200":
@@ -683,6 +748,8 @@ paths:
                   inProgress: 4
                   done: 3
                   completionRate: "30.00"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
   /api/v1/roadmap/{id}:
     get:
       tags:
@@ -691,8 +758,7 @@ paths:
       summary: Get Roadmap Feature by ID
       security:
         - ApiKeyAuth: []
-        - LocalSession: []
-        - ProdSession: []
+        - {}
       description: Fetch detailed roadmap feature by ID.
       parameters:
         - name: id
@@ -729,6 +795,8 @@ paths:
                   timeline: In progress
                   details: null
                   interactions: []
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
         "404":
           description: Feature not found
           content:
@@ -747,8 +815,7 @@ paths:
       summary: Get Changelog Entries
       security:
         - ApiKeyAuth: []
-        - LocalSession: []
-        - ProdSession: []
+        - {}
       description: |
         Fetch published changelog entries, newest first, with optional filtering and pagination.
 
@@ -889,8 +956,7 @@ paths:
       summary: Get Changelog Stats
       security:
         - ApiKeyAuth: []
-        - LocalSession: []
-        - ProdSession: []
+        - {}
       description: |
         Aggregated release counts by type, the latest published release, and contributor totals
         derived from the pull-request references recorded on each entry.
@@ -931,8 +997,7 @@ paths:
       summary: Get Changelog Entry by ID
       security:
         - ApiKeyAuth: []
-        - LocalSession: []
-        - ProdSession: []
+        - {}
       description: |
         Fetch a single changelog entry by its id. Requires the `changelog:read` scope when called
         with an API key.
@@ -993,8 +1058,7 @@ paths:
       summary: Get GitHub Stats
       security:
         - ApiKeyAuth: []
-        - LocalSession: []
-        - ProdSession: []
+        - {}
       description: |
         Fetch aggregated issue and pull-request statistics for the configured repository, as of the
         last sync. Served from the last synced snapshot, not live from GitHub — `syncedAt` tells you
@@ -1033,6 +1097,8 @@ paths:
                     success: true
                     message: GitHub stats fetched successfully
                     data: null
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
   /api/v1/github/issues:
     get:
       tags:
@@ -1041,8 +1107,7 @@ paths:
       summary: Get GitHub Issues
       security:
         - ApiKeyAuth: []
-        - LocalSession: []
-        - ProdSession: []
+        - {}
       description: |
         Fetch paginated GitHub issues and pull requests with optional filters, from the last synced
         snapshot rather than live from GitHub. Ordered by most recently updated. Returns an empty
@@ -1134,6 +1199,8 @@ paths:
                     nextCursor: null
         "400":
           $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
   /api/v1/github/admin/sync:
     post:
       tags:
@@ -1876,10 +1943,10 @@ paths:
         Replaces the authenticated user's master profile. Requires the `resume:write` scope when
         called with an API key.
 
-        **This is a full replacement, not a patch.** `profile` is validated strictly: every property
-        of `MasterProfileContent` must be present, and any key not in the schema is rejected. Send
-        empty arrays for sections you have no data for. Read the profile first, modify the object you
-        got back, and send the whole thing.
+        **This is a full replacement, not a patch.** `templateId`, `basics`, `links`, `summary` and
+        `customization` are required. Any section array you omit is stored as `[]`, so leaving one
+        out clears it. Keys not in the schema are dropped, not rejected. Read the profile first,
+        modify the object you got back, and send the whole thing.
 
         Pass the `updatedAt` you last read as `expectedUpdatedAt` for optimistic concurrency; omit it
         only when creating the profile for the first time. The example below is a complete minimal
@@ -2206,7 +2273,10 @@ paths:
       summary: List Documents
       description: |
         Lists the authenticated user's documents (resumes, cover letters, portfolios, link-in-bio
-        pages), optionally filtered by type. Soft-deleted documents are excluded.
+        pages), optionally filtered by type. Soft-deleted documents are excluded. Results are
+        ordered by most recently updated and capped at 500 documents.
+
+        Document bodies are left out unless `includeContent=true`.
       parameters:
         - name: type
           in: query
@@ -2219,6 +2289,23 @@ paths:
               - PORTFOLIO
               - LINK_IN_BIO
           description: Filter documents by type.
+        - name: updatedSince
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Return only documents updated after this ISO 8601 date-time.
+        - name: includeContent
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - "true"
+              - "false"
+            default: "false"
+          description: Set to `true` to include each document's `content`.
       responses:
         "200":
           description: Documents fetched successfully
@@ -2231,21 +2318,17 @@ paths:
                 message: Documents fetched successfully
                 data:
                   - id: doc_123
-                    userId: user_123
                     type: RESUME
                     title: My Resume
                     slug: my-resume
                     tags: []
-                    content: {}
                     metadata: {}
                     templateId: modern
-                    schemaVersion: 1
                     revision: 1
                     visibility: PRIVATE
                     lastSyncedAt: 2026-04-20T10:00:00.000Z
                     createdAt: 2026-04-01T10:00:00.000Z
                     updatedAt: 2026-04-20T10:00:00.000Z
-                    deletedAt: null
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -2508,6 +2591,8 @@ paths:
                     limit: 6
                     used: 0
                     remaining: 6
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
   /api/v1/ats/extract:
     post:
       tags:
@@ -2521,7 +2606,9 @@ paths:
       description: |
         Extracts plain text from an uploaded resume file (PDF, DOCX, TXT, Markdown, or JSON, max 5MB)
         for use as the `resume` field on `/ats/check` or `/ats/analyze`. Does not consume ATS scan
-        quota — only the check/analyze endpoints do.
+        quota. Uploads are metered by a separate extract budget instead (`quota.extract`), and a
+        request over it is rejected with `429`. The multipart body must carry only the `resume`
+        file; any other field is rejected with `400`.
       requestBody:
         required: true
         content:
@@ -2542,7 +2629,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/AtsExtractResponse"
         "400":
-          description: Missing file, or unsupported/unreadable file
+          description: Missing file, unsupported/unreadable file, or a multipart field other than `resume`
           content:
             application/json:
               schema:
@@ -2560,6 +2647,8 @@ paths:
                     success: false
                     statusCode: 400
                     message: Upload a PDF, DOCX, TXT, Markdown, or JSON resume.
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
         "408":
           description: Extraction took too long
           content:
@@ -2570,6 +2659,36 @@ paths:
                 success: false
                 statusCode: 408
                 message: Resume extraction took too long to process.
+        "413":
+          description: The file is larger than 5MB
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                statusCode: 413
+                message: The file is larger than the 5 MB upload limit.
+        "429":
+          description: ATS upload quota exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                statusCode: 429
+                message: ATS upload quota exceeded.
+        "503":
+          description: Extraction is busy or unavailable. The upload is returned to the extract budget.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                statusCode: 503
+                message: Too many resume extractions in progress. Please retry shortly.
   /api/v1/ats/check:
     post:
       tags:
@@ -2604,6 +2723,8 @@ paths:
                 $ref: "#/components/schemas/AtsCheckResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
         "429":
           description: ATS scan quota exceeded
           content:
@@ -2697,6 +2818,16 @@ paths:
                 success: false
                 statusCode: 403
                 message: This API key does not have permission for this action.
+        "409":
+          description: requestId was already used, or is still processing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                statusCode: 409
+                message: This AI request id can no longer be reused.
         "429":
           description: ATS scan quota exceeded
           content:
@@ -2717,6 +2848,16 @@ paths:
                 success: false
                 statusCode: 502
                 message: AI ATS analysis could not be completed.
+        "503":
+          description: The ATS AI policy is invalid, or AI provider credentials are not configured on the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                statusCode: 503
+                message: AI ATS policy is invalid.
   /api/v1/ats/convert-resume:
     post:
       tags:
@@ -2755,17 +2896,26 @@ paths:
         "401":
           $ref: "#/components/responses/UnauthorizedError"
         "402":
-          description: Not enough AI credits
+          description: No active AI Credits or Bundle plan, or not enough AI credits
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-              example:
-                success: false
-                statusCode: 402
-                message: Not enough AI credits.
+              examples:
+                noEntitlement:
+                  summary: No active AI Credits or Bundle plan
+                  value:
+                    success: false
+                    statusCode: 402
+                    message: Resume conversion requires an active AI Credits or Bundle plan.
+                notEnoughCredits:
+                  summary: Not enough AI credits
+                  value:
+                    success: false
+                    statusCode: 402
+                    message: Not enough AI credits.
         "403":
-          description: Missing entitlement, or API key is missing the ai:write scope
+          description: API key is missing the ai:write scope
           content:
             application/json:
               schema:
@@ -2773,7 +2923,17 @@ paths:
               example:
                 success: false
                 statusCode: 403
-                message: Resume conversion requires an active AI Credits or Bundle plan.
+                message: This API key does not have permission for this action.
+        "409":
+          description: requestId was already used, or is still processing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                statusCode: 409
+                message: This AI request id can no longer be reused.
         "502":
           description: AI provider error
           content:
@@ -2784,6 +2944,16 @@ paths:
                 success: false
                 statusCode: 502
                 message: AI resume conversion could not be completed.
+        "503":
+          description: The ATS AI policy is invalid, or AI provider credentials are not configured on the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                statusCode: 503
+                message: AI ATS policy is invalid.
   /api/v1/ai/actions:
     get:
       tags:
@@ -2931,6 +3101,16 @@ paths:
                 success: false
                 statusCode: 502
                 message: The AI provider could not complete the request.
+        "503":
+          description: The AI policy is missing or invalid, or AI provider credentials are not configured on the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                success: false
+                statusCode: 503
+                message: AI provider credentials are not configured.
   /api/v1/portfolios/public:
     get:
       tags:
@@ -5049,32 +5229,23 @@ components:
       description: |
         The resume-shaped JSON stored in `MasterProfile.content`.
 
-        **On `PUT /profiles/master` this object is validated strictly and every property listed below
-        is required.** Send an empty array for sections you have no data for — omitting a key fails
-        with `400`, and so does sending any key not listed here. Every array item carries a
-        client-generated `id`. Field limits (string lengths, 200 items per array, 10-digit phone
-        numbers, `YYYY-MM` / `YYYY` date formats) are enforced server-side.
+        On `PUT /profiles/master`, `templateId`, `basics`, `links`, `summary` and `customization` are
+        required. An omitted array is stored as `[]`, and keys not listed here are dropped rather than
+        rejected. Every array item carries a client-generated `id`. Field limits (string lengths, 200
+        items per array, 10-digit phone numbers, `YYYY-MM` / `YYYY` date formats) are enforced
+        server-side.
       required:
         - templateId
         - basics
         - links
         - summary
-        - experience
-        - education
-        - projects
-        - skills
-        - languages
-        - interests
-        - awards
-        - certificates
-        - publications
-        - volunteer
-        - references
-        - achievements
-        - customSections
-        - sections
         - customization
       properties:
+        schemaVersion:
+          type: integer
+          minimum: 1
+          default: 2
+          description: Version of the profile content format. Defaults to the current version when omitted.
         templateId:
           type: string
         basics:
@@ -5155,7 +5326,6 @@ components:
         updatedAt:
           type: string
           format: date-time
-          nullable: true
     MasterProfileResponse:
       type: object
       required:
@@ -6023,8 +6193,71 @@ components:
           type: string
         data:
           type: array
+          maxItems: 500
           items:
-            $ref: "#/components/schemas/Document"
+            $ref: "#/components/schemas/DocumentSummary"
+    DocumentSummary:
+      type: object
+      description: |
+        A document as the list endpoint returns it. Carries no `userId`, `schemaVersion` or
+        `deletedAt`, and carries `content` only when the request sets `includeContent=true`.
+      required:
+        - id
+        - type
+        - title
+        - slug
+        - tags
+        - templateId
+        - revision
+        - visibility
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum:
+            - RESUME
+            - COVER_LETTER
+            - PORTFOLIO
+            - LINK_IN_BIO
+        title:
+          type: string
+        slug:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        content:
+          type: object
+          additionalProperties: true
+          description: Present only when `includeContent=true`.
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+        templateId:
+          type: string
+        revision:
+          type: integer
+        visibility:
+          type: string
+          enum:
+            - PRIVATE
+            - UNLISTED
+            - PUBLIC
+        lastSyncedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     DocumentResponse:
       type: object
       required:
@@ -6714,6 +6947,10 @@ components:
         alone cannot answer. Returned by `POST /ats/extract` and accepted back by `/ats/check` and
         `/ats/analyze`. When it is omitted, the rules that depend on it are left out of the report
         entirely — neither passed nor failed — and out of the score's denominator.
+
+        A count above its bound is held at the bound rather than rejected: 500 for `tableCount` and
+        `imageCount`, 200 for `pageCount` and `imageOnlyPages`, 100,000 for `hiddenTextChars`,
+        `trackedChanges` and `comments`.
       properties:
         columnRatio:
           type: number
@@ -6739,10 +6976,14 @@ components:
             Characters an ATS reads but a reader cannot see — in the background's colour or close to
             it, under 2pt, off the page, invisible, transparent, or covered by an image. The OCR text
             layer of a scan is not counted. Feeds the integrity check `ats-v2.integrity.hiddenText`.
-        hiddenTextSample:
+        hiddenText:
           type: string
-          maxLength: 200
-          description: The start of that hidden text, quoted back in the check's evidence.
+          maxLength: 5000
+          description: All of that hidden text, whitespace collapsed, cut to 5,000 characters.
+        hiddenTextRead:
+          type: string
+          maxLength: 5000
+          description: The part of `hiddenText` that the document's text also holds, which is what an ATS reads.
         imageOnlyPages:
           type: integer
           minimum: 0
@@ -6751,6 +6992,17 @@ components:
           type: string
           maxLength: 2000
           description: The file's title, subject, keywords and author. Never scored as resume text; read only for instructions aimed at an AI screener.
+        encrypted:
+          type: boolean
+          description: A PDF that opened without a password but is encrypted. Read by the advice only, never the score.
+        trackedChanges:
+          type: integer
+          minimum: 0
+          description: Tracked changes still in a Word document. Read by the advice only, never the score.
+        comments:
+          type: integer
+          minimum: 0
+          description: Comments still in a Word document. Read by the advice only, never the score.
     AtsExtractResponse:
       type: object
       required:
@@ -6770,6 +7022,20 @@ components:
               description: Plain text extracted from the uploaded PDF, DOCX, TXT, Markdown, or JSON resume file (max ~50,000 characters).
             layout:
               $ref: "#/components/schemas/AtsLayoutSignals"
+            quota:
+              $ref: "#/components/schemas/AtsQuotaSummary"
+    AtsFileInfo:
+      type: object
+      description: The uploaded file's name and size, sent back by the client for the file advice. Never scored.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        bytes:
+          type: integer
+          minimum: 0
+          maximum: 104857600
     AtsCheckRequest:
       type: object
       required:
@@ -6782,6 +7048,8 @@ components:
           description: Optional plain-text job description to compute a jobMatchScore against.
         layout:
           $ref: "#/components/schemas/AtsLayoutSignals"
+        file:
+          $ref: "#/components/schemas/AtsFileInfo"
     AtsCheckResponse:
       type: object
       required:
@@ -6829,6 +7097,9 @@ components:
           description: Client-generated idempotency key for the underlying AI credit reservation.
         layout:
           $ref: "#/components/schemas/AtsLayoutSignals"
+        file:
+          $ref: "#/components/schemas/AtsFileInfo"
+          description: Accepted for parity with `/ats/check`, but not read by this endpoint.
         repairParse:
           type: boolean
           default: false

@@ -7,16 +7,16 @@ description: >
   called with an API key.
 
 
-  **This is a full replacement, not a patch.** `profile` is validated strictly:
-  every property
+  **This is a full replacement, not a patch.** `templateId`, `basics`, `links`,
+  `summary` and
 
-  of `MasterProfileContent` must be present, and any key not in the schema is
-  rejected. Send
+  `customization` are required. Any section array you omit is stored as `[]`, so
+  leaving one
 
-  empty arrays for sections you have no data for. Read the profile first, modify
-  the object you
+  out clears it. Keys not in the schema are dropped, not rejected. Read the
+  profile first,
 
-  got back, and send the whole thing.
+  modify the object you got back, and send the whole thing.
 
 
   Pass the `updatedAt` you last read as `expectedUpdatedAt` for optimistic
@@ -43,16 +43,16 @@ _openapi:
           called with an API key.
 
 
-          **This is a full replacement, not a patch.** `profile` is validated
-          strictly: every property
+          **This is a full replacement, not a patch.** `templateId`, `basics`,
+          `links`, `summary` and
 
-          of `MasterProfileContent` must be present, and any key not in the
-          schema is rejected. Send
+          `customization` are required. Any section array you omit is stored as
+          `[]`, so leaving one
 
-          empty arrays for sections you have no data for. Read the profile
-          first, modify the object you
+          out clears it. Keys not in the schema are dropped, not rejected. Read
+          the profile first,
 
-          got back, and send the whole thing.
+          modify the object you got back, and send the whole thing.
 
 
           Pass the `updatedAt` you last read as `expectedUpdatedAt` for

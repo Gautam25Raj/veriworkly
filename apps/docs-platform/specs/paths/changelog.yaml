@@ -6,8 +6,7 @@ getChangelogEntries:
     summary: Get Changelog Entries
     security:
       - ApiKeyAuth: []
-      - LocalSession: []
-      - ProdSession: []
+      - {}
     description: |
       Fetch published changelog entries, newest first, with optional filtering and pagination.
 
@@ -150,8 +149,7 @@ getChangelogStats:
     summary: Get Changelog Stats
     security:
       - ApiKeyAuth: []
-      - LocalSession: []
-      - ProdSession: []
+      - {}
     description: |
       Aggregated release counts by type, the latest published release, and contributor totals
       derived from the pull-request references recorded on each entry.
@@ -194,8 +192,7 @@ getChangelogEntryById:
     summary: Get Changelog Entry by ID
     security:
       - ApiKeyAuth: []
-      - LocalSession: []
-      - ProdSession: []
+      - {}
     description: |
       Fetch a single changelog entry by its id. Requires the `changelog:read` scope when called
       with an API key.

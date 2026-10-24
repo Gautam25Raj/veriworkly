@@ -146,3 +146,13 @@ generateAiContent:
               success: false
               statusCode: 502
               message: "The AI provider could not complete the request."
+      "503":
+        description: The AI policy is missing or invalid, or AI provider credentials are not configured on the server.
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas.yaml#/ErrorResponse"
+            example:
+              success: false
+              statusCode: 503
+              message: "AI provider credentials are not configured."

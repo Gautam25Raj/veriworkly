@@ -6,8 +6,7 @@ getGitHubStats:
     summary: Get GitHub Stats
     security:
       - ApiKeyAuth: []
-      - LocalSession: []
-      - ProdSession: []
+      - {}
     description: |
       Fetch aggregated issue and pull-request statistics for the configured repository, as of the
       last sync. Served from the last synced snapshot, not live from GitHub — `syncedAt` tells you
@@ -46,6 +45,8 @@ getGitHubStats:
                   success: true
                   message: "GitHub stats fetched successfully"
                   data: null
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
 
 getGitHubIssues:
   get:
@@ -55,8 +56,7 @@ getGitHubIssues:
     summary: Get GitHub Issues
     security:
       - ApiKeyAuth: []
-      - LocalSession: []
-      - ProdSession: []
+      - {}
     description: |
       Fetch paginated GitHub issues and pull requests with optional filters, from the last synced
       snapshot rather than live from GitHub. Ordered by most recently updated. Returns an empty
@@ -141,6 +141,8 @@ getGitHubIssues:
                   nextCursor: null
       "400":
         $ref: "../components/responses.yaml#/ValidationError"
+      "401":
+        $ref: "../components/responses.yaml#/UnauthorizedError"
 
 syncGitHubStats:
   post:

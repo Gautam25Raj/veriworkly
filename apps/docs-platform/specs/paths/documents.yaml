@@ -10,7 +10,10 @@ documentCollection:
     summary: List Documents
     description: |
       Lists the authenticated user's documents (resumes, cover letters, portfolios, link-in-bio
-      pages), optionally filtered by type. Soft-deleted documents are excluded.
+      pages), optionally filtered by type. Soft-deleted documents are excluded. Results are
+      ordered by most recently updated and capped at 500 documents.
+
+      Document bodies are left out unless `includeContent=true`.
     parameters:
       - name: type
         in: query
@@ -19,6 +22,21 @@ documentCollection:
           type: string
           enum: [RESUME, COVER_LETTER, PORTFOLIO, LINK_IN_BIO]
         description: Filter documents by type.
+      - name: updatedSince
+        in: query
+        required: false
+        schema:
+          type: string
+          format: date-time
+        description: Return only documents updated after this ISO 8601 date-time.
+      - name: includeContent
+        in: query
+        required: false
+        schema:
+          type: string
+          enum: ["true", "false"]
+          default: "false"
+        description: Set to `true` to include each document's `content`.
     responses:
       "200":
         description: Documents fetched successfully
@@ -31,21 +49,17 @@ documentCollection:
               message: "Documents fetched successfully"
               data:
                 - id: "doc_123"
-                  userId: "user_123"
                   type: "RESUME"
                   title: "My Resume"
                   slug: "my-resume"
                   tags: []
-                  content: {}
                   metadata: {}
                   templateId: "modern"
-                  schemaVersion: 1
                   revision: 1
                   visibility: "PRIVATE"
                   lastSyncedAt: "2026-04-20T10:00:00.000Z"
                   createdAt: "2026-04-01T10:00:00.000Z"
                   updatedAt: "2026-04-20T10:00:00.000Z"
-                  deletedAt: null
 
       "400":
         $ref: "../components/responses.yaml#/ValidationError"

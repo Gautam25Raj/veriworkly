@@ -270,6 +270,22 @@ entries.push({
 entries.push({ path: "README.txt", data: Buffer.from(readme(), "utf8") });
 
 const zip = buildZip(entries);
+
+// --check: fail when the committed zip is not what the sources build (W-057), without writing.
+if (process.argv.includes("--check")) {
+  const committed = readFileSync(OUT);
+
+  if (!committed.equals(zip)) {
+    console.error(
+      "public/brand/veriworkly-brand-kit.zip is stale: run npm run build:brand-kit and commit it.",
+    );
+    process.exit(1);
+  }
+
+  console.log("veriworkly-brand-kit.zip matches its sources.");
+  process.exit(0);
+}
+
 writeFileSync(OUT, zip);
 
 console.log(

@@ -21,8 +21,11 @@ RUN npm ci --ignore-scripts --workspace=@veriworkly/site --workspace=@veriworkly
 FROM base AS builder
 ARG NEXT_PUBLIC_BACKEND_URL
 ARG SITE_URL
+ARG NEXT_PUBLIC_SITE_URL
 ARG BACKEND_INTERNAL_URL
 ENV NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL}
+# The canonical origin. Only NEXT_PUBLIC_ reaches client components; SITE_URL is the old alias.
+ENV NEXT_PUBLIC_SITE_URL=${NEXT_PUBLIC_SITE_URL:-$SITE_URL}
 ENV SITE_URL=${SITE_URL}
 ENV BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL}
 # Opts next.config.ts into `output: "standalone"`; see the comment there.

@@ -25,10 +25,17 @@ RUN npm ci --workspace=@veriworkly/server --workspace=@veriworkly/profile-core -
 COPY packages/profile-core/tsconfig.json ./packages/profile-core/tsconfig.json
 COPY packages/profile-core/src ./packages/profile-core/src
 COPY apps/server/tsconfig.json ./apps/server/tsconfig.json
+# The Prisma CLI reads the datasource URL from prisma.config.ts; `migrate deploy` (compose service
+# `migrate`, run from this stage) fails without it.
+COPY apps/server/prisma.config.ts ./apps/server/prisma.config.ts
 COPY apps/server/src ./apps/server/src
 
-RUN npm run build --workspace=@veriworkly/server \
-    && npm prune --omit=dev
+RUN npm run build --workspace=@veriworkly/server
+
+# Dev dependencies are dropped in a separate stage so the `build` stage keeps the Prisma CLI:
+# compose runs `prisma migrate deploy` from it (service `migrate`) before the API starts.
+FROM build AS pruned
+RUN npm prune --omit=dev
 
 FROM node:${NODE_VERSION}-alpine AS runner
 WORKDIR /app/apps/server
@@ -40,14 +47,14 @@ RUN apk add --no-cache openssl
 
 RUN addgroup -S app && adduser -S app -G app
 
-COPY --from=build /app/package*.json /app/
-COPY --from=build /app/node_modules /app/node_modules
+COPY --from=pruned /app/package*.json /app/
+COPY --from=pruned /app/node_modules /app/node_modules
 # Whole directories, not just package.json and dist: npm nests a dependency inside a workspace
 # when its version conflicts with the root copy (better-auth and zod 3 under apps/server, zod
 # under each package), and the runtime must find them where the lockfile put them. The packages
 # are also the targets of the workspace symlinks in node_modules/@veriworkly.
-COPY --from=build /app/packages /app/packages
-COPY --from=build /app/apps/server ./
+COPY --from=pruned /app/packages /app/packages
+COPY --from=pruned /app/apps/server ./
 
 USER app
 EXPOSE 8080

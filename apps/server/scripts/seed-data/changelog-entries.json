@@ -1,5 +1,41 @@
 [
   {
+    "id": "v3-31-0",
+    "version": "3.31.0",
+    "title": "Outage-Safe Site Deploys, Accurate Pricing Copy & Lighter Pages",
+    "summary": "The marketing site no longer breaks when it is deployed while the API is down, every price and limit on it matches the product, and most pages load about 45 KB less JavaScript. New files help search engines and AI assistants describe VeriWorkly correctly.",
+    "type": "minor",
+    "publishedAt": "2026-10-24T17:30:00Z",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.31.0",
+    "added": [
+      "/llms-full.txt puts the overview, FAQ, templates, comparisons and pricing in one file for AI assistants.",
+      "Optional reporting of real-user page speed (NEXT_PUBLIC_VITALS_URL) and of server errors (ERROR_REPORT_URL)."
+    ],
+    "improved": [
+      "Prices, scan and import limits, credit packs and the payments-closed notice match the product, and tests fail when they drift.",
+      "Page titles and descriptions fit in search results, with one consistent set of structured data.",
+      "The navigation bar is plain CSS and the animation library loads only on the 7 pages that use it, so most pages load about 45 KB less JavaScript.",
+      "The about, features, how-it-works and security pages open with a short, direct answer."
+    ],
+    "fixed": [
+      "A deploy while the API was unreachable turned every release page into \"Release Not Found\" for a week. Those pages now load on demand.",
+      "The roadmap names the columns that failed to load instead of showing an empty board.",
+      "Dead links such as /support and /careers redirect to the right pages.",
+      "The contact form shows an error next to each field, and the ATS checker explains oversized uploads and rate limits."
+    ],
+    "breaking": [],
+    "security": [
+      "Server-side calls forward only the sign-in cookies, and error reports leave out query strings."
+    ],
+    "tags": ["site", "seo", "performance", "accessibility"],
+    "prRefs": [
+      {
+        "number": 233,
+        "title": "[Feature] [Site/Studio]: make the site production ready and release 3.31.0"
+      }
+    ]
+  },
+  {
     "id": "v3-30-1",
     "version": "3.30.1",
     "title": "Next.js Security Update, Older Browser Tooltip Fix & API Reference Corrections",

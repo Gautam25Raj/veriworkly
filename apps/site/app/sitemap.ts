@@ -1,14 +1,22 @@
 import type { MetadataRoute } from "next";
 
 import { siteConfig } from "@/config/site";
-import { COMPETITORS } from "@/features/compare";
+import { termsLastUpdated } from "@/features/legal/termsContent";
+import { privacyLastUpdated } from "@/features/legal/privacyContent";
+import { SECURITY_LAST_UPDATED } from "@/features/security/data/lastUpdated";
+import { isAffiliateProgramEnabled, isAmbassadorProgramEnabled } from "@/lib/feature-flags";
+import { COMPETITORS } from "@/features/compare/data/competitors";
 import { documentTypeSummaries, templateSummaries } from "@/config/templates";
 
 import {
+  type ChangelogIndexItem,
   fetchChangelogIndex,
   fetchLatestChangelogPublishedAt,
 } from "@/features/changelog/services/changelog-backend";
-import { fetchRoadmapSitemapEntries } from "@/features/roadmap/services/roadmap-backend";
+import {
+  type RoadmapSitemapEntry,
+  fetchRoadmapSitemapEntries,
+} from "@/features/roadmap/services/roadmap-backend";
 
 export const revalidate = 604800;
 
@@ -139,24 +147,54 @@ const publicRoutes = [
     priority: 0.5,
   },
 
+  // Pages that state their own date carry it here. The rest get none: a lastmod that moves
+  // on every deploy teaches Google to ignore the field. ponytail: git-derived dates need the
+  // repository in the build context, which the Docker build excludes.
   {
     url: `${siteConfig.url}/privacy`,
+    lastModified: privacyLastUpdated,
     changeFrequency: "monthly" as const,
     priority: 0.5,
   },
 
   {
     url: `${siteConfig.url}/security`,
+    lastModified: SECURITY_LAST_UPDATED,
     changeFrequency: "monthly" as const,
     priority: 0.5,
   },
 
   {
     url: `${siteConfig.url}/terms`,
+    lastModified: termsLastUpdated,
     changeFrequency: "monthly" as const,
     priority: 0.5,
   },
 ] satisfies MetadataRoute.Sitemap;
+
+/**
+ * The backend-driven rows. At build time an unreachable backend yields the static routes
+ * only, and the first ISR revalidation fills the rest in. At runtime the error is rethrown
+ * on purpose: a revalidation that throws keeps the last successfully generated sitemap, which
+ * is better than publishing one that silently lost every roadmap and changelog URL for a week.
+ */
+async function fetchDynamicEntries(): Promise<
+  [RoadmapSitemapEntry[], Date | null, ChangelogIndexItem[]]
+> {
+  try {
+    return await Promise.all([
+      fetchRoadmapSitemapEntries(),
+      fetchLatestChangelogPublishedAt(),
+      fetchChangelogIndex(),
+    ]);
+  } catch (err) {
+    if (process.env.NEXT_PHASE !== "phase-production-build") throw err;
+
+    console.error("Sitemap: backend unreachable at build, listing static routes only:", err);
+
+    return [[], null, []];
+  }
+}
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const templateRoutes = documentTypeSummaries
@@ -173,11 +211,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.75,
   }));
 
-  const [roadmapEntries, changelogLastModified, changelogEntries] = await Promise.all([
-    fetchRoadmapSitemapEntries(),
-    fetchLatestChangelogPublishedAt(),
-    fetchChangelogIndex(),
-  ]);
+  const [roadmapEntries, changelogLastModified, changelogEntries] = await fetchDynamicEntries();
 
   const roadmapItemRoutes = roadmapEntries.map((entry) => {
     const updatedAt = new Date(entry.updatedAt);
@@ -214,8 +248,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...(changelogLastModified ? { lastModified: changelogLastModified } : {}),
   };
 
+  // The program pages exist either way, but while a program is closed they only say so;
+  // they should not be submitted as pages worth indexing (W-012).
+  const closed = new Set([
+    ...(isAffiliateProgramEnabled() ? [] : [`${siteConfig.url}/affiliate`]),
+    ...(isAmbassadorProgramEnabled() ? [] : [`${siteConfig.url}/ambassador`]),
+  ]);
+
   return [
-    ...publicRoutes.filter((route) => route.url !== changelogIndexRoute.url),
+    ...publicRoutes.filter(
+      (route) => route.url !== changelogIndexRoute.url && !closed.has(route.url),
+    ),
     changelogIndexRoute,
     ...templateRoutes,
     ...templateDetailRoutes,

@@ -1,11 +1,9 @@
 import { Metadata } from "next";
+import { connection } from "next/server";
 import { siteConfig } from "@/config/site";
 import { jsonLdScriptProps } from "@/utils/json-ld";
 import { buildPageMetadata } from "@/utils/metadata";
-import {
-  type RoadmapSort,
-  fetchRoadmapFromBackend,
-} from "@/features/roadmap/services/roadmap-backend";
+import { fetchRoadmapFromBackend } from "@/features/roadmap/services/roadmap-backend";
 
 import RoadmapPageShell from "@/features/roadmap/components/RoadmapPageShell";
 
@@ -24,27 +22,15 @@ export const metadata: Metadata = buildPageMetadata({
   keywords: ["VeriWorkly changelog", "shipped features", "resume builder release notes"],
 });
 
-function parseSort(raw: string | undefined): RoadmapSort | undefined {
-  if (raw === "newest" || raw === "oldest" || raw === "recently-completed") {
-    return raw;
-  }
-
-  return undefined;
-}
-
-interface DoneRoadmapPageProps {
-  searchParams: Promise<{
-    sort?: string;
-  }>;
-}
-
-const DoneRoadmapPage = async ({ searchParams }: DoneRoadmapPageProps) => {
-  const params = await searchParams;
-
+const DoneRoadmapPage = async () => {
   const data = await fetchRoadmapFromBackend({
-    sort: parseSort(params.sort),
     status: "done",
   });
+
+  // A failed column is not cached as the page; that render goes per request. At build the
+  // page stays static; the column Refresh button or the next deploy refills it.
+  if (data.failedStatuses.length > 0 && process.env.NEXT_PHASE !== "phase-production-build")
+    await connection();
 
   const breadcrumbSchema = {
     "@context": "https://schema.org",

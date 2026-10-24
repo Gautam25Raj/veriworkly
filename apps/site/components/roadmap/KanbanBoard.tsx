@@ -25,7 +25,6 @@ export interface KanbanColumn {
 interface KanbanBoardProps {
   columns: KanbanColumn[];
   showDescription?: boolean;
-  showUrl?: boolean;
   showRoadmapLinks?: boolean;
   columnHrefMap?: Partial<Record<string, string>>;
   refreshPath?: string;
@@ -34,7 +33,6 @@ interface KanbanBoardProps {
 const KanbanBoard = ({
   columns,
   showDescription = true,
-  showUrl = false,
   showRoadmapLinks = false,
   columnHrefMap,
   refreshPath,
@@ -47,7 +45,6 @@ const KanbanBoard = ({
         return (
           <KanbanColumnView
             column={column}
-            showUrl={showUrl}
             key={column.title}
             refreshPath={refreshPath}
             showDescription={showDescription}

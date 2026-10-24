@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 
 import { siteConfig } from "@/config/site";
 import { jsonLdScriptProps } from "@/utils/json-ld";
-import { buildPageMetadata } from "@/utils/metadata";
+import { organizationRef, webSiteRef } from "@/utils/schema";
+import { buildPageMetadata, fitDescription, fitTitle } from "@/utils/metadata";
 
 import {
   fetchChangelogIndex,
@@ -12,28 +13,41 @@ import {
 } from "@/features/changelog/services/changelog-backend";
 import ChangelogEntryNav from "@/features/changelog/components/detail/ChangelogEntryNav";
 import ChangelogEntryDetail from "@/features/changelog/components/detail/ChangelogEntryDetail";
-import { categoriesFor } from "@/features/changelog/utils/changelog-utils";
+import {
+  categoriesFor,
+  releaseHeadline,
+  releaseSummary,
+} from "@/features/changelog/utils/changelog-utils";
 
 interface ChangelogDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
 export async function generateStaticParams() {
-  const index = await fetchChangelogIndex();
-  return index.map((entry) => ({ id: entry.id }));
+  try {
+    const index = await fetchChangelogIndex();
+
+    return index.map((entry) => ({ id: entry.id }));
+  } catch (err) {
+    // No index means no prerendered release pages; they render on first request instead.
+    // Prerendering from an empty index would bake every release as a 404 for the ISR week.
+    console.error("Changelog index unavailable at build; release pages render on demand:", err);
+
+    return [];
+  }
 }
 
 function describe(title: string, version: string, summary: string | null) {
-  return (
-    summary ||
-    `Everything that shipped in VeriWorkly v${version} - ${title}: new features, improvements, fixes, and the pull requests behind them.`
+  return fitDescription(
+    releaseSummary(summary) ??
+      `Everything that shipped in VeriWorkly v${version} - ${releaseHeadline(title)}: new features, improvements, fixes, and the pull requests behind them.`,
   );
 }
 
 export async function generateMetadata({ params }: ChangelogDetailPageProps): Promise<Metadata> {
   const { id } = await params;
 
-  const detail = await fetchChangelogDetail(id).catch(() => null);
+  const detail = await fetchChangelogDetail(id);
 
   if (!detail) {
     return buildPageMetadata({
@@ -66,7 +80,7 @@ export async function generateMetadata({ params }: ChangelogDetailPageProps): Pr
   return buildPageMetadata({
     path: `/changelog/${entry.id}`,
 
-    title: `VeriWorkly v${entry.version}: ${entry.title} | Release Notes`,
+    title: fitTitle(`v${entry.version}: ${releaseHeadline(entry.title)}`, "VeriWorkly changelog"),
     description,
 
     ogTitle: `What shipped in VeriWorkly v${entry.version}`,
@@ -92,7 +106,7 @@ export async function generateMetadata({ params }: ChangelogDetailPageProps): Pr
 const ChangelogDetailPage = async ({ params }: ChangelogDetailPageProps) => {
   const { id } = await params;
 
-  const detail = await fetchChangelogDetail(id).catch(() => null);
+  const detail = await fetchChangelogDetail(id);
 
   if (!detail) notFound();
 
@@ -119,8 +133,9 @@ const ChangelogDetailPage = async ({ params }: ChangelogDetailPageProps) => {
     url: entryUrl,
     datePublished: entry.publishedAt,
     dateModified: entry.publishedAt,
-    author: { "@type": "Organization", name: "VeriWorkly", url: siteConfig.url },
-    publisher: { "@type": "Organization", name: "VeriWorkly", url: siteConfig.url },
+    author: organizationRef,
+    publisher: organizationRef,
+    isPartOf: webSiteRef,
     keywords: entry.tags.join(", "),
     mainEntityOfPage: { "@type": "WebPage", "@id": entryUrl },
     articleSection: categoriesFor(entry).map(({ label }) => label),

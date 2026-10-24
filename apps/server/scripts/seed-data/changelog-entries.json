@@ -1,5 +1,57 @@
 [
   {
+    "id": "v3-30-0",
+    "version": "3.30.0",
+    "title": "ATS Engine 0.17.0, Redesigned Marketing Pages, Template Gallery & Accessibility Fixes",
+    "summary": "This release moves to ATS Engine 0.17.0, redesigns most marketing pages, adds a template gallery, and shows who built each release on the changelog. It also fixes keyboard, screen reader and contrast problems in the shared components that every VeriWorkly app uses. Some resumes will score differently with the new engine, so read the engine notes below.",
+    "type": "minor",
+    "publishedAt": "",
+    "githubUrl": "https://github.com/VeriWorkly/veriworkly/releases/tag/Release-v3.30.0",
+    "added": [
+      "The templates pages are now a gallery: three to four templates per row on desktop, two on a phone, with search, style and layout filters and a live count. A template page keeps its preview in view while the details scroll beside it.",
+      "The top of the changelog lists every contributor instead of the first ten, every release row has a fixed spot for its people, and every merged pull request is credited, with its author, to the right release."
+    ],
+    "improved": [
+      "Upgraded @veriworkly/ats-engine from 0.16.0 to 0.17.0 across server, site, Studio and docs. Scores can change for the same resume: \"Till now\", \"onwards\" and \"bis heute\" read as a current role, the right to work is compared by country, expired or in-progress certifications are partial, and \"or related field\" no longer stands in for a degree. The scoring policy was rebuilt, so deploy it with this release.",
+      "A job posting from a URL is read up to 20,000 characters instead of 12,000. An AI analysis that comes back completely empty now counts as no answer and is tried again, and retries wait between tries.",
+      "Every marketing page except the landing page, pricing, roadmap, style guide and brand kit has a new design on one shared layout. The ATS checker page shows two plans, and the About page hides the affiliate and ambassador links while those programs are off.",
+      "Dialogs announce their title, keep focus when the page behind them updates, open above the navbar, and close one at a time with Escape. On a phone, swipe a dialog down to close it.",
+      "Dropdown menus work with the arrow keys, Home, End and typing a letter, and Escape returns focus to the menu button. Tooltips appear above dialogs, stay open while hovered, and close with Escape.",
+      "The mobile menu no longer lets Tab reach its links while closed or the page behind it while open. FAQ answers stay searchable with Ctrl+F in browsers that support it.",
+      "Error red is a little darker in light mode and the footer text is easier to read, so both meet the 4.5:1 contrast minimum. Native scrollbars, dropdown lists and date pickers now follow dark mode.",
+      "Buttons shrink slightly when pressed and the keyboard focus ring is solid blue."
+    ],
+    "fixed": [
+      "Styles passed to a button made with asChild were dropped. They now apply, so about 20 buttons (blog and docs calls to action, Studio login, portfolio error pages, the main button in the mobile menu) look as designed.",
+      "The Security page no longer claims encrypted local storage, AES-256, TLS 1.3 or a 24-hour response time, which the code does not back up.",
+      "The Compare pages read prices and feature tables from one set of competitor data. The old copy had wrong prices for Novoresume and Zety.",
+      "Dialogs, tooltips and checkboxes were missing their animations. A checkbox ignored its starting value. The first click on the theme button did nothing on a system already set to dark. Icon-only links and two form controls had no names for screen readers.",
+      "Text fields use 16px text on phones so iPhones no longer zoom in, and blog posts no longer scroll sideways on a phone.",
+      "Synced release notes no longer leak horizontal rules, the Pull Requests list or the Full Changelog link into the bullets, and the intro paragraph is kept as the summary. The changelog also credited 3 people when 12 had contributed."
+    ],
+    "breaking": [],
+    "security": [],
+    "tags": ["ats-engine", "site", "accessibility", "docs"],
+    "prRefs": [
+      {
+        "number": 225,
+        "title": "[Fix] [UI/Site/Studio/Blog/Portfolio]: harden the shared UI package for accessibility and correctness"
+      },
+      {
+        "number": 224,
+        "title": "[Chore] [Server/Site/Studio/Docs]: move to @veriworkly/ats-engine 0.17.0"
+      },
+      {
+        "number": 223,
+        "title": "[Fix] [Site/Server]: credit every contributor and browse templates as a gallery"
+      },
+      {
+        "number": 222,
+        "title": "[Feature] [Site/Server]: redesign secondary marketing pages and fix synced release notes"
+      }
+    ]
+  },
+  {
     "id": "v3-29-0",
     "version": "3.29.0",
     "title": "ATS Engine 0.16.0, Seniority Rows & Keyword Stuffing Spread Over a Few Skills",

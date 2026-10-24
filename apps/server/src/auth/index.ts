@@ -149,7 +149,13 @@ export const auth = betterAuth({
     storeStateStrategy: "cookie",
     accountLinking: {
       enabled: true,
-      trustedProviders: ["google", "github", "linkedin"],
+      // A trusted provider is linked to the existing user with the same email even when the
+      // provider reports that email as unverified. GitHub returns `verified: false` for any
+      // address a user has merely added, so trusting it lets anyone sign in as the owner of that
+      // address (an OTP user's local row is already verified, which is the only check better-auth
+      // applies on the local side). Google only issues verified emails. Untrusted providers still
+      // link when the provider itself says the email is verified.
+      trustedProviders: ["google"],
     },
   },
 

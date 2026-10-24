@@ -133,7 +133,8 @@ export class BillingController {
       const parsedHeaders = dodoWebhookHeaderSchema.parse(headers);
       const providerEventId = parsedHeaders["webhook-id"];
 
-      const event = BillingService.unwrapWebhook(rawBody, headers);
+      // The socket peer, not a forwarded header: the unsigned bypass must only honour a true loopback caller.
+      const event = BillingService.unwrapWebhook(rawBody, headers, req.socket?.remoteAddress);
 
       res.json(createSuccessResponse(await BillingService.processWebhook(providerEventId, event)));
     } catch (error) {

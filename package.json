@@ -41,7 +41,6 @@
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "generate:api": "npm run generate:api -w @veriworkly/docs-platform",
-    "db:push": "npm run db:push -w @veriworkly/server",
     "db:migrate": "npm run db:migrate -w @veriworkly/server",
     "db:generate": "npm run db:generate -w @veriworkly/server",
     "db:studio": "npm run db:studio -w @veriworkly/server",
@@ -50,7 +49,8 @@
     "seo:bing": "node scripts/seo-data/bing.mjs",
     "seo:all": "npm run seo:gsc && npm run seo:bing",
     "seo:inspect": "node scripts/seo-data/gsc-inspect.mjs",
-    "seo:bing-urls": "node scripts/seo-data/bing-urls.mjs"
+    "seo:bing-urls": "node scripts/seo-data/bing-urls.mjs",
+    "db:migrate:deploy": "npm run db:migrate:deploy -w @veriworkly/server"
   },
   "devDependencies": {
     "@types/node": "^25",

@@ -1,5 +1,11 @@
 import { config, isProduction } from "#config";
 
+// The raw-environment schema (NODE_ENV, integer formats, production-only TRUST_PROXY /
+// WEB_CONCURRENCY / public-https URLs / non-example secrets). It lives in its own module, free of
+// `#config`, so it can be called before anything else reads the defaulted config and tested
+// without loading `.env`. It does not repeat the Dodo/R2 checks below.
+export { validateEnvironmentConfig } from "./environmentSchema.js";
+
 function ensure(condition: boolean, message: string): asserts condition {
   if (!condition) {
     throw new Error(message);

@@ -1,6 +1,8 @@
 import os from "node:os";
 import dotenv from "dotenv";
 
+import { parseIntegerEnv } from "./config/parseEnv.js";
+
 dotenv.config();
 
 function getCpuCount(): number {
@@ -54,7 +56,7 @@ const studioOrigin = getOriginSafe(configuredStudioUrl);
 export const config = {
   nodeEnv: process.env.NODE_ENV || "development",
 
-  port: parseInt(process.env.PORT || "8080", 10),
+  port: parseIntegerEnv(process.env.PORT, 8080),
 
   allowedOrigins: Array.from(
     new Set(
@@ -89,23 +91,20 @@ export const config = {
       .split(",")
       .map((header) => header.trim().toLowerCase())
       .filter(Boolean),
-    sessionTtlSeconds: parseInt(process.env.AUTH_SESSION_TTL_SECONDS || "2592000", 10),
-    sessionResetTtlOnUse: parseInt(process.env.AUTH_SESSION_RESET_TTL_ON_USE || "86400", 10),
+    sessionTtlSeconds: parseIntegerEnv(process.env.AUTH_SESSION_TTL_SECONDS, 2592000),
+    sessionResetTtlOnUse: parseIntegerEnv(process.env.AUTH_SESSION_RESET_TTL_ON_USE, 86400),
     sessionCacheEnabled: parseBoolean(
       process.env.AUTH_SESSION_CACHE_ENABLED,
       defaultAuthSessionCacheEnabled === "true",
     ),
-    sessionCacheMaxAgeSeconds: parseInt(
-      process.env.AUTH_SESSION_CACHE_MAX_AGE_SECONDS || "900",
-      10,
-    ),
-    otpTtlSeconds: parseInt(process.env.AUTH_OTP_TTL_SECONDS || "300", 10),
-    otpAllowedAttempts: parseInt(process.env.AUTH_OTP_ALLOWED_ATTEMPTS || "3", 10),
+    sessionCacheMaxAgeSeconds: parseIntegerEnv(process.env.AUTH_SESSION_CACHE_MAX_AGE_SECONDS, 900),
+    otpTtlSeconds: parseIntegerEnv(process.env.AUTH_OTP_TTL_SECONDS, 300),
+    otpAllowedAttempts: parseIntegerEnv(process.env.AUTH_OTP_ALLOWED_ATTEMPTS, 3),
     emailProvider: process.env.AUTH_EMAIL_PROVIDER || "console",
     emailFrom: process.env.AUTH_EMAIL_FROM || "VeriWorkly <no-reply@veriworkly.com>",
     resendApiKey: process.env.RESEND_API_KEY || "",
     smtpHost: process.env.AUTH_SMTP_HOST || "",
-    smtpPort: parseInt(process.env.AUTH_SMTP_PORT || "587", 10),
+    smtpPort: parseIntegerEnv(process.env.AUTH_SMTP_PORT, 587),
     smtpSecure: parseBoolean(process.env.AUTH_SMTP_SECURE, false),
     smtpUser: process.env.AUTH_SMTP_USER || "",
     smtpPass: process.env.AUTH_SMTP_PASS || "",
@@ -120,21 +119,21 @@ export const config = {
 
   apiKeys: {
     hashSecret: process.env.API_KEY_HASH_SECRET || process.env.AUTH_SECRET || "dev-api-key-secret",
-    authCacheTtlSeconds: parseInt(process.env.API_KEY_AUTH_CACHE_TTL_SECONDS || "300", 10),
-    lastUsedTouchIntervalSeconds: parseInt(
-      process.env.API_KEY_LAST_USED_TOUCH_INTERVAL_SECONDS || "300",
-      10,
+    authCacheTtlSeconds: parseIntegerEnv(process.env.API_KEY_AUTH_CACHE_TTL_SECONDS, 300),
+    lastUsedTouchIntervalSeconds: parseIntegerEnv(
+      process.env.API_KEY_LAST_USED_TOUCH_INTERVAL_SECONDS,
+      300,
     ),
-    defaultRateLimit: parseInt(process.env.API_KEY_DEFAULT_RATE_LIMIT || "20", 10),
+    defaultRateLimit: parseIntegerEnv(process.env.API_KEY_DEFAULT_RATE_LIMIT, 20),
     // Must be a separate knob from the default. When the ceiling was defined as the default,
     // normalizeRateLimit() clamped every requested value back down to it and the per-key
     // rateLimit column could only ever be lowered, never raised.
-    maxRateLimit: parseInt(process.env.API_KEY_MAX_RATE_LIMIT || "600", 10),
+    maxRateLimit: parseIntegerEnv(process.env.API_KEY_MAX_RATE_LIMIT, 600),
     defaultScopes: (process.env.API_KEY_DEFAULT_SCOPES || "user:read")
       .split(",")
       .map((scope) => scope.trim())
       .filter(Boolean),
-    defaultKeyLifetimeDays: parseInt(process.env.API_KEY_DEFAULT_LIFETIME_DAYS || "365", 10),
+    defaultKeyLifetimeDays: parseIntegerEnv(process.env.API_KEY_DEFAULT_LIFETIME_DAYS, 365),
   },
 
   server: {
@@ -143,9 +142,13 @@ export const config = {
       process.env.CLUSTERING_ENABLED,
       (process.env.NODE_ENV || "development") === "production",
     ),
-    workers:
-      parseInt(process.env.WEB_CONCURRENCY || process.env.SERVER_WORKERS || "", 10) ||
-      getCpuCount(),
+    workers: (() => {
+      const requested = parseIntegerEnv(
+        process.env.WEB_CONCURRENCY || process.env.SERVER_WORKERS,
+        0,
+      );
+      return requested > 0 ? requested : getCpuCount();
+    })(),
   },
 
   admin: {
@@ -153,31 +156,31 @@ export const config = {
   },
 
   rateLimit: {
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "900000", 10),
-    maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || "100", 10),
-    authWindowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || "60000", 10),
-    authMaxRequests: parseInt(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS || "20", 10),
+    windowMs: parseIntegerEnv(process.env.RATE_LIMIT_WINDOW_MS, 900000),
+    maxRequests: parseIntegerEnv(process.env.RATE_LIMIT_MAX_REQUESTS, 100),
+    authWindowMs: parseIntegerEnv(process.env.AUTH_RATE_LIMIT_WINDOW_MS, 60000),
+    authMaxRequests: parseIntegerEnv(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS, 20),
     // The per-route limits above are keyed by (method, path, ip), so they bound each endpoint
     // independently and never bound a client's total load — with ~40 endpoints one IP could
     // legitimately issue 40x the headline number. This coarse bucket is the ceiling underneath
     // them; it should sit well above any real single-user session.
-    globalWindowMs: parseInt(process.env.GLOBAL_RATE_LIMIT_WINDOW_MS || "900000", 10),
-    globalMaxRequests: parseInt(process.env.GLOBAL_RATE_LIMIT_MAX_REQUESTS || "1000", 10),
+    globalWindowMs: parseIntegerEnv(process.env.GLOBAL_RATE_LIMIT_WINDOW_MS, 900000),
+    globalMaxRequests: parseIntegerEnv(process.env.GLOBAL_RATE_LIMIT_MAX_REQUESTS, 1000),
   },
 
   logging: {
     level: process.env.LOG_LEVEL || "info",
     // AuditLog gets a row per 4xx/5xx in production. Without pruning it is the fastest-growing
     // table in the schema and nothing else ever deletes from it.
-    auditRetentionDays: parseInt(process.env.AUDIT_LOG_RETENTION_DAYS || "90", 10),
+    auditRetentionDays: parseIntegerEnv(process.env.AUDIT_LOG_RETENTION_DAYS, 90),
   },
 
   ai: {
     apiKey: process.env.AI_API_KEY || "",
     baseUrl: process.env.AI_BASE_URL || "",
-    timeoutMs: parseInt(process.env.AI_TIMEOUT_MS || "120000", 10),
-    rateLimitWindowMs: parseInt(process.env.AI_RATE_LIMIT_WINDOW_MS || "60000", 10),
-    rateLimitMaxRequests: parseInt(process.env.AI_RATE_LIMIT_MAX_REQUESTS || "20", 10),
+    timeoutMs: parseIntegerEnv(process.env.AI_TIMEOUT_MS, 120000),
+    rateLimitWindowMs: parseIntegerEnv(process.env.AI_RATE_LIMIT_WINDOW_MS, 60000),
+    rateLimitMaxRequests: parseIntegerEnv(process.env.AI_RATE_LIMIT_MAX_REQUESTS, 20),
     siteUrl: process.env.SITE_URL || "",
 
     // Each private policy is its own file/secret so it's obvious which one governs which
@@ -193,17 +196,17 @@ export const config = {
   },
 
   cache: {
-    roadmapTtlSeconds: parseInt(process.env.ROADMAP_CACHE_TTL_SECONDS || "2592000", 10),
-    roadmapStatsTtlSeconds: parseInt(process.env.ROADMAP_STATS_CACHE_TTL_SECONDS || "2592000", 10),
-    roadmapTagsTtlSeconds: parseInt(process.env.ROADMAP_TAGS_CACHE_TTL_SECONDS || "2592000", 10),
-    githubStatsTtlSeconds: parseInt(process.env.GITHUB_STATS_CACHE_TTL_SECONDS || "43200", 10),
-    changelogTtlSeconds: parseInt(process.env.CHANGELOG_CACHE_TTL_SECONDS || "2592000", 10),
+    roadmapTtlSeconds: parseIntegerEnv(process.env.ROADMAP_CACHE_TTL_SECONDS, 2592000),
+    roadmapStatsTtlSeconds: parseIntegerEnv(process.env.ROADMAP_STATS_CACHE_TTL_SECONDS, 2592000),
+    roadmapTagsTtlSeconds: parseIntegerEnv(process.env.ROADMAP_TAGS_CACHE_TTL_SECONDS, 2592000),
+    githubStatsTtlSeconds: parseIntegerEnv(process.env.GITHUB_STATS_CACHE_TTL_SECONDS, 43200),
+    changelogTtlSeconds: parseIntegerEnv(process.env.CHANGELOG_CACHE_TTL_SECONDS, 2592000),
   },
 
   metrics: {
     flushCron: process.env.USAGE_METRICS_FLUSH_CRON || "10 0 * * *",
     flushTimezone: process.env.USAGE_METRICS_FLUSH_TIMEZONE || "UTC",
-    redisRetentionDays: parseInt(process.env.USAGE_METRICS_REDIS_RETENTION_DAYS || "10", 10),
+    redisRetentionDays: parseIntegerEnv(process.env.USAGE_METRICS_REDIS_RETENTION_DAYS, 10),
   },
 
   github: {
@@ -223,14 +226,14 @@ export const config = {
     timezone: process.env.CHANGELOG_RELEASE_SYNC_TIMEZONE || "UTC",
     // Floor between two startup syncs. Releases ship on a human cadence, so re-scanning
     // GitHub on every boot (and, under `tsx watch`, on every file save) buys nothing.
-    minIntervalSeconds: parseInt(
-      process.env.CHANGELOG_RELEASE_SYNC_MIN_INTERVAL_SECONDS || "21600",
-      10,
+    minIntervalSeconds: parseIntegerEnv(
+      process.env.CHANGELOG_RELEASE_SYNC_MIN_INTERVAL_SECONDS,
+      21600,
     ),
   },
 
   portfolio: {
-    graceDays: parseInt(process.env.PORTFOLIO_GRACE_DAYS || "7", 10),
+    graceDays: parseIntegerEnv(process.env.PORTFOLIO_GRACE_DAYS, 7),
     url: process.env.PORTFOLIO_URL || "http://localhost:3004",
     revalidateSecret: process.env.PORTFOLIO_REVALIDATE_SECRET || "dev-revalidate-secret",
   },

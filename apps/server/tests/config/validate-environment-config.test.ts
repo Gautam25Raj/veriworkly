@@ -1,0 +1,322 @@
+import fs from "node:fs";
+import path from "node:path";
+
+import dotenv from "dotenv";
+import { describe, expect, it } from "vitest";
+
+// Imported from the schema module rather than `#config/validateRuntimeConfig` on purpose: that
+// module pulls in `#config`, whose `dotenv.config()` would copy the developer's local `.env` into
+// this worker's `process.env`. Everything here works on env objects passed in explicitly.
+import { validateEnvironmentConfig } from "../../src/config/environmentSchema.js";
+
+type Env = Record<string, string | undefined>;
+
+const exampleEnv: Env = dotenv.parse(
+  fs.readFileSync(path.resolve(__dirname, "../../.env.example"), "utf8"),
+);
+
+const validProductionEnv: Env = Object.freeze({
+  NODE_ENV: "production",
+  DATABASE_URL: "postgresql://veriworkly:secret@db.internal:5432/veriworkly",
+  REDIS_URL: "redis://:a-long-redis-password@redis:6379",
+  AUTH_SECRET: "k3v9Qx7LmN2pR8sT4wY6zA1bC5dE0fGh",
+  API_KEY_HASH_SECRET: "a-different-api-key-hash-secret-0123456789",
+  ANALYTICS_HASH_PEPPER: "a-real-analytics-pepper-value",
+  PORTFOLIO_REVALIDATE_SECRET: "a-real-revalidate-secret",
+  AUTH_BASE_URL: "https://api.veriworkly.com",
+  ALLOWED_ORIGINS: "https://veriworkly.com,https://app.veriworkly.com",
+  STUDIO_URL: "https://app.veriworkly.com",
+  SITE_URL: "https://veriworkly.com",
+  PORTFOLIO_URL: "https://veriworkly.me",
+  DODO_PAYMENTS_CHECKOUT_RETURN_URL: "https://app.veriworkly.com/billing?checkout=complete",
+  DODO_PAYMENTS_CHECKOUT_CANCEL_URL: "https://app.veriworkly.com/billing?checkout=cancelled",
+  DODO_PAYMENTS_PORTAL_RETURN_URL: "https://app.veriworkly.com/billing",
+  TRUST_PROXY: "1",
+  WEB_CONCURRENCY: "2",
+  RATE_LIMIT_MAX_REQUESTS: "100",
+}) as Env;
+
+function messageFor(env: Env): string {
+  try {
+    validateEnvironmentConfig(env);
+  } catch (error) {
+    return (error as Error).message;
+  }
+  throw new Error("expected validateEnvironmentConfig to throw");
+}
+
+function failingVariables(env: Env): string[] {
+  return messageFor(env)
+    .split("\n")
+    .map((line) => /^\s*- ([A-Z0-9_]+):/.exec(line)?.[1])
+    .filter((name): name is string => Boolean(name));
+}
+
+describe("validateEnvironmentConfig", () => {
+  it("does not read or write process.env when an env object is passed", () => {
+    const before = JSON.stringify(process.env);
+    expect(() => validateEnvironmentConfig({ NODE_ENV: "development" })).not.toThrow();
+    expect(JSON.stringify(process.env)).toBe(before);
+  });
+
+  describe("production", () => {
+    it("refuses the .env.example values and names every failing variable in one error", () => {
+      // .env.example used to ship TRUST_PROXY=true; it now ships 1, which production accepts.
+      // Pin the old value too so the rule that refuses it is covered by this end-to-end case.
+      const names = failingVariables({
+        ...exampleEnv,
+        NODE_ENV: "production",
+        TRUST_PROXY: "true",
+      });
+
+      expect(exampleEnv.TRUST_PROXY).toBe("1");
+      expect(failingVariables({ ...exampleEnv, NODE_ENV: "production" })).not.toContain(
+        "TRUST_PROXY",
+      );
+      expect(names).toEqual(
+        expect.arrayContaining([
+          "TRUST_PROXY",
+          "API_KEY_HASH_SECRET",
+          "ALLOWED_ORIGINS",
+          "DODO_PAYMENTS_CHECKOUT_RETURN_URL",
+          "DODO_PAYMENTS_CHECKOUT_CANCEL_URL",
+          "DODO_PAYMENTS_PORTAL_RETURN_URL",
+          "PORTFOLIO_URL",
+          "STUDIO_URL",
+          "AUTH_BASE_URL",
+          "REDIS_URL",
+          "AUTH_SECRET",
+          "ANALYTICS_HASH_PEPPER",
+          "PORTFOLIO_REVALIDATE_SECRET",
+          "DATABASE_URL",
+        ]),
+      );
+    });
+
+    it("accepts a complete production environment", () => {
+      expect(() => validateEnvironmentConfig(validProductionEnv)).not.toThrow();
+    });
+
+    it("refuses an empty production environment instead of falling back to localhost defaults", () => {
+      const names = failingVariables({ NODE_ENV: "production" });
+
+      expect(names).toEqual(
+        expect.arrayContaining([
+          "TRUST_PROXY",
+          "WEB_CONCURRENCY",
+          "DATABASE_URL",
+          "REDIS_URL",
+          "AUTH_SECRET",
+          "API_KEY_HASH_SECRET",
+          "ANALYTICS_HASH_PEPPER",
+          "PORTFOLIO_REVALIDATE_SECRET",
+          "ALLOWED_ORIGINS",
+          "AUTH_BASE_URL",
+          "PORTFOLIO_URL",
+          "DODO_PAYMENTS_CHECKOUT_RETURN_URL",
+          "DODO_PAYMENTS_CHECKOUT_CANCEL_URL",
+          "DODO_PAYMENTS_PORTAL_RETURN_URL",
+        ]),
+      );
+    });
+
+    it("treats empty strings (compose's `${VAR}` with VAR unset) as unset", () => {
+      expect(failingVariables({ ...validProductionEnv, ALLOWED_ORIGINS: "" })).toEqual([
+        "ALLOWED_ORIGINS",
+      ]);
+    });
+
+    it.each([
+      ["true", false],
+      ["false", false],
+      ["yes", false],
+      ["0", false],
+      ["-1", false],
+      ["not-a-cidr", false],
+      ["10.0.0.0/33", false],
+      ["1", true],
+      ["2", true],
+      ["10.0.0.0/8,loopback", true],
+      ["10.0.0.0/8, 172.16.0.0/12, loopback", true],
+      ["127.0.0.1", true],
+      ["fd00::/8,uniquelocal,linklocal", true],
+    ])("TRUST_PROXY=%s accepted=%s", (value, accepted) => {
+      const env = { ...validProductionEnv, TRUST_PROXY: value };
+      if (accepted) {
+        expect(() => validateEnvironmentConfig(env)).not.toThrow();
+      } else {
+        expect(failingVariables(env)).toContain("TRUST_PROXY");
+      }
+    });
+
+    it("accepts TRUST_PROXY=0 only together with DIRECT_EXPOSURE=1", () => {
+      expect(failingVariables({ ...validProductionEnv, TRUST_PROXY: "0" })).toContain(
+        "TRUST_PROXY",
+      );
+      expect(() =>
+        validateEnvironmentConfig({
+          ...validProductionEnv,
+          TRUST_PROXY: "0",
+          DIRECT_EXPOSURE: "1",
+        }),
+      ).not.toThrow();
+      expect(
+        failingVariables({ ...validProductionEnv, TRUST_PROXY: "1", DIRECT_EXPOSURE: "1" }),
+      ).toContain("DIRECT_EXPOSURE");
+    });
+
+    it("refuses TRUST_PROXY when it is unset", () => {
+      expect(failingVariables({ ...validProductionEnv, TRUST_PROXY: undefined })).toEqual([
+        "TRUST_PROXY",
+      ]);
+    });
+
+    it.each(["0", "-2", "two", "1.5"])("refuses WEB_CONCURRENCY=%s", (value) => {
+      expect(failingVariables({ ...validProductionEnv, WEB_CONCURRENCY: value })).toEqual([
+        "WEB_CONCURRENCY",
+      ]);
+    });
+
+    it.each([
+      ["ALLOWED_ORIGINS", "https://veriworkly.com,http://localhost:3001"],
+      ["ALLOWED_ORIGINS", "https://veriworkly.com,http://veriworkly.com"],
+      ["ALLOWED_ORIGINS", "https://veriworkly.com,https://127.0.0.1"],
+      ["ALLOWED_ORIGINS", "https://veriworkly.com,not a url"],
+      ["DODO_PAYMENTS_CHECKOUT_RETURN_URL", "http://localhost:3001/billing?checkout=complete"],
+      ["DODO_PAYMENTS_CHECKOUT_CANCEL_URL", "http://app.veriworkly.com/billing"],
+      ["DODO_PAYMENTS_PORTAL_RETURN_URL", "https://localhost/billing"],
+      ["PORTFOLIO_URL", "http://localhost:3004"],
+      ["STUDIO_URL", "http://localhost:3001"],
+      ["SITE_URL", "http://veriworkly.com"],
+      ["AUTH_BASE_URL", "http://localhost:8080"],
+      ["REDIS_URL", "redis://localhost:6379"],
+      ["REDIS_URL", "redis://127.0.0.1:6379"],
+      ["REDIS_URL", "http://redis:6379"],
+      // Localhost spellings that slip past a plain string match.
+      ["AUTH_BASE_URL", "https://[::ffff:127.0.0.1]"],
+      ["AUTH_BASE_URL", "https://[::ffff:7f00:1]"],
+      ["AUTH_BASE_URL", "https://localhost."],
+      ["AUTH_BASE_URL", "https://foo.localhost."],
+      ["AUTH_BASE_URL", "https://0177.0.0.1"],
+      ["AUTH_BASE_URL", "https://0x7f.1"],
+      ["AUTH_BASE_URL", "https://2130706433"],
+      ["ALLOWED_ORIGINS", "https://veriworkly.com,https://[::ffff:127.0.0.1]"],
+      ["ALLOWED_ORIGINS", "https://veriworkly.com,https://localhost."],
+      ["REDIS_URL", "redis://:pw@[::ffff:127.0.0.1]:6379"],
+      ["REDIS_URL", "redis://:pw@[::ffff:7f00:1]:6379"],
+      ["REDIS_URL", "redis://:pw@localhost.:6379"],
+      ["REDIS_URL", "redis://:pw@foo.localhost.:6379"],
+      ["REDIS_URL", "redis://:pw@0177.0.0.1:6379"],
+      ["REDIS_URL", "redis://:pw@0x7f.1:6379"],
+      ["REDIS_URL", "redis://:pw@2130706433:6379"],
+      ["REDIS_URL", "rediss://:pw@[::1]:6379"],
+      ["API_KEY_HASH_SECRET", "dev-api-key-secret"],
+      ["API_KEY_HASH_SECRET", validProductionEnv.AUTH_SECRET],
+      ["AUTH_SECRET", "dev-auth-secret-1234567890"],
+      ["AUTH_SECRET", "dev-auth-secret"],
+      ["AUTH_SECRET", "too-short-but-not-an-example"],
+      ["ANALYTICS_HASH_PEPPER", "veriworkly-analytics-pepper"],
+      ["PORTFOLIO_REVALIDATE_SECRET", "dev-revalidate-secret"],
+    ])("refuses %s=%s", (name, value) => {
+      expect(failingVariables({ ...validProductionEnv, [name]: value })).toEqual([name]);
+    });
+
+    it("leaves optional URLs alone when unset (the code defaults are production-safe)", () => {
+      expect(() =>
+        validateEnvironmentConfig({
+          ...validProductionEnv,
+          STUDIO_URL: undefined,
+          SITE_URL: undefined,
+        }),
+      ).not.toThrow();
+    });
+
+    it("never echoes secret values back in the error message", () => {
+      const message = messageFor({
+        ...validProductionEnv,
+        AUTH_SECRET: "short-secret-value",
+        API_KEY_HASH_SECRET: "short-secret-value",
+      });
+      expect(message).not.toContain("short-secret-value");
+    });
+  });
+
+  describe("every environment", () => {
+    it("refuses RATE_LIMIT_MAX_REQUESTS=abc in development (it would silently disable the limiter)", () => {
+      expect(failingVariables({ NODE_ENV: "development", RATE_LIMIT_MAX_REQUESTS: "abc" })).toEqual(
+        ["RATE_LIMIT_MAX_REQUESTS"],
+      );
+    });
+
+    it("refuses MAX_MEMORY_ENTRIES=abc (it would make the fallback map unbounded)", () => {
+      expect(failingVariables({ NODE_ENV: "test", MAX_MEMORY_ENTRIES: "abc" })).toEqual([
+        "MAX_MEMORY_ENTRIES",
+      ]);
+    });
+
+    it.each(["12abc", "1.5", "1e3", "Infinity", "NaN", "70000"])("refuses PORT=%s", (value) => {
+      expect(failingVariables({ NODE_ENV: "development", PORT: value })).toEqual(["PORT"]);
+    });
+
+    it("refuses an integer too large to represent exactly (parseIntegerEnv would default it)", () => {
+      expect(
+        failingVariables({
+          NODE_ENV: "development",
+          RATE_LIMIT_MAX_REQUESTS: "12345678901234567890",
+        }),
+      ).toEqual(["RATE_LIMIT_MAX_REQUESTS"]);
+      expect(
+        failingVariables({ NODE_ENV: "development", RATE_LIMIT_MAX_REQUESTS: "9007199254740992" }),
+      ).toEqual(["RATE_LIMIT_MAX_REQUESTS"]);
+      expect(() =>
+        validateEnvironmentConfig({
+          NODE_ENV: "development",
+          RATE_LIMIT_MAX_REQUESTS: "9007199254740991",
+        }),
+      ).not.toThrow();
+    });
+
+    it("lists every bad numeric variable, not just the first", () => {
+      expect(
+        failingVariables({
+          NODE_ENV: "development",
+          RATE_LIMIT_MAX_REQUESTS: "abc",
+          AUTH_OTP_TTL_SECONDS: "five",
+          DB_POOL_MAX_TOTAL: "lots",
+        }).sort(),
+      ).toEqual(["AUTH_OTP_TTL_SECONDS", "DB_POOL_MAX_TOTAL", "RATE_LIMIT_MAX_REQUESTS"]);
+    });
+
+    it("refuses RATE_LIMIT_MAX_REQUESTS=0 (every request would be rejected)", () => {
+      expect(failingVariables({ NODE_ENV: "development", RATE_LIMIT_MAX_REQUESTS: "0" })).toEqual([
+        "RATE_LIMIT_MAX_REQUESTS",
+      ]);
+    });
+
+    it("refuses an unknown NODE_ENV", () => {
+      expect(failingVariables({ NODE_ENV: "prod" })).toEqual(["NODE_ENV"]);
+    });
+
+    it("reports NODE_ENV, numeric and production problems together", () => {
+      expect(failingVariables({ NODE_ENV: "staging", PORT: "http" }).sort()).toEqual([
+        "NODE_ENV",
+        "PORT",
+      ]);
+      const names = failingVariables({ ...validProductionEnv, PORT: "http", TRUST_PROXY: "true" });
+      expect(names.sort()).toEqual(["PORT", "TRUST_PROXY"]);
+    });
+
+    it("accepts the .env.example values in development", () => {
+      expect(() =>
+        validateEnvironmentConfig({ ...exampleEnv, NODE_ENV: "development" }),
+      ).not.toThrow();
+    });
+
+    it("does not apply the production rules outside production", () => {
+      expect(() =>
+        validateEnvironmentConfig({ NODE_ENV: "development", TRUST_PROXY: "true" }),
+      ).not.toThrow();
+      expect(() => validateEnvironmentConfig({})).not.toThrow();
+    });
+  });
+});

@@ -136,6 +136,50 @@ describe("rateLimitMiddleware", () => {
     expect(res.status).not.toHaveBeenCalled();
   });
 
+  /**
+   * V-096: a load balancer probing from one IP every few seconds must never be 429'd (the
+   * instance would be marked unhealthy), and a liveness probe must not depend on Redis at all.
+   * Express routing is case-insensitive and non-strict, so every spelling that reaches the
+   * health router has to be exempt.
+   */
+  it.each([
+    "/api/v1/health",
+    "/api/v1/health/",
+    "/api/v1/HEALTH/ready",
+    "/api/v1/health/ready",
+    "/api/v1/health/ready/",
+  ])("exempts the health endpoint %s without touching Redis", async (path) => {
+    Object.assign(req, { path, method: "GET" });
+
+    await rateLimitMiddleware(req as Request, res as Response, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(mockGetRedis).not.toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it.each(["/api/v1/healthz", "/api/v1/health-x", "/api/v1/health/../admin"])(
+    "does not exempt %s, which only shares the health prefix",
+    async (path) => {
+      const redisMockInstance = {
+        isReady: true,
+        eval: vi.fn().mockResolvedValue([1, 60000, 1, 1]),
+      };
+      mockGetRedis.mockReturnValue(redisMockInstance);
+      Object.assign(req, { path, method: "GET" });
+
+      await rateLimitMiddleware(req as Request, res as Response, next);
+
+      // Went through the bucket check before being let through.
+      expect(mockGetRedis).toHaveBeenCalled();
+      expect(redisMockInstance.eval).toHaveBeenCalledTimes(1);
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(redisMockInstance.eval.mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(next).mock.invocationCallOrder[0],
+      );
+    },
+  );
+
   it("falls back to in-memory storage when Redis fails", async () => {
     mockGetRedis.mockImplementation(() => {
       throw new Error("Redis connection lost");

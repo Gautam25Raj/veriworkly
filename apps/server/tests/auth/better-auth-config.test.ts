@@ -146,16 +146,17 @@ describe("Better Auth configuration", () => {
     expect(options.socialProviders?.linkedin).toBeDefined();
   });
 
-  it("has account linking enabled with trusted providers and uses cookie state strategy", () => {
+  it("trusts only Google for account linking (unverified GitHub emails must not link)", () => {
     expect(options.account).toBeDefined();
     expect(options.account?.storeStateStrategy).toBe("cookie");
     expect(options.account?.accountLinking).toBeDefined();
     expect(options.account?.accountLinking?.enabled).toBe(true);
-    expect(options.account?.accountLinking?.trustedProviders).toEqual([
-      "google",
-      "github",
-      "linkedin",
-    ]);
+    // GitHub reports `verified: false` for any address a user adds without confirming it; a
+    // trusted provider is linked to the same-email account regardless, which is an account
+    // takeover. Only Google issues verified emails unconditionally.
+    expect(options.account?.accountLinking?.trustedProviders).toEqual(["google"]);
+    expect(options.account?.accountLinking?.trustedProviders).not.toContain("github");
+    expect(options.account?.accountLinking?.trustedProviders).not.toContain("linkedin");
   });
 
   it("configures onAPIError with studioLoginUrl to redirect auth failures to studio login", () => {

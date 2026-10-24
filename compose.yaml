@@ -5,9 +5,9 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:8080/api/v1}
-        NODE_ENV: ${NODE_ENV:-development}
+        NODE_ENV: ${NODE_ENV:-production}
     environment:
-      NODE_ENV: ${NODE_ENV:-development}
+      NODE_ENV: ${NODE_ENV:-production}
       PORT: 3000
       NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:8080/api/v1}
       BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://api:8080/api/v1}
@@ -17,7 +17,8 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "3000:3000"
+      # Loopback only: production is VPS + nginx, and nginx on the host is the only client.
+      - "127.0.0.1:3000:3000"
     healthcheck:
       test:
         [
@@ -38,18 +39,36 @@ services:
       # install the npm workspace from the root package-lock.
       context: .
       dockerfile: apps/server/Dockerfile
+    # Every variable the server refuses to boot without in production is a `${VAR:?}` here, so
+    # `docker compose up` names the missing ones before the container starts. The server's own
+    # boot validation (src/config/environmentSchema.ts) applies the format rules on top: https
+    # and no localhost for public URLs, TRUST_PROXY as a hop count or CIDR list, non-example
+    # secrets. NOTE: do not pass a boolean as a bare `${VAR}`: an empty string parses as false,
+    # which silently overrides the production default.
     environment:
-      NODE_ENV: ${NODE_ENV:-development}
+      NODE_ENV: ${NODE_ENV:-production}
       PORT: 8080
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      DB_POOL_MAX_TOTAL: ${DB_POOL_MAX_TOTAL:-80}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?ALLOWED_ORIGINS is required (comma-separated https origins)}
 
-      # Redis
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      # Proxy / process model. The API port is bound to 127.0.0.1 below, so the host's nginx is
+      # the only way in: TRUST_PROXY=1 for nginx alone, 2 with Cloudflare in front of nginx.
+      TRUST_PROXY: ${TRUST_PROXY:?TRUST_PROXY is required (proxy hop count, e.g. 1 behind nginx, or a CIDR list)}
+      DIRECT_EXPOSURE: ${DIRECT_EXPOSURE:-}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:?WEB_CONCURRENCY is required (number of cluster workers)}
+
+      # Redis. REDIS_PASSWORD goes verbatim into REDIS_URL, --requirepass and REDISCLI_AUTH, so use
+      # only [A-Za-z0-9] characters (e.g. `openssl rand -hex 32`); URL-encoding would break auth.
+      REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379}
 
       # Better Auth Core
-      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
-      AUTH_BASE_URL: ${AUTH_BASE_URL:-http://localhost:8080}
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required (at least 32 characters)}
+      AUTH_BASE_URL: ${AUTH_BASE_URL:?AUTH_BASE_URL is required (public https URL of this API)}
+      AUTH_COOKIE_DOMAIN: ${AUTH_COOKIE_DOMAIN}
+      STUDIO_URL: ${STUDIO_URL}
+      STUDIO_LOGIN_URL: ${STUDIO_LOGIN_URL}
+      SITE_URL: ${SITE_URL}
 
       # Better Auth Sessions
       AUTH_SESSION_TTL_SECONDS: ${AUTH_SESSION_TTL_SECONDS:-2592000}
@@ -62,8 +81,8 @@ services:
       AUTH_OTP_ALLOWED_ATTEMPTS: ${AUTH_OTP_ALLOWED_ATTEMPTS:-3}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
 
-      # Email / SMTP
-      AUTH_EMAIL_PROVIDER: ${AUTH_EMAIL_PROVIDER:-console}
+      # Email / SMTP. "console" writes OTP codes into the logs and is refused in production.
+      AUTH_EMAIL_PROVIDER: ${AUTH_EMAIL_PROVIDER:-resend}
       AUTH_EMAIL_FROM: ${AUTH_EMAIL_FROM}
       RESEND_API_KEY: ${RESEND_API_KEY}
       AUTH_SMTP_HOST: ${AUTH_SMTP_HOST}
@@ -71,6 +90,10 @@ services:
       AUTH_SMTP_SECURE: ${AUTH_SMTP_SECURE:-false}
       AUTH_SMTP_USER: ${AUTH_SMTP_USER}
       AUTH_SMTP_PASS: ${AUTH_SMTP_PASS}
+
+      # Secrets that must not be the example values
+      API_KEY_HASH_SECRET: ${API_KEY_HASH_SECRET:?API_KEY_HASH_SECRET is required (distinct from AUTH_SECRET)}
+      ANALYTICS_HASH_PEPPER: ${ANALYTICS_HASH_PEPPER:?ANALYTICS_HASH_PEPPER is required}
 
       # Rate Limiting
       RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-900000}
@@ -85,13 +108,19 @@ services:
       ATS_AI_POLICY_JSON: ${ATS_AI_POLICY_JSON}
       ATS_ENGINE_POLICY_PATH: ${ATS_ENGINE_POLICY_PATH}
       ATS_ENGINE_POLICY_JSON: ${ATS_ENGINE_POLICY_JSON}
-      AI_STANDARD_MODEL: ${AI_STANDARD_MODEL}
-      AI_EXPERT_MODEL: ${AI_EXPERT_MODEL}
+
+      # Portfolio
+      PORTFOLIO_URL: ${PORTFOLIO_URL:?PORTFOLIO_URL is required (public https URL)}
+      PORTFOLIO_REVALIDATE_SECRET: ${PORTFOLIO_REVALIDATE_SECRET:?PORTFOLIO_REVALIDATE_SECRET is required}
+      PORTFOLIO_GRACE_DAYS: ${PORTFOLIO_GRACE_DAYS:-7}
 
       # Billing
-      DODO_PAYMENTS_API_KEY: ${DODO_PAYMENTS_API_KEY}
-      DODO_PAYMENTS_WEBHOOK_SECRET: ${DODO_PAYMENTS_WEBHOOK_SECRET}
+      DODO_PAYMENTS_API_KEY: ${DODO_PAYMENTS_API_KEY:?DODO_PAYMENTS_API_KEY is required}
+      DODO_PAYMENTS_WEBHOOK_SECRET: ${DODO_PAYMENTS_WEBHOOK_SECRET:?DODO_PAYMENTS_WEBHOOK_SECRET is required}
       DODO_PAYMENTS_ENVIRONMENT: ${DODO_PAYMENTS_ENVIRONMENT:-test_mode}
+      DODO_PAYMENTS_CHECKOUT_RETURN_URL: ${DODO_PAYMENTS_CHECKOUT_RETURN_URL:?DODO_PAYMENTS_CHECKOUT_RETURN_URL is required (public https URL)}
+      DODO_PAYMENTS_CHECKOUT_CANCEL_URL: ${DODO_PAYMENTS_CHECKOUT_CANCEL_URL:?DODO_PAYMENTS_CHECKOUT_CANCEL_URL is required (public https URL)}
+      DODO_PAYMENTS_PORTAL_RETURN_URL: ${DODO_PAYMENTS_PORTAL_RETURN_URL:?DODO_PAYMENTS_PORTAL_RETURN_URL is required (public https URL)}
       DODO_PAYMENTS_PORTFOLIO_PRO_SEVEN_DAY_PRODUCT_ID: ${DODO_PAYMENTS_PORTFOLIO_PRO_SEVEN_DAY_PRODUCT_ID}
       DODO_PAYMENTS_PORTFOLIO_PRO_MONTHLY_PRODUCT_ID: ${DODO_PAYMENTS_PORTFOLIO_PRO_MONTHLY_PRODUCT_ID}
       DODO_PAYMENTS_PORTFOLIO_PRO_ANNUAL_PRODUCT_ID: ${DODO_PAYMENTS_PORTFOLIO_PRO_ANNUAL_PRODUCT_ID}
@@ -103,6 +132,13 @@ services:
       DODO_PAYMENTS_BUNDLE_ANNUAL_PRODUCT_ID: ${DODO_PAYMENTS_BUNDLE_ANNUAL_PRODUCT_ID}
       DODO_PAYMENTS_CREDIT_PACK_250_PRODUCT_ID: ${DODO_PAYMENTS_CREDIT_PACK_250_PRODUCT_ID}
       DODO_PAYMENTS_CREDIT_PACK_500_PRODUCT_ID: ${DODO_PAYMENTS_CREDIT_PACK_500_PRODUCT_ID}
+
+      # Portfolio media (Cloudflare R2)
+      R2_ENDPOINT: ${R2_ENDPOINT:?R2_ENDPOINT is required}
+      R2_BUCKET: ${R2_BUCKET:?R2_BUCKET is required}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:?R2_ACCESS_KEY_ID is required}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:?R2_SECRET_ACCESS_KEY is required}
+      R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL:?R2_PUBLIC_BASE_URL is required}
 
       # GitHub Sync
       GITHUB_SYNC_ENABLED: ${GITHUB_SYNC_ENABLED:-false}
@@ -119,8 +155,11 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     ports:
-      - "8080:8080"
+      # Loopback only: production is VPS + nginx, and nginx on the host is the only client.
+      - "127.0.0.1:8080:8080"
     healthcheck:
       test:
         [
@@ -135,22 +174,53 @@ services:
       start_period: 40s
     restart: unless-stopped
 
+  # One-shot: applies pending migrations before `api` starts (V-106). Runs from the `build`
+  # stage, which still has the Prisma CLI. Migrations need a direct connection: point
+  # DIRECT_DATABASE_URL at the non-pooled endpoint when DATABASE_URL goes through a pooler.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+      target: build
+    command: ["npm", "exec", "-w", "@veriworkly/server", "--", "prisma", "migrate", "deploy"]
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      DIRECT_DATABASE_URL: ${DIRECT_DATABASE_URL:-}
+    restart: "no"
+
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--requirepass",
+        "${REDIS_PASSWORD:?REDIS_PASSWORD is required}",
+      ]
+    environment:
+      # redis-cli reads REDISCLI_AUTH, so the healthcheck authenticates without putting the
+      # password on its command line.
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # redis-cli exits 0 even on a NOAUTH error reply, so check for PONG explicitly.
+      test: ["CMD-SHELL", "redis-cli ping | grep -q PONG"]
       interval: 20s
       timeout: 5s
       retries: 3
     restart: unless-stopped
 
+  # Development only (`docker compose --profile dev up`). It has unauthenticated read/write access
+  # to the Redis that holds sessions, rate-limit counters and job locks, so it is never started in
+  # production and only listens on the host's loopback (reach it over an SSH tunnel).
   redisinsight:
-    image: redis/redisinsight:latest
+    image: redis/redisinsight:2.70.1
+    profiles: ["dev"]
     ports:
-      - "5540:5540"
+      - "127.0.0.1:5540:5540"
     depends_on:
       - redis
     restart: unless-stopped

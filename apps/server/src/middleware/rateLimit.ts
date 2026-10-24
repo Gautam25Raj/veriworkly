@@ -6,6 +6,7 @@ import { logger } from "#lib/logger";
 import { getRedis } from "#lib/redis";
 import { createErrorResponse } from "#lib/errors";
 import { addressBucket, getRequestIpDetails } from "#utils/requestIp";
+import { parseIntegerEnv } from "#config/parseEnv";
 
 type RateLimitEntry = {
   count: number;
@@ -14,9 +15,8 @@ type RateLimitEntry = {
 
 type BucketResult = { count: number; ttl: number };
 
-const MAX_MEMORY_ENTRIES = process.env.MAX_MEMORY_ENTRIES
-  ? parseInt(process.env.MAX_MEMORY_ENTRIES, 10)
-  : 15000;
+// Strict parse: `MAX_MEMORY_ENTRIES=abc` used to give NaN, which made the fallback map unbounded.
+const MAX_MEMORY_ENTRIES = parseIntegerEnv(process.env.MAX_MEMORY_ENTRIES, 15000);
 const bucket = new Map<string, RateLimitEntry>();
 
 /**
@@ -24,7 +24,23 @@ const bucket = new Map<string, RateLimitEntry>();
  * set of provider egress IPs and is already authenticated by HMAC signature — limiting it means a
  * provider retry storm gets 429'd and payment state silently diverges from reality.
  */
-const RATE_LIMIT_EXEMPT_PATHS = new Set(["/api/v1/billing/webhooks/dodo"]);
+/*
+ * Health probes (V-096): a load balancer probing from one IP every few seconds would otherwise
+ * be 429'd and mark the instance unhealthy, and the liveness probe must not depend on Redis.
+ *
+ * Entries are lowercase with no trailing slash; `isRateLimitExempt` folds the request path the
+ * same way, because Express routing is case-insensitive and non-strict (`/API/v1/Health/` reaches
+ * the same handler). This folding is for the exemption check only; bucket keys are unchanged.
+ */
+const RATE_LIMIT_EXEMPT_PATHS = new Set([
+  "/api/v1/billing/webhooks/dodo",
+  "/api/v1/health",
+  "/api/v1/health/ready",
+]);
+
+function isRateLimitExempt(path: string): boolean {
+  return RATE_LIMIT_EXEMPT_PATHS.has(path.toLowerCase().replace(/\/+$/, ""));
+}
 
 function getClientKey(req: Request): string {
   const ip = getRequestIpDetails(req).resolvedIp;
@@ -150,7 +166,7 @@ function incrementMemoryBucket(key: string, windowMs: number, now: number): Buck
 
 export const rateLimitMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   if (config.nodeEnv === "development") return next();
-  if (RATE_LIMIT_EXEMPT_PATHS.has(req.path)) return next();
+  if (isRateLimitExempt(req.path)) return next();
 
   const now = Date.now();
 

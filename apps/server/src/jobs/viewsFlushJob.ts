@@ -15,8 +15,22 @@ const releaseLockLuaScript = `
   return 0
 `;
 
-async function runFlush(reason: "startup" | "cron") {
-  const redis = getRedis();
+/**
+ * Never rejects: it is fired with `void` from the cron callback, and an unhandled rejection shuts
+ * the worker down (V-101). A Redis blip costs one skipped tick and a warning.
+ */
+export async function runViewsFlush(reason: "startup" | "cron"): Promise<void> {
+  let redis: ReturnType<typeof getRedis>;
+
+  try {
+    redis = getRedis();
+  } catch (error) {
+    logger.warn(`Skipping views flush (${reason}): Redis not ready`, {
+      error: error instanceof Error ? error.message : error,
+    });
+    return;
+  }
+
   const lockKey = "views:flush:lock";
   const lockTTL = 60 * 5; // 5 minutes
   const lockValue = randomUUID();
@@ -32,7 +46,8 @@ async function runFlush(reason: "startup" | "cron") {
     lockAcquired = lockResult === "OK";
 
     if (!lockAcquired) {
-      logger.warn(`Skipping views flush (${reason}): lock already held`);
+      // Expected steady state: every worker schedules this job and the lock picks one runner.
+      logger.debug(`Skipping views flush (${reason}): lock held by another worker`);
       return;
     }
 
@@ -75,15 +90,16 @@ export function startViewsFlushJob() {
 
   // Run every 10 minutes
   job = cron.schedule("*/10 * * * *", () => {
-    void runFlush("cron");
+    void runViewsFlush("cron");
   });
 
-  logger.info("Views flush job scheduled (every 10 minutes)");
+  logger.debug("Views flush job scheduled (every 10 minutes)");
 
   // Check on startup
-  void runFlush("startup");
+  void runViewsFlush("startup");
 }
 
+// Stops scheduling only; an in-flight run is not tracked or awaited (Phase 4 item 1).
 export function stopViewsFlushJob() {
   if (job) {
     job.stop();

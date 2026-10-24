@@ -1,5 +1,5 @@
 import path from "node:path";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
   resolve: {
@@ -16,6 +16,9 @@ export default defineConfig({
   },
   test: {
     include: ["tests/**/*.test.ts"],
+    // The integration suite needs a real Postgres and Redis and its own env; it runs through
+    // `vitest.integration.config.ts` (`npm run test:integration`), never from here.
+    exclude: [...configDefaults.exclude, "tests/integration/**"],
     environment: "node",
     globals: true,
     clearMocks: true,

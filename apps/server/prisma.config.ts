@@ -1,11 +1,25 @@
 import "dotenv/config";
 
-import { defineConfig, env } from "@prisma/config";
+import { defineConfig } from "@prisma/config";
+
+/**
+ * Two URLs, two jobs. `DATABASE_URL` is what the runtime pool in `src/lib/prisma.ts` opens and may
+ * point at a transaction pooler. Migrations take a Postgres advisory lock that does not survive a
+ * pooler, so the CLI prefers `DIRECT_DATABASE_URL` when it is set. `SHADOW_DATABASE_URL` is only
+ * read by `migrate dev` and by the drift guard (`migrate diff --from-migrations`), which replay the
+ * migration history into an empty database.
+ *
+ * Nothing here throws when a variable is missing: `prisma generate` runs from the root
+ * `postinstall` on machines that have no database at all, and the migrate commands report a
+ * missing URL themselves.
+ */
+const directUrl = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL;
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
 
   datasource: {
-    url: env("DATABASE_URL"),
+    url: directUrl,
+    shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL,
   },
 });

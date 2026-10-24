@@ -382,20 +382,44 @@ export class BillingService {
     return { url: checkout.checkout_url };
   }
 
-  static unwrapWebhook(body: string, headers: Record<string, string>) {
+  /**
+   * An unsigned webhook mints credits and entitlements for whoever posts it, so the signature is
+   * required in every environment. The only exception is an explicit local opt-in: the process
+   * must run with `ALLOW_UNSIGNED_WEBHOOKS=1`, outside production, and the request must come
+   * from the loopback interface. `NODE_ENV=development` alone (compose's old default) is not
+   * enough.
+   */
+  static allowsUnsignedWebhook(remoteAddress: string | undefined): boolean {
+    if (process.env.ALLOW_UNSIGNED_WEBHOOKS !== "1") return false;
+    if (config.nodeEnv === "production") return false;
+
+    const address = (remoteAddress ?? "").replace(/^::ffff:/i, "");
+    return address === "::1" || address.startsWith("127.");
+  }
+
+  static unwrapWebhook(body: string, headers: Record<string, string>, remoteAddress?: string) {
     if (!config.dodo.webhookSecret) {
-      if (config.nodeEnv === "development") {
+      if (BillingService.allowsUnsignedWebhook(remoteAddress)) {
         try {
           return JSON.parse(body);
         } catch {
-          throw new ApiError(400, "Invalid JSON body in development bypass.");
+          throw new ApiError(400, "Invalid JSON body in unsigned-webhook bypass.");
         }
       }
 
       throw new ApiError(503, "Billing webhook secret is not configured.");
     }
 
-    return getDodoClient().webhooks.unwrap(body, { headers, key: config.dodo.webhookSecret });
+    try {
+      return getDodoClient().webhooks.unwrap(body, { headers, key: config.dodo.webhookSecret });
+    } catch (error) {
+      // A missing, stale or wrong signature is the caller's problem (a forged or replayed
+      // delivery), not a server fault: 400, logged at warn, and no 500 in the audit log.
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(400, "Invalid webhook signature.", {
+        reason: error instanceof Error ? error.message : "verification failed",
+      });
+    }
   }
 
   static async processWebhook(

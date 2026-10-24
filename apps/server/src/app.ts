@@ -1,8 +1,10 @@
 import helmet from "helmet";
 import compression from "compression";
-import express, { raw, Request, Response, RequestHandler } from "express";
+import express, { raw, NextFunction, Request, Response, RequestHandler } from "express";
 
 import { config } from "#config";
+
+import { ApiError } from "#lib/errors";
 
 import { corsMiddleware } from "#middleware/cors";
 import { loggingMiddleware } from "#middleware/logging";
@@ -32,6 +34,7 @@ import adminRoutes from "#routes/admin/index";
 import { BillingController } from "#controllers/billingController";
 
 import { getRequestIpDetails } from "#utils/requestIp";
+import { hasWellFormedHostAndProto } from "#utils/requestOrigin";
 
 import { authNodeHandler, authRequestContext } from "#auth/index";
 
@@ -95,7 +98,13 @@ app.use("/api/v1/admin", adminRoutes);
 
 app.all(["/api/v1/auth", "/api/v1/auth/*"], [
   authRequestDiagnosticsMiddleware,
-  (req: Request, res: Response) => {
+  (req: Request, res: Response, next: NextFunction) => {
+    // better-call builds `new Request(`${x-forwarded-proto}://${host}${url}`)` with no try/catch,
+    // so `Host: a:99999` or a junk `X-Forwarded-Proto` throws "Failed to parse URL" outside
+    // Express's error path. Refuse those before they reach it.
+    if (!hasWellFormedHostAndProto(req.headers))
+      return next(new ApiError(400, "Invalid Host or X-Forwarded-Proto header"));
+
     let provider: string | undefined = undefined;
     const cleanPath = req.path.replace(/\/+$/, "");
 
@@ -111,7 +120,9 @@ app.all(["/api/v1/auth", "/api/v1/auth/*"], [
         provider,
       },
       () => {
-        authNodeHandler(req, res);
+        // The handler's promise used to float: any rejection became an `unhandledRejection`,
+        // which `index.ts` answers by shutting the worker down. Keep it on the error path.
+        Promise.resolve(authNodeHandler(req, res)).catch(next);
       },
     );
   },

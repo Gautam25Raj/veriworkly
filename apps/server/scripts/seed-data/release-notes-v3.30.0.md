@@ -8,15 +8,18 @@ This release moves to ATS Engine 0.17.0, redesigns most marketing pages, adds a 
 
 - Upgraded @veriworkly/ats-engine from 0.16.0 to 0.17.0 in the server, site, Studio and docs.
 - Scores can change for the same resume. The checker now reads "Till now", "onwards" and "bis heute" as a current role, compares the right to work by country (being authorized to work in the US no longer meets a UK requirement), and counts an expired or in-progress certification as partial.
-- Security clearances are read in their own part of a sentence. German "-kenntnisse" and the resume's own language now count for language requirements. "Or related field" no longer stands in for a degree.
-- Hidden text in a PDF is judged more fairly: text in bordered boxes and tints is no longer flagged, while text clipped out of view or hidden under a white box is.
+- Security clearances are read in their own part of a sentence. German "-kenntnisse" and the resume's own language now count for language requirements. A degree requirement that says "or related field" no longer accepts years of work instead of the degree.
+- Hidden text in a PDF is judged more fairly: text in square-cornered bordered boxes and tinted bands is no longer flagged, while text clipped out of view or hidden under a white box is.
 - A job posting from a URL is now read up to 20,000 characters, the same as a pasted one. It used to stop at 12,000. A longer posting gets a note saying it was cut.
-- An AI analysis that comes back completely empty now counts as no answer and is tried again, instead of counting as a success. The AI now waits between retries, so a rate-limited analysis takes longer before it gives up.
-- The scoring policy was rebuilt for 0.17.0. The server will not start with a policy the engine rejects, so deploy the rebuilt policy together with this release.
+- An AI analysis that comes back completely empty now counts as no answer and is tried again, instead of counting as a success. When retries are on, the AI now waits between tries (1, 2, 4, 8 and 16 seconds, or what the provider asks for), so a rate-limited analysis takes longer before it gives up.
+- Resumes in more layouts are read: PDFs that use Chinese, Japanese or Korean fonts, files with old-style line breaks, and a name followed by a job title on the first line. Hebrew and Arabic resumes no longer lose 10 points for the direction marks Word adds.
+- A verb no longer counts as the skill it starts with: "Reacted to 40 outages" no longer meets React.
+- AI provider errors no longer copy the resume's name, email and phone into the server logs.
+- Deploy the rebuilt private scoring policy with this release. A policy built for an older engine does not get the new country, clearance and date handling, and one with a weight above 1,000 is rejected.
 
 ### Marketing Pages
 
-- Every marketing page except the landing page, pricing, roadmap, style guide and brand kit has a new design. They share one layout and show the real product, with interface pieces in place of the old grid backgrounds, glowing blobs and icon cards.
+- Every marketing page except the landing page, pricing, roadmap, style guide, brand kit and the affiliate and ambassador pages has a new design. They share one layout and show the real product, with interface pieces in place of the old grid backgrounds, glowing blobs and icon cards.
 - The ATS checker page now shows two plans. The "No account" plan is gone.
 - The Security page no longer makes claims the code does not back up: encrypted local storage, AES-256, TLS 1.3 and a 24-hour response time.
 - The Compare pages now read their prices and feature tables from one set of competitor data. The old hand-typed copy had wrong prices for Novoresume and Zety.
@@ -41,7 +44,7 @@ This release moves to ATS Engine 0.17.0, redesigns most marketing pages, adds a 
 - FAQ answers stay in the page when closed, so Ctrl+F finds them and opens them in browsers that support it.
 - Icon-only links, such as GitHub and the social icons, now have names. The first click on the theme button works for people whose system is already dark.
 - Error red is a little darker in light mode and the footer text is easier to read, so both meet the 4.5:1 contrast minimum. Native scrollbars, dropdown lists and date pickers now follow dark mode.
-- Buttons shrink slightly when pressed, and the keyboard focus ring is now solid blue. Menus, tooltips and dialogs animate in.
+- Buttons shrink slightly when pressed, and keyboard focus rings on buttons and links are now solid blue. Menus, tooltips and dialogs animate in.
 
 ### Fixes
 
@@ -54,7 +57,7 @@ This release moves to ATS Engine 0.17.0, redesigns most marketing pages, adds a 
 
 ### For Developers
 
-- The shared UI package has 41 tests that check its accessibility markup, and they run on every pull request.
+- The shared UI package has 41 tests for its accessibility markup and for patterns that have broken it before, and they run in CI.
 - The package now lists the same versions of Next.js, React and Lucide as the apps, and declares Next.js and next-themes, which it uses.
 
 ## 🔀 Pull Requests

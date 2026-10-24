@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { usePathname } from "next/navigation";
@@ -14,6 +15,9 @@ import { Container } from "../Container";
 import { GithubIcon } from "../social/SocialIcons";
 import { ThemeToggle } from "../theme/ThemeToggle";
 
+import { isActivePath } from "./isActivePath";
+import { MARKETING_MOBILE_NAV_ID } from "./MarketingNavbar";
+
 interface MarketingMobileNavProps {
   isOpen: boolean;
   onClose: () => void;
@@ -26,6 +30,19 @@ interface MarketingMobileNavProps {
   footerNote?: string;
 }
 
+const eyebrowClassName = "text-muted mb-3 text-xs font-semibold tracking-[0.24em] uppercase";
+
+function rise(isOpen: boolean, delayMs: number): React.CSSProperties {
+  return {
+    transitionDelay: isOpen ? `${delayMs}ms` : "0ms",
+    transform: isOpen ? "translateY(0)" : "translateY(12px)",
+    opacity: isOpen ? 1 : 0,
+  };
+}
+
+const riseClassName =
+  "transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]";
+
 export const MarketingMobileNav = ({
   isOpen,
   onClose,
@@ -35,161 +52,140 @@ export const MarketingMobileNav = ({
   githubHref,
   appHref,
   ctaLabel = "Start Building Free",
-  footerNote = "No login required | Free forever",
+  footerNote = "No login required · Free forever",
 }: MarketingMobileNavProps) => {
   const pathname = usePathname();
 
   return (
     <div
+      id={MARKETING_MOBILE_NAV_ID}
+      inert={!isOpen}
       className={cn(
-        "bg-background fixed inset-0 z-90 flex h-screen w-full flex-col overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.85,0,0.15,1)] lg:hidden",
-        isOpen ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0",
+        "bg-background fixed inset-0 z-90 flex h-dvh w-full flex-col overflow-hidden lg:hidden",
+        "transition-[transform,opacity] duration-400 ease-[cubic-bezier(0.32,0.72,0,1)]",
+        isOpen ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-full opacity-0",
       )}
     >
-      <div className="bg-accent/10 pointer-events-none absolute top-[-10%] right-[-10%] h-[50%] w-[50%] rounded-full blur-[120px]" />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-1/4 -right-1/4 size-[70%] rounded-full bg-[radial-gradient(closest-side,color-mix(in_srgb,var(--accent)_14%,transparent),transparent)]"
+      />
 
-      <Container className="flex h-full flex-col overflow-x-hidden overflow-y-auto px-4 pt-28 pb-10">
-        <div className="flex-1 space-y-8">
-          <div>
-            <p className="text-accent mb-4 text-xs font-black tracking-[0.3em] uppercase opacity-70">
-              Navigation
-            </p>
+      <Container className="relative flex h-full flex-col overflow-x-hidden overflow-y-auto overscroll-contain px-4 pt-28 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
+        <nav aria-label="Main" className="flex-1 space-y-8">
+          <ul className="grid gap-2">
+            {items.map((item, i) => {
+              const active = !item.external && isActivePath(pathname, item.href);
 
-            <div className="grid gap-2">
-              {items.map((item, i) => (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  onClick={onClose}
-                  className={cn(
-                    "group flex items-center justify-between rounded-2xl px-4 py-4 transition-all duration-300",
-                    pathname === item.href
-                      ? "bg-accent/10 text-foreground"
-                      : "text-muted hover:bg-accent/5 hover:text-foreground",
-                  )}
-                  style={{
-                    transitionDelay: `${i * 40}ms`,
-                    transform: isOpen ? "translateY(0)" : "translateY(20px)",
-                    opacity: isOpen ? 1 : 0,
-                  }}
-                >
-                  <div className="flex items-center gap-4">
-                    <div
-                      className={cn(
-                        "border-border/40 flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border transition-colors",
-                        pathname === item.href
-                          ? "bg-accent border-accent/20 text-white"
-                          : "bg-accent/5",
-                      )}
-                    >
-                      <item.icon className="h-6 w-6" />
-                    </div>
-
-                    <span className="text-xl font-bold tracking-tight">{item.name}</span>
-                  </div>
-
-                  <ArrowRight
+              return (
+                <li key={item.name} className={riseClassName} style={rise(isOpen, i * 40)}>
+                  <Link
+                    href={item.href}
+                    onClick={onClose}
+                    aria-current={active ? "page" : undefined}
+                    target={item.external ? "_blank" : undefined}
+                    rel={item.external ? "noopener noreferrer" : undefined}
                     className={cn(
-                      "h-5 w-5 transition-all duration-300",
-                      pathname === item.href
-                        ? "translate-x-0 opacity-100"
-                        : "-translate-x-4 opacity-0",
+                      "group focus-visible:ring-accent flex items-center justify-between rounded-2xl px-4 py-4 transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-hidden",
+                      active
+                        ? "bg-accent/10 text-foreground"
+                        : "text-muted hover:bg-accent/5 hover:text-foreground",
                     )}
-                  />
-                </Link>
-              ))}
-            </div>
-          </div>
+                  >
+                    <span className="flex items-center gap-4">
+                      <span
+                        className={cn(
+                          "border-border/40 flex size-12 shrink-0 items-center justify-center rounded-xl border transition-colors",
+                          active
+                            ? "bg-accent border-accent/20 text-accent-foreground"
+                            : "bg-accent/5",
+                        )}
+                      >
+                        <item.icon aria-hidden="true" className="size-6" />
+                      </span>
+
+                      <span className="text-xl font-semibold tracking-tight">{item.name}</span>
+                      {item.external ? <span className="sr-only">(opens in a new tab)</span> : null}
+                    </span>
+
+                    <ArrowRight
+                      aria-hidden="true"
+                      className={cn(
+                        "size-5 transition-[opacity,transform] duration-300 ease-out",
+                        active ? "translate-x-0 opacity-100" : "-translate-x-4 opacity-0",
+                      )}
+                    />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
 
           <div
-            className="border-border/40 grid grid-cols-2 gap-6 border-t pt-8"
-            style={{
-              transitionDelay: "250ms",
-              transform: isOpen ? "translateY(0)" : "translateY(20px)",
-              opacity: isOpen ? 1 : 0,
-            }}
+            className={cn("border-border/40 grid grid-cols-2 gap-6 border-t pt-8", riseClassName)}
+            style={rise(isOpen, 160)}
           >
-            <div className="space-y-3">
-              <p className="text-muted text-[10px] font-black tracking-[0.2em] uppercase">
-                Resources
-              </p>
+            {(
+              [
+                ["Resources", resourceLinks],
+                ["Legal", legalLinks],
+              ] as const
+            ).map(([title, links]) => (
+              <section key={title} aria-labelledby={`${MARKETING_MOBILE_NAV_ID}-${title}`}>
+                <h2 id={`${MARKETING_MOBILE_NAV_ID}-${title}`} className={eyebrowClassName}>
+                  {title}
+                </h2>
 
-              <div className="flex flex-col gap-2">
-                {resourceLinks.map((link) => (
-                  <Link
-                    key={link.name}
-                    href={link.href}
-                    onClick={onClose}
-                    className="text-muted hover:text-foreground text-sm font-medium transition-colors"
-                  >
-                    {link.name}
-                  </Link>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <p className="text-muted text-[10px] font-black tracking-[0.2em] uppercase">Legal</p>
-
-              <div className="flex flex-col gap-2">
-                {legalLinks.map((link) => (
-                  <Link
-                    key={link.name}
-                    href={link.href}
-                    onClick={onClose}
-                    className="text-muted hover:text-foreground text-sm font-medium transition-colors"
-                  >
-                    {link.name}
-                  </Link>
-                ))}
-              </div>
-            </div>
+                <ul className="flex flex-col gap-1">
+                  {links.map((link) => (
+                    <li key={link.name}>
+                      <Link
+                        href={link.href}
+                        onClick={onClose}
+                        className="text-muted hover:text-foreground focus-visible:ring-accent -mx-1 block rounded-md px-1 py-1.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-hidden"
+                      >
+                        {link.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
           </div>
-        </div>
+        </nav>
 
-        <div
-          className="mt-10 space-y-6"
-          style={{
-            transitionDelay: "350ms",
-            transform: isOpen ? "translateY(0)" : "translateY(20px)",
-            opacity: isOpen ? 1 : 0,
-          }}
-        >
+        <div className={cn("mt-10 space-y-6", riseClassName)} style={rise(isOpen, 220)}>
           <div className="bg-accent/5 border-border/40 flex items-center justify-between gap-4 rounded-3xl border p-4">
             <div className="flex items-center gap-4">
-              <div className="bg-accent/10 flex h-10 w-10 items-center justify-center rounded-full">
-                <ThemeToggle />
-              </div>
+              <ThemeToggle />
 
               <div>
-                <p className="text-sm font-bold">Theme Appearance</p>
-                <p className="text-muted text-[10px] font-medium">Switch between light & dark</p>
+                <p className="text-sm font-semibold">Appearance</p>
+                <p className="text-muted text-xs">Switch between light and dark</p>
               </div>
             </div>
-
-            <div className="bg-border/40 h-4 w-px" />
 
             <Link
               target="_blank"
               href={githubHref}
               onClick={onClose}
-              className="text-muted hover:text-foreground flex h-10 w-10 items-center justify-center rounded-full transition-colors"
+              rel="noopener noreferrer"
+              aria-label="VeriWorkly on GitHub (opens in a new tab)"
+              className="text-muted hover:text-foreground focus-visible:ring-accent flex size-11 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-hidden"
             >
-              <GithubIcon className="h-5 w-5" />
+              <GithubIcon className="size-5" />
             </Link>
           </div>
 
           <Button
             asChild
             onClick={onClose}
-            className="bg-foreground text-background shadow-foreground/5 h-16 w-full rounded-2xl text-lg font-black shadow-xl"
+            className="bg-foreground text-background shadow-foreground/5 h-14 w-full rounded-2xl text-base font-semibold shadow-xl hover:opacity-90"
           >
             <Link href={appHref}>{ctaLabel}</Link>
           </Button>
 
-          <p className="text-center text-[10px] font-bold tracking-widest uppercase opacity-40">
-            {footerNote}
-          </p>
+          <p className="text-muted text-center text-xs font-medium">{footerNote}</p>
         </div>
       </Container>
     </div>

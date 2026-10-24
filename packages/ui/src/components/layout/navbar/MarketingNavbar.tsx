@@ -5,8 +5,11 @@ import { X, Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 import { cn } from "../../../utils";
+import { lockScroll } from "../../../lib/scroll-lock";
 
 import { Container } from "../Container";
+
+export const MARKETING_MOBILE_NAV_ID = "marketing-mobile-nav";
 
 interface MarketingNavbarProps {
   logo: React.ReactNode;
@@ -18,35 +21,75 @@ interface MarketingNavbarProps {
 export const MarketingNavbar = ({ logo, desktopNav, actions, mobileNav }: MarketingNavbarProps) => {
   const pathname = usePathname();
 
+  const headerRef = React.useRef<HTMLElement>(null);
+  const toggleRef = React.useRef<HTMLButtonElement>(null);
+
   const [scrolled, setScrolled] = React.useState(false);
   const [mobileMenuPath, setMobileMenuPath] = React.useState<string | null>(null);
 
-  const isOpen = mobileMenuPath === pathname;
+  const isOpen = mobileMenuPath !== null && mobileMenuPath === pathname;
+
+  const close = React.useCallback(() => setMobileMenuPath(null), []);
 
   React.useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
 
-    window.addEventListener("scroll", handleScroll);
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
 
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   React.useEffect(() => {
-    document.body.style.overflow = isOpen ? "hidden" : "unset";
+    if (!isOpen) return;
+
+    const header = headerRef.current;
+    const unlockScroll = lockScroll();
+    const inerted: HTMLElement[] = [];
+
+    for (const sibling of Array.from(header?.parentElement?.children ?? [])) {
+      if (
+        sibling instanceof HTMLElement &&
+        sibling !== header &&
+        sibling.id !== MARKETING_MOBILE_NAV_ID &&
+        !sibling.inert
+      ) {
+        sibling.inert = true;
+        inerted.push(sibling);
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      close();
+      toggleRef.current?.focus();
+    };
+
+    const desktop = window.matchMedia("(min-width: 64rem)");
+    const handleBreakpoint = (event: MediaQueryListEvent) => {
+      if (event.matches) close();
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    desktop.addEventListener("change", handleBreakpoint);
 
     return () => {
-      document.body.style.overflow = "unset";
+      document.removeEventListener("keydown", handleKeyDown);
+      desktop.removeEventListener("change", handleBreakpoint);
+      for (const element of inerted) element.inert = false;
+      unlockScroll();
     };
-  }, [isOpen]);
+  }, [isOpen, close]);
 
   return (
     <>
-      <nav
+      <header
+        ref={headerRef}
         className={cn(
-          "fixed top-0 right-0 left-0 z-100 transition-all duration-300",
+          "fixed top-0 right-0 left-0 z-100 border-b transition-[padding,background-color,border-color] duration-300 ease-out",
           scrolled || isOpen
-            ? "border-border/40 bg-background/95 border-b py-3 backdrop-blur-xl"
-            : "bg-transparent py-5",
+            ? "border-border/40 bg-background/85 py-3 backdrop-blur-xl"
+            : "border-transparent bg-transparent py-5",
         )}
       >
         <Container>
@@ -60,18 +103,26 @@ export const MarketingNavbar = ({ logo, desktopNav, actions, mobileNav }: Market
               {actions}
 
               <button
-                aria-label="Toggle menu"
+                ref={toggleRef}
+                type="button"
+                aria-expanded={isOpen}
+                aria-controls={MARKETING_MOBILE_NAV_ID}
+                aria-label={isOpen ? "Close menu" : "Open menu"}
                 onClick={() => setMobileMenuPath((prev) => (prev === pathname ? null : pathname))}
-                className="text-muted hover:text-foreground bg-accent/5 relative z-110 flex h-11 w-11 items-center justify-center rounded-xl transition-all active:scale-90 lg:hidden"
+                className="text-muted hover:text-foreground bg-accent/5 focus-visible:ring-accent relative flex size-11 cursor-pointer items-center justify-center rounded-xl transition-[color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:outline-hidden active:scale-[0.97] lg:hidden"
               >
-                {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+                {isOpen ? (
+                  <X aria-hidden="true" className="size-6" />
+                ) : (
+                  <Menu aria-hidden="true" className="size-6" />
+                )}
               </button>
             </div>
           </div>
         </Container>
-      </nav>
+      </header>
 
-      {mobileNav({ isOpen, onClose: () => setMobileMenuPath(null) })}
+      {mobileNav({ isOpen, onClose: close })}
     </>
   );
 };

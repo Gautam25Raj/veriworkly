@@ -92,7 +92,7 @@ export const brandColors: BrandColorToken[] = [
   {
     name: "Destructive",
     variable: "--destructive",
-    light: "#DC2626",
+    light: "#B91C1C",
     dark: "#EF4444",
     description: "Errors, destructive actions, and failed states.",
     core: true,

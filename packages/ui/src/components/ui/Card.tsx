@@ -2,15 +2,22 @@ import * as React from "react";
 
 import { cn } from "../../utils";
 
-export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
-  as?: React.ElementType;
-}
+export type CardProps<T extends React.ElementType = "div"> = {
+  as?: T;
+  className?: string;
+} & Omit<React.ComponentPropsWithRef<T>, "as" | "className">;
 
-export function Card({ className, as: Component = "div", ...props }: CardProps) {
+export function Card<T extends React.ElementType = "div">({
+  as,
+  className,
+  ...props
+}: CardProps<T>) {
+  const Component: React.ElementType = as ?? "div";
+
   return (
     <Component
       className={cn(
-        "bg-card text-foreground overflow-hidden rounded-3xl border border-zinc-200/50 p-5 shadow-sm",
+        "bg-card text-foreground border-border/50 overflow-hidden rounded-3xl border p-5 shadow-sm",
         className,
       )}
       {...props}

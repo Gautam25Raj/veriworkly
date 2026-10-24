@@ -4,11 +4,14 @@ import {
   type ReactNode,
   type KeyboardEvent,
   useId,
+  useRef,
   useMemo,
   useState,
+  useEffect,
   useContext,
   useCallback,
   createContext,
+  useLayoutEffect,
 } from "react";
 import { ChevronDown } from "lucide-react";
 
@@ -17,10 +20,9 @@ import { cn } from "../../utils";
 type AccordionType = "single" | "multiple";
 
 type AccordionContextValue = {
-  type: AccordionType;
-  collapsible: boolean;
   expanded: string[];
   toggleItem: (value: string) => void;
+  openItem: (value: string) => void;
 };
 
 type AccordionItemContextValue = {
@@ -31,6 +33,8 @@ type AccordionItemContextValue = {
 
 const AccordionContext = createContext<AccordionContextValue | null>(null);
 const AccordionItemContext = createContext<AccordionItemContextValue | null>(null);
+
+const COLLAPSE_MS = 320;
 
 function useAccordionContext() {
   const ctx = useContext(AccordionContext);
@@ -52,12 +56,17 @@ function useAccordionItemContext() {
   return ctx;
 }
 
+const toArray = (value: string | string[] | undefined) =>
+  value === undefined ? [] : Array.isArray(value) ? value : [value];
+
 type AccordionProps = {
   children: ReactNode;
   className?: string;
   type?: AccordionType;
   collapsible?: boolean;
   defaultValue?: string | string[];
+  value?: string | string[];
+  onValueChange?: (expanded: string[]) => void;
 };
 
 export function Accordion({
@@ -66,41 +75,51 @@ export function Accordion({
   type = "single",
   collapsible = true,
   defaultValue,
+  value,
+  onValueChange,
 }: AccordionProps) {
-  const [expanded, setExpanded] = useState<string[]>(() => {
-    if (!defaultValue) {
-      return [];
-    }
+  const [uncontrolled, setUncontrolled] = useState<string[]>(() => toArray(defaultValue));
 
-    return Array.isArray(defaultValue) ? defaultValue : [defaultValue];
-  });
+  const isControlled = value !== undefined;
+  const expanded = useMemo(
+    () => (isControlled ? toArray(value) : uncontrolled),
+    [isControlled, value, uncontrolled],
+  );
+
+  const commit = useCallback(
+    (next: string[]) => {
+      if (!isControlled) setUncontrolled(next);
+      onValueChange?.(next);
+    },
+    [isControlled, onValueChange],
+  );
 
   const toggleItem = useCallback(
-    (value: string) => {
-      setExpanded((prev) => {
-        if (type === "single") {
-          if (prev.includes(value)) {
-            return collapsible ? [] : prev;
-          }
-          return [value];
-        }
+    (item: string) => {
+      const isOpen = expanded.includes(item);
 
-        if (prev.includes(value)) return prev.filter((item) => item !== value);
+      if (type === "single") {
+        if (isOpen && !collapsible) return;
+        commit(isOpen ? [] : [item]);
+        return;
+      }
 
-        return [...prev, value];
-      });
+      commit(isOpen ? expanded.filter((entry) => entry !== item) : [...expanded, item]);
     },
-    [type, collapsible],
+    [expanded, type, collapsible, commit],
+  );
+
+  const openItem = useCallback(
+    (item: string) => {
+      if (expanded.includes(item)) return;
+      commit(type === "single" ? [item] : [...expanded, item]);
+    },
+    [expanded, type, commit],
   );
 
   const contextValue = useMemo(
-    () => ({
-      type,
-      collapsible,
-      expanded,
-      toggleItem,
-    }),
-    [type, collapsible, expanded, toggleItem],
+    () => ({ expanded, toggleItem, openItem }),
+    [expanded, toggleItem, openItem],
   );
 
   return (
@@ -121,14 +140,17 @@ type AccordionItemProps = {
 export function AccordionItem({ value, children, className }: AccordionItemProps) {
   const generatedId = useId();
 
+  const itemContext = useMemo(
+    () => ({
+      value,
+      triggerId: `accordion-trigger-${generatedId}`,
+      contentId: `accordion-content-${generatedId}`,
+    }),
+    [value, generatedId],
+  );
+
   return (
-    <AccordionItemContext.Provider
-      value={{
-        value,
-        triggerId: `accordion-trigger-${generatedId}`,
-        contentId: `accordion-content-${generatedId}`,
-      }}
-    >
+    <AccordionItemContext.Provider value={itemContext}>
       <div
         data-accordion-item=""
         className={cn(
@@ -145,16 +167,6 @@ export function AccordionItem({ value, children, className }: AccordionItemProps
 type AccordionTriggerProps = {
   children: ReactNode;
   className?: string;
-  /**
-   * Heading level to wrap the trigger in. Defaults to `h3`, which is correct when the
-   * accordion sits under a section `h2`.
-   *
-   * It is configurable because the right level depends on the page, not the component:
-   * on /ats-checker the accordion follows an `h2` so `h3` is right, but on /faq the
-   * questions sit directly under the page `h1`, where a hard-coded `h3` skipped a
-   * level on the one page type whose structure matters most for rich results and
-   * answer extraction.
-   */
   headingLevel?: "h2" | "h3" | "h4";
 };
 
@@ -177,42 +189,24 @@ export function AccordionTrigger({
 
     const triggerNodes = Array.from(
       root.querySelectorAll<HTMLButtonElement>('[data-accordion-trigger="true"]'),
-    );
-    const currentIndex = triggerNodes.findIndex((node) => node.id === event.currentTarget.id);
+    ).filter((node) => node.closest('[data-accordion-root="true"]') === root);
+    const currentIndex = triggerNodes.indexOf(event.currentTarget);
 
     if (currentIndex === -1) {
       return;
     }
 
-    const focusByIndex = (nextIndex: number) => {
-      const target = triggerNodes[nextIndex];
+    let nextIndex: number | null = null;
 
-      if (!target) {
-        return;
-      }
+    if (event.key === "ArrowDown") nextIndex = (currentIndex + 1) % triggerNodes.length;
+    else if (event.key === "ArrowUp")
+      nextIndex = (currentIndex - 1 + triggerNodes.length) % triggerNodes.length;
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = triggerNodes.length - 1;
 
-      target.focus();
-    };
-
-    if (event.key === "ArrowDown") {
+    if (nextIndex !== null) {
       event.preventDefault();
-      focusByIndex((currentIndex + 1) % triggerNodes.length);
-    }
-
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      const nextIndex = currentIndex - 1 < 0 ? triggerNodes.length - 1 : currentIndex - 1;
-      focusByIndex(nextIndex);
-    }
-
-    if (event.key === "Home") {
-      event.preventDefault();
-      focusByIndex(0);
-    }
-
-    if (event.key === "End") {
-      event.preventDefault();
-      focusByIndex(triggerNodes.length - 1);
+      triggerNodes[nextIndex]?.focus();
     }
   };
 
@@ -227,16 +221,16 @@ export function AccordionTrigger({
         data-accordion-trigger="true"
         onClick={() => toggleItem(value)}
         className={cn(
-          "text-foreground hover:bg-background/70 focus-visible:ring-accent/40 flex w-full cursor-pointer items-center justify-between gap-3 px-5 py-4 text-left text-base font-semibold tracking-tight transition-all focus-visible:ring-2 focus-visible:outline-none",
+          "text-foreground hover:bg-background/70 focus-visible:ring-accent flex w-full cursor-pointer items-center justify-between gap-3 px-5 py-4 text-left text-base font-semibold tracking-tight text-balance transition-colors duration-200 focus-visible:ring-2 focus-visible:outline-hidden focus-visible:ring-inset",
           className,
         )}
       >
         <span className="pr-4">{children}</span>
 
         <ChevronDown
-          aria-hidden
+          aria-hidden="true"
           className={cn(
-            "text-muted h-5 w-5 shrink-0 transition-transform duration-300",
+            "text-muted size-5 shrink-0 transition-[transform,color] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
             isOpen && "text-foreground rotate-180",
           )}
         />
@@ -252,27 +246,60 @@ type AccordionContentProps = {
 
 export function AccordionContent({ children, className }: AccordionContentProps) {
   const { value, triggerId, contentId } = useAccordionItemContext();
-  const { expanded } = useAccordionContext();
+  const { expanded, openItem } = useAccordionContext();
 
+  const regionRef = useRef<HTMLDivElement>(null);
   const isOpen = expanded.includes(value);
+
+  useLayoutEffect(() => {
+    const region = regionRef.current;
+    if (!region) return;
+
+    if (isOpen) {
+      region.removeAttribute("hidden");
+      return;
+    }
+
+    if (!region.hasAttribute("hidden")) {
+      const timeout = window.setTimeout(
+        // React serialises `hidden` as a boolean, so until-found is set by hand.
+        () => region.setAttribute("hidden", "until-found"),
+        region.dataset.mounted ? COLLAPSE_MS : 0,
+      );
+      region.dataset.mounted = "true";
+      return () => window.clearTimeout(timeout);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const region = regionRef.current;
+    if (!region) return;
+
+    region.dataset.mounted = "true";
+
+    const reveal = () => openItem(value);
+    region.addEventListener("beforematch", reveal);
+
+    return () => region.removeEventListener("beforematch", reveal);
+  }, [openItem, value]);
 
   return (
     <div
+      ref={regionRef}
       role="region"
       id={contentId}
-      aria-hidden={!isOpen}
       aria-labelledby={triggerId}
       className={cn(
-        "grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-in-out",
+        "grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
         isOpen
-          ? "visible grid-rows-[1fr] opacity-100"
-          : "pointer-events-none invisible grid-rows-[0fr] opacity-0",
+          ? "grid-rows-[1fr] opacity-100"
+          : "grid-rows-[0fr] opacity-0 not-data-mounted:invisible",
       )}
     >
       <div className="min-h-0 overflow-hidden">
         <div
           className={cn(
-            "border-border/60 text-muted border-t px-5 py-4 text-sm leading-7",
+            "border-border/60 text-muted border-t px-5 py-4 text-sm leading-7 text-pretty",
             className,
           )}
         >

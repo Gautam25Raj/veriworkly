@@ -167,7 +167,7 @@ function NavGroup({
         </p>
       ) : null}
 
-      <div className="mt-2 space-y-1">
+      <div className="mt-2 flex flex-col gap-1">
         {items.map(({ href, label: itemLabel, icon: Icon }) => {
           const active = !external && pathname === href;
           const className = `flex items-center rounded-sm py-2 text-xs font-extrabold transition ${collapsed ? "justify-center px-2" : "gap-3 px-2.5"} ${

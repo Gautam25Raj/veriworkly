@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { createPortal } from "react-dom";
 
 import { cn } from "../../utils";
 
@@ -14,6 +13,62 @@ export interface TooltipProps {
   onlyShowIfTruncated?: boolean;
 }
 
+type Side = NonNullable<TooltipProps["side"]>;
+
+const GAP = 8;
+const VIEWPORT_PADDING = 8;
+const HIDE_GRACE_MS = 100;
+const WARM_WINDOW_MS = 400;
+
+const OPPOSITE: Record<Side, Side> = { top: "bottom", bottom: "top", left: "right", right: "left" };
+
+const ORIGIN: Record<Side, string> = {
+  top: "origin-bottom",
+  bottom: "origin-top",
+  left: "origin-right",
+  right: "origin-left",
+};
+
+let openTooltips = 0;
+let lastClosedAt = 0;
+
+const isWarm = () => openTooltips > 0 || Date.now() - lastClosedAt < WARM_WINDOW_MS;
+
+const FOCUSABLE_SELECTOR =
+  "a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])";
+
+function place(trigger: DOMRect, tip: { width: number; height: number }, preferred: Side) {
+  const fits = (side: Side) => {
+    if (side === "top") return trigger.top - GAP - tip.height >= VIEWPORT_PADDING;
+    if (side === "bottom")
+      return trigger.bottom + GAP + tip.height <= window.innerHeight - VIEWPORT_PADDING;
+    if (side === "left") return trigger.left - GAP - tip.width >= VIEWPORT_PADDING;
+    return trigger.right + GAP + tip.width <= window.innerWidth - VIEWPORT_PADDING;
+  };
+
+  const side = fits(preferred) || !fits(OPPOSITE[preferred]) ? preferred : OPPOSITE[preferred];
+
+  let top: number;
+  let left: number;
+
+  if (side === "top" || side === "bottom") {
+    top = side === "top" ? trigger.top - GAP - tip.height : trigger.bottom + GAP;
+    left = trigger.left + trigger.width / 2 - tip.width / 2;
+  } else {
+    left = side === "left" ? trigger.left - GAP - tip.width : trigger.right + GAP;
+    top = trigger.top + trigger.height / 2 - tip.height / 2;
+  }
+
+  const clamp = (value: number, size: number, viewport: number) =>
+    Math.min(Math.max(value, VIEWPORT_PADDING), viewport - size - VIEWPORT_PADDING);
+
+  return {
+    side,
+    top: clamp(top, tip.height, window.innerHeight),
+    left: clamp(left, tip.width, window.innerWidth),
+  };
+}
+
 export function Tooltip({
   children,
   content,
@@ -22,150 +77,144 @@ export function Tooltip({
   delay = 200,
   onlyShowIfTruncated = false,
 }: TooltipProps) {
-  const [open, setOpen] = React.useState(false);
-  const [mounted, setMounted] = React.useState(false);
-
-  const [coords, setCoords] = React.useState({ top: 0, left: 0, width: 0, height: 0 });
-
+  const tooltipId = React.useId();
   const triggerRef = React.useRef<HTMLDivElement>(null);
+  const tooltipRef = React.useRef<HTMLDivElement>(null);
   const timeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  React.useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMounted(true);
+  const [open, setOpen] = React.useState(false);
+  const [instant, setInstant] = React.useState(false);
+  const [placedSide, setPlacedSide] = React.useState<Side>(side);
 
-    return () => setMounted(false);
-  }, []);
-
-  const updatePosition = React.useCallback(() => {
-    if (!triggerRef.current) return;
-
-    const rect = triggerRef.current.getBoundingClientRect();
-
-    setCoords({
-      top: rect.top,
-      left: rect.left,
-      width: rect.width,
-      height: rect.height,
-    });
-  }, []);
+  const clearTimer = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = null;
+  };
 
   const show = React.useCallback(() => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    clearTimer();
+    if (open) return;
 
-    if (onlyShowIfTruncated && triggerRef.current) {
-      const child = triggerRef.current.firstElementChild as HTMLElement;
-
-      if (child) {
-        const isTruncated =
-          child.scrollHeight > child.clientHeight || child.scrollWidth > child.clientWidth;
-
-        if (!isTruncated) return;
-      }
+    if (onlyShowIfTruncated) {
+      const child = triggerRef.current?.firstElementChild as HTMLElement | null;
+      const truncated =
+        child && (child.scrollHeight > child.clientHeight || child.scrollWidth > child.clientWidth);
+      if (!truncated) return;
     }
 
-    updatePosition();
+    const warm = isWarm();
+    setInstant(warm);
 
-    timeoutRef.current = setTimeout(() => {
-      setOpen(true);
-    }, delay);
-  }, [delay, updatePosition, onlyShowIfTruncated]);
+    if (warm) setOpen(true);
+    else timeoutRef.current = setTimeout(() => setOpen(true), delay);
+  }, [delay, onlyShowIfTruncated, open]);
 
-  const hide = React.useCallback(() => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  const hide = React.useCallback((immediately = false) => {
+    clearTimer();
 
-    setOpen(false);
+    const close = () => setOpen(false);
+
+    if (immediately) close();
+    else timeoutRef.current = setTimeout(close, HIDE_GRACE_MS);
   }, []);
 
+  React.useEffect(() => clearTimer, []);
+
   React.useEffect(() => {
-    if (open) {
-      const handleEvent = () => hide();
+    const target =
+      triggerRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR) ?? triggerRef.current;
+    if (!target) return;
 
-      window.addEventListener("scroll", handleEvent, true);
-      window.addEventListener("resize", handleEvent);
+    const existing = target.getAttribute("aria-describedby");
+    const ids = new Set(existing?.split(/\s+/).filter(Boolean));
+    ids.add(tooltipId);
+    target.setAttribute("aria-describedby", [...ids].join(" "));
 
-      return () => {
-        window.removeEventListener("scroll", handleEvent, true);
-        window.removeEventListener("resize", handleEvent);
-      };
+    return () => {
+      ids.delete(tooltipId);
+      if (ids.size) target.setAttribute("aria-describedby", [...ids].join(" "));
+      else target.removeAttribute("aria-describedby");
+    };
+  }, [tooltipId]);
+
+  React.useLayoutEffect(() => {
+    const tooltip = tooltipRef.current;
+    const trigger = triggerRef.current;
+    if (!tooltip || !trigger) return;
+
+    if (!open) {
+      if (tooltip.matches(":popover-open")) tooltip.hidePopover();
+      return;
     }
-  }, [open, hide]);
 
-  const sideClasses = {
-    top: "-translate-x-1/2 -translate-y-full mt-[-10px]",
-    bottom: "-translate-x-1/2 mt-[10px]",
-    left: "-translate-x-full -translate-y-1/2 ml-[-10px]",
-    right: "ml-[10px] -translate-y-1/2",
-  };
+    if (!tooltip.matches(":popover-open")) tooltip.showPopover();
 
-  const getStyle = (): React.CSSProperties => {
-    if (!coords.width) return { display: "none" };
+    const anchor = (trigger.firstElementChild as HTMLElement | null) ?? trigger;
+    const placement = place(
+      anchor.getBoundingClientRect(),
+      // offsetWidth ignores the entry scale; getBoundingClientRect does not.
+      { width: tooltip.offsetWidth, height: tooltip.offsetHeight },
+      side,
+    );
 
-    const style: React.CSSProperties = {
-      position: "fixed",
-      zIndex: 9999,
-      pointerEvents: "none",
+    tooltip.style.top = `${placement.top}px`;
+    tooltip.style.left = `${placement.left}px`;
+    setPlacedSide(placement.side);
+
+    const dismiss = () => hide(true);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      dismiss();
     };
 
-    if (side === "top") {
-      style.top = coords.top;
-      style.left = coords.left + coords.width / 2;
-    } else if (side === "bottom") {
-      style.top = coords.top + coords.height;
-      style.left = coords.left + coords.width / 2;
-    } else if (side === "left") {
-      style.top = coords.top + coords.height / 2;
-      style.left = coords.left;
-    } else if (side === "right") {
-      style.top = coords.top + coords.height / 2;
-      style.left = coords.left + coords.width;
-    }
+    window.addEventListener("scroll", dismiss, true);
+    window.addEventListener("resize", dismiss);
+    // Capture phase so this runs before the Modal's Escape handler.
+    window.addEventListener("keydown", onKeyDown, true);
+    openTooltips++;
 
-    return style;
-  };
+    return () => {
+      openTooltips--;
+      lastClosedAt = Date.now();
+      window.removeEventListener("scroll", dismiss, true);
+      window.removeEventListener("resize", dismiss);
+      window.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [open, side, hide]);
 
   return (
-    <>
-      <div
-        onBlur={hide}
-        onFocus={show}
-        ref={triggerRef}
-        onMouseLeave={hide}
-        onMouseEnter={show}
-        className="block w-full"
-        onClick={(e) => {
-          e.stopPropagation();
-          if (open) hide();
-          else show();
-        }}
-      >
-        {children}
-      </div>
+    <div
+      ref={triggerRef}
+      className="contents"
+      onMouseEnter={show}
+      onMouseLeave={() => hide()}
+      onFocus={(event) => {
+        if ((event.target as HTMLElement).matches(":focus-visible")) show();
+      }}
+      onBlur={() => hide(true)}
+      onPointerDown={() => hide(true)}
+    >
+      {children}
 
-      {mounted &&
-        open &&
-        createPortal(
-          <div
-            style={getStyle()}
-            className={cn(
-              "animate-in fade-in zoom-in-95 slide-in-from-top-1 fill-mode-both duration-200",
-              sideClasses[side],
-              className,
-            )}
-          >
-            <div
-              className={cn(
-                "rounded-2xl px-4 py-2.5 text-[12px] font-medium shadow-[0_10px_40px_rgba(0,0,0,0.2)] backdrop-blur-2xl",
-                "border border-white/10 bg-zinc-950/90 text-zinc-50",
-                "dark:border-black/5 dark:bg-white/95 dark:text-zinc-950",
-                "max-w-[280px] text-center leading-relaxed wrap-break-word whitespace-normal",
-              )}
-            >
-              {content}
-            </div>
-          </div>,
-          document.body,
+      <div
+        ref={tooltipRef}
+        id={tooltipId}
+        role="tooltip"
+        popover="manual"
+        data-instant={instant ? "" : undefined}
+        className={cn(
+          "fixed inset-auto m-0 overflow-visible border-0 bg-transparent p-0",
+          "transition-[opacity,transform] duration-150 ease-out starting:scale-[0.97] starting:opacity-0",
+          "data-instant:transition-none motion-reduce:transition-none",
+          ORIGIN[placedSide],
+          className,
         )}
-    </>
+      >
+        <div className="bg-foreground text-background max-w-70 rounded-2xl px-4 py-2.5 text-center text-xs leading-relaxed font-medium wrap-break-word whitespace-normal shadow-lg">
+          {content}
+        </div>
+      </div>
+    </div>
   );
 }

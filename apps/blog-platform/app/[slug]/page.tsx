@@ -77,7 +77,7 @@ export default async function BlogPostPage(props: PageProps) {
       />
 
       <Container>
-        <div className="grid gap-12 lg:grid-cols-4 lg:gap-16">
+        <div className="grid grid-cols-1 gap-12 lg:grid-cols-4 lg:gap-16">
           {/* `article`, not `main` — MainLayout already provides the page's single
               main landmark, and two of them is invalid and confuses screen readers. */}
           <article className="space-y-10 lg:col-span-3">

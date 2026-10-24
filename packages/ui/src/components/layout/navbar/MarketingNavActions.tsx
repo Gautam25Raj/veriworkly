@@ -24,9 +24,10 @@ export const MarketingNavActions = ({
         target="_blank"
         href={githubHref}
         rel="noopener noreferrer"
-        className="text-muted hover:text-foreground hover:bg-accent/5 flex h-10 w-10 items-center justify-center rounded-full transition-colors"
+        aria-label="VeriWorkly on GitHub (opens in a new tab)"
+        className="text-muted hover:text-foreground hover:bg-accent/5 focus-visible:ring-accent flex size-10 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-hidden"
       >
-        <GithubIcon className="h-5 w-5" />
+        <GithubIcon className="size-5" />
       </Link>
 
       <ThemeToggle />
@@ -34,7 +35,7 @@ export const MarketingNavActions = ({
       <Button
         asChild
         variant="primary"
-        className="shadow-accent/10 hover:shadow-accent/20 rounded-full px-7 font-bold shadow-lg transition-all active:scale-95"
+        className="shadow-accent/10 hover:shadow-accent/20 px-6 font-semibold shadow-lg"
       >
         <Link href={appHref}>{ctaLabel}</Link>
       </Button>

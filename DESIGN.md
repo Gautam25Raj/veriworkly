@@ -162,7 +162,7 @@ tokens. Informational states reuse `--accent` rather than introducing a fifth hu
 
 | Token                      | Light     | Dark      | Role                                        |
 | :------------------------- | :-------- | :-------- | :------------------------------------------ |
-| `--destructive`            | `#DC2626` | `#EF4444` | Errors, destructive actions, failed states. |
+| `--destructive`            | `#B91C1C` | `#EF4444` | Errors, destructive actions, failed states. |
 | `--destructive-foreground` | `#FFFFFF` | `#FFFFFF` | Text on a destructive fill.                 |
 | `--success`                | `#047857` | `#34D399` | Completed, valid, passing.                  |
 | `--success-foreground`     | `#FFFFFF` | `#052E1F` | Text on a success fill.                     |
@@ -201,10 +201,14 @@ Tokens become utilities through an `@theme inline` block in each app's `globals.
 Mapped in `apps/site`, `apps/studio`, `apps/blog-platform`, and `apps/docs-platform`.
 `apps/portfolio` runs a parallel system — see [Portfolio](#portfolio).
 
-**A token that is not mapped produces no utility.** `text-muted-foreground` currently
-resolves to nothing anywhere, because `--color-muted-foreground` is absent from every
-`@theme` block. If you add a token to `themes.css` and intend to use it as a class, map it
-in all four apps.
+**A token that is not mapped produces no utility.** `apps/studio` and `apps/blog-platform`
+map `--color-muted-foreground` to `--muted`; `apps/site` and `apps/docs-platform` do not,
+so `text-muted-foreground` is inert there. Shared components therefore use `text-muted`,
+never `text-muted-foreground`. If you add a token to `themes.css` and intend to use it as
+a class, map it in all four apps.
+
+**`color-scheme`** is declared in `themes.css` (`light` on `:root`, `dark` under `.dark`),
+so native scrollbars, `<select>` pickers, date inputs, and autofill follow the theme.
 
 ### Conventions
 
@@ -225,22 +229,22 @@ in all four apps.
 Measured WCAG 2.1 ratios for the pairs that matter. Normal text needs 4.5:1; large text
 and UI boundaries need 3:1.
 
-| Pair                          | Light                               | Dark        |
-| :---------------------------- | :---------------------------------- | :---------- |
-| Foreground on Background      | 16.28 — AAA                         | 17.20 — AAA |
-| Foreground on Card            | 17.93 — AAA                         | 16.03 — AAA |
-| Muted on Background           | 6.06 — AA                           | 7.38 — AAA  |
-| Muted on Card                 | 6.68 — AA                           | 6.88 — AA   |
-| Accent on Background          | 4.69 — AA                           | 7.44 — AAA  |
-| Accent-foreground on Accent   | 4.98 — AA                           | 7.02 — AAA  |
-| Success on Background         | 4.98 — AA                           | 9.84 — AAA  |
-| Warning on Background         | 4.56 — AA                           | 11.34 — AAA |
-| **Destructive on Background** | **4.39 — fails AA for normal text** | 5.03 — AA   |
+| Pair                        | Light       | Dark        |
+| :-------------------------- | :---------- | :---------- |
+| Foreground on Background    | 16.28 — AAA | 17.20 — AAA |
+| Foreground on Card          | 17.93 — AAA | 16.03 — AAA |
+| Muted on Background         | 6.06 — AA   | 7.38 — AAA  |
+| Muted on Card               | 6.68 — AA   | 6.88 — AA   |
+| Accent on Background        | 4.69 — AA   | 7.44 — AAA  |
+| Accent-foreground on Accent | 4.98 — AA   | 7.02 — AAA  |
+| Success on Background       | 4.98 — AA   | 9.84 — AAA  |
+| Warning on Background       | 4.56 — AA   | 11.34 — AAA |
+| Destructive on Background   | 5.88 — AA   | 5.03 — AA   |
+| Destructive on Card         | 6.47 — AA   | —           |
 
-`--destructive` at `#DC2626` on `#F5F4EF` is 4.39:1 — under the 4.5:1 threshold. It is
-safe for icons, borders, and text at 18px+ (or 14px+ bold). For error text at body size on
-a light ground, darken to roughly `#B91C1C` (6.0:1), or pair the colour with an icon and
-explicit wording so colour is not the only signal.
+`--destructive` was `#DC2626` until October 2026, which measured 4.39:1 on the page
+ground and failed AA for error text at body size. It is now `#B91C1C`. Status colour is
+still never the only signal: pair it with an icon and wording that names the state.
 
 ---
 
@@ -528,12 +532,19 @@ Every interactive element needs a visible keyboard focus state, on `:focus-visib
 so a mouse click stays quiet.
 
 ```
-focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2
+focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background
 ```
 
-`Button` uses `focus-visible:ring-accent/40`; form controls use `ring-accent/10` to
-`ring-accent/20` paired with `focus-visible:border-accent/40`, because a filled control
-already carries a border to strengthen.
+Use `outline-hidden`, not `outline-none`. Tailwind rings are box-shadows, which Windows
+forced-colors mode strips; `outline-hidden` leaves a transparent outline that the system
+repaints as a visible one. `ring-offset-background` keeps the offset gap the page colour
+instead of white.
+
+The ring is solid `--accent`: a 40% alpha ring measures under 2:1 against the page and
+fails the 3:1 a focus indicator needs. Form controls turn their border solid
+`--accent` and add a soft `ring-accent/20` halo, because a field already has a border to
+strengthen. Inside an `overflow: hidden` parent (accordion items, menu items) the ring is
+`ring-inset` so it is not clipped.
 
 Checklist for anything interactive:
 
@@ -555,19 +566,21 @@ writing a new one.
 
 ### Layout
 
-| Component         | Notes                                                                            |
-| :---------------- | :------------------------------------------------------------------------------- |
-| `AppShell`        | `flex min-h-screen flex-col` with `navbar` / `footer` slots and a `flex-1` main. |
-| `Container`       | 1280 px max, responsive gutters. See [Container](#container).                    |
-| `MarketingNavbar` | Fixed marketing nav; desktop nav, mobile sheet, actions, and logo as sub-parts.  |
-| `MarketingFooter` | Shared marketing footer.                                                         |
-| `ThemeToggle`     | Light / dark switch. Toggles `.dark` on the root element.                        |
-| `SocialIcons`     | Brand social icons, sourced from `apps/site/public/icons/socials/`.              |
+| Component         | Notes                                                                                        |
+| :---------------- | :------------------------------------------------------------------------------------------- |
+| `AppShell`        | `flex min-h-dvh flex-col` with `navbar` / `footer` slots, a skip link, and the one `main`.   |
+| `Container`       | 1280 px max, responsive gutters. See [Container](#container).                                |
+| `MarketingNavbar` | The page `header`. Desktop `nav`, mobile panel (page behind it made `inert`), actions, logo. |
+| `MarketingFooter` | Shared marketing footer: `nav` landmarks, `h2` column headings, contact in `<address>`.      |
+| `ThemeToggle`     | Light / dark switch, toggling from `resolvedTheme`. Label names the next theme.              |
+| `SocialIcons`     | Brand social icons. Decorative (`aria-hidden`) unless given `aria-label`.                    |
 
 ### Controls
 
-**`Button`** — `rounded-full`, `font-medium`, `transition`, focus ring `accent/40`,
-`disabled:opacity-50`.
+**`Button`** — `rounded-full`, `font-medium`, solid `ring-accent` focus ring with an
+offset, `active:scale-[0.97]` press feedback over 150 ms, `disabled:opacity-50`. With
+`asChild`, the child's `className` and `onClick` merge with the button's, and a disabled
+link leaves the tab order.
 
 | Variant     | Style                                                                       |
 | :---------- | :-------------------------------------------------------------------------- |
@@ -585,43 +598,57 @@ Supports `asChild` (clones the child — e.g. a `Link` — with the button class
 and `loadingText`. **One primary button per view.**
 
 **`Input`** — variants `outline` (default), `filled`, `ghost`; sizes `sm` (36 px,
-`rounded-lg`), `md` (44 px, `rounded-xl`), `lg` (48 px, `rounded-2xl`). Takes `error` to
-swap the border and ring to `--destructive`. Note the prop is `inputSize`, not `size`,
-because `size` collides with the native attribute.
+`rounded-lg`), `md` (44 px, `rounded-xl`), `lg` (48 px, `rounded-2xl`). Takes `error`,
+which sets `aria-invalid` and swaps the border and ring to `--destructive`; setting
+`aria-invalid` directly does the same. Note the prop is `inputSize`, not `size`, because
+`size` collides with the native attribute.
+
+All three text fields share `components/ui/field.ts`: placeholder in `text-muted`, a
+`hover:border-foreground/25` hover state, and text forced to 16 px below `sm` because iOS
+Safari zooms the page into any smaller focused field.
 
 **`TextArea`** — `min-h-30` (120 px), `rounded-2xl`, non-resizable, same error treatment.
 
-**`Select`** — 44 px, `rounded-2xl`, `focus:ring-accent/20`.
+**`Select`** — a native `<select>`, 44 px, `rounded-2xl`, same focus and error treatment.
 
-**`Checkbox`** — 20 px, `rounded-md`, `border-2`; checked and indeterminate both fill with
-`--accent`. Tick animates in over 200 ms.
+**`Checkbox`** — 20 px, `rounded-md`, `border-2`, 40 px pointer target; checked and
+indeterminate both fill with `--accent`. Controlled (`checked`) or uncontrolled
+(`defaultChecked`). Tick and dash cross-fade over 150 ms.
 
-**`Switch`** — 24 × 44 px track, 20 px knob, `bg-accent` on / `bg-muted/80` off, 200 ms,
-focus ring on `focus-within`.
+**`Switch`** — `role="switch"`, 24 × 44 px track, 20 px knob, `bg-accent` on /
+`bg-muted/80` off, 200 ms. Focus ring on keyboard focus only. Has no visible text: name it
+with `aria-label` or `aria-labelledby`.
 
-**`Badge`** — `rounded-full border px-3 py-1 text-xs font-medium`, neutral by default. For
-status, add the tinted-fill triplet: `bg-success/10 border-success/25 text-success`.
+**`Badge`** — `rounded-full border px-3 py-1 text-xs font-medium`. `variant` is `neutral`
+(default), `accent`, `success`, `warning`, or `destructive`, each the tinted-fill triplet.
 
 ### Surfaces & overlays
 
-**`Card`** — `bg-card rounded-3xl p-5 shadow-sm overflow-hidden`. The default padding is
-routinely overridden (`p-6`, `p-8`), and `p-0` is used when children own their own padding
-— a divided list, for instance.
+**`Card`** — `bg-card border-border/50 rounded-3xl p-5 shadow-sm overflow-hidden`. The
+default padding is routinely overridden (`p-6`, `p-8`), and `p-0` is used when children
+own their own padding — a divided list, for instance. Pass `as="article"` for a
+self-contained piece of content.
 
-**`Modal`** — `bg-black/50 backdrop-blur-sm` overlay; a bottom sheet on mobile
-(`items-end`, `rounded-t-3xl`, 6 × 48 px drag handle) that becomes a centred
-`max-w-lg rounded-3xl` dialog from `md`.
+**`Modal`** — portaled to `body` at `z-200`, above the navbar and below toasts.
+`bg-black/50 backdrop-blur-sm` overlay; a bottom sheet on mobile (`items-end`,
+`rounded-t-3xl`, swipe-down handle) that becomes a centred `max-w-lg rounded-3xl` dialog
+from `md`. `Modal.Title` and `Modal.Description` label the dialog automatically. Escape
+and the focus trap act on the topmost modal only.
 
 **`Menu`** — absolutely positioned, `z-30`, `rounded-xl` / `rounded-2xl` by size,
-`shadow-xl ring-1 ring-black/5`; items are `rounded-xl` with `hover:bg-accent/10`;
-separators are `bg-border h-px`.
+`shadow-xl ring-1 ring-black/5`, scales in from its trigger's corner over 150 ms; items
+are `rounded-xl` with `hover:bg-accent/10`; separators are `bg-border h-px`. Follows the
+APG menu-button pattern (arrow keys, Home/End, typeahead, Escape returns focus).
 
 **`Accordion`** — `rounded-2xl border-border/70 bg-card/90`; animates `grid-template-rows`
-over 300 ms; the chevron rotates 180°.
+over 300 ms; the chevron rotates 180°. Collapsed panels are `hidden="until-found"`, so
+find-in-page reaches every answer and opens it.
 
-**`Tooltip`** — `rounded-2xl`, `max-w-[280px]`, `backdrop-blur-2xl`. Deliberately
-**inverted** against the page: near-black in light mode, near-white in dark. A tooltip is
-a temporary overlay, so it should read as separate from the surface beneath it.
+**`Tooltip`** — `rounded-2xl`, `max-w-70` (280 px), `bg-foreground text-background`:
+deliberately **inverted** against the page, near-black in light mode and near-white in
+dark, so it reads as separate from the surface beneath it. Rendered in the top layer with
+the Popover API; linked by `aria-describedby`; hoverable and dismissible with Escape
+(WCAG 1.4.13).
 
 ### Icons
 
@@ -836,34 +863,21 @@ Before merging anything visual:
 An honest list of places the codebase does not yet match this document. Each is real and
 verified; none is a reason to copy the pattern.
 
-**`Card` border is not themed.** `packages/ui/src/components/ui/Card.tsx` uses
-`border-zinc-200/50` where `border-border` exists. Because `zinc-200` does not respond to
-the theme, every card in dark mode carries a light-grey outline instead of the
-`rgba(148, 163, 184, 0.25)` the system specifies. It is a one-line fix, but it changes the
-look of every card surface in every app, so it wants a deliberate visual review.
+**`--muted-foreground` is a trap.** It is `#171717` in both themes (text on a muted
+fill), so as a text colour on the dark ground it is unreadable. `apps/studio` and
+`apps/blog-platform` sidestep it by mapping the utility to `--muted` instead. Shared
+components no longer use it.
 
-**Two dead token references.**
-
-- `--border-hover` is used by `Input` and `TextArea` (`hover:border-border-hover`) but is
-  defined in no theme or `@theme` block. The class generates nothing, so those controls
-  have no hover border state.
-- `--muted-foreground` exists in `themes.css` but is never mapped to
-  `--color-muted-foreground`, so `text-muted-foreground` in `Checkbox` and
-  `placeholder:text-muted-foreground/40` in `Input` and `TextArea` are inert. Input
-  placeholders fall back to the browser default rather than a brand colour.
+**The wordmark is set in Geist Mono.** [Logo](#logo) says "Geist Sans Semibold beside the
+mark", but every live surface (the site's `LogoPill`, `MarketingNavLogo`,
+`MarketingFooter`) sets it in `font-mono`. Either the rule or the surfaces should change;
+that is a brand decision, not a code fix.
 
 **Raw blue utilities in the shared chrome.** Roughly 406 occurrences of `text-blue-600`,
 `dark:text-blue-400`, `border-blue-500/*`, and `bg-blue-500/*` across 30+ files in
 `apps/site` hand-roll the accent token at approximately its own values. Converting them to
 `text-accent` is mechanical but touches a lot of surface, so it wants to be its own
 reviewed change.
-
-**Raw zinc in two components.** `Input`'s `filled` variant uses `bg-zinc-500/10`, and
-`Tooltip` uses `zinc-950/90` and `white/95`. The tooltip inversion is intentional; the
-input fill is not, and should become an alpha of `--foreground` or `--muted`.
-
-**`--destructive` fails AA on light.** 4.39:1 against `--background`. See
-[Contrast](#contrast) for the workaround until the token is darkened.
 
 **Portfolio duplicates the scale.** `apps/portfolio/app/tokens.css` restates the palette
 under different names and adds parallel spacing, radius, easing, and duration scales. This

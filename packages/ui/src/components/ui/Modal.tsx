@@ -125,9 +125,9 @@ function ModalRoot({ open, onClose, children }: ModalProps) {
 
   const rootContext = React.useMemo(() => ({ onClose: () => onCloseRef.current() }), []);
 
-  if (!open) return null;
+  if (!open || !isClient) return null;
 
-  const overlay = (
+  return createPortal(
     <RootContext.Provider value={rootContext}>
       <div
         ref={overlayRef}
@@ -148,10 +148,9 @@ function ModalRoot({ open, onClose, children }: ModalProps) {
       >
         {children}
       </div>
-    </RootContext.Provider>
+    </RootContext.Provider>,
+    document.body,
   );
-
-  return isClient ? createPortal(overlay, document.body) : overlay;
 }
 
 function ModalContent({

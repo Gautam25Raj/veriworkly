@@ -87,7 +87,7 @@ export function ApiKeyScopeRail({
                         checked={selected}
                         label={scope.label}
                         onCheckedChange={() => onToggleScope(scope.value)}
-                        className="w-full [&>span]:min-w-0 [&>span]:truncate [&>span]:text-xs [&>span]:font-bold"
+                        className="w-full [&>span:last-child]:min-w-0 [&>span:last-child]:truncate [&>span:last-child]:text-xs [&>span:last-child]:font-bold"
                       />
 
                       <span className="text-muted block truncate pl-8 text-[11px]">

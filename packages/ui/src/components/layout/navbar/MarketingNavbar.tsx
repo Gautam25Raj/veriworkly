@@ -86,7 +86,7 @@ export const MarketingNavbar = ({ logo, desktopNav, actions, mobileNav }: Market
       <header
         ref={headerRef}
         className={cn(
-          "fixed top-0 right-0 left-0 z-100 border-b transition-[padding,background-color,border-color] duration-300 ease-out",
+          "fixed top-0 right-0 left-0 z-100 border-b pr-[var(--scroll-lock-gap,0px)] transition-[padding-block,background-color,border-color] duration-300 ease-out",
           scrolled || isOpen
             ? "border-border/40 bg-background/85 py-3 backdrop-blur-xl"
             : "border-transparent bg-transparent py-5",

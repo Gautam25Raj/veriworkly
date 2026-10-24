@@ -257,13 +257,17 @@ export function AccordionContent({ children, className }: AccordionContentProps)
 
     if (isOpen) {
       region.removeAttribute("hidden");
+      region.style.visibility = "";
       return;
     }
 
     if (!region.hasAttribute("hidden")) {
       const timeout = window.setTimeout(
-        // React serialises `hidden` as a boolean, so until-found is set by hand.
-        () => region.setAttribute("hidden", "until-found"),
+        () => {
+          // React serialises `hidden` as a boolean, so until-found is set by hand.
+          region.setAttribute("hidden", "until-found");
+          if (!("onbeforematch" in (region as object))) region.style.visibility = "hidden";
+        },
         region.dataset.mounted ? COLLAPSE_MS : 0,
       );
       region.dataset.mounted = "true";
@@ -289,6 +293,7 @@ export function AccordionContent({ children, className }: AccordionContentProps)
       role="region"
       id={contentId}
       aria-labelledby={triggerId}
+      aria-hidden={!isOpen || undefined}
       className={cn(
         "grid overflow-hidden transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
         isOpen

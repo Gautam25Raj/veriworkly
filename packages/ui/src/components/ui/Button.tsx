@@ -72,10 +72,8 @@ export const Button = ({
     return React.cloneElement(child, {
       ...(rest as Record<string, unknown>),
       className: buttonClassName(variant, size, cn(className, child.props.className)),
-      "aria-disabled": isDisabled || undefined,
-      "aria-busy": loading || undefined,
-      "data-disabled": isDisabled ? "" : undefined,
-      tabIndex: isDisabled ? -1 : (rest.tabIndex ?? (child.props.tabIndex as number | undefined)),
+      ...(isDisabled && { "aria-disabled": true, "data-disabled": "", tabIndex: -1 }),
+      ...(loading && { "aria-busy": true }),
       // No handler of our own: Button renders in Server Components around next/link.
       onClick:
         onClick && childOnClick

@@ -18,11 +18,11 @@
   "dependencies": {
     "@veriworkly/ats-engine": "0.17.0",
     "@veriworkly/ui": "*",
-    "fumadocs-core": "16.13.0",
-    "fumadocs-mdx": "15.2.0",
+    "fumadocs-core": "16.17.8",
+    "fumadocs-mdx": "15.4.10",
     "fumadocs-openapi": "11.2.2",
-    "fumadocs-ui": "16.13.0",
-    "lucide-react": "^1.51.0",
+    "fumadocs-ui": "16.17.8",
+    "lucide-react": "^1.61.0",
     "next": "16.4.3",
     "next-themes": "^0.4.6",
     "react": "^19.3.0",
@@ -34,7 +34,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.8",
+    "eslint-config-next": "16.4.3",
     "prettier": "^3.9.9",
     "typescript": "^6"
   }

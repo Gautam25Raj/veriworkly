@@ -10,7 +10,8 @@ import { FRAME, TYPE } from "@/components/marketing/PageLayout";
 import { jsonLdScriptProps } from "@/utils/json-ld";
 import { buildPageMetadata } from "@/utils/metadata";
 
-import { AtsCheckerTool } from "@/features/ats-checker";
+import { AtsCheckerTool } from "@/features/ats-checker/components/tool/AtsCheckerTool";
+import { MotionIsland } from "@/providers/motion-island";
 
 const pageOgImage = `${siteConfig.url}/api/og?title=${encodeURIComponent(
   "Scan Your Resume",
@@ -20,7 +21,7 @@ export const metadata: Metadata = buildPageMetadata({
   path: "/ats-checker/scan",
   title: `Scan Your Resume: Free ATS Checker | ${siteConfig.shortName}`,
   description:
-    "Upload or paste your resume for a free ATS readiness score, a job-description keyword match, and the single most serious issue found: 0 account required to start.",
+    "Upload or paste your resume for a free ATS readiness score, a job-description keyword match and the most serious issue found. No account required to start.",
   ogTitle: "Scan your resume for free",
   ogDescription: "Upload or paste your resume for an instant ATS readiness score.",
   twitterTitle: "Scan your resume: free ATS check",
@@ -63,7 +64,7 @@ const SCAN_FACTS = [
 
 export default function AtsCheckerScanPage() {
   return (
-    <>
+    <MotionIsland>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={jsonLdScriptProps(breadcrumbSchema)}
@@ -108,6 +109,6 @@ export default function AtsCheckerScanPage() {
           </div>
         </div>
       </section>
-    </>
+    </MotionIsland>
   );
 }

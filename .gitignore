@@ -76,3 +76,5 @@ MASTER_PROFILE_PLAN.md
 DOCS-AUDIT.md
 AI-REGULATORY-POSTURE.md
 /seo/
+# Per-app audit notes and SEO data snapshots stay local
+apps/*/audit/

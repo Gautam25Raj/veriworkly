@@ -19,6 +19,14 @@ export const siteConfig = {
   creator: "Gautam Raj",
   email: "info@veriworkly.com",
 
+  /** The founder's own profiles, for Person.sameAs. The company profiles live in `links`. */
+  creatorLinks: {
+    github: "https://github.com/Gautam25Raj",
+    twitter: "https://x.com/noober_boy",
+    /** GitHub serves the profile picture; github.com/*.png is an allowed image host. */
+    avatar: "https://github.com/Gautam25Raj.png",
+  },
+
   /**
    * The single named human behind grievances, takedown notices, and data-protection
    * questions. Published on /terms and /privacy.

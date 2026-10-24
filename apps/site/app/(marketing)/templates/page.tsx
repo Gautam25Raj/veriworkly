@@ -51,6 +51,9 @@ const BAND_LIMIT = { documents: 4, portfolios: 2 } as const;
 const previewLinkClass =
   "group focus-visible:ring-accent/40 block rounded-2xl focus-visible:ring-2 focus-visible:ring-offset-4 focus-visible:outline-none";
 
+const countOf = (documentType: string) =>
+  templateSummaries.filter((template) => template.documentType === documentType).length;
+
 const TemplatesPortalPage = () => {
   const availableDocTypes = documentTypeSummaries.filter(
     (docType) => docType.status === "available",
@@ -92,7 +95,7 @@ const TemplatesPortalPage = () => {
       <PageHero
         title="Templates,"
         highlight="seen first."
-        lede="Resumes, cover letters and portfolio websites do different jobs, so each has its own templates. Every one is shown as the real document it exports, before you open the editor."
+        lede={`VeriWorkly has ${templateSummaries.length} free templates: ${countOf("resume")} resumes, ${countOf("cover-letter")} cover letters and ${countOf("portfolio-website")} portfolio websites. Each preview shows the layout; the studio fills it from your profile and exports it free.`}
         aside={
           <>
             <dl className="mb-6 grid grid-cols-3 gap-4">
@@ -121,14 +124,14 @@ const TemplatesPortalPage = () => {
       >
         {/* The page's picture: one real export of each kind, large enough to read. */}
         <ul className="grid grid-cols-2 items-end gap-x-4 gap-y-10 sm:gap-x-6 lg:grid-cols-[0.77fr_0.77fr_2.03fr]">
-          {heroWall.map((template) => {
+          {heroWall.map((template, index) => {
             const isPortfolio = template.documentType === "portfolio-website";
 
             return (
               <li key={template.id} className={isPortfolio ? "col-span-2 lg:col-span-1" : ""}>
                 <Link href={getTemplateHref(template)} className={previewLinkClass}>
                   <TemplatePreview
-                    priority
+                    loading={index === 0 ? "lcp" : "eager"}
                     template={template}
                     sizes={
                       isPortfolio

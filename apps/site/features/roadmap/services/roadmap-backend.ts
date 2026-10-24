@@ -94,6 +94,8 @@ export interface RoadmapResponse {
   generatedAt: string;
   sections: RoadmapSectionResponse[];
   query: Required<Pick<RoadmapQuery, "sort">>;
+  /** Columns the backend could not deliver. Empty means every column is real data. */
+  failedStatuses: RoadmapStatus[];
 }
 
 const statusTitles: Record<RoadmapStatus, string> = {
@@ -241,51 +243,46 @@ function normalizeFeature(feature: RoadmapFeature): RoadmapFeature {
   };
 }
 
+/** The backend caps `limit` at 50; 20 pages of that is far beyond any real board. */
+const STATUS_PAGE_SIZE = 50;
+const STATUS_MAX_PAGES = 20;
+
+/**
+ * Every item in one status column. The first page reports the total, so the rest are fetched
+ * in parallel; this used to walk up to 50 pages of 20 one after another, each with its own
+ * 8 s timeout, on every uncached render (W-037).
+ */
 async function fetchRoadmapStatusItems(
   status: RoadmapStatus,
   sort: RoadmapSort,
 ): Promise<RoadmapFeature[]> {
-  const itemsMap = new Map<string, RoadmapFeature>();
-  let offset = 0;
-
   // Always cached. Manual refresh goes through `refreshRoadmapPath` (a Server Action
   // calling revalidatePath) rather than a per-request `cache: "no-store"` bypass, so a
   // refresh refills the shared cache instead of fanning out uncached backend calls.
   const cacheOptions: RequestInit = { next: { revalidate: ROADMAP_REVALIDATE_SECONDS } };
 
-  const MAX_PAGES = 50;
-  let pageCount = 0;
-
-  while (pageCount < MAX_PAGES) {
-    pageCount++;
-    const query = new URLSearchParams({
-      status,
-      sort,
-      limit: "20",
-      offset: offset.toString(),
-    });
-
-    const listData = await fetchApiData<RoadmapListPayload>(
-      `/roadmap?${query.toString()}`,
+  const page = (offset: number) =>
+    fetchApiData<RoadmapListPayload>(
+      `/roadmap?${new URLSearchParams({
+        status,
+        sort,
+        limit: String(STATUS_PAGE_SIZE),
+        offset: String(offset),
+      })}`,
       cacheOptions,
     );
 
-    for (const rawItem of listData.items) {
-      if (!itemsMap.has(rawItem.id)) {
-        itemsMap.set(rawItem.id, normalizeFeature(rawItem));
-      }
-    }
+  const first = await page(0);
+  const pages = Math.min(Math.ceil(first.total / STATUS_PAGE_SIZE), STATUS_MAX_PAGES);
+  const rest = await Promise.all(
+    Array.from({ length: Math.max(pages - 1, 0) }, (_, i) => page((i + 1) * STATUS_PAGE_SIZE)),
+  );
 
-    if (
-      !listData.hasMore ||
-      listData.pagination.nextOffset === null ||
-      listData.pagination.nextOffset <= offset
-    ) {
-      break;
-    }
+  const itemsMap = new Map<string, RoadmapFeature>();
 
-    offset = listData.pagination.nextOffset;
-  }
+  for (const listData of [first, ...rest])
+    for (const rawItem of listData.items)
+      if (!itemsMap.has(rawItem.id)) itemsMap.set(rawItem.id, normalizeFeature(rawItem));
 
   return Array.from(itemsMap.values());
 }
@@ -301,15 +298,21 @@ export async function fetchRoadmapFromBackend(query: RoadmapQuery = {}): Promise
   try {
     const statusEntries = await Promise.all(
       statuses.map(async (status) => {
-        const items = await fetchRoadmapStatusItems(status, sort).catch(() => []);
-        return [status, items] as const;
+        try {
+          return [status, await fetchRoadmapStatusItems(status, sort), false] as const;
+        } catch (err) {
+          // One column failing should not blank the others, but it must not read as an
+          // empty column either (W-047).
+          console.error(`Roadmap column "${status}" failed to load:`, err);
+          return [status, [] as RoadmapFeature[], true] as const;
+        }
       }),
     );
 
-    const sectionsMap = Object.fromEntries(statusEntries) as Record<
-      RoadmapStatus,
-      RoadmapFeature[]
-    >;
+    const sectionsMap = Object.fromEntries(
+      statusEntries.map(([status, items]) => [status, items]),
+    ) as Record<RoadmapStatus, RoadmapFeature[]>;
+    const failedStatuses = statusEntries.filter(([, , failed]) => failed).map(([status]) => status);
 
     const sections = statuses.map((status) => {
       return {
@@ -326,6 +329,7 @@ export async function fetchRoadmapFromBackend(query: RoadmapQuery = {}): Promise
       query: {
         sort,
       },
+      failedStatuses,
     };
   } catch (err) {
     console.error("Failed to fetch roadmap from backend:", err);
@@ -339,11 +343,12 @@ export async function fetchRoadmapFromBackend(query: RoadmapQuery = {}): Promise
       generatedAt: nowIso(),
       sections,
       query: { sort },
+      failedStatuses: statuses,
     };
   }
 }
 
-/** One week - the sitemap's own cadence, independent of the 5-minute page cache. */
+/** One week - the sitemap's own cadence, kept apart from the page reads' cache entries. */
 const SITEMAP_REVALIDATE_SECONDS = 604800;
 
 /**
@@ -363,7 +368,7 @@ export interface RoadmapSitemapEntry {
 /**
  * Roadmap URLs for the sitemap, cached on the sitemap's own schedule.
  *
- * The page-facing reads are cached for 300s. Next collapses a route's revalidate to the
+ * Next collapses a route's revalidate to the
  * minimum of its segment value and every fetch inside it, so calling those helpers here
  * silently dragged /sitemap.xml down to 5 minutes no matter what the segment declared.
  *
@@ -380,31 +385,27 @@ export async function fetchRoadmapSitemapEntries(): Promise<RoadmapSitemapEntry[
       const entries: RoadmapSitemapEntry[] = [];
       let offset = 0;
 
-      try {
-        for (let page = 0; page < SITEMAP_MAX_PAGES; page++) {
-          const query = new URLSearchParams({
-            status,
-            sort: "newest",
-            limit: SITEMAP_PAGE_SIZE.toString(),
-            offset: offset.toString(),
-          });
+      // A failed page throws. Returning the partial list looked safer, but it handed the
+      // sitemap a shorter list that it then cached for a week; throwing lets the sitemap
+      // keep its last complete copy instead.
+      for (let page = 0; page < SITEMAP_MAX_PAGES; page++) {
+        const query = new URLSearchParams({
+          status,
+          sort: "newest",
+          limit: SITEMAP_PAGE_SIZE.toString(),
+          offset: offset.toString(),
+        });
 
-          const listData = await fetchApiData<RoadmapListPayload>(`/roadmap?${query.toString()}`, {
-            next: { revalidate: SITEMAP_REVALIDATE_SECONDS },
-          });
+        const listData = await fetchApiData<RoadmapListPayload>(`/roadmap?${query.toString()}`, {
+          next: { revalidate: SITEMAP_REVALIDATE_SECONDS },
+        });
 
-          entries.push(
-            ...listData.items.map((item) => ({ id: item.id, updatedAt: item.updatedAt })),
-          );
+        entries.push(...listData.items.map((item) => ({ id: item.id, updatedAt: item.updatedAt })));
 
-          const nextOffset = listData.pagination.nextOffset;
-          if (!listData.hasMore || nextOffset === null || nextOffset <= offset) break;
+        const nextOffset = listData.pagination.nextOffset;
+        if (!listData.hasMore || nextOffset === null || nextOffset <= offset) break;
 
-          offset = nextOffset;
-        }
-      } catch {
-        // Degrade to whatever this status already yielded rather than losing every
-        // roadmap URL because one page failed.
+        offset = nextOffset;
       }
 
       return entries;

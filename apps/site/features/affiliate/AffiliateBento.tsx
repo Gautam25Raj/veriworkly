@@ -1,17 +1,27 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { Sparkles, TrendingUp, BadgeDollarSign, ShieldCheck, Check, Terminal } from "lucide-react";
 import { siteConfig } from "@/config/site";
 
 const AffiliateBento = () => {
-  const [username, setUsername] = useState("your-name");
+  const [username, setUsername] = useState("yourcode");
   const [copied, setCopied] = useState(false);
+
+  // The link the studio hands out (apps/studio/features/affiliate/CopyReferralLinkButton.tsx).
+  // The code is assigned when you join; this only previews the shape (W-051).
+  const referralLink = `${siteConfig.links.app}/login?ref=${username || "yourcode"}`;
   const [scans, setScans] = useState<string[]>(["Filter initialized.", "Network trace: OK."]);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(`${siteConfig.links.main}/?ref=${username}`);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(referralLink);
+    } catch {
+      // Clipboard refused (permissions, insecure origin): the link below is select-all.
+      return;
+    }
+
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -51,7 +61,7 @@ const AffiliateBento = () => {
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
-        <motion.div
+        <m.div
           whileHover={{ y: -4 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
           className="group relative flex min-h-87.5 flex-col justify-between overflow-hidden rounded-3xl border border-zinc-200/50 bg-white/40 p-8 shadow-sm backdrop-blur-md md:col-span-2 dark:border-zinc-800/80 dark:bg-zinc-900/30"
@@ -65,11 +75,11 @@ const AffiliateBento = () => {
             </div>
             <div className="space-y-2">
               <h3 className="text-foreground text-lg font-bold tracking-tight">
-                Real-time URL Generator
+                Referral link preview
               </h3>
               <p className="text-muted max-w-md text-xs leading-relaxed">
-                Generate tracking links instantly. Enter your unique handle below, then copy and
-                distribute to start accumulating lifetime MRR rewards.
+                Your link is the sign-in page with your referral code on the end. The code is
+                assigned in your affiliate dashboard when you join; type one here to see the shape.
               </p>
             </div>
           </div>
@@ -84,18 +94,19 @@ const AffiliateBento = () => {
                   onChange={(e) =>
                     setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))
                   }
-                  placeholder="handle"
+                  placeholder="yourcode"
+                  aria-label="Referral code (preview)"
                   className="text-foreground w-full border-0 bg-transparent p-0 font-mono text-xs outline-none focus:ring-0"
                 />
               </div>
-              <motion.button
+              <m.button
                 whileTap={{ scale: 0.97 }}
                 onClick={handleCopy}
                 className="flex min-w-25 items-center justify-center rounded-xl bg-zinc-950 px-6 py-2.5 text-xs font-bold text-zinc-100 shadow-sm transition-colors duration-200 hover:bg-zinc-900 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
               >
                 <AnimatePresence mode="wait">
                   {copied ? (
-                    <motion.span
+                    <m.span
                       key="copied"
                       initial={{ opacity: 0, y: 4 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -103,20 +114,20 @@ const AffiliateBento = () => {
                       className="flex items-center gap-1.5"
                     >
                       <Check className="h-3.5 w-3.5 stroke-3" /> Copied
-                    </motion.span>
+                    </m.span>
                   ) : (
                     <span key="copy">Copy Link</span>
                   )}
                 </AnimatePresence>
-              </motion.button>
+              </m.button>
             </div>
             <div className="w-full truncate rounded-xl border border-zinc-200/50 bg-zinc-100/40 p-3 font-mono text-[10px] text-blue-600 select-all dark:border-zinc-800/40 dark:bg-zinc-950/30 dark:text-blue-400">
-              {siteConfig.links.main}/?ref={username || "handle"}
+              {referralLink}
             </div>
           </div>
-        </motion.div>
+        </m.div>
 
-        <motion.div
+        <m.div
           whileHover={{ y: -4 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
           className="group relative flex min-h-87.5 flex-col justify-between overflow-hidden rounded-3xl border border-zinc-200/50 bg-white/40 p-8 shadow-sm backdrop-blur-md dark:border-zinc-800/80 dark:bg-zinc-900/30"
@@ -138,7 +149,7 @@ const AffiliateBento = () => {
           <div className="flex h-28 items-end gap-1.5 pt-4">
             {[35, 50, 42, 68, 55, 80, 60, 95].map((val, idx) => (
               <div key={idx} className="group/bar flex h-full flex-1 flex-col justify-end">
-                <motion.div
+                <m.div
                   initial={{ height: 0 }}
                   whileInView={{ height: `${val}%` }}
                   viewport={{ once: true }}
@@ -148,13 +159,13 @@ const AffiliateBento = () => {
                   <div className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 rounded bg-zinc-950 px-1 py-0.5 font-mono text-[8px] font-bold text-white opacity-0 shadow-sm transition-opacity duration-150 select-none group-hover/bar:opacity-100 dark:bg-zinc-100 dark:text-zinc-950">
                     {val}
                   </div>
-                </motion.div>
+                </m.div>
               </div>
             ))}
           </div>
-        </motion.div>
+        </m.div>
 
-        <motion.div
+        <m.div
           whileHover={{ y: -4 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
           className="group relative flex min-h-87.5 flex-col justify-between overflow-hidden rounded-3xl border border-zinc-200/50 bg-white/40 p-8 shadow-sm backdrop-blur-md dark:border-zinc-800/80 dark:bg-zinc-900/30"
@@ -190,9 +201,9 @@ const AffiliateBento = () => {
               <span>Reviewed and paid out by our team</span>
             </div>
           </div>
-        </motion.div>
+        </m.div>
 
-        <motion.div
+        <m.div
           whileHover={{ y: -4 }}
           transition={{ type: "spring", stiffness: 300, damping: 20 }}
           className="group relative flex min-h-87.5 flex-col justify-between overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-950 p-8 text-zinc-100 shadow-md md:col-span-2"
@@ -221,7 +232,7 @@ const AffiliateBento = () => {
             </div>
             <AnimatePresence mode="popLayout">
               {scans.map((log, idx) => (
-                <motion.div
+                <m.div
                   key={log + idx}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -231,11 +242,11 @@ const AffiliateBento = () => {
                 >
                   <span className="font-black text-rose-500/80">❯</span>
                   <span className="text-zinc-300">{log}</span>
-                </motion.div>
+                </m.div>
               ))}
             </AnimatePresence>
           </div>
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

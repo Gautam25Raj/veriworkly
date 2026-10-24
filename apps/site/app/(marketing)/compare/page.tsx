@@ -29,9 +29,9 @@ const ogImage = `/api/og?title=${encodeURIComponent(
 export const metadata: Metadata = buildPageMetadata({
   path: "/compare",
 
-  title: `Compare Resume Builders: Real Pricing & Features | ${siteConfig.shortName}`,
+  title: `Compare Resume Builders: Pricing & Features | ${siteConfig.shortName}`,
   description:
-    "An honest, straightforward comparison of VeriWorkly against Rezi, Teal, Kickresume, Novoresume, Zety, and Enhancv. See real pricing, ATS accuracy, download limits, and account requirements.",
+    "VeriWorkly against Rezi, Teal, Kickresume, Novoresume, Zety and Enhancv: real pricing, ATS accuracy, download limits and account requirements.",
 
   ogTitle: "Compare VeriWorkly to Other Resume Builders",
   ogDescription:
@@ -103,7 +103,8 @@ const ComparePage = () => {
         highlight="side by side."
         lede={
           <>
-            Real prices, download limits, ATS checks and sign-up rules for{" "}
+            VeriWorkly is a free, open-source resume builder. This page compares it on real prices,
+            download limits, ATS checks and sign-up rules with{" "}
             {new Intl.ListFormat("en", { type: "conjunction" }).format(
               COMPETITORS.map((competitor) => competitor.name),
             )}

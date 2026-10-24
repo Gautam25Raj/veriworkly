@@ -5,10 +5,10 @@ import { useEffect } from "react";
 
 const GlobalError = ({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) => {
   useEffect(() => {
     console.error("Global error boundary caught error:", error);
@@ -101,7 +101,7 @@ const GlobalError = ({
           >
             <button
               type="button"
-              onClick={() => reset()}
+              onClick={() => retry()}
               className="vw-ge-button"
               style={{
                 border: 0,

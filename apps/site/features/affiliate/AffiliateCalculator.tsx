@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Users, Sparkles, TrendingUp } from "lucide-react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 
 const AffiliateCalculator = () => {
   const [referrals, setReferrals] = useState(50);
@@ -85,14 +85,14 @@ const AffiliateCalculator = () => {
               </div>
               <div className="text-foreground flex items-baseline font-mono text-6xl font-black tracking-tighter select-none md:text-7xl">
                 <span className="text-muted mr-1 text-3xl font-semibold">$</span>
-                <motion.span
+                <m.span
                   key={`${monthlyEarnings}-${selectedPlan}`}
                   initial={{ scale: 0.92, opacity: 0.8, filter: "blur(2px)" }}
                   animate={{ scale: 1, opacity: 1, filter: "blur(0px)" }}
                   transition={{ type: "spring", stiffness: 260, damping: 20 }}
                 >
                   {monthlyEarnings.toFixed(2)}
-                </motion.span>
+                </m.span>
               </div>
             </div>
 
@@ -102,14 +102,14 @@ const AffiliateCalculator = () => {
               </div>
               <div className="text-foreground/80 flex items-baseline font-mono text-3xl font-extrabold tracking-tight select-none">
                 <span className="text-muted mr-1 text-base font-medium">$</span>
-                <motion.span
+                <m.span
                   key={`${annualEarnings}-${selectedPlan}`}
                   initial={{ opacity: 0.8 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.2 }}
                 >
                   {annualEarnings.toFixed(2)}
-                </motion.span>
+                </m.span>
               </div>
             </div>
           </div>
@@ -120,11 +120,20 @@ const AffiliateCalculator = () => {
 
           <div className="space-y-8">
             <div className="space-y-3">
-              <label className="text-foreground flex items-center gap-2 text-sm font-semibold">
+              <p
+                id="calculator-plan-label"
+                className="text-foreground flex items-center gap-2 text-sm font-semibold"
+              >
                 Subscription Plan Level
-              </label>
-              <div className="border-border/60 grid grid-cols-2 gap-2 rounded-2xl border bg-zinc-100/50 p-1.5 dark:border-zinc-800/80 dark:bg-zinc-950/40">
+              </p>
+              <div
+                role="group"
+                aria-labelledby="calculator-plan-label"
+                className="border-border/60 grid grid-cols-2 gap-2 rounded-2xl border bg-zinc-100/50 p-1.5 dark:border-zinc-800/80 dark:bg-zinc-950/40"
+              >
                 <button
+                  type="button"
+                  aria-pressed={selectedPlan === "pro"}
                   onClick={() => setSelectedPlan("pro")}
                   className={`rounded-xl px-4 py-2.5 text-xs font-bold transition-all duration-200 ${
                     selectedPlan === "pro"
@@ -135,6 +144,8 @@ const AffiliateCalculator = () => {
                   Creator Pro ($9.99/mo)
                 </button>
                 <button
+                  type="button"
+                  aria-pressed={selectedPlan === "bundle"}
                   onClick={() => setSelectedPlan("bundle")}
                   className={`rounded-xl px-4 py-2.5 text-xs font-bold transition-all duration-200 ${
                     selectedPlan === "bundle"
@@ -149,8 +160,11 @@ const AffiliateCalculator = () => {
 
             <div className="space-y-4">
               <div className="flex items-center justify-between text-sm font-semibold">
-                <label className="text-foreground flex items-center gap-2 font-medium">
-                  <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <label
+                  htmlFor="calculator-referrals"
+                  className="text-foreground flex items-center gap-2 font-medium"
+                >
+                  <Users aria-hidden="true" className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                   Referred Members
                 </label>
                 <span className="rounded-full border border-blue-500/10 bg-blue-500/5 px-4 py-1.5 font-mono text-lg font-black text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
@@ -159,7 +173,9 @@ const AffiliateCalculator = () => {
               </div>
 
               <input
+                id="calculator-referrals"
                 type="range"
+                aria-valuetext={`${referrals} referred members`}
                 min="0"
                 max="250"
                 step="2"
@@ -194,7 +210,7 @@ const AffiliateCalculator = () => {
                     <span>{needed} members needed</span>
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-900">
-                    <motion.div
+                    <m.div
                       className="h-full rounded-full bg-linear-to-r from-blue-500 to-indigo-600 dark:from-blue-400 dark:to-indigo-500"
                       animate={{ width: `${progressPercent}%` }}
                       transition={{ duration: 0.3, ease: "easeOut" }}
@@ -207,8 +223,8 @@ const AffiliateCalculator = () => {
             <div className="text-muted/80 flex items-start gap-3 rounded-2xl border border-blue-500/10 bg-blue-500/5 p-4 text-xs leading-relaxed">
               <TrendingUp className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
               <p>
-                Calculates yield based on the active plan level select: **Creator Pro ($9.99/mo)**
-                or **Job Hunter Bundle ($14.99/mo)**. Commission payouts occur monthly.
+                Calculates yield from the selected plan: Creator Pro ($9.99/mo) or Job Hunter Bundle
+                ($14.99/mo). Payouts are reviewed manually once your balance reaches $25.
               </p>
             </div>
           </div>

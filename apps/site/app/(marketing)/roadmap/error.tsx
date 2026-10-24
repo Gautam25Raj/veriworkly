@@ -1,15 +1,21 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 
 import { Button, Container } from "@veriworkly/ui";
 
 export default function RoadmapError({
+  error,
   retry,
 }: {
   error: Error & { digest?: string };
   retry: () => void;
 }) {
+  useEffect(() => {
+    console.error("Roadmap failed to render:", error);
+  }, [error]);
+
   return (
     <div className="flex min-h-screen flex-col">
       <p className="sr-only" role="alert">
@@ -27,8 +33,8 @@ export default function RoadmapError({
           </h1>
 
           <p className="text-muted max-w-2xl text-base leading-7">
-            We couldn&apos;t fetch the latest product roadmap data. This could be due to a temporary
-            connection issue with our GitHub sync service.
+            We couldn&apos;t load the roadmap just now. The roadmap service did not answer; nothing
+            on your side caused this.
           </p>
         </header>
 

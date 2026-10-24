@@ -24,6 +24,7 @@ import ResumePreview from "@/features/landing/document-switcher/ResumePreview";
 import TemplateShowcase from "@/features/landing/template-showcase/TemplateShowcase";
 import PortfolioPreview from "@/features/landing/document-switcher/PortfolioPreview";
 import CoverLetterPreview from "@/features/landing/document-switcher/CoverLetterPreview";
+import { MotionIsland } from "@/providers/motion-island";
 
 const InteractiveProcess = nextDynamic(
   () => import("@/features/landing/process/InteractiveProcess"),
@@ -42,14 +43,14 @@ export const revalidate = false;
 export const dynamic = "force-static";
 
 export const metadata: Metadata = {
-  title: `Free AI Resume Builder, Cover Letters & Web Portfolios | ${siteConfig.shortName}`,
+  title: `Free AI Resume, Cover Letter & Portfolio Maker | ${siteConfig.shortName}`,
   description:
-    "Build ATS-friendly resumes, targeted cover letters, and live web portfolios in minutes. Privacy-first, local-first data storage, open-core, and zero login required.",
+    "Build ATS-friendly resumes, cover letters and live web portfolios in minutes. Privacy-first, local-first storage, open-core, and no login required.",
 
   openGraph: {
     title: `Free AI Resumes, Cover Letters & Web Portfolios | ${siteConfig.shortName}`,
     description:
-      "Create professional resumes, cover letters, and web portfolios in minutes with VeriWorkly's privacy-first AI tools. Free, open-core, and no signup required. Customize professional templates, sync dynamic sections with AI tailoring, and publish instantly.",
+      "Create professional resumes, cover letters, and web portfolios in minutes with VeriWorkly's privacy-first AI tools. Free, open-core, and no signup required. Customize professional templates, sync dynamic sections with AI tailoring, and export in six formats.",
     url: pageUrl,
     siteName: siteConfig.shortName,
     type: "website",
@@ -137,7 +138,7 @@ const howToSchema = {
 
 const Home = () => {
   return (
-    <>
+    <MotionIsland>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={jsonLdScriptProps(faqPageSchema)}
@@ -148,15 +149,31 @@ const Home = () => {
       <HeroHeader />
       <BrandTrust />
       <MetricsProofBar />
-      <GaplessBento />
-      <TemplateShowcase />
-      <InteractiveProcess />
-      <DocumentPortfolioSwitcher previews={documentPreviews} />
-      <PrivacyWhyUs />
-      <ComparisonMatrix />
-      <PremiumFAQ />
-      <InteractiveCTA />
-    </>
+      <div className="below-fold">
+        <GaplessBento />
+      </div>
+      <div className="below-fold">
+        <TemplateShowcase />
+      </div>
+      <div className="below-fold">
+        <InteractiveProcess />
+      </div>
+      <div className="below-fold">
+        <DocumentPortfolioSwitcher previews={documentPreviews} />
+      </div>
+      <div className="below-fold">
+        <PrivacyWhyUs />
+      </div>
+      <div className="below-fold">
+        <ComparisonMatrix />
+      </div>
+      <div className="below-fold">
+        <PremiumFAQ />
+      </div>
+      <div className="below-fold">
+        <InteractiveCTA />
+      </div>
+    </MotionIsland>
   );
 };
 

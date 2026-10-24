@@ -1,5 +1,19 @@
 import type { NextConfig } from "next";
 
+import { version } from "./package.json";
+import { HTML_LIMITED_BOT_UA_RE } from "next/dist/shared/lib/router/utils/html-bots";
+
+/**
+ * Crawlers that read <head> from the first bytes and do not wait for streamed metadata. Next's
+ * default list covers search and link-preview bots but no AI crawlers, so on the dynamic routes
+ * (/changelog, /roadmap/*, /stats) they got <title> streamed into <body> (W-060). Setting the
+ * option replaces the default, so the default is extended rather than restated.
+ */
+export const HTML_LIMITED_BOTS = new RegExp(
+  `${HTML_LIMITED_BOT_UA_RE.source}|GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|Claude-User|Claude-SearchBot|PerplexityBot|Perplexity-User|CCBot|Amazonbot|Applebot-Extended|meta-externalagent`,
+  "i",
+);
+
 // The backend origin has to be reachable from the browser (contact form, checkout,
 // ambassador apply), so it is added to connect-src explicitly rather than opening the
 // directive up to all of `https:`.
@@ -13,7 +27,20 @@ const backendOrigin = (() => {
   }
 })();
 
-const connectSrc = ["'self'", backendOrigin, "https://*.veriworkly.com"].filter(Boolean).join(" ");
+// The field Web Vitals collector (components/WebVitals.tsx), when one is configured.
+const vitalsOrigin = (() => {
+  try {
+    const raw = process.env.NEXT_PUBLIC_VITALS_URL;
+
+    return raw ? new URL(raw).origin : "";
+  } catch {
+    return "";
+  }
+})();
+
+const connectSrc = ["'self'", backendOrigin, vitalsOrigin, "https://*.veriworkly.com"]
+  .filter(Boolean)
+  .join(" ");
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -77,8 +104,11 @@ const nextConfig: NextConfig = {
   // bundle. Only the container build (which runs `node apps/site/server.js`) opts in.
   output: process.env.BUILD_STANDALONE === "1" ? "standalone" : undefined,
   transpilePackages: ["@veriworkly/ui"],
+  // The site's own version, for the mobile menu badge; it moves with every release bump.
+  env: { NEXT_PUBLIC_APP_VERSION: version },
   reactStrictMode: true,
   poweredByHeader: false,
+  htmlLimitedBots: HTML_LIMITED_BOTS,
   images: {
     formats: ["image/avif", "image/webp"],
     /**
@@ -119,6 +149,16 @@ const nextConfig: NextConfig = {
         permanent: true,
       },
 
+      // The ambassador footer linked these for months; they never existed and sit in the
+      // Search Console 404 report. Each goes to the page that holds what the label promised.
+      { source: "/support", destination: "/contact", permanent: true },
+      { source: "/cookies", destination: "/privacy#cookies", permanent: true },
+      { source: "/careers", destination: "/about", permanent: true },
+      { source: "/integrations", destination: "/features", permanent: true },
+      { source: "/partners", destination: "/affiliate", permanent: true },
+      { source: "/tutorials", destination: "https://docs.veriworkly.com/docs", permanent: true },
+      { source: "/Free", destination: "/", permanent: true },
+
       // Older template URLs used unprefixed slugs. Send the known legacy paths to the
       // current, canonical template detail pages instead of serving soft 404s.
       {
@@ -146,8 +186,14 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
+        // These files keep their names when their content changes (template previews, og
+        // cards, the logo), so they cannot be immutable: a year-long immutable copy would
+        // outlive every replacement. A day fresh, then a week served stale while it
+        // revalidates (W-036). Hashed build assets under /_next/static keep Next's own header.
         source: "/:all*(svg|jpg|jpeg|png|webp|avif|ico)",
-        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" },
+        ],
       },
     ];
   },

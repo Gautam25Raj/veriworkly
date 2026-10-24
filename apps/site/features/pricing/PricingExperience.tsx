@@ -9,10 +9,9 @@ import PricingHero from "./components/PricingHero";
 import PricingAlaCarte from "./components/PricingAlaCarte";
 import PricingComparison from "./components/PricingComparison";
 
-// `paymentsBlocked` is computed server-side (see app/(marketing)/pricing/page.tsx) from the
-// server-only ADMIN_EMAIL, so the admin's email address never reaches the client bundle - only
-// this boolean does. The backend's BillingController.assertPaymentsEnabled is still the actual
-// enforcement point; this only drives the pre-emptive disabled UI.
+// `paymentsBlocked` is the PAYMENTS_BLOCKED constant in app/(marketing)/pricing/page.tsx. It only
+// disables the buttons ahead of time; the backend's BillingController.assertPaymentsEnabled is
+// the real gate. There is no per-user bypass on the site (W-052, W-067).
 import { CurrencyProvider } from "./context/CurrencyContext";
 
 const PricingExperience = ({

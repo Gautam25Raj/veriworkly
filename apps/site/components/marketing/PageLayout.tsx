@@ -167,7 +167,7 @@ export function PageClosing({
   return (
     <section className="py-20 lg:py-28">
       <div className={FRAME}>
-        <div className="reveal bg-foreground text-background grid gap-8 rounded-[2rem] p-8 sm:p-12 lg:grid-cols-[1.2fr_.8fr] lg:items-end lg:gap-14 lg:p-16">
+        <div className="reveal bg-foreground text-background grid gap-8 rounded-4xl p-8 sm:p-12 lg:grid-cols-[1.2fr_.8fr] lg:items-end lg:gap-14 lg:p-16">
           <h2 className={cn("max-w-2xl text-balance", TYPE.section)}>{title}</h2>
 
           <div>

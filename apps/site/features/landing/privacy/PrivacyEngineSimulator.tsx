@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { Database, Lock, UserCheck } from "lucide-react";
 
 const PrivacyEngineSimulator = () => {
@@ -46,7 +46,7 @@ const PrivacyEngineSimulator = () => {
         />
 
         <AnimatePresence mode="wait">
-          <motion.div
+          <m.div
             key={activeEngine}
             initial={{ opacity: 0, filter: "blur(3px)", scale: 0.98 }}
             animate={{ opacity: 1, filter: "blur(0px)", scale: 1 }}
@@ -71,25 +71,13 @@ const PrivacyEngineSimulator = () => {
               <div className="absolute top-1/2 left-0 h-0.5 w-full -translate-y-1/2 rounded-full bg-zinc-200 dark:bg-zinc-800" />
 
               {activeEngine === "local" ? (
-                <motion.div
-                  className="absolute top-1/2 left-0 h-2 w-2 -translate-y-1/2 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981]"
-                  animate={{ left: ["0%", "100%", "0%"] }}
-                  transition={{
-                    duration: 2.5,
-                    repeat: Infinity,
-                    ease: "easeInOut",
-                  }}
-                />
+                <div className="track-bounce absolute inset-0">
+                  <div className="absolute top-1/2 left-0 h-2 w-2 -translate-y-1/2 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981]" />
+                </div>
               ) : (
-                <motion.div
-                  className="absolute top-1/2 left-0 h-2 w-2 -translate-y-1/2 rounded-full bg-red-500 shadow-[0_0_10px_#ef4444]"
-                  animate={{ left: "100%" }}
-                  transition={{
-                    duration: 0.8,
-                    repeat: Infinity,
-                    ease: "linear",
-                  }}
-                />
+                <div className="track-run absolute inset-0">
+                  <div className="absolute top-1/2 left-0 h-2 w-2 -translate-y-1/2 rounded-full bg-red-500 shadow-[0_0_10px_#ef4444]" />
+                </div>
               )}
             </div>
 
@@ -106,7 +94,7 @@ const PrivacyEngineSimulator = () => {
                 {activeEngine === "local" ? "LocalStorage" : "Central DB"}
               </span>
             </div>
-          </motion.div>
+          </m.div>
         </AnimatePresence>
 
         <div className="absolute inset-x-4 bottom-4 flex justify-center sm:inset-x-6 sm:bottom-6">

@@ -1,3 +1,19 @@
+# Normalise line endings in the repository; checkouts follow core.autocrlf.
+* text=auto
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.avif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.zip binary
+*.pdf binary
+
 # Generated files are written with LF. Keep them LF on Windows checkouts so a rebuild does not show them as modified.
 apps/docs-platform/public/openapi.json text eol=lf
 apps/docs-platform/openapi.yaml text eol=lf

@@ -3,8 +3,10 @@ import { RefreshCw } from "lucide-react";
 
 import { cn } from "@veriworkly/ui";
 
-import { KanbanColumn } from "./KanbanBoard";
+import type { KanbanColumn } from "./KanbanBoard";
 import KanbanItemCard from "./KanbanItemCard";
+import { SortedItems } from "@/features/roadmap/components/RoadmapSort";
+import { sortOrders } from "@/features/roadmap/sort-orders";
 
 import { refreshRoadmapPath } from "@/features/roadmap/actions";
 
@@ -42,7 +44,6 @@ const KanbanColumnView = ({
   refreshPath,
   singleStatusMode,
   showDescription,
-  showUrl,
   showRoadmapLinks,
 }: {
   column: KanbanColumn;
@@ -50,7 +51,6 @@ const KanbanColumnView = ({
   refreshPath?: string;
   singleStatusMode: boolean;
   showDescription: boolean;
-  showUrl: boolean;
   showRoadmapLinks: boolean;
 }) => {
   const icon = columnIcons[column.title as keyof typeof columnIcons] || (
@@ -116,15 +116,16 @@ const KanbanColumnView = ({
             <p className="text-muted/60 mt-1 text-[11px]">Planned items will appear here.</p>
           </div>
         ) : (
-          column.items.map((item, index) => (
-            <KanbanItemCard
-              key={`${item.id}-${index}`}
-              item={item}
-              showDescription={showDescription}
-              showUrl={showUrl}
-              showRoadmapLinks={showRoadmapLinks}
-            />
-          ))
+          <SortedItems orders={sortOrders(column.items)}>
+            {column.items.map((item) => (
+              <KanbanItemCard
+                key={item.id}
+                item={item}
+                showDescription={showDescription}
+                showRoadmapLinks={showRoadmapLinks}
+              />
+            ))}
+          </SortedItems>
         )}
       </div>
     </div>

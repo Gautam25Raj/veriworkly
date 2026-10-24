@@ -19,11 +19,15 @@ export interface GitHubIssueItem {
   labels: string[];
 }
 
+/** As apps/server/src/services/github/issues.ts getGitHubStats returns it. */
 export interface GitHubProjectStats {
   projectName: string;
-  projectUrl: string;
+  /** Not sent by the server today; the page falls back to the repository link. */
+  projectUrl?: string;
   stats: {
-    totalItems: number;
+    /** The server sends `total` today; V-054 renames it to `totalItems`. Read either. */
+    total?: number;
+    totalItems?: number;
     issues: number;
     pullRequests: number;
     todo: number;
@@ -32,6 +36,7 @@ export interface GitHubProjectStats {
     completionRate: string;
   };
   syncedAt: string;
+  /** Not sent by the server today. */
   nextSyncAt?: string | null;
 }
 
@@ -61,10 +66,6 @@ export async function fetchGitHubIssuesFromBackend(query: {
   kind?: GitHubFilterKind;
   limit?: number;
   offset?: number;
-  createdFrom?: string;
-  createdTo?: string;
-  updatedFrom?: string;
-  updatedTo?: string;
 }) {
   const params = new URLSearchParams();
 

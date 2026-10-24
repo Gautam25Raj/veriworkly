@@ -15,6 +15,7 @@ import { buildPageMetadata } from "@/utils/metadata";
 import { FRAME, PageHero, TYPE } from "@/components/marketing/PageLayout";
 
 import TemplateExplorer from "@/features/templates/TemplateExplorer";
+import { toCardData } from "@/features/templates/cardFields";
 import { templatesHeading } from "@/features/templates/utils";
 
 type PageProps = {
@@ -121,7 +122,7 @@ const TemplatesByDocumentTypePage = async ({ params }: PageProps) => {
         // name alone ("Portfolio") says the same thing.
         title={sentenceCase(docTypeData.label.replace(/ website$/i, ""))}
         highlight="templates."
-        lede={`${docTypeData.description} Every preview is the real export.`}
+        lede={`${docTypeData.description} Previews show the layout; the studio renders the final file.`}
         aside={
           <dl className="grid grid-cols-3 gap-4">
             {[
@@ -150,7 +151,7 @@ const TemplatesByDocumentTypePage = async ({ params }: PageProps) => {
       <section aria-label={`${docTypeData.pluralLabel}`} className="py-14 lg:py-20">
         <div className={FRAME}>
           <TemplateExplorer
-            templates={templates}
+            templates={templates.map(toCardData)}
             noun={templatesHeading(docTypeData.label).toLowerCase()}
           />
         </div>

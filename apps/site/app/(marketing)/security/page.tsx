@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 
 import { siteConfig } from "@/config/site";
+import { SECURITY_LAST_UPDATED } from "@/features/security/data/lastUpdated";
 
 import { jsonLdScriptProps } from "@/utils/json-ld";
+import { webSiteRef } from "@/utils/schema";
 import { buildPageMetadata } from "@/utils/metadata";
 
 import {
@@ -29,7 +31,7 @@ export const metadata: Metadata = buildPageMetadata({
 
   title: `Security & Responsible Disclosure Policy | ${siteConfig.shortName}`,
   description:
-    "How we secure your career data: local-first browser storage, encrypted cloud sync, Better Auth OTP authentication, and a 24 to 48 hour acknowledgement on every security report.",
+    "How we secure your career data: local-first browser storage, encrypted cloud sync, OTP authentication, and a 24 to 48 hour reply on every security report.",
 
   ogTitle: "Private Security for Your Career Records",
   ogDescription:
@@ -72,9 +74,10 @@ const SecurityPage = () => {
     },
     name: "Security Policy | VeriWorkly",
     url: pageUrl,
+    isPartOf: webSiteRef,
     description:
       "Security architecture, sandbox boundaries, OAuth scope specifications, data retention matrix, and responsible disclosure procedures.",
-    dateModified: "2026-08-27",
+    dateModified: SECURITY_LAST_UPDATED,
   };
 
   return (

@@ -124,7 +124,7 @@ export function NotFoundPage() {
 const Bone = ({ className }: { className: string }) => (
   <div
     aria-hidden="true"
-    className={`bg-foreground/[0.06] animate-pulse rounded-2xl motion-reduce:animate-none ${className}`}
+    className={`bg-foreground/6 animate-pulse rounded-2xl motion-reduce:animate-none ${className}`}
   />
 );
 

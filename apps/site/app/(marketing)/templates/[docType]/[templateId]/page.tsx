@@ -12,7 +12,9 @@ import {
 import { siteConfig } from "@/config/site";
 
 import { jsonLdScriptProps } from "@/utils/json-ld";
-import { buildPageMetadata } from "@/utils/metadata";
+import { organizationRef, webSiteRef } from "@/utils/schema";
+import { shareImageFor } from "@/features/templates/data/previewSizes";
+import { buildPageMetadata, fitTitle } from "@/utils/metadata";
 
 import { FRAME, PageSection, TYPE } from "@/components/marketing/PageLayout";
 
@@ -50,19 +52,23 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const templateTypeLabel = template.documentTypeLabel.toLowerCase();
+  const shareImage = shareImageFor(template.previewImage);
 
   return buildPageMetadata({
     path: `/templates/${docType}/${templateId}`,
-    title: template.seo.title,
+    title: fitTitle(
+      `${template.name} ${template.documentTypeLabel} Template`,
+      siteConfig.shortName,
+    ),
     description: template.seo.description,
-    ogTitle: `${template.name}: A ${templateTypeLabel} Template Built for ${template.audience[0] ?? "Job Seekers"}`,
+    ogTitle: template.seo.title,
     ogDescription: template.shortDescription,
     twitterTitle: `${template.name} - ${template.documentTypeLabel} Template`,
     twitterDescription: template.shortDescription,
-    image: template.previewImage,
+    image: shareImage.url,
     imageAlt: `${template.name} ${templateTypeLabel} template preview`,
-    imageWidth: 1200,
-    imageHeight: 1600,
+    imageWidth: shareImage.width,
+    imageHeight: shareImage.height,
     keywords: [template.name, ...template.tags, `${template.documentTypeLabel} template`],
   });
 }
@@ -144,8 +150,10 @@ const TemplateDetailPage = async ({ params }: PageProps) => {
     name: `${template.name} ${template.documentTypeLabel} Template`,
     description: template.seo.description,
     url: `${siteConfig.url}/templates/${docType}/${templateId}`,
-    creator: { "@type": "Organization", name: siteConfig.name, url: siteConfig.url },
-    audience: template.audience.join(", "),
+    creator: organizationRef,
+    isPartOf: webSiteRef,
+    image: `${siteConfig.url}${template.previewImage}`,
+    audience: { "@type": "Audience", audienceType: template.audience.join(", ") },
   };
 
   return (
@@ -181,16 +189,20 @@ const TemplateDetailPage = async ({ params }: PageProps) => {
                 }`}
               >
                 <TemplatePreview
-                  priority
+                  loading="lcp"
                   template={template}
-                  sizes="(min-width: 1180px) 560px, (min-width: 1024px) 46vw, 92vw"
-                  className={isPortfolioTemplate ? "w-full" : "w-full max-w-[13rem] sm:max-w-md"}
+                  sizes={
+                    isPortfolioTemplate
+                      ? "(min-width: 1180px) 560px, (min-width: 1024px) 46vw, 92vw"
+                      : "(min-width: 640px) 448px, 208px"
+                  }
+                  className={isPortfolioTemplate ? "w-full" : "w-full max-w-52 sm:max-w-md"}
                 />
               </div>
               <figcaption className="text-muted mt-3 text-center text-sm">
                 {isPortfolioTemplate
                   ? "Screenshot of the live template. Open the live preview for the whole page."
-                  : "The real export, rendered from the production template."}
+                  : "Preview of the template layout. The studio renders the final file."}
               </figcaption>
             </figure>
 
@@ -322,7 +334,7 @@ const TemplateDetailPage = async ({ params }: PageProps) => {
           <ul className={templateGridClass(isPortfolioTemplate)}>
             {moreTemplates.map((other) => (
               <li key={other.id}>
-                <TemplateCard template={other} />
+                <TemplateCard template={other} heading="h3" />
               </li>
             ))}
           </ul>

@@ -12,11 +12,14 @@ interface ApiSuccessResponse<T> {
 
 export class ApiRequestError extends Error {
   status: number;
+  /** The error envelope's `details`, e.g. the 400 field list or a 429 quota summary. */
+  details?: unknown;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, details?: unknown) {
     super(message);
     this.name = "ApiRequestError";
     this.status = status;
+    this.details = details;
   }
 }
 
@@ -93,8 +96,10 @@ export async function fetchApiData<T>(
       ...fetchOptions,
       signal: fetchOptions.signal ?? AbortSignal.timeout(timeoutMs ?? DEFAULT_API_TIMEOUT_MS),
       credentials: fetchOptions.credentials ?? "include",
+      // Content-Type only when there is a body: on a GET it made every browser request a
+      // non-simple one, so each read paid a CORS preflight first (W-040).
       headers: {
-        "Content-Type": "application/json",
+        ...(typeof fetchOptions.body === "string" ? { "Content-Type": "application/json" } : {}),
         ...firstPartyServerHeaders(fetchOptions.headers),
       },
     });
@@ -112,16 +117,29 @@ export async function fetchApiData<T>(
   }
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}) as { message?: string });
+    const errorData = await response
+      .json()
+      .catch(() => ({}) as { message?: string; details?: unknown });
     const message = errorMessage || errorData.message || `Request failed: ${response.status}`;
 
-    throw new ApiRequestError(message, response.status);
+    throw new ApiRequestError(message, response.status, errorData.details);
   }
 
   const payload = await response.json().catch(() => null);
 
-  if (!payload || typeof payload !== "object")
-    throw new ApiRequestError(errorMessage || "Backend returned a malformed response.", 502);
+  // A 2xx with success:false or no data used to reach callers typed T as undefined (W-064).
+  const envelope = payload as Partial<ApiSuccessResponse<T>> | null;
 
-  return (payload as ApiSuccessResponse<T>).data;
+  if (
+    !envelope ||
+    typeof envelope !== "object" ||
+    envelope.success !== true ||
+    envelope.data === undefined
+  )
+    throw new ApiRequestError(
+      errorMessage || envelope?.message || "Backend returned a malformed response.",
+      502,
+    );
+
+  return envelope.data;
 }

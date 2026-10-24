@@ -150,7 +150,7 @@ export function BillingPage({
   };
 
   return (
-    <main className="relative min-h-[400px]">
+    <main className="relative min-h-100">
       <div className={cn("space-y-5", !user && "pointer-events-none opacity-40 blur-[3px]")}>
         <header className="border-border bg-card rounded-2xl border p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-5">

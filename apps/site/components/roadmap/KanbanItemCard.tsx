@@ -9,15 +9,13 @@ import { tagDotMap } from "./KanbanTagColor";
 const KanbanItemCard = ({
   item,
   showDescription,
-  showUrl,
   showRoadmapLinks,
 }: {
   item: KanbanItem;
   showDescription: boolean;
-  showUrl: boolean;
   showRoadmapLinks: boolean;
 }) => {
-  const isInteractive = (showUrl && item.url) || showRoadmapLinks;
+  const isInteractive = showRoadmapLinks;
 
   const cardContent = (
     <div
@@ -120,14 +118,6 @@ const KanbanItemCard = ({
   );
 
   if (showRoadmapLinks) return <Link href={`/roadmap/${item.id}`}>{cardContent}</Link>;
-
-  if (showUrl && item.url) {
-    return (
-      <a href={item.url} target="_blank" rel="noopener noreferrer">
-        {cardContent}
-      </a>
-    );
-  }
 
   return cardContent;
 };

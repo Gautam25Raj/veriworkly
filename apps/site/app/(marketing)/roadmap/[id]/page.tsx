@@ -7,7 +7,8 @@ import { notFound } from "next/navigation";
 
 import { siteConfig } from "@/config/site";
 import { jsonLdScriptProps } from "@/utils/json-ld";
-import { buildPageMetadata } from "@/utils/metadata";
+import { organizationRef, webSiteRef } from "@/utils/schema";
+import { buildPageMetadata, fitDescription, fitTitle } from "@/utils/metadata";
 import { Container, Badge } from "@veriworkly/ui";
 
 import {
@@ -23,9 +24,20 @@ interface RoadmapDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
+/**
+ * No prebuilt ids: items render on first request and are then cached per the fetch's
+ * revalidate window, instead of a fresh backend call on every visit.
+ */
+export function generateStaticParams() {
+  return [];
+}
+
 export async function generateMetadata({ params }: RoadmapDetailPageProps): Promise<Metadata> {
   const { id } = await params;
-  const item = await fetchRoadmapFeatureById(id).catch(() => null);
+
+  // `null` is a real 404. Anything else throws: swallowing it here emitted a noindex
+  // "not found" head for live items whenever the backend hiccupped (W-002).
+  const item = await fetchRoadmapFeatureById(id);
 
   if (!item) {
     return buildPageMetadata({
@@ -50,13 +62,14 @@ export async function generateMetadata({ params }: RoadmapDetailPageProps): Prom
     ogUrl.searchParams.set("showDesc", "false");
   }
 
-  const metadataDescription =
+  const metadataDescription = fitDescription(
     item.description ||
-    `Track progress, updates, and release details for ${item.title} in the VeriWorkly platform roadmap.`;
+      `Track progress, updates, and release details for ${item.title} in the VeriWorkly platform roadmap.`,
+  );
 
   return buildPageMetadata({
     path: `/roadmap/${id}`,
-    title: `${item.title} | Platform Roadmap`,
+    title: fitTitle(item.title, "VeriWorkly Roadmap"),
     description: metadataDescription,
     ogTitle: `${item.title} | VeriWorkly Roadmap`,
     ogDescription: metadataDescription,
@@ -128,8 +141,9 @@ const RoadmapDetailPage = async ({ params }: RoadmapDetailPageProps) => {
     url: itemUrl,
     datePublished: feature.createdAt,
     dateModified: feature.completedAt || feature.updatedAt,
-    author: { "@type": "Organization", name: "VeriWorkly", url: siteConfig.url },
-    publisher: { "@type": "Organization", name: "VeriWorkly", url: siteConfig.url },
+    author: organizationRef,
+    publisher: organizationRef,
+    isPartOf: webSiteRef,
     keywords: (feature.tags ?? []).join(", "),
     mainEntityOfPage: { "@type": "WebPage", "@id": itemUrl },
   };

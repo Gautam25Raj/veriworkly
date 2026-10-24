@@ -1,5 +1,3 @@
-"use client";
-
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowUp } from "lucide-react";
@@ -8,36 +6,32 @@ import { siteConfig } from "@/config/site";
 const AmbassadorFooter = () => {
   const currentYear = new Date().getFullYear();
 
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
   const columns = [
     {
       title: "Product",
       links: [
         { label: "Features", href: "/features" },
         { label: "Pricing", href: "/pricing" },
-        { label: "Integrations", href: "/integrations" },
+        { label: "Templates", href: "/templates" },
         { label: "Changelog", href: "/changelog" },
       ],
     },
     {
       title: "Resources",
       links: [
-        { label: "Documentation", href: "/docs" },
-        { label: "Tutorials", href: "/tutorials" },
-        { label: "Blog", href: "/blog" },
-        { label: "Support", href: "/support" },
+        { label: "Documentation", href: siteConfig.links.docs },
+        { label: "FAQ", href: "/faq" },
+        { label: "Blog", href: siteConfig.links.blog },
+        { label: "Support", href: "/contact" },
       ],
     },
     {
       title: "Company",
       links: [
         { label: "About", href: "/about" },
-        { label: "Careers", href: "/careers" },
+        { label: "Roadmap", href: "/roadmap" },
         { label: "Contact", href: "/contact" },
-        { label: "Partners", href: "/partners" },
+        { label: "Affiliate program", href: "/affiliate" },
       ],
     },
   ];
@@ -107,34 +101,15 @@ const AmbassadorFooter = () => {
                   <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
                 </svg>
               </a>
-              <a
-                href="https://instagram.com/veriworkly"
-                target="_blank"
-                rel="noreferrer"
-                className="text-zinc-400 transition-colors duration-200 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-white"
-                aria-label="Instagram"
-              >
-                <svg
-                  className="h-4 w-4 fill-none stroke-current"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  viewBox="0 0 24 24"
-                >
-                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-                  <path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z" />
-                  <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-                </svg>
-              </a>
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-8">
             {columns.map((col) => (
               <div key={col.title} className="space-y-4">
-                <h4 className="text-[10px] font-black tracking-wider text-zinc-950 uppercase dark:text-white">
+                <h3 className="text-[10px] font-black tracking-wider text-zinc-950 uppercase dark:text-white">
                   {col.title}
-                </h4>
+                </h3>
                 <ul className="space-y-2.5 font-medium text-zinc-500 dark:text-zinc-400">
                   {col.links.map((link) => (
                     <li key={link.label}>
@@ -184,13 +159,13 @@ const AmbassadorFooter = () => {
           </div>
 
           <div>
-            <button
-              onClick={scrollToTop}
+            <a
+              href="#top"
               className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full border border-zinc-200 bg-zinc-50 text-zinc-950 shadow-xs transition-all hover:border-zinc-900 active:scale-95 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:border-white"
               aria-label="Scroll to top"
             >
-              <ArrowUp className="h-4 w-4" />
-            </button>
+              <ArrowUp className="h-4 w-4" aria-hidden="true" />
+            </a>
           </div>
         </div>
       </div>

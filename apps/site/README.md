@@ -19,24 +19,25 @@ The public-facing marketing site for VeriWorkly ([veriworkly.com](https://veriwo
 3. **Start development server**:
 
    ```bash
+   # from the monorepo root
    npm run dev:site
-   # or from monorepo root:
-   npm run dev -w @veriworkly/site
+   # or from apps/site
+   npx next dev
    ```
 
 The site runs on `http://localhost:3000`. Sibling apps have fixed dev ports that `config/site.ts` hardcodes for local link resolution: Studio `3001`, Docs `3002`, Blog `3003`, Portfolio `3004`, and Server `8080`. If you change one, update `links` in `config/site.ts` too or cross-app navigation breaks in local dev.
 
 ## 🏗️ Architecture
 
-- **Next.js 16 (App Router)** - Marketing pages are statically prerendered (SSG/ISR). Dynamic server routes are limited to live data integrations: `/api/og` (edge image generator), `/stats` (live GitHub dev activity), `/roadmap` & `/changelog` (fetched live from the backend API), and `/ambassador/apply`. Pages like `/pricing` use ISR (12-hour revalidation) with static JSON-LD schemas and client-side checkout initiation.
+- **Next.js 16 (App Router)** - Marketing pages are prerendered. `/roadmap` and its three status pages prerender and revalidate weekly, and render per request if a roadmap column failed to load (`connection()`). Release pages (`/changelog/[id]`) and roadmap items prerender when the backend answers and render on demand when it does not; an outage never bakes a 404. `/changelog`, `/stats`, `/affiliate`, `/ambassador` (program flags are read per request) and `/ambassador/apply` render per request. `/api/og` is a Node.js route. `/pricing` revalidates every 12 hours.
 - **Tailwind CSS 4** - Styling via the shared design system in `@veriworkly/ui` (`transpilePackages`, plus `@source` in `globals.css` so the UI package's classes survive the content scan).
-- **Framer Motion** - Site-wide motion is wrapped in `<MotionConfig reducedMotion="user">` (`providers/motion-provider.tsx`). The CSS `prefers-reduced-motion` rule in `@veriworkly/ui/styles/globals.css` neutralizes CSS transitions; framer-motion drives inline transforms from JS and respects the user preference via this provider. **Any new animation must go through Framer Motion or CSS - never a raw `requestAnimationFrame` loop.**
-- **Strict CSP & Security Headers** - `next.config.ts` enforces a strict Content-Security-Policy. `connect-src` is an explicit allowlist (`'self'`, `NEXT_PUBLIC_BACKEND_URL`'s origin, `https://*.veriworkly.com`). Security headers also enforce HSTS, `nosniff`, `same-origin-allow-popups` (COOP), `same-site` (CORP), and frame restrictions. Any new third-party client-side API endpoint must be explicitly added to `connectSrc` in `next.config.ts`.
+- **Motion** - CSS first: entrances use `.hero-rise` and the scroll-driven `.reveal`, scroll-linked drift uses `.scroll-shift` (`animation-timeline: view()`), and the navbar is plain CSS. Framer is loaded only on the pages that still animate with it, each wrapped in `<MotionIsland>` (`providers/motion-island.tsx`: `LazyMotion` with `domAnimation`, `strict`, and `MotionConfig reducedMotion="user"`). Components use `m.*`, never `motion.*`; `tests/contracts/motion-islands.contract.test.ts` enforces both. A `requestAnimationFrame` loop must stop when there is nothing to move (see `components/ui/parallax-floating.tsx`).
+- **Strict CSP & Security Headers** - `next.config.ts` enforces a strict Content-Security-Policy. `connect-src` is an explicit allowlist (`'self'`, the origins of `NEXT_PUBLIC_BACKEND_URL` and `NEXT_PUBLIC_VITALS_URL`, `https://*.veriworkly.com`). Security headers also enforce HSTS, `nosniff`, `same-origin-allow-popups` (COOP), `same-site` (CORP), and frame restrictions. Any new third-party client-side API endpoint must be explicitly added to `connectSrc` in `next.config.ts`.
 
 ## 📄 What's on this site
 
 - **Landing & Product Pages**: `/` (homepage), `/features`, `/how-it-works`, `/pricing`, `/about`, `/contact`, and `/faq`.
-- **ATS Checker**: `/ats-checker` and `/ats-checker/scan` - in-browser ATS scoring, keyword density extraction, and document analysis.
+- **ATS Checker**: `/ats-checker` and `/ats-checker/scan` - the scan runs on the server (`POST /ats/check`, with `/ats/extract` for uploads); the `/ats-engine` page demos the open-source engine in the browser.
 - **Templates Gallery**: `/templates` and `/templates/[docType]/[templateId]` - showcase of ATS-optimized resume, cover letter, and portfolio layouts.
 - **Competitor Comparison**: `/compare` and `/compare/[tool]` - objective comparison pages with feature matrices against Rezi, Teal, Kickresume, Novoresume, Zety, and Enhancv (backed by `@/features/compare`).
 - **Brand Kit**: `/brand-kit` - brand assets, color token swatches, typography showcase, and downloadable `veriworkly-brand-kit.zip`.
@@ -47,11 +48,12 @@ The site runs on `http://localhost:3000`. Sibling apps have fixed dev ports that
 - **Legal & Security**: `/security` (responsible disclosure and data storage breakdown), `/privacy`, and `/terms`.
 - **Open Graph Generator**: `/api/og` - dynamic Open Graph card generator backing share cards across all pages.
 - **Machine-Readable / AI Search Layer**:
-  - `public/llms.txt` and `public/pricing.md` - structured Markdown for AI assistants and LLM crawlers.
-  - `public/.well-known/agent.json` - Web Agent Card / AEO discovery manifest.
+  - `public/llms.txt` (llmstxt.org link format) and `public/pricing.md`; `app/llms-full.txt/route.ts` serves llms.txt plus the FAQ, templates, comparisons and pricing.md as one static file. Both are linked from `<head>`.
+  - `public/.well-known/agent.json` - a VeriWorkly-specific discovery document (not an A2A AgentCard).
   - `public/.well-known/security.txt` - RFC 9116 security reporting contact.
   - `/openapi.json` - redirects to `https://docs.veriworkly.com/openapi.json`, the one generated copy of the backend API specification.
-  - `app/robots.ts` - explicit crawler allowlists (`GPTBot`, `ClaudeBot`, `PerplexityBot`, `Google-Extended`, etc.).
+  - `app/robots.ts` - every crawler may read the whole site. `next.config.ts` `htmlLimitedBots` adds the AI crawlers to Next's list, so they get `<title>` in `<head>` on streamed routes.
+  - `app/sitemap.ts` - static routes plus releases and roadmap items. At build with the backend down it lists static routes only; at runtime a failed fetch throws so ISR keeps the last good sitemap. Closed programs are left out.
 
 ## ✅ Content Accuracy Contract
 
@@ -65,7 +67,8 @@ This site makes pricing, quota, and capability claims that are also enforced in 
 ### Known Gotchas When Editing Copy
 
 - **The `one_day` billing interval is the 3-day Sprint Pass.** `billingService.ts` grants `addDays(eventTime, 3)`. Do not "fix" the label to 1 day; ensure provider billing periods match 3 days.
-- **"Unlimited" GitHub import is capped** at `PAID_GITHUB_IMPORT_DAILY_LIMIT` (50/day) to protect the shared server token. Never write "unlimited" without this qualifier.
+- **Paid GitHub import is capped** at `PAID_GITHUB_IMPORT_DAILY_LIMIT` (50/day) to protect the shared server token. Never write "unlimited" or "unmetered"; `claims-truth.contract.test.ts` fails on both.
+- **Payments are closed** (`PAYMENTS_BLOCKED` in `app/(marketing)/pricing/page.tsx`). `pricing.md` and `llms.txt` must say so while it is true; the claims test checks both directions.
 - **The free tier has zero AI writing credits.** Do not use "generate", "AI-tailored", or similar for free-tier copy. LinkedIn import is AI-parsed, so verify entitlements before describing features as free.
 - **Portfolio publishing is free on core templates, paid on premium ones.** Nimbus and Cipher require a subscription; Signal and Atelier publish free with a "Built with VeriWorkly" badge. Document exports (PDF/DOCX) never carry watermarks on any tier.
 - **AI model names are not hardcoded.** They resolve at runtime via `env:VAR` indirection (`apps/server/src/services/aiPrivateConfig.ts`). Prefer capability-based phrasing over specific model names that can become stale.
@@ -94,7 +97,9 @@ Target is **WCAG 2.2 Level AA**:
 - `hooks/`, `providers/`, `utils/`, `lib/` - Client hooks (`useMediaQuery`, `useFocusTrap`, etc.), theme/motion providers, JSON-LD schema helpers, metadata builders, and API fetch wrappers.
 - `scripts/`:
   - `check-design-tokens.mts` - Validates token consistency across `themes.css`, `brand.ts`, and `DESIGN.md`.
-  - `build-brand-kit.mts` - Generates the downloadable `veriworkly-brand-kit.zip` bundle.
+  - `build-brand-kit.mts` - Generates the downloadable `veriworkly-brand-kit.zip` bundle (`--check` compares instead of writing).
+  - `measure-js.mts` - gzipped initial JS per prerendered route.
+  - `lighthouse-mobile.mts` - Lighthouse mobile on the six audited pages; the Site Lighthouse workflow posts both tables on pull requests.
 - `tests/`:
   - `tests/contracts/` - Automated contract tests ensuring pricing claims, ATS quotas, changelog markdown parsing, and competitor data remain synchronized.
 - `public/` - Static images, logos, templates previews, and the machine-readable discovery layer (`llms.txt`, `pricing.md`, `.well-known/agent.json`, `.well-known/security.txt`, `openapi.json`).
@@ -104,8 +109,17 @@ Target is **WCAG 2.2 Level AA**:
 Run these commands to validate site integrity:
 
 ```bash
-# Contract testing (asserts marketing claims match backend catalogs and quotas)
+# Contract tests: claims vs server constants (prices, quotas, rates, import limit), false-claim
+# phrases, metadata lengths, links and redirects, llms.txt links, endpoint query keys vs server
+# schemas, build without the backend, motion islands, flags read per request
 npm run test:contracts
+
+# Initial JS per prerendered route (after next build) and Lighthouse mobile on six pages
+npx tsx scripts/measure-js.mts
+npm run lighthouse:mobile -- http://localhost:3100
+
+# Fail if public/brand/veriworkly-brand-kit.zip is stale (runs in CI)
+npm run check:brand-kit
 
 # Design token verification (themes.css, brand.ts, DESIGN.md)
 npm run check:design

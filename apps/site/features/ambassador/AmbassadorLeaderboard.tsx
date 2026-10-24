@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence } from "framer-motion";
 import { ChevronDown, Users, Video, FileText } from "lucide-react";
 
 type Ambassador = {
@@ -78,6 +78,9 @@ const AmbassadorLeaderboard = () => {
             return (
               <div key={leader.rank} className="border-b border-zinc-200 dark:border-white/10">
                 <button
+                  type="button"
+                  aria-expanded={isExpanded}
+                  aria-controls={`leader-${leader.rank}`}
                   onClick={() => setExpandedIndex(isExpanded ? null : leader.rank)}
                   className="group flex w-full cursor-pointer items-center justify-between rounded-lg px-4 py-6 text-left transition-colors duration-300 hover:bg-zinc-50 dark:hover:bg-white/2"
                 >
@@ -99,25 +102,26 @@ const AmbassadorLeaderboard = () => {
                   <div className="flex items-center gap-6">
                     <div className="text-right">
                       <span className="block font-mono text-base font-black text-zinc-950 dark:text-white">
-                        {leader.points.toLocaleString()}
+                        {leader.points.toLocaleString("en-US")}
                       </span>
                       <span className="mt-0.5 block text-[8px] font-black tracking-widest text-zinc-400 uppercase dark:text-zinc-500">
                         Points
                       </span>
                     </div>
-                    <motion.div
+                    <m.div
                       animate={{ rotate: isExpanded ? 180 : 0 }}
                       transition={{ duration: 0.2 }}
                       className="text-zinc-400 dark:text-zinc-500"
                     >
                       <ChevronDown className="h-4.5 w-4.5" />
-                    </motion.div>
+                    </m.div>
                   </div>
                 </button>
 
                 <AnimatePresence initial={false}>
                   {isExpanded && (
-                    <motion.div
+                    <m.div
+                      id={`leader-${leader.rank}`}
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: "auto", opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
@@ -150,7 +154,7 @@ const AmbassadorLeaderboard = () => {
                           </span>
                         </div>
                       </div>
-                    </motion.div>
+                    </m.div>
                   )}
                 </AnimatePresence>
               </div>

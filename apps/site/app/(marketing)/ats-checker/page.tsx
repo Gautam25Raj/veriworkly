@@ -2,20 +2,22 @@ import type { Metadata } from "next";
 
 import { siteConfig } from "@/config/site";
 import { jsonLdScriptProps } from "@/utils/json-ld";
+import { appRef, organizationRef } from "@/utils/schema";
 import { buildPageMetadata } from "@/utils/metadata";
 
+import { AtsHero } from "@/features/ats-checker/components/hero/AtsHero";
+import { AtsCheckerFaq } from "@/features/ats-checker/components/faq/AtsCheckerFaq";
+import { TierComparison } from "@/features/ats-checker/components/pricing/TierComparison";
+import { AtsDirectAnswer } from "@/features/ats-checker/components/guide/AtsDirectAnswer";
+import { AtsFailureTraps } from "@/features/ats-checker/components/traps/AtsFailureTraps";
+import { AtsCategoriesGrid } from "@/features/ats-checker/components/dimensions/AtsCategoriesGrid";
 import {
-  AtsHero,
-  AtsScoreFacts,
-  AtsCheckerFaq,
-  TierComparison,
-  AtsDirectAnswer,
-  AtsFailureTraps,
-  AtsCategoriesGrid,
   AtsPipelineSection,
-} from "@/features/ats-checker";
+  AtsScoreFacts,
+} from "@/features/ats-checker/components/pipeline/AtsPipelineSection";
 import { faqs } from "@/features/faq/data/faqItems";
 import { PageClosing } from "@/components/marketing/PageLayout";
+import { MotionIsland } from "@/providers/motion-island";
 
 export const revalidate = false;
 export const dynamic = "force-static";
@@ -32,7 +34,7 @@ export const metadata: Metadata = buildPageMetadata({
   path: "/ats-checker",
   title: `Free ATS Resume Checker: Score & Keyword Match | ${siteConfig.shortName}`,
   description:
-    "Scan your resume for parsing risks, missing evidence, and job-description keyword match: free, 0 account required. Full breakdown with a free account; AI analysis on paid plans.",
+    "Scan your resume for parsing risks, missing evidence and job-description keyword match. Free, no account required; the full breakdown with a free account.",
   ogTitle: "Free ATS Resume Checker: Score & Keyword Match",
   ogDescription:
     "The same rules-based scoring engine used inside VeriWorkly: check parsing, structure, evidence, and job match for free, with no account needed.",
@@ -76,7 +78,8 @@ export default function AtsCheckerPage() {
     applicationCategory: "BusinessApplication",
     operatingSystem: "Any (web-based)",
     url: pageUrl,
-    publisher: { "@id": `${siteConfig.url}/#organization` },
+    publisher: organizationRef,
+    isPartOf: appRef,
     isAccessibleForFree: true,
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
     featureList: [
@@ -134,7 +137,7 @@ export default function AtsCheckerPage() {
   };
 
   return (
-    <>
+    <MotionIsland>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={jsonLdScriptProps(softwareSchema)}
@@ -158,6 +161,6 @@ export default function AtsCheckerPage() {
         lede="Open the resume in the studio, apply the fixes the report ranked first, then scan it again."
         secondary={{ label: "Scan a resume", href: "/ats-checker/scan" }}
       />
-    </>
+    </MotionIsland>
   );
 }

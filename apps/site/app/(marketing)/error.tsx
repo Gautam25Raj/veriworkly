@@ -30,7 +30,12 @@ const MarketingError = ({
   const handleCopy = async () => {
     if (!error.digest) return;
 
-    await navigator.clipboard.writeText(error.digest);
+    try {
+      await navigator.clipboard.writeText(error.digest);
+    } catch {
+      // Clipboard refused; the reference stays on screen to copy by hand.
+      return;
+    }
 
     setCopied(true);
   };

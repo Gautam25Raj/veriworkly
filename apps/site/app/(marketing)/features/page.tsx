@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { siteConfig } from "@/config/site";
 
 import { jsonLdScriptProps } from "@/utils/json-ld";
+import { appRef, webSiteRef } from "@/utils/schema";
 import { buildPageMetadata } from "@/utils/metadata";
 
 import {
@@ -32,7 +33,7 @@ export const metadata: Metadata = buildPageMetadata({
 
   title: `Platform Features: AI Resumes, ATS & Portfolios | ${siteConfig.shortName}`,
   description:
-    "AI resume tailoring, an AI cover letter writer, a free ATS checker, GitHub and LinkedIn imports, multi-format exports, and web portfolio publishing, all private and local-first.",
+    "AI resume tailoring, an AI cover letter writer, a free ATS checker, GitHub and LinkedIn imports, six export formats and web portfolios, all local-first.",
 
   ogTitle: "Everything Inside the VeriWorkly Career Workspace",
   ogDescription:
@@ -72,6 +73,8 @@ const FeaturesPage = () => {
     "@type": "WebPage",
     name: "VeriWorkly Platform Features",
     url: pageUrl,
+    isPartOf: webSiteRef,
+    about: appRef,
     description:
       "Comprehensive feature breakdown including document studio, AI tailoring, ATS checker, GitHub/LinkedIn import, web portfolios, and local-first privacy.",
   };

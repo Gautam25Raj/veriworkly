@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { siteConfig } from "@/config/site";
 
 import { jsonLdScriptProps } from "@/utils/json-ld";
+import { webSiteRef } from "@/utils/schema";
 import { buildPageMetadata } from "@/utils/metadata";
 
 import { PageHero, PageClosing } from "@/components/marketing/PageLayout";
@@ -74,7 +75,7 @@ const termsTopics: LegalTopic[] = [
   {
     title: "Transparent pay-as-you-go",
     description:
-      "We do not lock document downloads behind recurring trial traps. AI credits are transparent pay-as-you-go and do not expire on active accounts.",
+      "We do not lock document downloads behind trials or recurring traps. AI credits are pay-as-you-go: subscription credits refresh each billing period, and one-time packs expire 90 days after purchase.",
   },
   {
     title: "Fair use on free tiers",
@@ -101,7 +102,7 @@ const TermsPage = () => {
     description: "Terms of Service and guidelines for VeriWorkly career workspace.",
     dateModified: termsLastUpdated,
     inLanguage: "en",
-    isPartOf: { "@type": "WebSite", name: siteConfig.name, url: siteConfig.url },
+    isPartOf: webSiteRef,
     about: {
       "@type": "Thing",
       name: "Terms of Service",

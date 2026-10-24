@@ -8,12 +8,12 @@ export const WORKFLOW_STEPS: WorkflowStepItem[] = [
     title: "Bring in your history.",
     subtitle: "GitHub and LinkedIn import, into one private Master Profile.",
     description:
-      "Your career record starts in your private Master Profile. Connect GitHub to import repositories, star counts and language breakdowns, or import your LinkedIn data archive in one step. No retyping.",
+      "Your career record starts in your private Master Profile. Connect GitHub to import repositories with their stars and primary language, or upload your LinkedIn profile PDF (or paste its text) and let the parser fill in titles, dates, degrees and skills. No retyping.",
     points: [
       {
         term: "GitHub",
         detail:
-          "Repositories, language percentages and demo links. No write, commit or SSH access.",
+          "Up to 30 recent repositories with stars and primary language, 15 mapped to projects. No write, commit or SSH access.",
       },
       {
         term: "LinkedIn",

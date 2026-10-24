@@ -29,7 +29,7 @@ export const COMPETITORS: Competitor[] = [
     knownLimitation:
       "The free plan locks you out after 3 PDF downloads. To keep applying, you have to buy the $29/month subscription or pay $149 upfront.",
     whySwitch:
-      "You get the same job-description ATS keyword matching, but with unlimited free downloads in PDF, Word, and Markdown, plus a free online portfolio.",
+      "You get the same job-description ATS keyword matching, but with unlimited free downloads in PDF, Word, and Markdown, plus a free portfolio builder (publishing opens at launch).",
     deepDive: [
       {
         title: "ATS keyword checks",

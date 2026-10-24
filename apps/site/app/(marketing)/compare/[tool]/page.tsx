@@ -3,22 +3,21 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 
-import {
-  COMPETITORS,
-  getCompetitor,
-  CompareClosing,
-  CompareHighlights,
-  CompareScoreboard,
-  CompareFAQSection,
-  FeatureMatrixTable,
-  ComparePricingSection,
-  CompareDeepDiveSection,
-} from "@/features/compare";
+import { COMPETITORS, getCompetitor } from "@/features/compare/data/competitors";
+import CompareClosing from "@/features/compare/components/shared/CompareClosing";
+import CompareHighlights from "@/features/compare/components/detail/CompareHighlights";
+import CompareScoreboard from "@/features/compare/components/shared/CompareScoreboard";
+import CompareFAQSection from "@/features/compare/components/shared/CompareFAQSection";
+import FeatureMatrixTable from "@/features/compare/components/shared/FeatureMatrixTable";
+import ComparePricingSection from "@/features/compare/components/detail/ComparePricingSection";
+import CompareDeepDiveSection from "@/features/compare/components/detail/CompareDeepDiveSection";
 
 import { siteConfig } from "@/config/site";
 
 import { jsonLdScriptProps } from "@/utils/json-ld";
+import { appRef, webSiteRef } from "@/utils/schema";
 import { buildPageMetadata } from "@/utils/metadata";
+import { compareDescription, compareTitle } from "@/features/compare/data/metadata";
 
 import { LandingButton } from "@/components/marketing/LandingButton";
 import { PageHero, PageSection } from "@/components/marketing/PageLayout";
@@ -63,8 +62,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return buildPageMetadata({
     path: `/compare/${competitor.id}`,
 
-    title: `VeriWorkly vs ${competitor.name}: Features, Pricing & ATS Compared | ${siteConfig.shortName}`,
-    description: `Honest side-by-side comparison of VeriWorkly vs ${competitor.name}. Compare ATS keyword scoring, download limits, pricing models, and account requirements. ${competitor.positioning}`,
+    title: compareTitle(competitor.name),
+    description: compareDescription(competitor.name),
 
     ogTitle: `VeriWorkly vs ${competitor.name}: Features & Pricing Compared`,
     ogDescription: competitor.verdict,
@@ -118,17 +117,8 @@ const CompareToolPage = async ({ params }: PageProps) => {
     name: `VeriWorkly vs ${competitor.name} Comparison`,
     description: competitor.verdict,
     url: pageUrl,
-    mainEntity: {
-      "@type": "SoftwareApplication",
-      name: "VeriWorkly Career Workspace",
-      applicationCategory: "BusinessApplication",
-      operatingSystem: "Web Browser",
-      offers: {
-        "@type": "Offer",
-        price: "0",
-        priceCurrency: "USD",
-      },
-    },
+    isPartOf: webSiteRef,
+    mainEntity: appRef,
   };
 
   const faqSchema =

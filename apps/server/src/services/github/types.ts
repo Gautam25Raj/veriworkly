@@ -1,20 +1,38 @@
-import type { prisma } from "#lib/prisma";
-
 export type GitHubStatus = "todo" | "in-progress" | "done";
 export type GitHubItemKind = "issue" | "pull-request";
+
+/** A Prisma DateTime filter: `gte` from, and `lte` (a datetime) or `lt` (the day after a date). */
+export type GitHubDateRange = { gte?: Date; lte?: Date; lt?: Date };
 
 export type GitHubIssuesQuery = {
   status?: GitHubStatus;
   kind?: GitHubItemKind | "all";
+  createdAt?: GitHubDateRange;
+  updatedAt?: GitHubDateRange;
   limit: number;
   offset: number;
 };
 
+/** The public shape of a board item: no sync bookkeeping (syncId, githubId, insertedAt). */
+export interface GitHubIssueItem {
+  id: string;
+  number: number;
+  title: string;
+  status: string;
+  kind: string;
+  url: string;
+  labels: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export type GitHubIssuesResult = {
-  items: Awaited<ReturnType<typeof prisma.gitHubSyncItem.findMany>>;
+  items: GitHubIssueItem[];
   total: number;
   limit: number;
   offset: number;
+  /** When the board was last synced from GitHub; null before the first sync. */
+  syncedAt: Date | null;
 };
 
 export interface GitHubIssuePayload {

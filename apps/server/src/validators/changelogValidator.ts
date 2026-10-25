@@ -1,14 +1,25 @@
 import { z } from "zod";
 
-export const changelogQuerySchema = z.object({
-  type: z.enum(["major", "minor", "patch"]).optional(),
-  tag: z.string().trim().min(1).optional(),
-  search: z.string().trim().min(1).max(120).optional(),
-  page: z.coerce.number().int().min(1).optional(),
-  pageSize: z.coerce.number().int().min(1).max(50).optional(),
-  limit: z.coerce.number().int().min(1).max(50).optional(),
-  offset: z.coerce.number().int().min(0).optional(),
-});
+import {
+  notBothPageAndOffset,
+  notBothPageAndOffsetError,
+  publicOffsetParam,
+  publicPageParam,
+} from "#utils/pagination";
+
+// Strict: an unknown key (a typo, a filter this route does not have) is a 400, not ignored.
+export const changelogQuerySchema = z
+  .object({
+    type: z.enum(["major", "minor", "patch"]).optional(),
+    tag: z.string().trim().min(1).max(60).optional(),
+    search: z.string().trim().min(1).max(120).optional(),
+    page: publicPageParam,
+    pageSize: z.coerce.number().int().min(1).max(50).optional(),
+    limit: z.coerce.number().int().min(1).max(50).optional(),
+    offset: publicOffsetParam,
+  })
+  .strict()
+  .refine(notBothPageAndOffset, notBothPageAndOffsetError);
 
 const prRefAuthorSchema = z.object({
   login: z.string().trim().min(1),
@@ -29,7 +40,7 @@ const prRefsSchema = z
   .optional();
 
 export const changelogAdminCreateSchema = z.object({
-  id: z.string().trim().min(1).optional(),
+  id: z.string().trim().min(1).max(64).optional(),
   version: z.string().trim().min(1),
   title: z.string().trim().min(1),
   summary: z.string().trim().nullable().optional(),

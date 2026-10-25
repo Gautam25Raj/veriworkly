@@ -2,6 +2,7 @@ export type {
   GitHubStatus,
   GitHubItemKind,
   GitHubIssuesQuery,
+  GitHubDateRange,
   GitHubIssuesResult,
   GitHubIssuePayload,
   GitHubItemSnapshot,

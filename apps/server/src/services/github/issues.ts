@@ -1,11 +1,15 @@
+import cron from "node-cron";
 import { v4 as uuidv4 } from "uuid";
 import type { Prisma } from "@prisma/client";
 import { config } from "#config";
+import type { GitHubStatsResponse } from "#types/api";
 
 import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
 import { cacheDel, cacheDelByPrefix, cacheGet, cacheSet, getRedis } from "#lib/redis";
 import { logger } from "#lib/logger";
+
+import { MAX_CACHED_OFFSET } from "#utils/pagination";
 
 import { fetchGitHubApi } from "./client.js";
 import type {
@@ -29,6 +33,26 @@ const RELEASE_LOCK_LUA_SCRIPT = `
       return 0
   end
 `;
+
+/**
+ * When the cron (`GITHUB_SYNC_CRON` in `GITHUB_SYNC_TIMEZONE`) next fires, so `nextSyncAt` on
+ * `/github/stats` matches the real schedule. An unstarted task computes it and is destroyed.
+ * Falls back to +12 h if the expression cannot be read.
+ */
+function nextScheduledSyncAt(): Date {
+  try {
+    const task = cron.createTask(config.github.syncCron, () => undefined, {
+      timezone: config.github.syncTimezone,
+    });
+    const [next] = task.getNextRuns(1);
+    void task.destroy();
+    if (next) return next;
+  } catch (error) {
+    logger.warn("Could not compute the next GitHub sync time from GITHUB_SYNC_CRON", error);
+  }
+
+  return new Date(Date.now() + 12 * 60 * 60 * 1000);
+}
 
 /**
  * Map GitHub issue to internal status.
@@ -117,8 +141,8 @@ export async function fetchAllGitHubIssues(
 /**
  * Fetch cached GitHub project stats or load from DB.
  */
-export async function getGitHubStats() {
-  const cached = await cacheGet(REDIS_STATS_KEY);
+export async function getGitHubStats(): Promise<GitHubStatsResponse | null> {
+  const cached = await cacheGet<GitHubStatsResponse>(REDIS_STATS_KEY);
 
   if (cached) return cached;
 
@@ -128,9 +152,11 @@ export async function getGitHubStats() {
 
   if (!latest) return null;
 
-  const response = {
+  const response: GitHubStatsResponse = {
     projectName: latest.projectName,
+    projectUrl: latest.projectUrl,
     stats: {
+      totalItems: latest.issueCount,
       total: latest.issueCount,
       issues: latest.onlyIssueCount,
       pullRequests: latest.prCount,
@@ -143,6 +169,7 @@ export async function getGitHubStats() {
           : ((latest.doneCount / latest.issueCount) * 100).toFixed(2),
     },
     syncedAt: latest.syncedAt,
+    nextSyncAt: latest.nextSyncAt,
   };
 
   await cacheSet(REDIS_STATS_KEY, response, STATS_CACHE_TTL);
@@ -170,15 +197,18 @@ export async function getGitHubIssues(query: GitHubIssuesQuery): Promise<GitHubI
 
   sortedQuery.sort();
 
-  const queryKey = `${ISSUES_CACHE_PREFIX}${sortedQuery.toString()}`;
+  // Date-filtered and deep-offset queries are not cached: each distinct value would be its own
+  // Redis key, a key space any caller can grow (V-061).
+  const cacheable = !query.createdAt && !query.updatedAt && query.offset <= MAX_CACHED_OFFSET;
+  const queryKey = cacheable ? `${ISSUES_CACHE_PREFIX}${sortedQuery.toString()}` : null;
 
-  const cached = await cacheGet<GitHubIssuesResult>(queryKey);
+  const cached = queryKey ? await cacheGet<GitHubIssuesResult>(queryKey) : null;
 
   if (cached) return cached;
 
   const sync = await prisma.gitHubSync.findUnique({
     where: { projectUrl: PROJECT_URL },
-    select: { id: true },
+    select: { id: true, syncedAt: true },
   });
 
   if (!sync) {
@@ -187,36 +217,51 @@ export async function getGitHubIssues(query: GitHubIssuesQuery): Promise<GitHubI
       total: 0,
       limit: query.limit,
       offset: query.offset,
+      syncedAt: null,
     };
 
-    await cacheSet(queryKey, emptyResult, ISSUES_CACHE_TTL);
+    if (queryKey) await cacheSet(queryKey, emptyResult, ISSUES_CACHE_TTL);
 
     return emptyResult;
   }
 
-  const where: {
-    syncId: string;
-    status?: GitHubStatus;
-    kind?: GitHubIssuesQuery["kind"];
-  } = {
-    syncId: sync.id,
-  };
+  const where: Prisma.GitHubSyncItemWhereInput = { syncId: sync.id };
 
   if (query.status) where.status = query.status;
   if (query.kind && query.kind !== "all") where.kind = query.kind;
+  if (query.createdAt) where.createdAt = query.createdAt;
+  if (query.updatedAt) where.updatedAt = query.updatedAt;
 
   const [total, items] = await Promise.all([
     prisma.gitHubSyncItem.count({ where }),
     prisma.gitHubSyncItem.findMany({
       where,
-      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        number: true,
+        title: true,
+        status: true,
+        kind: true,
+        url: true,
+        labels: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      // id breaks updatedAt ties so offset pages neither repeat nor skip an item (V-062).
+      orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
       skip: query.offset || 0,
       take: query.limit || 20,
     }),
   ]);
 
-  const result: GitHubIssuesResult = { items, total, limit: query.limit, offset: query.offset };
-  await cacheSet(queryKey, result, ISSUES_CACHE_TTL);
+  const result: GitHubIssuesResult = {
+    items,
+    total,
+    limit: query.limit,
+    offset: query.offset,
+    syncedAt: sync.syncedAt,
+  };
+  if (queryKey) await cacheSet(queryKey, result, ISSUES_CACHE_TTL);
 
   return result;
 }
@@ -237,10 +282,20 @@ export async function shouldSyncGitHubStats(): Promise<boolean> {
   return Date.now() - new Date(latest.syncedAt).getTime() >= TWELVE_HOURS_MS;
 }
 
+/** Owner and repo are what the issue sync cannot run without (V-058). */
+export function isGitHubIssueSyncConfigured(): boolean {
+  return Boolean(config.github.owner && config.github.repo);
+}
+
 /**
  * Sync GitHub issues from GitHub API into DB and refresh caches.
  */
 export async function syncGitHubStatsFromGitHub(forceFullSync = false) {
+  // Without these the request is repos///issues, a 404 on every run.
+  if (!isGitHubIssueSyncConfigured()) {
+    throw new ApiError(503, "GitHub sync is not configured (GITHUB_OWNER/GITHUB_REPO)");
+  }
+
   const redis = getRedis();
   const lockKey = "github:sync:lock";
   const lockValue = uuidv4();
@@ -271,7 +326,7 @@ export async function syncGitHubStatsFromGitHub(forceFullSync = false) {
     if (rawIssues.length === 0 && existingSync) {
       const updatedSync = await prisma.gitHubSync.update({
         where: { id: existingSync.id },
-        data: { syncedAt: new Date(), nextSyncAt: new Date(Date.now() + 43200000) },
+        data: { syncedAt: new Date(), nextSyncAt: nextScheduledSyncAt() },
       });
 
       await cacheDel(REDIS_STATS_KEY);
@@ -293,11 +348,11 @@ export async function syncGitHubStatsFromGitHub(forceFullSync = false) {
             inProgressCount: 0,
             doneCount: 0,
             data: { lastSyncedBy: "System" },
-            nextSyncAt: new Date(Date.now() + 43200000),
+            nextSyncAt: nextScheduledSyncAt(),
           },
           update: {
             syncedAt: new Date(),
-            nextSyncAt: new Date(Date.now() + 43200000),
+            nextSyncAt: nextScheduledSyncAt(),
           },
         });
 

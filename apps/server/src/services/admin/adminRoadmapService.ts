@@ -13,16 +13,17 @@ interface RoadmapAdminCreateInput {
   title: string;
   description: string;
   status: RoadmapStatus;
-  eta?: string;
+  eta?: string | null;
   tags?: string[];
   fullDescription?: string | null;
   whyItMatters?: string | null;
   timeline?: string | null;
   createdAt?: Date;
-  startedAt?: Date;
+  startedAt?: Date | null;
   updatedAt?: Date;
-  completedAt?: Date;
-  completedQuarter?: string;
+  completedAt?: Date | null;
+  /** Kept for a done item when non-empty; otherwise derived (done) or cleared (not done). */
+  completedQuarter?: string | null;
   details?: unknown;
 }
 
@@ -30,7 +31,8 @@ interface RoadmapAdminUpdateInput {
   title?: string;
   description?: string;
   status?: RoadmapStatus;
-  eta?: string | undefined;
+  /** null clears the ETA; undefined leaves it alone. */
+  eta?: string | null;
   tags?: string[];
   fullDescription?: string | null;
   whyItMatters?: string | null;
@@ -41,9 +43,10 @@ interface RoadmapAdminUpdateInput {
   details?: unknown | null;
 }
 
+// UTC, so a completion late on the last day of a quarter is not filed by the server's time zone.
 function calculateQuarter(date: Date): string {
-  const month = date.getMonth();
-  const year = date.getFullYear();
+  const month = date.getUTCMonth();
+  const year = date.getUTCFullYear();
 
   const quarter = Math.floor(month / 3) + 1;
 
@@ -65,6 +68,7 @@ function resolveStatusTimestamps(
   status: RoadmapStatus,
   currentStartedAt?: Date | null,
   currentCompletedAt?: Date | null,
+  requestedQuarter?: string | null,
 ) {
   let startedAt = currentStartedAt;
   let completedAt = currentCompletedAt;
@@ -82,7 +86,9 @@ function resolveStatusTimestamps(
     case "done":
       startedAt = startedAt || new Date();
       completedAt = completedAt || new Date();
-      completedQuarter = calculateQuarter(completedAt);
+      // The studio's quarter field is the admin's call (V-083). It always sends the field, as
+      // null when blank, so only a non-empty quarter overrides the one derived from completedAt.
+      completedQuarter = requestedQuarter?.trim() || calculateQuarter(completedAt);
       break;
   }
 
@@ -94,6 +100,7 @@ export async function createRoadmapFeature(input: RoadmapAdminCreateInput) {
     input.status,
     input.startedAt,
     input.completedAt,
+    input.completedQuarter,
   );
 
   const feature = await prisma.roadmapFeature.create({
@@ -136,6 +143,7 @@ export async function updateRoadmapFeature(id: string, input: RoadmapAdminUpdate
     targetStatus as RoadmapStatus,
     input.startedAt !== undefined ? input.startedAt : existing.startedAt,
     input.completedAt !== undefined ? input.completedAt : existing.completedAt,
+    input.completedQuarter,
   );
 
   const feature = await prisma.roadmapFeature.update({

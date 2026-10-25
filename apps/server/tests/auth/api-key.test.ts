@@ -60,11 +60,6 @@ describe("API Key Service Validation", () => {
         id: "user-1",
         email: "user@example.com",
         name: "Test User",
-        subscriptions: [
-          {
-            status: "ACTIVE",
-          },
-        ],
       },
     });
 
@@ -75,7 +70,9 @@ describe("API Key Service Validation", () => {
     expect(result?.userId).toBe("user-1");
   });
 
-  it("rejects validation if user subscription status is CANCELED", async () => {
+  // V-140: key validity depends on the key row only. A past subscriber must keep the API access a
+  // never-paid user (no subscription row) always had.
+  it("permits validation when the user's latest subscription row is CANCELED", async () => {
     cacheGetMock.mockResolvedValue(null);
     prismaFindMock.mockResolvedValue({
       id: "key-2",
@@ -96,17 +93,29 @@ describe("API Key Service Validation", () => {
         id: "user-2",
         email: "user-canceled@example.com",
         name: "Canceled User",
-        subscriptions: [
-          {
-            status: "CANCELED",
-          },
-        ],
       },
     });
 
     const { ApiKeyService } = await import("../../src/services/apiKeyService");
     const result = await ApiKeyService.validateKey("vw_2234567890");
 
+    expect(result).not.toBeNull();
+    expect(result?.userId).toBe("user-2");
+
+    // The lookup no longer joins subscription rows at all, so there is nothing to gate on.
+    expect(JSON.stringify(prismaFindMock.mock.calls[0][0])).not.toContain("subscriptions");
+  });
+
+  it("refuses a key that carries the revoked marker before touching the cache or the database", async () => {
+    // Marker read first, then (never reached) the auth cache.
+    cacheGetMock.mockResolvedValueOnce(1);
+
+    const { ApiKeyService } = await import("../../src/services/apiKeyService");
+    const result = await ApiKeyService.validateKey("vw_3234567890");
+
     expect(result).toBeNull();
+    expect(cacheGetMock).toHaveBeenCalledTimes(1);
+    expect(cacheGetMock.mock.calls[0][0]).toMatch(/^apikey:revoked:/);
+    expect(prismaFindMock).not.toHaveBeenCalled();
   });
 });

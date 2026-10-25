@@ -40,7 +40,6 @@ type ApiKeyAuthUser = {
   id: string;
   email: string | null;
   name: string | null;
-  subscriptions: { status: string }[];
 };
 
 type ApiKeyAuthRecord = {
@@ -167,6 +166,41 @@ async function invalidateAuthCache(keyHash: string) {
   }
 }
 
+/**
+ * V-122 (API-key half). Deleting `apikey:auth:{hash}` is not enough on its own: a validateKey()
+ * that read the row from Postgres just before the revoke committed can SETEX the old, active
+ * record after our DEL and keep the key alive for the full auth-cache TTL. A short-lived negative
+ * marker, written before the DEL and checked first by validateKey(), closes that window: it
+ * outlives any stale positive entry that raced it (the stale SETEX's own TTL is the same length
+ * and started no later than the marker plus a few ms of slack). Only terminal transitions
+ * (revoke, rotate, delete) write it; plain cache invalidation (`invalidateAuthCacheForUser`) must
+ * not, or a billing event would lock every key for the marker's lifetime.
+ */
+const REVOKED_MARKER_TTL_SECONDS = AUTH_CACHE_TTL_SECONDS + 30;
+
+function revokedMarkerKey(keyHash: string) {
+  return `apikey:revoked:${keyHash}`;
+}
+
+async function markKeyRevoked(keyHash: string) {
+  try {
+    await cacheSet(revokedMarkerKey(keyHash), 1, REVOKED_MARKER_TTL_SECONDS);
+  } catch (error) {
+    logger.warn("Failed to write API key revoked marker", error);
+  }
+
+  await invalidateAuthCache(keyHash);
+}
+
+async function isKeyMarkedRevoked(keyHash: string) {
+  try {
+    return (await cacheGet<number>(revokedMarkerKey(keyHash))) != null;
+  } catch (error) {
+    logger.warn("Failed to read API key revoked marker", error);
+    return false;
+  }
+}
+
 async function invalidateProfileCache(userId: string) {
   await cacheDel(userProfileCacheKey(userId));
 }
@@ -237,21 +271,17 @@ export class ApiKeyService {
     const normalizedKey = normalizeKeyForHash(key);
     const keyHash = hashKey(normalizedKey);
 
+    // A key is valid iff `isActive && !revokedAt && (expiresAt == null || expiresAt > now)`.
+    // Nothing about the user's billing state takes part (V-140): the old check rejected a key
+    // when the user's most recently *updated* subscription row was CANCELED/INACTIVE, which
+    // locked out every past subscriber (and anyone with a newer cancelled row for a different
+    // product, or a `past_due`/`paused` row) while never-paid users, who have no row at all,
+    // passed. Product-level gating, if ever wanted, belongs on entitlements, not here.
+    if (await isKeyMarkedRevoked(keyHash)) return null;
+
     const cached = await getAuthCache(keyHash);
 
     if (cached && cached.isActive && !isExpired(cached.expiresAt) && !cached.revokedAt) {
-      const userSubscription = cached.user.subscriptions?.[0];
-
-      if (
-        userSubscription &&
-        (userSubscription.status === "CANCELED" || userSubscription.status === "INACTIVE")
-      ) {
-        logger.warn(
-          `API key validation rejected: User account ${cached.userId} subscription status is ${userSubscription.status}`,
-        );
-        return null;
-      }
-
       void this.touchLastUsed(cached.id);
 
       return cached;
@@ -270,28 +300,12 @@ export class ApiKeyService {
             id: true,
             email: true,
             name: true,
-            subscriptions: {
-              orderBy: { updatedAt: "desc" },
-              take: 1,
-              select: { status: true },
-            },
           },
         },
       },
     });
 
     if (!apiKey) {
-      return null;
-    }
-
-    const userSubscription = apiKey.user.subscriptions?.[0];
-    if (
-      userSubscription &&
-      (userSubscription.status === "CANCELED" || userSubscription.status === "INACTIVE")
-    ) {
-      logger.warn(
-        `API key validation rejected: User account ${apiKey.userId} subscription status is ${userSubscription.status}`,
-      );
       return null;
     }
 
@@ -314,7 +328,6 @@ export class ApiKeyService {
         id: apiKey.user.id,
         email: apiKey.user.email,
         name: apiKey.user.name,
-        subscriptions: apiKey.user.subscriptions.map((sub) => ({ status: sub.status })),
       },
     };
 
@@ -400,15 +413,25 @@ export class ApiKeyService {
   static async revokeKey(userId: string, keyId: string) {
     const existing = await prisma.apiKey.findFirst({
       where: { id: keyId, userId },
-      select: { id: true, keyHash: true },
+      select: { id: true, keyHash: true, revokedAt: true },
     });
 
     if (!existing) return 0;
 
-    const result = await prisma.apiKey.updateMany({
+    // Revoking is terminal and idempotent: a key that is already revoked (by the user, by a
+    // rotate that retired it, or by a racing second click) keeps its original `revokedAt` and
+    // the call still succeeds.
+    if (existing.revokedAt) return 1;
+
+    // Marker first, DB second. A crash in between fails closed for the marker's lifetime; the
+    // other order would leave a revoked key authenticating from the cache for the full TTL.
+    await markKeyRevoked(existing.keyHash);
+
+    await prisma.apiKey.updateMany({
       where: {
         id: keyId,
         userId,
+        revokedAt: null,
       },
       data: {
         isActive: false,
@@ -416,10 +439,9 @@ export class ApiKeyService {
       },
     });
 
-    await invalidateAuthCache(existing.keyHash);
     await invalidateProfileCache(userId);
 
-    return result.count;
+    return 1;
   }
 
   static async rotateKey(
@@ -427,36 +449,56 @@ export class ApiKeyService {
     keyId: string,
     input: Partial<ApiKeyCreateInput> = {},
   ): Promise<ApiKeyRotateResult | null> {
-    const current = await prisma.apiKey.findFirst({
-      where: { id: keyId, userId, isActive: true, revokedAt: null },
-      select: {
-        id: true,
-        keyHash: true,
-        name: true,
-        scopes: true,
-        rateLimit: true,
-        expiresAt: true,
-      },
-    });
-
-    if (!current) {
-      return null;
-    }
-
     const rawKey = generateRawKey();
     const hashedKey = hashKey(rawKey);
 
-    const scopes = normalizeScopes(input.scopes ?? current.scopes);
-    const expiresAt = getExpiryDate(input.expiresAt ?? current.expiresAt ?? null);
-
+    // V-123: the whole precondition → retire → create sequence runs in one transaction, and the
+    // retire step is a conditional updateMany whose count is the only thing that decides whether
+    // this call owns the rotation. Two concurrent rotates (double-click) or a rotate racing a
+    // revoke both contend on that row; the second to commit sees count 0 and rolls back, so the
+    // user never ends up with two live keys or a live key they just revoked.
     const rotated = await prisma.$transaction(async (tx) => {
-      await tx.apiKey.update({
-        where: { id: current.id },
+      const current = await tx.apiKey.findFirst({
+        where: { id: keyId, userId },
+        select: {
+          id: true,
+          keyHash: true,
+          name: true,
+          scopes: true,
+          rateLimit: true,
+          expiresAt: true,
+          isActive: true,
+          revokedAt: true,
+        },
+      });
+
+      if (!current) return null;
+
+      if (!current.isActive || current.revokedAt) {
+        throw new ApiError(409, "Key is no longer active");
+      }
+
+      // V-051: an expired key is not rotated (the copy would inherit a past date and fail on
+      // first use); the user creates a fresh key instead. Past this check `current.expiresAt` is
+      // null or in the future, so copying it is safe.
+      if (isExpired(current.expiresAt)) {
+        throw new ApiError(409, "Key has expired, create a new one");
+      }
+
+      const scopes = normalizeScopes(input.scopes ?? current.scopes);
+      const expiresAt = getExpiryDate(input.expiresAt ?? current.expiresAt ?? null);
+
+      const retired = await tx.apiKey.updateMany({
+        where: { id: current.id, userId, isActive: true, revokedAt: null },
         data: {
           isActive: false,
           revokedAt: new Date(),
         },
       });
+
+      if (retired.count !== 1) {
+        throw new ApiError(409, "Key is no longer active");
+      }
 
       const created = await tx.apiKey.create({
         data: {
@@ -486,21 +528,27 @@ export class ApiKeyService {
         },
       });
 
-      return created;
+      return { created, previousId: current.id, previousKeyHash: current.keyHash };
     });
 
-    await invalidateAuthCache(current.keyHash);
+    if (!rotated) {
+      return null;
+    }
+
+    // After commit only: a marker written before the rollback of a lost race would lock a key
+    // that is still live.
+    await markKeyRevoked(rotated.previousKeyHash);
     await invalidateProfileCache(userId);
 
-    return { ...rotated, key: rawKey, rotatedFromId: current.id };
+    return { ...rotated.created, key: rawKey, rotatedFromId: rotated.previousId };
   }
 
   /**
-   * Invalidate every cached auth record for a user's API keys. Must be called
-   * whenever entitlement-affecting state outside the key itself changes —
-   * e.g. subscription status flips via the billing webhook — since
-   * validateKey() caches the subscription snapshot for up to
-   * authCacheTtlSeconds and nothing else expires it early.
+   * Drop every cached auth record for a user's API keys (account deletion, admin edits to a
+   * key, billing callers that predate V-140). Key validity no longer depends on anything
+   * outside the key row, so this is a plain cache drop: it deliberately does NOT write the
+   * revoked marker, which would lock every live key for its lifetime. Must be called while the
+   * key rows still exist, since the hashes are read from them.
    */
   static async invalidateAuthCacheForUser(userId: string) {
     const keys = await prisma.apiKey.findMany({
@@ -509,6 +557,23 @@ export class ApiKeyService {
     });
 
     await Promise.all(keys.map((key) => invalidateAuthCache(key.keyHash)));
+  }
+
+  /**
+   * Terminal cache invalidation for a key the caller identifies by id only (the admin module,
+   * which must never see `keyHash`): writes the revoked marker and drops the auth entry, so an
+   * admin revoke/disable stops the key at once instead of racing the cache repopulation
+   * (V-122). Call it before the row is updated or deleted; no-op when the id is unknown.
+   */
+  static async markRevokedById(keyId: string) {
+    const existing = await prisma.apiKey.findUnique({
+      where: { id: keyId },
+      select: { keyHash: true },
+    });
+
+    if (!existing) return;
+
+    await markKeyRevoked(existing.keyHash);
   }
 
   static async deleteKey(userId: string, keyId: string) {
@@ -521,6 +586,9 @@ export class ApiKeyService {
       return 0;
     }
 
+    // Marker before the row goes away (same reasoning as revokeKey).
+    await markKeyRevoked(existing.keyHash);
+
     const deleted = await prisma.apiKey.deleteMany({
       where: {
         id: keyId,
@@ -528,7 +596,6 @@ export class ApiKeyService {
       },
     });
 
-    await invalidateAuthCache(existing.keyHash);
     await invalidateProfileCache(userId);
 
     return deleted.count;

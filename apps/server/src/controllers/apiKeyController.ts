@@ -4,6 +4,8 @@ import { requireAuthUser } from "#middleware/auth";
 
 import { ApiKeyService, ALLOWED_SCOPES } from "#services/apiKeyService";
 
+import { apiKeyCreateSchema, apiKeyRotateSchema } from "#validators/apiKeyValidator";
+
 import { logger } from "#lib/logger";
 import { ApiError, createSuccessResponse, createErrorResponse } from "#lib/errors";
 import { parseOffsetPagination, createOffsetPaginationMeta } from "#utils/pagination";
@@ -43,22 +45,6 @@ function parseRateLimit(value: unknown) {
   }
 
   return limit;
-}
-
-/**
- * Internal helper to parse and validate expiry dates.
- */
-
-function parseExpiresAt(value: unknown) {
-  if (!value) return undefined;
-
-  const parsed = new Date(String(value));
-
-  if (Number.isNaN(parsed.getTime())) {
-    throw new ApiError(400, "expiresAt must be a valid ISO date string");
-  }
-
-  return parsed;
 }
 
 export class ApiKeyController {
@@ -117,15 +103,14 @@ export class ApiKeyController {
     try {
       const userId = requireAuthUser(req).id;
 
-      const { name, scopes, rateLimit, expiresAt } = req.body;
-
-      if (!name) return res.status(400).json(createErrorResponse(400, "Key name is required"));
+      const { name, expiresAt } = apiKeyCreateSchema.parse(req.body ?? {});
+      const { scopes, rateLimit } = req.body ?? {};
 
       const apiKey = await ApiKeyService.generateKey(userId, {
         name,
         scopes: parseScopes(scopes),
         rateLimit: parseRateLimit(rateLimit),
-        expiresAt: parseExpiresAt(expiresAt),
+        expiresAt,
       });
 
       res
@@ -151,17 +136,19 @@ export class ApiKeyController {
       const userId = requireAuthUser(req).id;
 
       const { id } = req.params;
-      const { name, scopes, rateLimit, expiresAt } = req.body;
+      const { name, expiresAt } = apiKeyRotateSchema.parse(req.body ?? {});
+      const { scopes, rateLimit } = req.body ?? {};
 
+      // Service answers 409 (ApiError) for a key that is revoked, already rotated or expired;
+      // null only when no key with this id belongs to the user.
       const rotated = await ApiKeyService.rotateKey(userId, id, {
         name,
         scopes: parseScopes(scopes),
         rateLimit: parseRateLimit(rateLimit),
-        expiresAt: parseExpiresAt(expiresAt),
+        expiresAt,
       });
 
-      if (!rotated)
-        return res.status(404).json(createErrorResponse(404, "API key not found or inactive"));
+      if (!rotated) return res.status(404).json(createErrorResponse(404, "API key not found"));
 
       res
         .status(201)

@@ -3,11 +3,12 @@ import { Request, Response, NextFunction, RequestHandler } from "express";
 import { config, isDevelopment } from "#config";
 
 import { apiKeyAuth } from "#middleware/apiKeyAuth";
-import { getSessionUserFromRequest } from "#middleware/auth";
+import { AUTH_UNAVAILABLE_MESSAGE, getSessionUserFromRequest } from "#middleware/auth";
 import { apiKeyRateLimit } from "#middleware/apiKeyRateLimit";
 import { isWildcardPortfolioOrigin } from "#middleware/cors";
 
 import { logger } from "#lib/logger";
+import { createErrorResponse } from "#lib/errors";
 import { getRequestIpDetails } from "#utils/requestIp";
 
 interface FlexibleAuthOptions {
@@ -108,18 +109,15 @@ async function handleFlexibleAuth(
         return;
       }
 
-      res.status(401).json({
-        success: false,
-        message: "Authentication required",
-        code: "AUTH_REQUIRED",
-      });
+      res
+        .status(401)
+        .json(createErrorResponse(401, "Authentication required", { code: "AUTH_REQUIRED" }));
       return;
     } catch {
-      res.status(401).json({
-        success: false,
-        message: "Invalid or expired session",
-        code: "AUTH_REQUIRED",
-      });
+      // The session store failed (logged in getSessionUserFromRequest): retryable, not a sign-out.
+      res
+        .status(503)
+        .json(createErrorResponse(503, AUTH_UNAVAILABLE_MESSAGE, { code: "AUTH_UNAVAILABLE" }));
       return;
     }
   }
@@ -145,12 +143,16 @@ async function handleFlexibleAuth(
       isDevelopment,
     });
 
-    res.status(401).json({
-      success: false,
-      message:
-        "Authentication required. For programmatic or documentation access, please provide an API key in the X-API-Key header or Authorization bearer token.",
-      code: "API_KEY_REQUIRED",
-    });
+    // Standard error envelope (V-136); the old top-level `code` now lives in `details.code`.
+    res
+      .status(401)
+      .json(
+        createErrorResponse(
+          401,
+          "Authentication required. For programmatic or documentation access, please provide an API key in the X-API-Key header or Authorization bearer token.",
+          { code: "API_KEY_REQUIRED" },
+        ),
+      );
     return;
   }
 
@@ -171,7 +173,10 @@ async function handleFlexibleAuth(
     next();
     return;
   } catch {
-    // If it's a whitelisted origin, we ignore session errors and let the controller decide
-    next();
+    // A session cookie was sent but the store could not be read. Carrying on as anonymous would
+    // turn every signed-in route into a 401 and sign the studio out (V-093).
+    res
+      .status(503)
+      .json(createErrorResponse(503, AUTH_UNAVAILABLE_MESSAGE, { code: "AUTH_UNAVAILABLE" }));
   }
 }

@@ -74,17 +74,15 @@ describe("generalMail service", () => {
         subject:
           "[VeriWorkly Contact] Important <b>Notification</b> from <script>alert('XSS')</script> John",
         text: expect.stringContaining("<script>alert('XSS')</script> John"),
-        html: expect.stringContaining(
-          "&lt;script&gt;alert(&#039;XSS&#039;)&lt;&#x2F;script&gt; John",
-        ),
+        html: expect.stringContaining("&lt;script&gt;alert(&#039;XSS&#039;)&lt;/script&gt; John"),
       }),
     );
 
     const adminHtml = mockSendMail.mock.calls[0][0].html;
     expect(adminHtml).toContain("attacker@example.com&quot; onclick=&quot;alert(1)");
-    expect(adminHtml).toContain("Important &lt;b&gt;Notification&lt;&#x2F;b&gt;");
+    expect(adminHtml).toContain("Important &lt;b&gt;Notification&lt;/b&gt;");
     expect(adminHtml).toContain(
-      "World &lt;iframe src=&#039;malicious.com&#039;&gt;&lt;&#x2F;iframe&gt;",
+      "World &lt;iframe src=&#039;malicious.com&#039;&gt;&lt;/iframe&gt;",
     );
 
     // 2. Second call: a fixed receipt (V-088). Nothing the submitter typed except a first name

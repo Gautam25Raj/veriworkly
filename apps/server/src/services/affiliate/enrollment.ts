@@ -3,14 +3,20 @@ import { randomBytes } from "node:crypto";
 import { Prisma } from "@prisma/client";
 
 import { ApiError } from "#lib/errors";
+import { logger } from "#lib/logger";
 import { prisma } from "#lib/prisma";
+import { getRedis } from "#lib/redis";
 import { hashForAnalytics } from "#utils/analyticsHash";
+import { addressBucket } from "#utils/requestIp";
 
 import { invalidateAffiliate } from "#services/affiliate/cache";
 import { AFFILIATE_ATTRIBUTION_DAYS } from "#services/affiliate/constants";
 import { getDashboard } from "#services/affiliate/dashboard";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Repeat clicks on one code from one address inside this window count once (V-015). */
+const CLICK_DEDUPE_SECONDS = 30 * 60;
 
 /** Credit-grant sources that mean the account has paid us money at least once. */
 const PAID_GRANT_SOURCES = ["credit_pack", "subscription_payment"];
@@ -84,24 +90,55 @@ export async function enroll(userId: string) {
   throw new ApiError(503, "Could not create a unique affiliate code.");
 }
 
+/**
+ * Claims the (code, address) click slot for the dedupe window. IPv6 is keyed on its /64, since one
+ * client usually holds the whole prefix. Without an address there is nothing to key on; without
+ * Redis the click is recorded rather than lost.
+ */
+async function claimClickSlot(code: string, ip: string | null | undefined): Promise<boolean> {
+  const address = normalizeIp(ip);
+  if (!address) return true;
+  try {
+    const bucket = hashForAnalytics(addressBucket(address));
+    const claimed = await getRedis().set(`affiliate:click:${code}:${bucket}`, "1", {
+      NX: true,
+      EX: CLICK_DEDUPE_SECONDS,
+    });
+    return claimed === "OK";
+  } catch (error) {
+    logger.warn("Affiliate click dedupe unavailable; recording the click", { error });
+    return true;
+  }
+}
+
+/**
+ * Public and unauthenticated, so the answer is the same whether or not the code exists (V-153:
+ * a 404 made the 10-hex-char codes enumerable). Only clicks on an active code are recorded, once
+ * per address per window (V-015).
+ */
 export async function trackClick(code: string, referrerHost?: string, signals?: ReferralSignals) {
+  const normalizedCode = code.toLowerCase();
+  const accepted = { tracked: true };
+
   const affiliate = await prisma.user.findUnique({
-    where: { affiliateCode: code.toLowerCase() },
+    where: { affiliateCode: normalizedCode },
     select: { id: true, affiliateStatus: true },
   });
-  if (!affiliate || affiliate.affiliateStatus !== "ACTIVE")
-    throw new ApiError(404, "Affiliate link not found.");
+  if (!affiliate || affiliate.affiliateStatus !== "ACTIVE") return accepted;
+
+  const hashed = hashSignals(signals);
+  if (!(await claimClickSlot(normalizedCode, signals?.ip))) return accepted;
 
   await prisma.affiliateClick.create({
     data: {
       affiliateId: affiliate.id,
-      code: code.toLowerCase(),
+      code: normalizedCode,
       referrerHost,
-      ...hashSignals(signals),
+      ...hashed,
     },
   });
   await invalidateAffiliate(affiliate.id);
-  return { tracked: true };
+  return accepted;
 }
 
 /**

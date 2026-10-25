@@ -11,8 +11,22 @@ export function escapeHtml(unsafe: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;")
-    .replace(/`/g, "&#096;")
-    .replace(/\//g, "&#x2F;");
+    .replace(/`/g, "&#096;");
+}
+
+/**
+ * For a URL placed in a quoted `href`. Only http(s) passes, and only the characters that can
+ * leave the attribute are escaped, so `/` stays `/` (`escapeHtml` used to turn it into `&#x2F;`,
+ * which some mail clients and link scanners do not decode inside an `href`).
+ */
+export function escapeUrlAttribute(url: string): string {
+  const safe = /^https?:\/\//i.test(url) ? url : "#";
+  return safe
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 export function getBaseLayout({ title, preheader, bodyHtml }: MailLayoutOptions): string {

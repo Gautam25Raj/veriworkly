@@ -57,6 +57,7 @@ const mockConfig = vi.hoisted(() => ({
     smtpUser: "user",
     smtpPass: "pass",
     baseUrl: "http://localhost:8080/api/v1/auth",
+    studioUrl: "https://app.example.com",
   },
 }));
 
@@ -70,7 +71,7 @@ import {
   sendWelcomeEmail,
   sendLoginAlertEmail,
   sendAccountDeletedEmail,
-} from "#services/mail";
+} from "#services/mail/index";
 
 describe("mail service", () => {
   beforeEach(() => {
@@ -198,6 +199,8 @@ describe("mail service", () => {
           text: expect.stringContaining("112233"),
           html: expect.stringContaining("112233"),
         }),
+        // V-047: the SDK has no client timeout, so every send carries an abort signal.
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
       );
       expect(mockLogger.info).toHaveBeenCalledWith(
         expect.stringContaining("Email dispatched successfully via Resend"),
@@ -235,6 +238,56 @@ describe("mail service", () => {
           type: "sign-in",
         }),
       ).rejects.toThrow("Resend email delivery failed: Invalid API Key");
+    });
+  });
+
+  // After the SMTP block: the pooled transport is created once per module, and that block asserts the creation.
+  describe("addresses and copy", () => {
+    it("sets replyTo on the mails that tell the reader to reply", async () => {
+      mockConfig.auth.emailProvider = "smtp";
+
+      await sendLoginAlertEmail("alert@example.com", {
+        ip: "127.0.0.1",
+        device: "Chrome",
+        timestamp: "2026-06-26T12:00:00Z",
+      });
+      await sendAccountDeletedEmail("deleted@example.com", "John");
+
+      expect(mockSendMail).toHaveBeenCalledTimes(2);
+      for (const [message] of mockSendMail.mock.calls)
+        expect(message).toMatchObject({ replyTo: "info@veriworkly.com" });
+    });
+
+    it("links the welcome mail to the studio, not the API host", async () => {
+      mockConfig.auth.emailProvider = "smtp";
+
+      await sendWelcomeEmail("welcome@example.com", "Jane");
+
+      const { html } = mockSendMail.mock.calls[0]![0];
+      expect(html).toContain('href="https://app.example.com/"');
+      expect(html).not.toContain("localhost:8080");
+    });
+
+    it("does not promise custom domains or instant publishing", async () => {
+      mockConfig.auth.emailProvider = "smtp";
+
+      await sendWelcomeEmail("welcome@example.com", "Jane");
+
+      const { html } = mockSendMail.mock.calls[0]![0];
+      expect(html).not.toMatch(/custom domain/i);
+      expect(html).not.toMatch(/Instant Subdomain Publishing/i);
+    });
+
+    it("does not claim every trace of the account was wiped", async () => {
+      mockConfig.auth.emailProvider = "smtp";
+
+      await sendAccountDeletedEmail("deleted@example.com", "John");
+
+      const { html, text } = mockSendMail.mock.calls[0]![0];
+      for (const body of [html, text]) {
+        expect(body).not.toMatch(/wiped|all associated data has been permanently removed/i);
+        expect(body).toMatch(/as long as the law requires/);
+      }
     });
   });
 });

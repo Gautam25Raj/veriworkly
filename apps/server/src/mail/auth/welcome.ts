@@ -1,4 +1,4 @@
-import { getBaseLayout, escapeHtml } from "../shared/layout.js";
+import { getBaseLayout, escapeHtml, escapeUrlAttribute } from "../shared/layout.js";
 
 export function renderWelcomeEmail(name: string, dashboardUrl: string): string {
   const sanitizedName = escapeHtml(name || "there");
@@ -12,7 +12,7 @@ export function renderWelcomeEmail(name: string, dashboardUrl: string): string {
     </h2>
     
     <p style="margin:0 auto 28px auto;font-size:15px;line-height:1.6;color:#5f5c54;text-align:center;max-width:460px;">
-      We're thrilled to have you. VeriWorkly is designed to help you construct pristine, ATS-optimized resumes and publish premium developer portfolios.
+      We're thrilled to have you. VeriWorkly is designed to help you build clean, ATS-friendly resumes and cover letters from one profile you control.
     </p>
 
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:28px 0;background-color:#faf9f5;border:1px solid rgba(23, 23, 23, 0.06);border-radius:16px;padding:24px;box-shadow:inset 0 1px 2px rgba(0,0,0,0.01);">
@@ -68,8 +68,8 @@ export function renderWelcomeEmail(name: string, dashboardUrl: string): string {
             <tr>
               <td width="28" valign="top" style="font-size:14px;line-height:1.5;color:#2563eb;font-weight:bold;">✦</td>
               <td valign="top" style="font-size:14px;line-height:1.5;color:#5f5c54;">
-                <strong style="color:#171717;display:block;margin-bottom:2px;">Premium Layouts & Templates</strong>
-                Choose between editorial-style portfolios, clean resumes, and custom design schemes.
+                <strong style="color:#171717;display:block;margin-bottom:2px;">Resume &amp; Cover Letter Templates</strong>
+                Pick a template, adjust the design, and check how your resume reads to applicant tracking systems.
               </td>
             </tr>
           </table>
@@ -82,8 +82,8 @@ export function renderWelcomeEmail(name: string, dashboardUrl: string): string {
             <tr>
               <td width="28" valign="top" style="font-size:14px;line-height:1.5;color:#2563eb;font-weight:bold;">✦</td>
               <td valign="top" style="font-size:14px;line-height:1.5;color:#5f5c54;">
-                <strong style="color:#171717;display:block;margin-bottom:2px;">Instant Subdomain Publishing</strong>
-                Go live instantly on a secure, optimized subpath or connect your custom domain name.
+                <strong style="color:#171717;display:block;margin-bottom:2px;">Export and Share</strong>
+                Download your resume as a PDF, or share it with a private link you can protect with a password.
               </td>
             </tr>
           </table>
@@ -94,7 +94,7 @@ export function renderWelcomeEmail(name: string, dashboardUrl: string): string {
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:36px 0;text-align:center;">
       <tr>
         <td align="center">
-          <a href="${escapeHtml(dashboardUrl)}" target="_blank" style="background-color:#2563eb;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:14px 28px;border-radius:8px;display:inline-block;box-shadow:0 4px 12px rgba(37, 99, 235, 0.15);">
+          <a href="${escapeUrlAttribute(dashboardUrl)}" target="_blank" style="background-color:#2563eb;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:14px 28px;border-radius:8px;display:inline-block;box-shadow:0 4px 12px rgba(37, 99, 235, 0.15);">
             Get Started & Create Document →
           </a>
         </td>

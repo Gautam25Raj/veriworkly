@@ -32,6 +32,9 @@ function getSmtpTransporter() {
   return smtpTransporter;
 }
 
+/** Per-request ceiling for a Resend send; an abort comes back as a normal Resend `error`. */
+export const RESEND_TIMEOUT_MS = 10_000;
+
 let resendClient: Resend | null = null;
 
 function getResendClient() {
@@ -67,14 +70,18 @@ export async function sendMail({
 
     try {
       const resend = getResendClient();
-      const { data, error } = await resend.emails.send({
-        from: config.auth.emailFrom,
-        to,
-        subject,
-        text,
-        html,
-        replyTo: replyTo || undefined,
-      });
+      // The SDK has no client-wide timeout; without a signal a stalled request never settles.
+      const { data, error } = await resend.emails.send(
+        {
+          from: config.auth.emailFrom,
+          to,
+          subject,
+          text,
+          html,
+          replyTo: replyTo || undefined,
+        },
+        { signal: AbortSignal.timeout(RESEND_TIMEOUT_MS) },
+      );
 
       if (error) {
         logger.error("[Mail] Failed to send email via Resend:", {

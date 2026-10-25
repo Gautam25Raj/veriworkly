@@ -71,7 +71,7 @@ export async function ensureAdminUserExists(): Promise<void> {
     try {
       const existing = await prisma.user.findUnique({
         where: { email },
-        select: { id: true, name: true },
+        select: { id: true },
       });
 
       if (!existing) {
@@ -83,17 +83,9 @@ export async function ensureAdminUserExists(): Promise<void> {
         });
 
         logger.info("Admin user created for auth", { email });
-        return;
       }
 
-      if (existing.name !== "Admin") {
-        await prisma.user.update({
-          where: { id: existing.id },
-          data: { name: "Admin" },
-        });
-
-        logger.info("Admin user normalized for auth", { email });
-      }
+      // An existing row keeps whatever display name the admin chose.
       return;
     } catch (err) {
       retries -= 1;

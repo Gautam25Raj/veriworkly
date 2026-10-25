@@ -1,4 +1,4 @@
-import { getBaseLayout, escapeHtml } from "../shared/layout.js";
+import { getBaseLayout, escapeHtml, escapeUrlAttribute } from "../shared/layout.js";
 
 export function renderPortfolioUpdatedEmail(portfolioUrl: string): string {
   const sanitizedUrl = escapeHtml(portfolioUrl);
@@ -17,7 +17,7 @@ export function renderPortfolioUpdatedEmail(portfolioUrl: string): string {
     <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:36px 0;text-align:center;">
       <tr>
         <td align="center">
-          <a href="${sanitizedUrl}" target="_blank" style="background-color:#2563eb;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:14px 28px;border-radius:8px;display:inline-block;box-shadow:0 4px 12px rgba(37, 99, 235, 0.15);">
+          <a href="${escapeUrlAttribute(portfolioUrl)}" target="_blank" style="background-color:#2563eb;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:14px 28px;border-radius:8px;display:inline-block;box-shadow:0 4px 12px rgba(37, 99, 235, 0.15);">
             View Your Portfolio →
           </a>
         </td>

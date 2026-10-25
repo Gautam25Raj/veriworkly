@@ -1,12 +1,32 @@
 import { NextFunction, Request, Response } from "express";
+import { isAPIError } from "better-auth/api";
 
 import { ApiError } from "#lib/errors";
+import { logger } from "#lib/logger";
 import { config } from "#config";
 
 import { convertNodeHeadersToWebHeaders, getSessionFromRequestHeaders } from "#auth/index";
 
 import { cacheGet, cacheSet } from "#lib/redis";
 import { getSessionCacheKey } from "#utils/authCache";
+
+export const AUTH_UNAVAILABLE_MESSAGE = "Authentication is temporarily unavailable";
+
+/**
+ * V-093: the session store (Postgres, or Redis behind it) failed, so whether the caller is signed
+ * in is unknown. A 503 is retryable; a 401 makes the studio sign everyone out on a blip.
+ */
+export class AuthUnavailableError extends ApiError {
+  constructor() {
+    super(503, AUTH_UNAVAILABLE_MESSAGE);
+    this.name = "AuthUnavailableError";
+  }
+}
+
+/** better-auth answers a bad or expired session with a 4xx APIError; anything else is the store. */
+function isSessionRejection(error: unknown): boolean {
+  return isAPIError(error) && error.statusCode < 500;
+}
 
 export async function getSessionUserFromRequest(req: Request): Promise<AuthenticatedUser | null> {
   // 1. Per-request cache
@@ -61,9 +81,15 @@ export async function getSessionUserFromRequest(req: Request): Promise<Authentic
 
     req.authUser = authUser;
     return authUser;
-  } catch {
-    req._authChecked = true;
-    return null;
+  } catch (error) {
+    if (isSessionRejection(error)) {
+      req._authChecked = true;
+      return null;
+    }
+
+    // Not cached as "checked": a later lookup in the same request may succeed.
+    logger.error("Session lookup failed; auth store unavailable", { error });
+    throw new AuthUnavailableError();
   }
 }
 

@@ -6,7 +6,7 @@ import { prisma } from "#lib/prisma";
 import { logger } from "#lib/logger";
 import { createErrorResponse } from "#lib/errors";
 import { isAdminUser } from "#lib/isAdminUser";
-import { getSessionUserFromRequest } from "#middleware/auth";
+import { AuthUnavailableError, getSessionUserFromRequest } from "#middleware/auth";
 
 /**
  * The authoritative gate on every `/api/v1/admin/*` route.
@@ -69,8 +69,14 @@ export async function adminAuthMiddleware(req: Request, res: Response, next: Nex
       });
     }
   } catch (error) {
-    logger.error("Admin auth middleware failure", error);
-    return res.status(401).json(createErrorResponse(401, "Invalid or expired session"));
+    // Every refusal above is a return, so anything thrown is the session store or the account
+    // read failing: retryable, not a sign-out (V-093).
+    if (!(error instanceof AuthUnavailableError))
+      logger.error("Admin auth middleware failure", { error });
+    const unavailable = new AuthUnavailableError();
+    return res
+      .status(unavailable.statusCode)
+      .json(createErrorResponse(unavailable.statusCode, unavailable.message));
   }
 
   next();

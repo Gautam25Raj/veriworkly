@@ -106,7 +106,29 @@ describe("Better Auth configuration", () => {
     };
 
     await userCreateAfter(mockUser);
-    expect(mockSendWelcomeEmail).toHaveBeenCalledWith("newuser@example.com", "John Doe");
+    await vi.waitFor(() =>
+      expect(mockSendWelcomeEmail).toHaveBeenCalledWith("newuser@example.com", "John Doe"),
+    );
+  });
+
+  /** V-047 / V-099: a transport that never answers must not hold up sign-up. */
+  it("user.create.after returns while the welcome mail is still pending", async () => {
+    mockSendWelcomeEmail.mockReturnValueOnce(new Promise(() => {}));
+    const hook = options.databaseHooks.user.create.after;
+
+    const outcome = await Promise.race([
+      hook({ id: "u1", email: "a@example.com", name: "A" }).then(() => "done"),
+      new Promise((resolve) => setTimeout(() => resolve("timed out"), 200)),
+    ]);
+
+    expect(outcome).toBe("done");
+  });
+
+  it("user.create.after swallows a failing welcome mail", async () => {
+    mockSendWelcomeEmail.mockRejectedValueOnce(new Error("smtp down"));
+    const hook = options.databaseHooks.user.create.after;
+
+    await expect(hook({ id: "u1", email: "a@example.com", name: "A" })).resolves.toBeUndefined();
   });
 
   it("sends a login alert email on session.create.after", async () => {
@@ -127,16 +149,35 @@ describe("Better Auth configuration", () => {
     };
 
     await sessionCreateAfter(mockSession);
+    await vi.waitFor(() =>
+      expect(mockSendLoginAlertEmail).toHaveBeenCalledWith("user@example.com", {
+        ip: "192.168.1.1",
+        device: "Mozilla/5.0",
+        timestamp: mockSession.createdAt.toISOString(),
+        provider: "unknown",
+      }),
+    );
     expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
       where: { id: "user-123" },
       select: { email: true, createdAt: true },
     });
-    expect(mockSendLoginAlertEmail).toHaveBeenCalledWith("user@example.com", {
-      ip: "192.168.1.1",
-      device: "Mozilla/5.0",
-      timestamp: mockSession.createdAt.toISOString(),
-      provider: "unknown",
+  });
+
+  it("session.create.after returns while the login alert is still pending", async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      email: "user@example.com",
+      createdAt: new Date("2026-06-20T12:00:00.000Z"),
     });
+    mockSendLoginAlertEmail.mockReturnValueOnce(new Promise(() => {}));
+    const hook = options.databaseHooks.session.create.after;
+
+    const outcome = await Promise.race([
+      hook({ id: "s1", userId: "user-123", createdAt: new Date() }).then(() => "done"),
+      new Promise((resolve) => setTimeout(() => resolve("timed out"), 200)),
+    ]);
+
+    expect(outcome).toBe("done");
+    await vi.waitFor(() => expect(mockSendLoginAlertEmail).toHaveBeenCalled());
   });
 
   it("has Google, GitHub, and LinkedIn social providers configured", () => {

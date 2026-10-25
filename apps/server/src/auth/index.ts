@@ -1,16 +1,20 @@
 import { betterAuth } from "better-auth";
+import { createHash } from "node:crypto";
 import { IncomingHttpHeaders } from "node:http";
 import { AsyncLocalStorage } from "node:async_hooks";
 
-import { createAuthMiddleware } from "better-auth/api";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { emailOTP } from "better-auth/plugins/email-otp";
 import { prismaAdapter } from "@better-auth/prisma-adapter";
 import { toNodeHandler, fromNodeHeaders } from "better-auth/node";
 
 import { config } from "#config";
 
+import { logger } from "#lib/logger";
 import { prisma } from "#lib/prisma";
 import { getRedis } from "#lib/redis";
+
+import { incrementFixedWindow } from "#middleware/rateLimit";
 
 import { invalidateSessionCache, invalidateCacheByToken } from "#utils/authCache";
 import { incrementUsageMetric } from "#services/analyticsService";
@@ -27,6 +31,86 @@ export const authRequestContext = new AsyncLocalStorage<{
   userAgent: string;
   provider?: string;
 }>();
+
+/** Endpoints whose only job is to mail an OTP; their limiter fails closed without Redis (V-094). */
+const OTP_SEND_PATHS = new Set([
+  "/email-otp/send-verification-otp",
+  "/email-otp/request-password-reset",
+  "/forget-password/email-otp",
+  "/email-otp/request-email-change",
+]);
+
+const OTP_RECIPIENT_MAX_PER_HOUR = 5;
+const OTP_RECIPIENT_WINDOW_SECONDS = 60 * 60;
+
+function otpRecipientKey(email: string): string {
+  const digest = createHash("sha256").update(email.trim().toLowerCase()).digest("hex");
+  return `auth:otp:recipient:${digest}`;
+}
+
+function otpThrottleUnavailable(error: unknown): APIError {
+  logger.warn("OTP recipient throttle unavailable; refusing to send", {
+    error: error instanceof Error ? error.message : String(error),
+  });
+  return new APIError("SERVICE_UNAVAILABLE", {
+    message: "Sign-in codes are temporarily unavailable. Please try again shortly.",
+  });
+}
+
+function otpRecipientExhausted(): APIError {
+  return new APIError("TOO_MANY_REQUESTS", {
+    message: "Too many codes requested for this email. Please try again later.",
+  });
+}
+
+/**
+ * V-157: per-recipient cap on OTP mails, so rotating IPs cannot mail-bomb one address. Counts a mail
+ * about to be sent; refuses (fail closed) when Redis cannot count it.
+ * TODO(V-157): add Turnstile to the OTP request form (needs studio work).
+ */
+export async function consumeOtpRecipientQuota(email: string): Promise<void> {
+  let count: number;
+  try {
+    ({ count } = await incrementFixedWindow(otpRecipientKey(email), OTP_RECIPIENT_WINDOW_SECONDS));
+  } catch (error) {
+    throw otpThrottleUnavailable(error);
+  }
+  if (count > OTP_RECIPIENT_MAX_PER_HOUR) throw otpRecipientExhausted();
+}
+
+/**
+ * Read-only check run before the OTP endpoints. `sendVerificationOTP` runs inside better-auth's
+ * `runInBackgroundOrAwait`, which logs and swallows a throw, so a refusal there never reaches the
+ * client; this hook is what turns an exhausted recipient into a 429 (or 503 without Redis).
+ */
+/**
+ * Which address the pre-check above applies to, or none. Only where a mail goes out whatever the
+ * address: a sign-in OTP (sign-up is open) and an email change (signed-in caller). The reset and
+ * verification types only mail existing accounts, so a 429 there would reveal that the account
+ * exists; those stay a uniform 200 and the cap inside `sendVerificationOTP` still stops the mail.
+ * Never throws: a missing body or a non-string field just skips the check.
+ */
+export function otpPrecheckRecipient(path: string, body: unknown): string | undefined {
+  const fields = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
+
+  if (path === "/email-otp/request-email-change")
+    return typeof fields.newEmail === "string" ? fields.newEmail : undefined;
+
+  if (path === "/email-otp/send-verification-otp" && fields.type === "sign-in")
+    return typeof fields.email === "string" ? fields.email : undefined;
+
+  return undefined;
+}
+
+export async function assertOtpRecipientQuotaAvailable(email: string): Promise<void> {
+  let used: number;
+  try {
+    used = Number((await getRedis().get(otpRecipientKey(email))) ?? 0);
+  } catch (error) {
+    throw otpThrottleUnavailable(error);
+  }
+  if (used >= OTP_RECIPIENT_MAX_PER_HOUR) throw otpRecipientExhausted();
+}
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -61,6 +145,29 @@ export const auth = betterAuth({
         await redis.del(key);
       } catch (error) {
         console.error("better-auth secondaryStorage delete error:", error);
+      }
+    },
+
+    // Present so better-auth's limiter uses its atomic `consume` instead of get-then-set (V-094).
+    // Its keys are `${ip}|${path}`. Without Redis the OTP-send paths report "over any limit"
+    // (429) and everything else reports a first hit, which keeps today's fail-open behaviour.
+    //
+    // Only the limiter calls `increment`, and once it exists the limiter never reads or writes
+    // these keys through get/set, so the `ba-rl:` prefix is applied here alone and stays
+    // consistent. It also keeps first deploy clean: the old get-then-set limiter left JSON values
+    // under the bare `${ip}|${path}` keys; INCR on those fails with "ERR value is not an integer"
+    // until they expire (up to one rate-limit window), which would fail open, or closed on the
+    // OTP-send paths. With the prefix no such collision can happen.
+    increment: async (key, ttl) => {
+      try {
+        return (await incrementFixedWindow(`ba-rl:${key}`, ttl)).count;
+      } catch (error) {
+        const failClosed = OTP_SEND_PATHS.has(key.slice(key.lastIndexOf("|") + 1));
+        logger.warn("better-auth rate limit counter unavailable", {
+          failClosed,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return failClosed ? Number.MAX_SAFE_INTEGER : 1;
       }
     },
   },
@@ -166,6 +273,7 @@ export const auth = betterAuth({
       disableSignUp: false,
 
       sendVerificationOTP: async ({ email, otp, type }) => {
+        await consumeOtpRecipientQuota(email);
         await sendAuthOtpEmail({ email, otp, type });
       },
     }),
@@ -173,6 +281,9 @@ export const auth = betterAuth({
 
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
+      const recipient = otpPrecheckRecipient(ctx.path, ctx.body);
+      if (recipient) await assertOtpRecipientQuotaAvailable(recipient);
+
       const pathsToInvalidate = [
         "/sign-out",
         "/revoke-session",
@@ -215,8 +326,9 @@ export const auth = betterAuth({
             });
 
             await Promise.all(sessions.map((session) => invalidateCacheByToken(session.token)));
-          } catch {
-            // Ignore database hook errors
+          } catch (error) {
+            // Never block the update, but a stale session cache must be visible (V-165).
+            logger.warn("Session cache invalidation failed in user.update.after", { error });
           }
         },
       },
@@ -236,8 +348,9 @@ export const auth = betterAuth({
             });
 
             await Promise.all(sessions.map((session) => invalidateCacheByToken(session.token)));
-          } catch {
-            // Ignore database hook errors to avoid blocking deletes
+          } catch (error) {
+            // Never block the delete, but a stale session cache must be visible (V-165).
+            logger.warn("Session cache invalidation failed in user.delete.before", { error });
           }
         },
       },
@@ -286,8 +399,9 @@ export const auth = betterAuth({
         after: async (session) => {
           try {
             await invalidateCacheByToken(session.token);
-          } catch {
-            // Ignore database hook errors to avoid blocking deletes
+          } catch (error) {
+            // Never block the delete, but a stale session cache must be visible (V-165).
+            logger.warn("Session cache invalidation failed in session.delete.after", { error });
           }
         },
       },

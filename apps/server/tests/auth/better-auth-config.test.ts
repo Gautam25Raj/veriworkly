@@ -164,3 +164,51 @@ describe("Better Auth configuration", () => {
     expect(options.onAPIError?.errorURL).toBe("http://localhost:3001/login");
   });
 });
+
+/**
+ * V-094: without `increment`, better-auth falls back to a get-then-set limiter that a parallel
+ * burst walks straight through, and that is fully open when Redis is down.
+ */
+describe("secondaryStorage.increment", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const storage = (auth.options as any).secondaryStorage;
+
+  function mockMulti(replies: unknown[]) {
+    const chain = {
+      incr: vi.fn(() => chain),
+      expire: vi.fn(() => chain),
+      ttl: vi.fn(() => chain),
+      exec: vi.fn().mockResolvedValue(replies),
+    };
+    mockGetRedis.mockReturnValue({ multi: vi.fn(() => chain) });
+    return chain;
+  }
+
+  it("is an atomic INCR + EXPIRE NX that returns the new count", async () => {
+    const chain = mockMulti([4, 0, 57]);
+
+    await expect(storage.increment("1.2.3.4|/sign-in/email-otp", 60)).resolves.toBe(4);
+    expect(chain.incr).toHaveBeenCalledWith("ba-rl:1.2.3.4|/sign-in/email-otp");
+    expect(chain.expire).toHaveBeenCalledWith("ba-rl:1.2.3.4|/sign-in/email-otp", 60, "NX");
+    expect(chain.exec).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails closed for the OTP-send endpoints and open for the rest when Redis is down", async () => {
+    mockGetRedis.mockImplementation(() => {
+      throw new Error("Redis client not ready");
+    });
+
+    for (const path of [
+      "/email-otp/send-verification-otp",
+      "/email-otp/request-password-reset",
+      "/forget-password/email-otp",
+      "/email-otp/request-email-change",
+    ])
+      expect(await storage.increment(`1.2.3.4|${path}`, 60)).toBeGreaterThan(1_000_000);
+
+    expect(await storage.increment("1.2.3.4|/sign-in/email-otp", 60)).toBe(1);
+    expect(await storage.increment("1.2.3.4|/get-session", 10)).toBe(1);
+
+    mockGetRedis.mockReset();
+  });
+});

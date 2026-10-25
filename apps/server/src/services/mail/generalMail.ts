@@ -1,15 +1,42 @@
+import { createHash } from "node:crypto";
+
 import { config } from "#config";
 import { logger } from "#lib/logger";
 import {
+  contactReceiptFirstName,
   renderAdminContactNotificationEmail,
-  renderUserContactConfirmationEmail,
+  renderContactReceiptEmail,
 } from "#mail/index";
+import { incrementFixedWindow } from "#middleware/rateLimit";
 import { sendMail } from "./transporter.js";
+
+const RECEIPTS_PER_RECIPIENT_PER_DAY = 3;
+const RECEIPT_WINDOW_SECONDS = 24 * 60 * 60;
+
+/**
+ * Per-recipient cap on receipts: the form is anonymous and the `email` field is anyone's address.
+ * Keyed on the trimmed, lower-cased address so case variants share one budget. Without Redis the
+ * receipt is skipped (the team notification still goes out).
+ */
+async function claimReceiptSlot(email: string): Promise<boolean> {
+  const normalized = email.trim().toLowerCase();
+  const key = `contact:receipt:${createHash("sha256").update(normalized).digest("hex")}`;
+
+  try {
+    const { count } = await incrementFixedWindow(key, RECEIPT_WINDOW_SECONDS);
+    return count <= RECEIPTS_PER_RECIPIENT_PER_DAY;
+  } catch (error) {
+    logger.warn("[Contact] Receipt throttle unavailable; skipping the receipt", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
+}
 
 /**
  * Dispatches contact form submission:
  * 1. Admin Alert to the configured ADMIN_EMAIL with Reply-To header pointing to the user.
- * 2. Auto-confirmation receipt to the user acknowledging receipt with response SLA.
+ * 2. A fixed receipt to the user (capped per recipient per day), with no submitted content.
  */
 export async function sendContactEmail(payload: {
   name: string;
@@ -39,11 +66,6 @@ export async function sendContactEmail(payload: {
   const adminText = `New Contact Submission:\n\nFrom: ${mailData.name} <${mailData.email}>\nSubject: ${mailData.subject}\nReceived: ${receivedAt}\n\nMessage:\n${mailData.message}\n\n---\nReply directly to this email to contact the sender.`;
   const adminHtml = renderAdminContactNotificationEmail(mailData);
 
-  // 2. User Auto-Confirmation Receipt Email
-  const userSubject = `We've received your message: "${mailData.subject}" – VeriWorkly`;
-  const userText = `Hi ${mailData.name},\n\nThank you for reaching out to VeriWorkly! We've received your message regarding "${mailData.subject}".\n\nOur team is reviewing it and will get back to you within 24 to 48 hours.\n\nYour message copy:\n"${mailData.message}"\n\nBest regards,\nThe VeriWorkly Team\nhttps://veriworkly.com`;
-  const userHtml = renderUserContactConfirmationEmail(mailData);
-
   // Send admin notification first
   await sendMail({
     to: adminEmail,
@@ -53,13 +75,16 @@ export async function sendContactEmail(payload: {
     html: adminHtml,
   });
 
-  // Send user confirmation receipt (best-effort: log error if fails, but don't fail entire submission if admin already received it)
+  if (!(await claimReceiptSlot(mailData.email))) {
+    logger.warn("[Contact] Receipt suppressed: per-recipient daily cap reached");
+    return;
+  }
+
+  // 2. User receipt (best-effort: the admin already has the message)
   try {
     await sendMail({
       to: mailData.email,
-      subject: userSubject,
-      text: userText,
-      html: userHtml,
+      ...renderContactReceiptEmail(contactReceiptFirstName(mailData.name)),
     });
     logger.info("[Contact] User confirmation receipt sent successfully", {
       userEmail: mailData.email,

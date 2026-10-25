@@ -84,7 +84,6 @@ describe("validateEnvironmentConfig", () => {
           "PORTFOLIO_URL",
           "STUDIO_URL",
           "AUTH_BASE_URL",
-          "REDIS_URL",
           "AUTH_SECRET",
           "ANALYTICS_HASH_PEPPER",
           "PORTFOLIO_REVALIDATE_SECRET",
@@ -92,6 +91,15 @@ describe("validateEnvironmentConfig", () => {
         ]),
       );
     });
+
+    it.each(["redis://localhost:6379", "redis://:pw@127.0.0.1:6379", "redis://:pw@redis:6379"])(
+      "accepts REDIS_URL=%s (a local Redis on one server is fine)",
+      (value) => {
+        expect(() =>
+          validateEnvironmentConfig({ ...validProductionEnv, REDIS_URL: value }),
+        ).not.toThrow();
+      },
+    );
 
     it("accepts a complete production environment", () => {
       expect(() => validateEnvironmentConfig(validProductionEnv)).not.toThrow();
@@ -189,8 +197,6 @@ describe("validateEnvironmentConfig", () => {
       ["STUDIO_URL", "http://localhost:3001"],
       ["SITE_URL", "http://veriworkly.com"],
       ["AUTH_BASE_URL", "http://localhost:8080"],
-      ["REDIS_URL", "redis://localhost:6379"],
-      ["REDIS_URL", "redis://127.0.0.1:6379"],
       ["REDIS_URL", "http://redis:6379"],
       // Localhost spellings that slip past a plain string match.
       ["AUTH_BASE_URL", "https://[::ffff:127.0.0.1]"],
@@ -202,14 +208,6 @@ describe("validateEnvironmentConfig", () => {
       ["AUTH_BASE_URL", "https://2130706433"],
       ["ALLOWED_ORIGINS", "https://veriworkly.com,https://[::ffff:127.0.0.1]"],
       ["ALLOWED_ORIGINS", "https://veriworkly.com,https://localhost."],
-      ["REDIS_URL", "redis://:pw@[::ffff:127.0.0.1]:6379"],
-      ["REDIS_URL", "redis://:pw@[::ffff:7f00:1]:6379"],
-      ["REDIS_URL", "redis://:pw@localhost.:6379"],
-      ["REDIS_URL", "redis://:pw@foo.localhost.:6379"],
-      ["REDIS_URL", "redis://:pw@0177.0.0.1:6379"],
-      ["REDIS_URL", "redis://:pw@0x7f.1:6379"],
-      ["REDIS_URL", "redis://:pw@2130706433:6379"],
-      ["REDIS_URL", "rediss://:pw@[::1]:6379"],
       ["API_KEY_HASH_SECRET", "dev-api-key-secret"],
       ["API_KEY_HASH_SECRET", validProductionEnv.AUTH_SECRET],
       ["AUTH_SECRET", "dev-auth-secret-1234567890"],

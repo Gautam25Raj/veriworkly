@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const store = new Map<string, number>();
 
@@ -20,8 +20,10 @@ vi.mock("#lib/redis", () => ({ getRedis: () => redis }));
 vi.mock("#config", () => ({
   config: { auth: { secret: "test-secret" } },
 }));
-vi.mock("#services/entitlementService", () => ({
-  EntitlementService: { has: vi.fn(async () => false) },
+/** The active `ai_credits` grant the paid period anchors on; none by default (free tier). */
+const findActiveGrant = vi.fn(async (): Promise<{ createdAt: Date } | null> => null);
+vi.mock("#lib/prisma", () => ({
+  prisma: { entitlementGrant: { findFirst: findActiveGrant } },
 }));
 vi.mock("#services/ats/aiPolicy", () => ({
   publicAtsPolicy: vi.fn(() => ({
@@ -83,5 +85,65 @@ describe("ATS quota — extraction and scanning are independent budgets", () => 
     expect(summary.tier).toBe("free");
     expect(summary.limit).toBe(2);
     expect(summary.extract.limit).toBe(6);
+  });
+});
+
+/**
+ * V-037: the paid period is anchored on the day the active `ai_credits` grant started, whatever
+ * granted it. Anchoring on `now` whenever no ACTIVE subscription row existed (a manual grant, a
+ * cancelled-but-entitled plan, PAST_DUE) made a key per day: 300 per period became 300 per day.
+ */
+describe("ATS quota — the paid period follows the grant, not the calendar day", () => {
+  beforeEach(() => {
+    store.clear();
+    vi.clearAllMocks();
+    vi.useFakeTimers({ toFake: ["Date"] });
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it("keeps one period key across days for a grant with no subscription row", async () => {
+    const { AtsQuotaService } = await import("../../src/services/ats/quota");
+    findActiveGrant.mockResolvedValue({ createdAt: new Date("2026-10-10T09:30:00Z") });
+
+    vi.setSystemTime(new Date("2026-10-25T12:00:00Z"));
+    const dayOne = await AtsQuotaService.consume("user_9", "203.0.113.50");
+    vi.setSystemTime(new Date("2026-10-26T12:00:00Z"));
+    const dayTwo = await AtsQuotaService.consume("user_9", "203.0.113.50");
+
+    expect(dayOne.tier).toBe("subscriber");
+    expect(dayOne.limit).toBe(300);
+    expect(dayTwo.used).toBe(2);
+    expect([...store.keys()]).toEqual(["ats:quota:subscriber:user_9:2026-10-10"]);
+    expect(dayTwo.resetsAt).toBe("2026-11-10T00:00:00.000Z");
+  });
+
+  it("rolls to the next period on the grant's day of the month", async () => {
+    const { AtsQuotaService } = await import("../../src/services/ats/quota");
+    findActiveGrant.mockResolvedValue({ createdAt: new Date("2026-01-31T00:00:00Z") });
+
+    vi.setSystemTime(new Date("2026-02-15T00:00:00Z"));
+    await AtsQuotaService.consume("user_9", "203.0.113.50");
+    vi.setSystemTime(new Date("2026-03-01T00:00:00Z"));
+    await AtsQuotaService.consume("user_9", "203.0.113.50");
+
+    // February has no 31st: the period is clamped to the month's last day, like before.
+    expect([...store.keys()]).toEqual([
+      "ats:quota:subscriber:user_9:2026-01-31",
+      "ats:quota:subscriber:user_9:2026-02-28",
+    ]);
+  });
+
+  it("never anchors on today when the grant's start is unreadable", async () => {
+    const { AtsQuotaService } = await import("../../src/services/ats/quota");
+    findActiveGrant.mockResolvedValue({ createdAt: new Date(Number.NaN) });
+
+    vi.setSystemTime(new Date("2026-10-25T12:00:00Z"));
+    await AtsQuotaService.consume("user_9", "203.0.113.50");
+    vi.setSystemTime(new Date("2026-10-26T12:00:00Z"));
+    const dayTwo = await AtsQuotaService.consume("user_9", "203.0.113.50");
+
+    expect(dayTwo.used).toBe(2);
+    expect([...store.keys()]).toEqual(["ats:quota:subscriber:user_9:2026-10"]);
   });
 });

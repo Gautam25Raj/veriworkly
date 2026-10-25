@@ -1,8 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("#lib/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
+
+/** Hostname resolution under test control; the literal-IP cases below never reach it. */
+const lookup = vi.hoisted(() => vi.fn<() => Promise<unknown>>());
+vi.mock("node:dns/promises", () => ({ lookup }));
 
 const { AtsJobFetchService } = await import("#services/ats/jobFetch");
 
@@ -32,6 +36,19 @@ describe("AtsJobFetchService SSRF guards", () => {
     ["[::ffff:a00:1]", "IPv4-mapped 10.0.0.1"],
     ["[::7f00:1]", "IPv4-compatible loopback"],
     ["[64:ff9b::a9fe:a9fe]", "NAT64 cloud metadata"],
+    // The IPv6 ranges the old spelling-based list let through: `fe80` matched the literal
+    // prefix only, so the rest of fe80::/10 passed, and these blocks were not listed at all.
+    ["[fe90::1]", "IPv6 link local beyond the fe80 literal"],
+    ["[febf::1]", "IPv6 link local, top of fe80::/10"],
+    ["[FE80:0000:0000:0000:0000:0000:0000:0001]", "IPv6 link local written long and upper-case"],
+    ["[fec0::1]", "IPv6 site local"],
+    ["[2002:7f00:1::1]", "6to4 carrying a loopback IPv4"],
+    ["[2002:0808:0808::1]", "6to4 (any destination: the IPv4 is chosen by the address)"],
+    ["[64:ff9b:1::8.8.8.8]", "local-use NAT64"],
+    ["[::ffff:8.8.8.8]", "IPv4-mapped, public target"],
+    ["[::ffff:0:127.0.0.1]", "IPv4-translated (SIIT) loopback"],
+    ["[::ffff:0:8.8.8.8]", "IPv4-translated (SIIT) public target"],
+    ["[2001:db8::1]", "IPv6 documentation range"],
   ];
 
   it.each(blockedHosts)("blocks %s (%s)", async (host) => {
@@ -108,5 +125,48 @@ describe("the pinned DNS lookup", () => {
     } finally {
       server.close();
     }
+  });
+});
+
+/**
+ * `getaddrinfo` has no timeout of its own and runs on the threadpool the server shares with
+ * crypto: one slow resolver for an attacker's hostname held a thread as long as the OS allowed,
+ * once per redirect hop. The request gives up on the name after 5 s instead.
+ */
+describe("hostname resolution", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    lookup.mockReset();
+  });
+
+  it("gives up on a lookup that has not answered after 5 seconds", async () => {
+    vi.useFakeTimers();
+    lookup.mockImplementation(() => new Promise(() => undefined));
+
+    const pending = AtsJobFetchService.fetch("https://slow.example/job");
+    const outcome = expect(pending).rejects.toThrow(/could not be resolved in time/i);
+    await vi.advanceTimersByTimeAsync(5_001);
+
+    await outcome;
+    expect(lookup).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers a name that does not resolve with a 400, not a raw error", async () => {
+    lookup.mockRejectedValue(
+      Object.assign(new Error("getaddrinfo ENOTFOUND"), { code: "ENOTFOUND" }),
+    );
+
+    await expect(AtsJobFetchService.fetch("https://nowhere.example/job")).rejects.toMatchObject({
+      statusCode: 400,
+      message: expect.stringMatching(/could not be resolved/i),
+    });
+  });
+
+  it("blocks a name that resolves into a blocked IPv6 range", async () => {
+    lookup.mockResolvedValue([{ address: "fe90::1", family: 6 }]);
+
+    await expect(AtsJobFetchService.fetch("https://linklocal.example/job")).rejects.toThrow(
+      /blocked network/i,
+    );
   });
 });

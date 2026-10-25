@@ -1,7 +1,6 @@
 import { createHmac } from "node:crypto";
 
 import { config } from "#config";
-import { EntitlementService } from "#services/entitlementService";
 import { publicAtsPolicy } from "#services/ats/aiPolicy";
 import type { AtsQuotaSummary } from "#services/ats/types";
 import { ApiError } from "#lib/errors";
@@ -49,26 +48,43 @@ function anchoredUtcDate(year: number, month: number, day: number) {
   return new Date(Date.UTC(year, month, Math.min(day, lastDay)));
 }
 
+/**
+ * The subscriber's current scan period: a month-long window anchored on the day of the month
+ * the active `ai_credits` grant row was created, whatever granted it — subscription, admin,
+ * promotion. `createdAt` rather than `startsAt`: every billing webhook upserts the grant and
+ * rewrites `startsAt`, which would move the anchor (and the key) with each renewal.
+ *
+ * It used to anchor on an ACTIVE subscription row and, without one (a manual grant, a cancelled
+ * but still entitled plan, PAST_DUE), on `now`: a new key every day, so 300 per period became
+ * 300 per day and the keys piled up for their 30-day TTL (V-037). The oldest active grant is the
+ * anchor so a renewal row cannot restart the period. Should the stored date ever be unreadable
+ * the key falls back to the calendar month, which is still one window per month, never per day.
+ */
 async function paidPeriod(userId: string) {
-  if (!(await EntitlementService.has(userId, "ai_credits"))) return null;
   const now = new Date();
-  const subscription = await prisma.subscription.findFirst({
+  const grant = await prisma.entitlementGrant.findFirst({
     where: {
       userId,
-      productKey: { in: ["ai_credits", "bundle"] },
-      status: { in: ["ACTIVE"] },
+      key: "ai_credits",
+      startsAt: { lte: now },
+      revokedAt: null,
+      OR: [{ endsAt: null }, { endsAt: { gt: now } }],
     },
-    orderBy: { updatedAt: "desc" },
-    select: { interval: true, currentPeriodEnd: true, createdAt: true },
+    orderBy: { createdAt: "asc" },
+    select: { createdAt: true },
   });
-  const anchor = subscription?.createdAt ?? now;
-  let end =
-    subscription?.interval === "MONTHLY" && subscription.currentPeriodEnd
-      ? subscription.currentPeriodEnd
-      : anchoredUtcDate(now.getUTCFullYear(), now.getUTCMonth(), anchor.getUTCDate());
-  if (end <= now)
-    end = anchoredUtcDate(end.getUTCFullYear(), end.getUTCMonth() + 1, anchor.getUTCDate());
-  const start = anchoredUtcDate(end.getUTCFullYear(), end.getUTCMonth() - 1, anchor.getUTCDate());
+  if (!grant) return null;
+
+  const anchorTime = grant.createdAt.getTime();
+  if (Number.isNaN(anchorTime)) {
+    const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+    return { key: `ats:quota:subscriber:${userId}:${now.toISOString().slice(0, 7)}`, end };
+  }
+
+  const anchorDay = grant.createdAt.getUTCDate();
+  let end = anchoredUtcDate(now.getUTCFullYear(), now.getUTCMonth(), anchorDay);
+  if (end <= now) end = anchoredUtcDate(end.getUTCFullYear(), end.getUTCMonth() + 1, anchorDay);
+  const start = anchoredUtcDate(end.getUTCFullYear(), end.getUTCMonth() - 1, anchorDay);
   return { key: `ats:quota:subscriber:${userId}:${start.toISOString().slice(0, 10)}`, end };
 }
 

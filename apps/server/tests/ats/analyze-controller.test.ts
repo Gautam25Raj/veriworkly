@@ -6,9 +6,28 @@ const refund = vi.fn();
 const fetchJobPage = vi.fn();
 const check = vi.fn();
 const analyze = vi.fn();
+const getWallet = vi.fn();
 
 vi.mock("#middleware/auth", () => ({
   requireAuthUser: vi.fn(() => ({ id: "user-1" })),
+}));
+
+// The in-flight cap is covered by the limiter's own tests; here it only has to let work through.
+vi.mock("#middleware/rateLimit", () => ({
+  withAiSlot: (_userId: string, work: () => Promise<unknown>) => work(),
+}));
+
+vi.mock("#services/creditService", () => ({
+  CreditService: { getWallet: (...args: unknown[]) => getWallet(...args) },
+}));
+
+vi.mock("#services/ats/aiPolicy", () => ({
+  publicAtsPolicy: () => ({
+    analysisCredits: { min: 5, max: 25 },
+    jobUrlAnalysisCredits: { min: 10, max: 50 },
+    resumeConversionCredits: 25,
+    parseRepairCredits: 2,
+  }),
 }));
 
 vi.mock("#services/ats/quota", () => ({
@@ -62,9 +81,23 @@ function requestFor(body: Record<string, unknown>) {
   return { body, authUser: { id: "user-1" } } as unknown as Request;
 }
 
+/** Enough of a response for the controller to build its abort signal on and answer through. */
 function responseSpy() {
   const json = vi.fn();
-  return { res: { json } as unknown as Response, json };
+  const res = { json, once: vi.fn(), writableFinished: false } as unknown as Response;
+  return { res, json };
+}
+
+/** A repair outcome the way `AtsRepairService.repair` now returns it: charged only on commit. */
+function repairOutcome(overrides: Record<string, unknown> = {}) {
+  return {
+    repaired: null,
+    creditsSpent: 2,
+    rejectedValues: 0,
+    commit: vi.fn(async () => undefined),
+    release: vi.fn(async () => undefined),
+    ...overrides,
+  };
 }
 
 const baseBody = {
@@ -82,6 +115,7 @@ beforeEach(() => {
   fetchJobPage.mockResolvedValue("a job description long enough to score");
   consume.mockResolvedValue({ tier: "free", limit: 2, used: 1, remaining: 1 });
   refund.mockResolvedValue({ tier: "free", limit: 2, used: 0, remaining: 2 });
+  getWallet.mockResolvedValue({ available: 100 });
 });
 
 describe("POST /ats/analyze — quota gates outbound egress", () => {
@@ -223,6 +257,56 @@ describe("POST /ats/analyze — quota gates outbound egress", () => {
 });
 
 /**
+ * V-035: the wallet is checked before the scan is metered and before the job page is fetched.
+ * A zero-credit account used to be metered, make the server fetch its URL, and only then get
+ * the 402 from the reservation — which refunded the scan, so the fetch cost it nothing.
+ */
+describe("POST /ats/analyze — the balance gate comes before the fetch", () => {
+  it("answers 402 before consuming a scan or fetching when the wallet cannot cover an analysis", async () => {
+    getWallet.mockResolvedValue({ available: 0 });
+    const next = vi.fn() as unknown as NextFunction;
+
+    await AtsAiController.analyze(requestFor(baseBody), responseSpy().res, next);
+
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 402 }));
+    expect(consume).not.toHaveBeenCalled();
+    expect(fetchJobPage).not.toHaveBeenCalled();
+    expect(analyze).not.toHaveBeenCalled();
+    expect(refund).not.toHaveBeenCalled();
+  });
+
+  it("prices the gate at the online rate when a job URL will be fetched", async () => {
+    // Covers a pasted analysis (5) but not a fetched one (10).
+    getWallet.mockResolvedValue({ available: 7 });
+
+    const pasted = vi.fn() as unknown as NextFunction;
+    await AtsAiController.analyze(
+      requestFor({ ...baseBody, fetchJobUrl: false, jobDescription: "pasted description" }),
+      responseSpy().res,
+      pasted,
+    );
+    expect(pasted).not.toHaveBeenCalled();
+    expect(analyze).toHaveBeenCalledTimes(1);
+
+    const fetched = vi.fn() as unknown as NextFunction;
+    await AtsAiController.analyze(requestFor(baseBody), responseSpy().res, fetched);
+    expect(fetched).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 402 }));
+    expect(fetchJobPage).not.toHaveBeenCalled();
+  });
+
+  it("keeps the scan spent when the reservation itself answers 402 after the page was fetched", async () => {
+    analyze.mockRejectedValue(new ApiError(402, "Not enough AI credits."));
+    const next = vi.fn() as unknown as NextFunction;
+
+    await AtsAiController.analyze(requestFor(baseBody), responseSpy().res, next);
+
+    expect(fetchJobPage).toHaveBeenCalledTimes(1);
+    expect(refund).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 402 }));
+  });
+});
+
+/**
  * Parse repair spends credits, so the contract that matters is that it cannot run unasked.
  * A thin parse advertises the option; only an explicit `repairParse` actually buys it.
  */
@@ -261,26 +345,28 @@ describe("POST /ats/analyze — parse repair is offered, not imposed", () => {
       prioritizedFixes: [],
       parsed: { name: "", email: "", phone: "", roles: [], education: [], skills: [] },
     });
-    repairMock.mockResolvedValue({
-      repaired: {
-        name: "Jane Doe",
-        email: "",
-        phone: "",
-        roles: [{ title: "Engineer", employer: "Acme", start: null, end: null, current: false }],
-        education: [],
-        skills: [],
-        provenance: {
-          name: "ai",
-          email: "none",
-          phone: "none",
-          roles: "ai",
-          education: "none",
-          skills: "none",
+    repairMock.mockResolvedValue(
+      repairOutcome({
+        repaired: {
+          name: "Jane Doe",
+          email: "",
+          phone: "",
+          roles: [{ title: "Engineer", employer: "Acme", start: null, end: null, current: false }],
+          education: [],
+          skills: [],
+          provenance: {
+            name: "ai",
+            email: "none",
+            phone: "none",
+            roles: "ai",
+            education: "none",
+            skills: "none",
+          },
         },
-      },
-      creditsSpent: 2,
-      rejectedValues: 1,
-    });
+        creditsSpent: 2,
+        rejectedValues: 1,
+      }),
+    );
     const { res, json } = responseSpy();
 
     await AtsAiController.analyze(requestFor({ ...baseBody, repairParse: true }), res, vi.fn());
@@ -331,7 +417,7 @@ describe("POST /ats/analyze — credits and quota survive failures", () => {
 
   it("reserves repair credits under a different id from the analysis", async () => {
     thinParse();
-    repairMock.mockResolvedValue({ repaired: null, creditsSpent: 2, rejectedValues: 0 });
+    repairMock.mockResolvedValue(repairOutcome());
 
     await AtsAiController.analyze(
       requestFor({ ...baseBody, fetchJobUrl: false, repairParse: true }),
@@ -385,5 +471,175 @@ describe("POST /ats/analyze — credits and quota survive failures", () => {
 
     expect(refund).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 400 }));
+  });
+
+  /**
+   * V-036: the repair is paid for only when the analysis it was done for is delivered. It used
+   * to commit its own reservation at once, so an analysis that then failed refunded the scan,
+   * discarded the repaired parse, and kept the repair credits.
+   */
+  it("releases the repair when the analysis fails, and never commits it", async () => {
+    thinParse();
+    const repair = repairOutcome();
+    repairMock.mockResolvedValue(repair);
+    analyze.mockRejectedValue(new ApiError(502, "AI ATS analysis could not be completed."));
+    const next = vi.fn();
+
+    await AtsAiController.analyze(
+      requestFor({ ...baseBody, fetchJobUrl: false, repairParse: true }),
+      responseSpy().res,
+      next,
+    );
+
+    expect(repair.release).toHaveBeenCalledTimes(1);
+    expect(repair.commit).not.toHaveBeenCalled();
+    expect(refund).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 502 }));
+  });
+
+  it("commits the repair once the analysis has succeeded", async () => {
+    thinParse();
+    const repair = repairOutcome();
+    repairMock.mockResolvedValue(repair);
+    const { res, json } = responseSpy();
+
+    await AtsAiController.analyze(
+      requestFor({ ...baseBody, fetchJobUrl: false, repairParse: true }),
+      res,
+      vi.fn(),
+    );
+
+    expect(repair.commit).toHaveBeenCalledTimes(1);
+    expect(repair.release).not.toHaveBeenCalled();
+    expect(json.mock.calls[0][0].data.repair).toMatchObject({ creditsSpent: 2 });
+  });
+
+  it("reports the repair as unspent when the ledger refuses the late commit", async () => {
+    thinParse();
+    const repair = repairOutcome({
+      commit: vi.fn(async () => {
+        throw new ApiError(409, "AI credit reservation is no longer pending.");
+      }),
+    });
+    repairMock.mockResolvedValue(repair);
+    const { res, json } = responseSpy();
+    const next = vi.fn();
+
+    await AtsAiController.analyze(
+      requestFor({ ...baseBody, fetchJobUrl: false, repairParse: true }),
+      res,
+      next,
+    );
+
+    expect(next).not.toHaveBeenCalled();
+    expect(json.mock.calls[0][0].data.repair).toMatchObject({ creditsSpent: 0 });
+  });
+
+  /** V-034: one signal per request, so the client leaving ends whichever call is running. */
+  it("hands repair and analysis the same abort signal", async () => {
+    thinParse();
+    repairMock.mockResolvedValue(repairOutcome());
+
+    await AtsAiController.analyze(
+      requestFor({ ...baseBody, fetchJobUrl: false, repairParse: true }),
+      responseSpy().res,
+      vi.fn(),
+    );
+
+    const repairSignal = repairMock.mock.calls[0][4];
+    const analysisSignal = analyze.mock.calls[0][6];
+    expect(repairSignal).toBeInstanceOf(AbortSignal);
+    expect(analysisSignal).toBe(repairSignal);
+  });
+
+  it("still surfaces the original error when the scan refund itself fails", async () => {
+    analyze.mockRejectedValue(new ApiError(502, "AI ATS analysis could not be completed."));
+    refund.mockRejectedValue(new Error("Redis client not ready"));
+    const next = vi.fn();
+
+    await AtsAiController.analyze(
+      requestFor({ ...baseBody, fetchJobUrl: false, jobDescription: "pasted description" }),
+      responseSpy().res,
+      next,
+    );
+
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 502 }));
+  });
+});
+
+describe("POST /ats/analyze — the balance gate and the scan refund, revisited", () => {
+  it("counts the requested repair in the gate, so the scan is never lost to the repair's 402", async () => {
+    // Covers the analysis (5) but not analysis + repair (5 + 2).
+    getWallet.mockResolvedValue({ available: 6 });
+    const next = vi.fn() as unknown as NextFunction;
+
+    await AtsAiController.analyze(
+      requestFor({
+        ...baseBody,
+        fetchJobUrl: false,
+        jobDescription: "pasted description",
+        repairParse: true,
+      }),
+      responseSpy().res,
+      next,
+    );
+
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 402 }));
+    expect(consume).not.toHaveBeenCalled();
+
+    getWallet.mockResolvedValue({ available: 7 });
+    const enough = vi.fn() as unknown as NextFunction;
+    await AtsAiController.analyze(
+      requestFor({
+        ...baseBody,
+        fetchJobUrl: false,
+        jobDescription: "pasted description",
+        repairParse: true,
+      }),
+      responseSpy().res,
+      enough,
+    );
+    expect(enough).not.toHaveBeenCalled();
+  });
+
+  it("refunds the scan on a 402 when no job page was fetched", async () => {
+    analyze.mockRejectedValue(new ApiError(402, "Not enough AI credits."));
+    const next = vi.fn() as unknown as NextFunction;
+
+    await AtsAiController.analyze(
+      requestFor({ ...baseBody, fetchJobUrl: false, jobDescription: "pasted description" }),
+      responseSpy().res,
+      next,
+    );
+
+    expect(fetchJobPage).not.toHaveBeenCalled();
+    expect(refund).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 402 }));
+  });
+
+  it("builds the abort signal before the job fetch and reserves nothing for a client already gone", async () => {
+    const json = vi.fn();
+    const res = {
+      json,
+      once: vi.fn(),
+      writableFinished: false,
+      destroyed: false,
+    } as unknown as Response & { destroyed: boolean };
+    fetchJobPage.mockImplementation(async () => {
+      // The client leaves while the page is being fetched.
+      res.destroyed = true;
+      const closeHandler = (res.once as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as
+        (() => void) | undefined;
+      closeHandler?.();
+      return "a job description long enough to score";
+    });
+    const next = vi.fn() as unknown as NextFunction;
+
+    await AtsAiController.analyze(requestFor(baseBody), res, next);
+
+    expect(fetchJobPage).toHaveBeenCalledTimes(1);
+    expect(analyze).not.toHaveBeenCalled();
+    expect(refund).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 504 }));
   });
 });

@@ -22,6 +22,7 @@ vi.mock("#config", () => ({
       rateLimitWindowMs: 60000,
       rateLimitMaxRequests: 3,
     },
+    metrics: { statsInternalKey: "test-stats-internal-key" },
   },
 }));
 
@@ -36,7 +37,8 @@ vi.mock("#lib/logger", () => ({
   },
 }));
 
-import { rateLimitMiddleware } from "#middleware/rateLimit";
+import { logger } from "#lib/logger";
+import { AI_IN_FLIGHT_MAX, rateLimitMiddleware, withAiSlot } from "#middleware/rateLimit";
 
 describe("rateLimitMiddleware", () => {
   let req: Partial<Request> & { headers: Record<string, string> };
@@ -235,7 +237,11 @@ describe("rateLimitMiddleware path normalisation", () => {
     return { routeKey: options.keys[0], windowMs: options.arguments[0] };
   }
 
-  beforeEach(() => mockGetRedis.mockReset());
+  // A statement body: `mockReset()` returns the mock, and vitest would call a returned function
+  // as the hook's cleanup, invoking whatever implementation the test had installed.
+  beforeEach(() => {
+    mockGetRedis.mockReset();
+  });
 
   it("puts /api/v1/Contact/ and /api/v1/contact in one bucket with the contact limit", async () => {
     const canonical = await routeCall("/api/v1/contact");
@@ -278,5 +284,249 @@ describe("rateLimitMiddleware path normalisation", () => {
     const over = await outcome(21);
     expect(over.passed).toBe(false);
     expect(over.res.status).toHaveBeenCalledWith(429);
+  });
+});
+
+/**
+ * V-038: the ATS routes that spend AI credits belong to the AI class (`config.ai.rateLimit*`),
+ * not the generic one they used to fall into because only `/api/v1/ai` was matched.
+ */
+describe("rateLimitMiddleware AI class", () => {
+  async function outcome(path: string, routeCount: number) {
+    mockGetRedis.mockReturnValue({
+      isReady: true,
+      eval: vi.fn().mockResolvedValue([routeCount, 60000, 1, 900000]),
+    });
+    const res = { set: vi.fn(), status: vi.fn().mockReturnThis(), json: vi.fn() };
+    const next = vi.fn();
+    const req = {
+      headers: {},
+      ip: "203.0.113.7",
+      path,
+      method: "POST",
+      socket: { remoteAddress: "203.0.113.7" },
+    } as unknown as Request;
+    await rateLimitMiddleware(req, res as unknown as Response, next);
+    return next.mock.calls.length === 1;
+  }
+
+  // A statement body: `mockReset()` returns the mock, and vitest would call a returned function
+  // as the hook's cleanup, invoking whatever implementation the test had installed.
+  beforeEach(() => {
+    mockGetRedis.mockReset();
+  });
+
+  // The mocked AI class allows 3; the generic class 5. A 4th request tells them apart.
+  it.each(["/api/v1/ats/analyze", "/api/v1/ats/convert-resume", "/api/v1/ai/generate"])(
+    "limits %s at the AI class ceiling",
+    async (path) => {
+      expect(await outcome(path, 3)).toBe(true);
+      expect(await outcome(path, 4)).toBe(false);
+    },
+  );
+
+  it("leaves the free ATS routes in the generic class", async () => {
+    expect(await outcome("/api/v1/ats/check", 4)).toBe(true);
+    expect(await outcome("/api/v1/ats/extract", 5)).toBe(true);
+    expect(await outcome("/api/v1/ats/check", 6)).toBe(false);
+  });
+});
+
+/**
+ * V-160: without Redis the per-process map multiplies every limit by the number of workers. The
+ * classes that guard a password guess, an outbound mail or an OTP answer 503 instead, and the
+ * degradation is logged once per transition rather than silently or on every request.
+ */
+describe("rateLimitMiddleware without Redis", () => {
+  const warn = logger.warn as ReturnType<typeof vi.fn>;
+
+  function call(path: string) {
+    const res = { set: vi.fn(), status: vi.fn().mockReturnThis(), json: vi.fn() };
+    const next = vi.fn();
+    const req = {
+      headers: {},
+      ip: "203.0.113.8",
+      path,
+      method: "POST",
+      socket: { remoteAddress: "203.0.113.8" },
+    } as unknown as Request;
+    return rateLimitMiddleware(req, res as unknown as Response, next).then(() => ({
+      passed: next.mock.calls.length === 1,
+      status: (res.status.mock.calls[0] as [number] | undefined)?.[0],
+      retryAfter: (res.set.mock.calls[0] as [string, string] | undefined)?.[1],
+    }));
+  }
+
+  const transitions = () =>
+    warn.mock.calls.map(([message]) => String(message)).filter((m) => /rate limiter/i.test(m));
+
+  beforeEach(async () => {
+    mockGetRedis.mockReset();
+    // Start from a healthy limiter so the transition under test is the only one recorded.
+    mockGetRedis.mockReturnValue({
+      isReady: true,
+      eval: vi.fn().mockResolvedValue([1, 60000, 1, 900000]),
+    });
+    await call("/api/v1/documents");
+    warn.mockClear();
+    mockGetRedis.mockImplementation(() => {
+      throw new Error("Redis client not ready");
+    });
+  });
+
+  it.each([
+    "/api/v1/shares/public/alice/my-resume/verify",
+    "/api/v1/contact",
+    "/api/v1/auth/email-otp/send-verification-otp",
+    "/api/v1/auth/forget-password/email-otp",
+  ])("fails %s closed with 503 and Retry-After", async (path) => {
+    const result = await call(path);
+    expect(result.passed).toBe(false);
+    expect(result.status).toBe(503);
+    expect(result.retryAfter).toBe("5");
+  });
+
+  it("still serves the other classes from the per-process map", async () => {
+    expect((await call("/api/v1/auth/sign-in")).passed).toBe(true);
+    expect((await call("/api/v1/documents")).passed).toBe(true);
+  });
+
+  it("logs the fallback once, and the recovery once", async () => {
+    await call("/api/v1/documents");
+    await call("/api/v1/contact");
+    await call("/api/v1/documents");
+    expect(transitions()).toHaveLength(1);
+    expect(transitions()[0]).toMatch(/memory/i);
+
+    mockGetRedis.mockReturnValue({
+      isReady: true,
+      eval: vi.fn().mockResolvedValue([1, 60000, 1, 900000]),
+    });
+    await call("/api/v1/documents");
+    await call("/api/v1/documents");
+    expect(transitions()).toHaveLength(2);
+    expect(transitions()[1]).toMatch(/recovered/i);
+  });
+});
+
+/** V-038: at most two provider calls in flight per user, counted in Redis for the deadline. */
+describe("withAiSlot", () => {
+  function redisWithCount(count: number) {
+    const exec = vi.fn().mockResolvedValue([count, 1]);
+    const chain = { incr: vi.fn(), expire: vi.fn(), exec };
+    chain.incr.mockReturnValue(chain);
+    chain.expire.mockReturnValue(chain);
+    const redis = { isReady: true, multi: vi.fn(() => chain), eval: vi.fn().mockResolvedValue(0) };
+    mockGetRedis.mockReturnValue(redis);
+    return { redis, chain };
+  }
+
+  // A statement body: `mockReset()` returns the mock, and vitest would call a returned function
+  // as the hook's cleanup, invoking whatever implementation the test had installed.
+  beforeEach(() => {
+    mockGetRedis.mockReset();
+  });
+
+  it("runs the work inside a slot and releases it afterwards", async () => {
+    const { redis, chain } = redisWithCount(1);
+    const work = vi.fn(async () => "done");
+
+    expect(await withAiSlot("user-1", work)).toBe("done");
+
+    expect(chain.incr).toHaveBeenCalledWith("ai:in-flight:user-1");
+    // Deadline (85 s) + the longest job fetch (80 s) + margin: a crashed worker's slot outlives
+    // nothing it could have been held for.
+    expect(chain.expire).toHaveBeenCalledWith("ai:in-flight:user-1", 170, "NX");
+    expect(redis.eval).toHaveBeenCalledTimes(1);
+  });
+
+  it("releases the slot when the work throws", async () => {
+    const { redis } = redisWithCount(2);
+
+    await expect(
+      withAiSlot("user-1", async () => Promise.reject(new Error("boom"))),
+    ).rejects.toThrow("boom");
+    expect(redis.eval).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a call past the cap with 429 before any work runs", async () => {
+    const { redis } = redisWithCount(AI_IN_FLIGHT_MAX + 1);
+    const work = vi.fn(async () => "done");
+
+    await expect(withAiSlot("user-1", work)).rejects.toMatchObject({
+      statusCode: 429,
+      message: expect.stringMatching(/in progress/i),
+    });
+    expect(work).not.toHaveBeenCalled();
+    // The over-count increment is undone so the user is not locked out by their own refusal.
+    expect(redis.eval).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs the work uncounted when Redis is unavailable", async () => {
+    mockGetRedis.mockImplementation(() => {
+      throw new Error("Redis client not ready");
+    });
+    const work = vi.fn(async () => "done");
+
+    expect(await withAiSlot("user-1", work)).toBe("done");
+  });
+});
+
+/** The server's own apps post stats with the internal key; they must not share the public class. */
+describe("rateLimitMiddleware internal stats requests", () => {
+  async function outcome(headers: Record<string, string>, routeCount: number) {
+    mockGetRedis.mockReturnValue({
+      isReady: true,
+      eval: vi.fn().mockResolvedValue([routeCount, 60000, 1, 900000]),
+    });
+    const res = { set: vi.fn(), status: vi.fn().mockReturnThis(), json: vi.fn() };
+    const next = vi.fn();
+    const req = {
+      headers,
+      ip: "203.0.113.9",
+      path: "/api/v1/stats/events",
+      method: "POST",
+      socket: { remoteAddress: "203.0.113.9" },
+    } as unknown as Request;
+    await rateLimitMiddleware(req, res as unknown as Response, next);
+    return next.mock.calls.length === 1;
+  }
+
+  beforeEach(() => {
+    mockGetRedis.mockReset();
+  });
+
+  it("keeps anonymous posts in the 15-per-minute class", async () => {
+    expect(await outcome({}, 15)).toBe(true);
+    expect(await outcome({}, 16)).toBe(false);
+    expect(await outcome({ "x-internal-key": "wrong" }, 16)).toBe(false);
+  });
+
+  // The mocked generic class allows 5, the stats class 15: a 6th request tells them apart.
+  it("moves a request with the internal key to the generic class", async () => {
+    const internal = { "x-internal-key": "test-stats-internal-key" };
+    expect(await outcome(internal, 5)).toBe(true);
+    expect(await outcome(internal, 6)).toBe(false);
+    expect(await outcome({}, 6)).toBe(true);
+  });
+});
+
+describe("withAiSlot on a Redis that cannot count", () => {
+  beforeEach(() => {
+    mockGetRedis.mockReset();
+  });
+
+  it("undoes the increment best-effort and runs the work uncounted when exec fails", async () => {
+    const exec = vi.fn().mockRejectedValue(new Error("ERR syntax error"));
+    const chain = { incr: vi.fn(), expire: vi.fn(), exec };
+    chain.incr.mockReturnValue(chain);
+    chain.expire.mockReturnValue(chain);
+    const redis = { isReady: true, multi: vi.fn(() => chain), eval: vi.fn().mockResolvedValue(0) };
+    mockGetRedis.mockReturnValue(redis);
+    const work = vi.fn(async () => "done");
+
+    expect(await withAiSlot("user-1", work)).toBe("done");
+    expect(redis.eval).toHaveBeenCalledTimes(1);
+    expect(work).toHaveBeenCalledTimes(1);
   });
 });

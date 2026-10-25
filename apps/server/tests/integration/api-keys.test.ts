@@ -41,7 +41,7 @@ async function createKey(user: TestUser, body: Record<string, unknown> = {}): Pr
   return { id: response.body.data.id, key: response.body.data.key };
 }
 
-function useKey(key: string) {
+function requestWithKey(key: string) {
   return request(app).get("/api/v1/users/me").set("X-API-Key", key);
 }
 
@@ -139,7 +139,7 @@ describe("API keys through the real stack", () => {
     const user = await createUserWithSession();
     const created = await createKey(user);
 
-    const me = await useKey(created.key);
+    const me = await requestWithKey(created.key);
 
     expect(me.status).toBe(200);
     expect(me.body.success).toBe(true);
@@ -153,7 +153,7 @@ describe("API keys through the real stack", () => {
   it("(b) two concurrent rotates leave exactly one live key", async () => {
     const user = await createUserWithSession();
     const created = await createKey(user);
-    expect((await useKey(created.key)).status).toBe(200); // warms the auth cache
+    expect((await requestWithKey(created.key)).status).toBe(200); // warms the auth cache
 
     const [first, second] = await Promise.all([
       asUser(user).post(`/api/v1/api-keys/${created.id}/rotate`).send({}),
@@ -171,8 +171,8 @@ describe("API keys through the real stack", () => {
     expect(await activeKeyCount(user.id)).toBe(1);
     expect(await prisma.apiKey.count({ where: { userId: user.id } })).toBe(2);
 
-    expect((await useKey(created.key)).status).toBe(401);
-    expect((await useKey(winner.body.data.key)).status).toBe(200);
+    expect((await requestWithKey(created.key)).status).toBe(401);
+    expect((await requestWithKey(winner.body.data.key)).status).toBe(200);
 
     // A third rotate of the retired key is a conflict, not "not found".
     const again = await asUser(user).post(`/api/v1/api-keys/${created.id}/rotate`).send({});
@@ -186,7 +186,7 @@ describe("API keys through the real stack", () => {
   it("(b-race) a rotate that loses the row to a concurrent rotate is refused by the updateMany count", async () => {
     const user = await createUserWithSession();
     const created = await createKey(user);
-    expect((await useKey(created.key)).status).toBe(200);
+    expect((await requestWithKey(created.key)).status).toBe(200);
 
     const winnerRaw = rawKey();
 
@@ -203,8 +203,8 @@ describe("API keys through the real stack", () => {
     expect(await prisma.apiKey.count({ where: { userId: user.id } })).toBe(2);
     expect(await prisma.apiKey.count({ where: { userId: user.id, name: "winner" } })).toBe(1);
 
-    expect((await useKey(created.key)).status).toBe(401);
-    expect((await useKey(winnerRaw)).status).toBe(200);
+    expect((await requestWithKey(created.key)).status).toBe(401);
+    expect((await requestWithKey(winnerRaw)).status).toBe(200);
   });
 
   it("(c) rotate racing revoke never resurrects access", async () => {
@@ -213,7 +213,7 @@ describe("API keys through the real stack", () => {
     // has no live key at all. A revoked key is never silently replaced by a live one.
     const user = await createUserWithSession();
     const created = await createKey(user);
-    expect((await useKey(created.key)).status).toBe(200);
+    expect((await requestWithKey(created.key)).status).toBe(200);
 
     const [rotate, revoke] = await Promise.all([
       asUser(user).post(`/api/v1/api-keys/${created.id}/rotate`).send({}),
@@ -223,11 +223,11 @@ describe("API keys through the real stack", () => {
     expect([200, 404]).toContain(revoke.status);
     expect([201, 409]).toContain(rotate.status);
 
-    expect((await useKey(created.key)).status).toBe(401);
+    expect((await requestWithKey(created.key)).status).toBe(401);
 
     if (rotate.status === 201) {
       expect(await activeKeyCount(user.id)).toBe(1);
-      expect((await useKey(rotate.body.data.key)).status).toBe(200);
+      expect((await requestWithKey(rotate.body.data.key)).status).toBe(200);
     } else {
       expect(await activeKeyCount(user.id)).toBe(0);
       expect(await prisma.apiKey.count({ where: { userId: user.id } })).toBe(1);
@@ -237,7 +237,7 @@ describe("API keys through the real stack", () => {
   it("(c-race) a rotate blocked behind a committing revoke ends 409 and creates nothing", async () => {
     const user = await createUserWithSession();
     const created = await createKey(user);
-    expect((await useKey(created.key)).status).toBe(200);
+    expect((await requestWithKey(created.key)).status).toBe(200);
 
     // Outer transaction = the revoke (retire, no replacement). Rotate passes its precheck on the
     // still-committed active row, blocks on updateMany, then sees revokedAt set → count 0.
@@ -250,13 +250,13 @@ describe("API keys through the real stack", () => {
 
     expect(await activeKeyCount(user.id)).toBe(0);
     expect(await prisma.apiKey.count({ where: { userId: user.id } })).toBe(1);
-    expect((await useKey(created.key)).status).toBe(401);
+    expect((await requestWithKey(created.key)).status).toBe(401);
   });
 
   it("(c2-race) a revoke blocked behind a committing rotate is an idempotent 200 that keeps the new key", async () => {
     const user = await createUserWithSession();
     const created = await createKey(user);
-    expect((await useKey(created.key)).status).toBe(200);
+    expect((await requestWithKey(created.key)).status).toBe(200);
 
     const before = await prisma.apiKey.findUniqueOrThrow({ where: { id: created.id } });
     const winnerRaw = rawKey();
@@ -280,8 +280,8 @@ describe("API keys through the real stack", () => {
     expect(unchanged.updatedAt.getTime()).toBe(after.updatedAt.getTime());
 
     expect(await activeKeyCount(user.id)).toBe(1);
-    expect((await useKey(created.key)).status).toBe(401);
-    expect((await useKey(winnerRaw)).status).toBe(200);
+    expect((await requestWithKey(created.key)).status).toBe(401);
+    expect((await requestWithKey(winnerRaw)).status).toBe(200);
   });
 
   it("(d) a valid key authenticates a user whose latest subscription row is CANCELED", async () => {
@@ -300,10 +300,10 @@ describe("API keys through the real stack", () => {
 
     const created = await createKey(user);
 
-    const cold = await useKey(created.key);
+    const cold = await requestWithKey(created.key);
     expect(cold.status).toBe(200);
 
-    const warm = await useKey(created.key);
+    const warm = await requestWithKey(created.key);
     expect(warm.status).toBe(200);
 
     // An INACTIVE row (past_due / paused / pending all map here) must not kill the key either.
@@ -312,7 +312,7 @@ describe("API keys through the real stack", () => {
       data: { status: "INACTIVE" },
     });
     await ApiKeyService.invalidateAuthCacheForUser(user.id);
-    expect((await useKey(created.key)).status).toBe(200);
+    expect((await requestWithKey(created.key)).status).toBe(200);
   });
 
   it("(e) an expired key cannot be rotated and a past expiresAt is rejected", async () => {
@@ -322,7 +322,7 @@ describe("API keys through the real stack", () => {
     const past = new Date(Date.now() - 60_000);
     await prisma.apiKey.update({ where: { id: created.id }, data: { expiresAt: past } });
 
-    expect((await useKey(created.key)).status).toBe(401);
+    expect((await requestWithKey(created.key)).status).toBe(401);
 
     const rotated = await asUser(user).post(`/api/v1/api-keys/${created.id}/rotate`).send({});
     expect(rotated.status).toBe(409);
@@ -412,7 +412,7 @@ describe("API keys through the real stack", () => {
     const user = await createUserWithSession();
     const created = await createKey(user);
 
-    expect((await useKey(created.key)).status).toBe(200);
+    expect((await requestWithKey(created.key)).status).toBe(200);
 
     const keyHash = ApiKeyService.hashKey(created.key);
     const cachedBefore = await waitForAuthCache(keyHash);
@@ -422,12 +422,12 @@ describe("API keys through the real stack", () => {
     expect(revoked.status).toBe(200);
 
     expect(await revokedMarker(keyHash)).not.toBeNull();
-    expect((await useKey(created.key)).status).toBe(401);
+    expect((await requestWithKey(created.key)).status).toBe(401);
 
     // The V-122 race: a validateKey that read the row before the revoke committed writes the
     // stale active record after the revoke's DEL. Replay that write and the key must still fail.
     await cacheSet(`apikey:auth:${keyHash}`, cachedBefore, 300);
-    expect((await useKey(created.key)).status).toBe(401);
+    expect((await requestWithKey(created.key)).status).toBe(401);
 
     // Rotating a revoked key is 409 and must not resurrect it.
     const rotated = await asUser(user).post(`/api/v1/api-keys/${created.id}/rotate`).send({});
@@ -438,7 +438,7 @@ describe("API keys through the real stack", () => {
   it("(g2) the retired half of a rotate stops authenticating even against a racing cache write", async () => {
     const user = await createUserWithSession();
     const created = await createKey(user);
-    expect((await useKey(created.key)).status).toBe(200);
+    expect((await requestWithKey(created.key)).status).toBe(200);
 
     const keyHash = ApiKeyService.hashKey(created.key);
     const cachedBefore = await waitForAuthCache(keyHash);
@@ -448,8 +448,8 @@ describe("API keys through the real stack", () => {
     expect(await revokedMarker(keyHash)).not.toBeNull();
 
     await cacheSet(`apikey:auth:${keyHash}`, cachedBefore, 300);
-    expect((await useKey(created.key)).status).toBe(401);
-    expect((await useKey(rotated.body.data.key)).status).toBe(200);
+    expect((await requestWithKey(created.key)).status).toBe(401);
+    expect((await requestWithKey(rotated.body.data.key)).status).toBe(200);
   });
 
   it("(h) admin revoke and admin disable write the revoked marker; a rate-limit edit does not", async () => {
@@ -460,7 +460,7 @@ describe("API keys through the real stack", () => {
     const limitedKey = await createKey(user, { name: "admin-limited" });
 
     for (const key of [revokedKey, disabledKey, limitedKey]) {
-      expect((await useKey(key.key)).status).toBe(200);
+      expect((await requestWithKey(key.key)).status).toBe(200);
     }
 
     const revokedHash = ApiKeyService.hashKey(revokedKey.key);
@@ -474,33 +474,33 @@ describe("API keys through the real stack", () => {
     // Admin revoke (service-level: the admin route needs the configured admin session).
     await revokeApiKey(revokedKey.id);
     expect(await revokedMarker(revokedHash)).not.toBeNull();
-    expect((await useKey(revokedKey.key)).status).toBe(401);
+    expect((await requestWithKey(revokedKey.key)).status).toBe(401);
     await cacheSet(`apikey:auth:${revokedHash}`, revokedCached, 300); // replay the V-122 race
-    expect((await useKey(revokedKey.key)).status).toBe(401);
+    expect((await requestWithKey(revokedKey.key)).status).toBe(401);
 
     // Admin disable.
     await updateApiKey(disabledKey.id, { isActive: false, reason: "integration disable" });
     expect(await revokedMarker(disabledHash)).not.toBeNull();
-    expect((await useKey(disabledKey.key)).status).toBe(401);
+    expect((await requestWithKey(disabledKey.key)).status).toBe(401);
     await cacheSet(`apikey:auth:${disabledHash}`, disabledCached, 300);
-    expect((await useKey(disabledKey.key)).status).toBe(401);
+    expect((await requestWithKey(disabledKey.key)).status).toBe(401);
 
     // A rate-limit edit is a plain cache drop: no marker, key keeps working.
     await updateApiKey(limitedKey.id, { rateLimit: 5, reason: "integration limit" });
     expect(await revokedMarker(limitedHash)).toBeNull();
     expect(await cacheGet(`apikey:auth:${limitedHash}`)).toBeNull();
-    expect((await useKey(limitedKey.key)).status).toBe(200);
+    expect((await requestWithKey(limitedKey.key)).status).toBe(200);
 
     // The user's own plain cache drop writes no marker either (the billing/deletion path).
     await ApiKeyService.invalidateAuthCacheForUser(user.id);
     expect(await revokedMarker(limitedHash)).toBeNull();
-    expect((await useKey(limitedKey.key)).status).toBe(200);
+    expect((await requestWithKey(limitedKey.key)).status).toBe(200);
   });
 
   it("(i) a revoked key is deleted with the marker already in place", async () => {
     const user = await createUserWithSession();
     const created = await createKey(user);
-    expect((await useKey(created.key)).status).toBe(200);
+    expect((await requestWithKey(created.key)).status).toBe(200);
 
     const keyHash = ApiKeyService.hashKey(created.key);
     const cachedBefore = await waitForAuthCache(keyHash);
@@ -513,7 +513,7 @@ describe("API keys through the real stack", () => {
 
     expect(await revokedMarker(keyHash)).not.toBeNull();
     await cacheSet(`apikey:auth:${keyHash}`, cachedBefore, 300);
-    expect((await useKey(created.key)).status).toBe(401);
+    expect((await requestWithKey(created.key)).status).toBe(401);
     expect(await prisma.apiKey.count({ where: { userId: user.id } })).toBe(0);
   });
 });

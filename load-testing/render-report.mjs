@@ -60,9 +60,10 @@ const failedVusers = aggregate.counters?.["vusers.failed"] ?? 0;
 const completedVusers = aggregate.counters?.["vusers.completed"] ?? 0;
 const errorRate = totalRequests ? (totalErrors / totalRequests) * 100 : 0;
 const overallRt = aggregate.summaries?.["http.response_time"] || {};
-const durationSec = aggregate.lastMetricAt && aggregate.firstMetricAt
-  ? (aggregate.lastMetricAt - aggregate.firstMetricAt) / 1000
-  : 0;
+const durationSec =
+  aggregate.lastMetricAt && aggregate.firstMetricAt
+    ? (aggregate.lastMetricAt - aggregate.firstMetricAt) / 1000
+    : 0;
 
 const statusCodes = Object.entries(aggregate.counters || {})
   .filter(([key]) => /^http\.codes\.\d+$/.test(key))
@@ -83,7 +84,10 @@ const endpoints = Object.entries(aggregate.summaries || {})
   })
   .sort((a, b) => b.count - a.count);
 
-function buildLineChart({ width = 760, height = 220, padding = { top: 16, right: 16, bottom: 28, left: 48 } }, lines) {
+function buildLineChart(
+  { width = 760, height = 220, padding = { top: 16, right: 16, bottom: 28, left: 48 } },
+  lines,
+) {
   const innerW = width - padding.left - padding.right;
   const innerH = height - padding.top - padding.bottom;
   const maxT = Math.max(1, ...series.map((p) => p.t));
@@ -95,8 +99,10 @@ function buildLineChart({ width = 760, height = 220, padding = { top: 16, right:
   const gridLines = Array.from({ length: 4 }, (_, i) => {
     const v = (maxY / 4) * (i + 1);
     const yy = y(v).toFixed(1);
-    return `<line x1="${padding.left}" y1="${yy}" x2="${width - padding.right}" y2="${yy}" class="gridline" />` +
-      `<text x="${padding.left - 6}" y="${yy}" class="axis-label" text-anchor="end" dominant-baseline="middle">${fmt(v)}</text>`;
+    return (
+      `<line x1="${padding.left}" y1="${yy}" x2="${width - padding.right}" y2="${yy}" class="gridline" />` +
+      `<text x="${padding.left - 6}" y="${yy}" class="axis-label" text-anchor="end" dominant-baseline="middle">${fmt(v)}</text>`
+    );
   }).join("");
 
   const xTicks = Array.from({ length: 5 }, (_, i) => {
@@ -132,24 +138,23 @@ function buildLineChart({ width = 760, height = 220, padding = { top: 16, right:
     </svg>`;
 }
 
-const latencyChart = buildLineChart(
-  {},
-  [
-    { label: "p50 (ms)", color: "#22c55e", values: series.map((p) => ({ t: p.t, y: p.p50 })) },
-    { label: "p95 (ms)", color: "#f59e0b", values: series.map((p) => ({ t: p.t, y: p.p95 })) },
-    { label: "p99 (ms)", color: "#ef4444", values: series.map((p) => ({ t: p.t, y: p.p99 })) },
-  ],
-);
+const latencyChart = buildLineChart({}, [
+  { label: "p50 (ms)", color: "#22c55e", values: series.map((p) => ({ t: p.t, y: p.p50 })) },
+  { label: "p95 (ms)", color: "#f59e0b", values: series.map((p) => ({ t: p.t, y: p.p95 })) },
+  { label: "p99 (ms)", color: "#ef4444", values: series.map((p) => ({ t: p.t, y: p.p99 })) },
+]);
 
-const rpsChart = buildLineChart(
-  {},
-  [{ label: "requests/sec", color: "#3b82f6", values: series.map((p) => ({ t: p.t, y: p.rps })) }],
-);
+const rpsChart = buildLineChart({}, [
+  { label: "requests/sec", color: "#3b82f6", values: series.map((p) => ({ t: p.t, y: p.rps })) },
+]);
 
-const errorChart = buildLineChart(
-  {},
-  [{ label: "errors (4xx/5xx) per interval", color: "#ef4444", values: series.map((p) => ({ t: p.t, y: p.errors })) }],
-);
+const errorChart = buildLineChart({}, [
+  {
+    label: "errors (4xx/5xx) per interval",
+    color: "#ef4444",
+    values: series.map((p) => ({ t: p.t, y: p.errors })),
+  },
+]);
 
 const html = `<!doctype html>
 <html lang="en">

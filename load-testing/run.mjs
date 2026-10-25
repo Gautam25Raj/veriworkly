@@ -130,7 +130,9 @@ function runOne(app, { environment, quick, extra }) {
   );
 
   if (reportResult.status !== 0) {
-    console.error(`[load-testing] ${app}: HTML report generation failed (JSON report still at ${jsonReport})`);
+    console.error(
+      `[load-testing] ${app}: HTML report generation failed (JSON report still at ${jsonReport})`,
+    );
     return { app, ok: false, jsonReport, htmlReport: null };
   }
 
@@ -160,7 +162,8 @@ function main() {
 
   for (const r of results) {
     if (r.ok) console.log(`  ${r.app}: OK -> ${r.htmlReport}`);
-    else console.log(`  ${r.app}: FAILED${r.jsonReport ? ` (partial JSON at ${r.jsonReport})` : ""}`);
+    else
+      console.log(`  ${r.app}: FAILED${r.jsonReport ? ` (partial JSON at ${r.jsonReport})` : ""}`);
   }
 
   if (results.some((r) => !r.ok)) process.exit(1);

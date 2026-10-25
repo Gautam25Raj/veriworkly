@@ -53,13 +53,13 @@ config:
       name: "Cool down"
 
 scenarios:
-# Weights add up to 100. Grouped by how the site renders each route, so the report shows
-# which kind of page slows down first:
-#   static/cached  - served from the build or the ISR cache; tests the Node server alone
-#   per request    - renders on every hit and calls the backend; tests site + server together
-#   generated      - CPU work on every request (OG images)
-# Build with the backend running (npm run dev:server first), then next start, so cached
-# pages hold real data. Same scenarios as site.yml; only the load is heavier.
+  # Weights add up to 100. Grouped by how the site renders each route, so the report shows
+  # which kind of page slows down first:
+  #   static/cached  - served from the build or the ISR cache; tests the Node server alone
+  #   per request    - renders on every hit and calls the backend; tests site + server together
+  #   generated      - CPU work on every request (OG images)
+  # Build with the backend running (npm run dev:server first), then next start, so cached
+  # pages hold real data. Same scenarios as site.yml; only the load is heavier.
   - name: "Homepage (static)"
     weight: 25
     flow:

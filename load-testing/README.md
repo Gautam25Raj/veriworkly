@@ -45,6 +45,7 @@ cp .env.example .env
 ```
 
 Fill in `load-testing/.env`:
+
 - The `LOCAL_*_URL` vars already match the ports in the root `package.json`
   `dev:*` scripts, so local testing works out of the box.
 - `PORTFOLIO_TEST_USERNAME` / `BLOG_TEST_SLUG` are optional but recommended -
@@ -74,6 +75,7 @@ npm run loadtest:all        # every app, one after another
 ```
 
 These call `node run.mjs <app>` under the hood, which:
+
 1. runs the matching `scenarios/<app>.yml` against `--environment local`,
 2. writes a JSON report to `load-testing/reports/`,
 3. renders that JSON to a standalone HTML report (open it in a browser - it
@@ -98,19 +100,19 @@ npx artillery run --dotenv .env --environment local scenarios/server-api.yml
 Every scenario file uses the same phase shape, meant to look like a real
 traffic day rather than a flat hammer test:
 
-| Phase              | What it simulates                                   |
-|---------------------|------------------------------------------------------|
-| Warm up              | trickle of traffic                                    |
-| Ramp to typical load | traffic building up (morning ramp)                    |
-| Sustained typical    | steady-state normal usage                             |
-| Ramp to peak load    | traffic climbing toward a busy period                 |
-| Sustained peak       | busiest normal period you'd expect in prod             |
-| Spike + spike hold    | a sudden burst (launch, HN/PH front page, etc.)       |
-| Cool down            | traffic draining back off                             |
+| Phase                | What it simulates                               |
+| -------------------- | ----------------------------------------------- |
+| Warm up              | trickle of traffic                              |
+| Ramp to typical load | traffic building up (morning ramp)              |
+| Sustained typical    | steady-state normal usage                       |
+| Ramp to peak load    | traffic climbing toward a busy period           |
+| Sustained peak       | busiest normal period you'd expect in prod      |
+| Spike + spike hold   | a sudden burst (launch, HN/PH front page, etc.) |
+| Cool down            | traffic draining back off                       |
 
 Each phase's arrival rate (new virtual users/sec) is intentionally higher
-than the last, so the HTML report shows latency and error rate *as a function
-of load*, not just an average - that's what tells you where a given app's
+than the last, so the HTML report shows latency and error rate _as a function
+of load_, not just an average - that's what tells you where a given app's
 ceiling actually is.
 
 Tune the numbers in a scenario's `config.phases` block directly if your
@@ -172,6 +174,7 @@ rate-limited to 5/hour anyway), `/api/v1/billing/*` (hits Dodo Payments),
 
 To add an authenticated scenario (e.g. dashboard load in `studio`, or
 `/api/v1/portfolios/me` in `server`):
+
 1. Log in once in a browser against the target environment, grab the
    session cookie (or mint an API key via `/api/v1/api-keys`).
 2. Put it in `load-testing/.env` as `AUTH_COOKIE` / `AUTH_API_KEY`.
@@ -197,6 +200,7 @@ npm run loadtest:server -- --environment staging
 ```
 
 Treat production runs with real caution:
+
 - Confirm with whoever owns infra/on-call before running anything above
   `--quick` against production - this is a real traffic generator and will
   show up in your metrics/alerts.
@@ -209,12 +213,12 @@ Treat production runs with real caution:
 
 Beyond the unauthenticated GETs, the server scenario covers the paths that hurt under load:
 
-| Scenario            | Endpoint                                  | Needs                                  |
-|----------------------|--------------------------------------------|-----------------------------------------|
-| Document autosave    | POST, 10x PATCH, DELETE `/documents`       | `SESSION_COOKIE`                        |
-| Public share read    | GET `/shares/public/:username/:slug`      | `SHARE_USERNAME`, `SHARE_SLUG` (else 404 path) |
-| ATS extract          | POST `/ats/extract` (`fixtures/resume.pdf`) | nothing (anonymous quota applies)       |
-| Admin overview       | GET `/admin/overview`                     | `ADMIN_SESSION_COOKIE` (or an admin `SESSION_COOKIE`) |
+| Scenario          | Endpoint                                    | Needs                                                 |
+| ----------------- | ------------------------------------------- | ----------------------------------------------------- |
+| Document autosave | POST, 10x PATCH, DELETE `/documents`        | `SESSION_COOKIE`                                      |
+| Public share read | GET `/shares/public/:username/:slug`        | `SHARE_USERNAME`, `SHARE_SLUG` (else 404 path)        |
+| ATS extract       | POST `/ats/extract` (`fixtures/resume.pdf`) | nothing (anonymous quota applies)                     |
+| Admin overview    | GET `/admin/overview`                       | `ADMIN_SESSION_COOKIE` (or an admin `SESSION_COOKIE`) |
 
 Scenarios whose variable is unset skip their authenticated steps instead of failing.
 

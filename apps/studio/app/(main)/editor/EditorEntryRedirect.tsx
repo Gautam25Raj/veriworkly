@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "sonner";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
@@ -11,6 +12,7 @@ import {
   createDocumentFromMasterProfile,
 } from "@/features/documents/services/document-workspace-service";
 import { getDocumentEditorPath } from "@/features/documents/core/routes";
+import { describeSaveResult } from "@/features/documents/services/save-failure-message";
 
 interface EditorEntryRedirectProps {
   type: DocumentType;
@@ -44,9 +46,23 @@ export function EditorEntryRedirect({ type, templateId }: EditorEntryRedirectPro
     // Fire-and-forget: the effect cannot be async, and the profile fetch inside
     // createDocumentFromMasterProfile is what makes this path await at all.
     void (async () => {
-      const document = applyTemplate(await createDocumentFromMasterProfile(type), templateId);
+      const created = await createDocumentFromMasterProfile(type);
+      const createFailure = describeSaveResult(created.saveResult);
 
-      if (document.templateId === templateId) saveDocument(document, { flush: true });
+      if (createFailure) {
+        toast.error(`Could not create the document: ${createFailure}`);
+        router.replace("/documents");
+        return;
+      }
+
+      const document = applyTemplate(created, templateId);
+
+      if (document.templateId === templateId) {
+        const templateFailure = describeSaveResult(saveDocument(document, { flush: true }));
+
+        // The document exists either way; only the chosen template did not stick.
+        if (templateFailure) toast.error(`Could not apply the template: ${templateFailure}`);
+      }
 
       router.replace(getDocumentEditorPath(type, document.id));
     })();

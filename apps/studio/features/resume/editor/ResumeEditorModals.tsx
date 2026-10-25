@@ -5,10 +5,13 @@ import { memo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useResumeStore } from "@/features/resume/store/resume-store";
-import { DocumentApi } from "@/features/documents/services/document-api";
 import { getDocumentEditorPath } from "@/features/documents/core/routes";
 import { trackUsageEvent } from "@/features/analytics/services/usage-metrics";
-import { deleteResume, createResume } from "@/features/resume/services/resume-service";
+import { createResume, loadResumeById } from "@/features/resume/services/resume-service";
+import {
+  deleteDocumentEverywhere,
+  listDocumentIndexEntries,
+} from "@/features/documents/services/document-workspace-service";
 
 import DestructiveModal from "@/components/modals/DestructiveModal";
 import ShareDocumentModal from "@/components/modals/ShareDocumentModal";
@@ -39,11 +42,10 @@ const EditorModals = memo(function EditorModals({
     setIsDeleting(true);
 
     try {
-      if (resume.sync.cloudDocumentId) {
-        await DocumentApi.delete(resume.id);
-      }
+      await deleteDocumentEverywhere("RESUME", resume);
 
-      const nextResume = deleteResume(resume.id);
+      const nextId = listDocumentIndexEntries("RESUME")[0]?.id;
+      const nextResume = nextId ? loadResumeById(nextId) : null;
 
       if (!nextResume) {
         const fallback = await createResume();
@@ -58,8 +60,9 @@ const EditorModals = memo(function EditorModals({
       toast.success("Resume deleted successfully");
       onDeleteModalClose();
     } catch (error) {
-      toast.error("Failed to delete from cloud. Please try again.");
-      console.error("Deletion error:", error);
+      toast.error(
+        `Could not delete the resume: ${error instanceof Error ? error.message : "please try again."}`,
+      );
     } finally {
       setIsDeleting(false);
     }

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { DocumentType } from "@/features/documents/core/document-types";
 import type { BillingSummary } from "@/features/billing/types";
 import { getDocumentEditorPath } from "@/features/documents/core/routes";
+import { describeSaveResult } from "@/features/documents/services/save-failure-message";
 import {
   listDocuments,
   createDocumentFromMasterProfile,
@@ -38,6 +39,14 @@ export function useCreateDocument() {
     }
 
     const document = await createDocumentFromMasterProfile(type);
+    const failure = describeSaveResult(document.saveResult);
+
+    // Never open an editor on a document that did not reach storage: it would show "not found".
+    if (failure) {
+      toast.error(`Could not create the document: ${failure}`);
+      return;
+    }
+
     router.push(getDocumentEditorPath(type, document.id));
   };
 

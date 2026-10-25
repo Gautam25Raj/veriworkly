@@ -22,7 +22,14 @@ const revisionListeners = new Set<DocumentIndexRevisionListener>();
  */
 let cachedRevision = -1;
 
-function emptyIndex(): DocumentIndex {
+/**
+ * Set when the last read found the index unparseable. Reads stay pure (the library reads the
+ * index from a useSyncExternalStore getSnapshot, which must not write); the storage write
+ * paths check this and rebuild the index from the document body keys before writing over it.
+ */
+let lastReadWasCorrupt = false;
+
+export function emptyDocumentIndex(): DocumentIndex {
   return { version: DOCUMENT_INDEX_VERSION, revision: 0, items: {} };
 }
 
@@ -31,29 +38,30 @@ function isBrowser() {
 }
 
 /**
- * Reads the shared document index, self-healing on corrupted JSON.
+ * Reads the shared document index without writing anything.
  *
- * A throw here would propagate into autosave and the fire-and-forget sync worker,
- * so a bad value is cleared and treated as empty rather than surfaced — the documents
- * themselves live under separate keys and are recovered by the index rebuild below.
+ * A throw here would propagate into autosave and the fire-and-forget sync worker, so a bad
+ * value reads as empty and is flagged for {@link wasDocumentIndexCorrupt}; the documents
+ * themselves live under separate keys and the index is rebuilt from them.
  */
 export function readDocumentIndex(): DocumentIndex {
-  if (!isBrowser()) return emptyIndex();
+  if (!isBrowser()) return emptyDocumentIndex();
 
   const raw = window.localStorage.getItem(DOCUMENT_INDEX_STORAGE_KEY);
+  lastReadWasCorrupt = false;
 
   if (!raw) {
     cachedRevision = 0;
-    return emptyIndex();
+    return emptyDocumentIndex();
   }
 
   try {
     const parsed: unknown = JSON.parse(raw);
 
     if (typeof parsed !== "object" || parsed === null) {
-      window.localStorage.removeItem(DOCUMENT_INDEX_STORAGE_KEY);
+      lastReadWasCorrupt = true;
       cachedRevision = 0;
-      return emptyIndex();
+      return emptyDocumentIndex();
     }
 
     const candidate = parsed as Partial<DocumentIndex>;
@@ -69,10 +77,41 @@ export function readDocumentIndex(): DocumentIndex {
       items: items as DocumentIndex["items"],
     };
   } catch {
-    window.localStorage.removeItem(DOCUMENT_INDEX_STORAGE_KEY);
+    lastReadWasCorrupt = true;
     cachedRevision = 0;
-    return emptyIndex();
+    return emptyDocumentIndex();
   }
+}
+
+/** Whether the most recent {@link readDocumentIndex} found an unparseable index. */
+export function wasDocumentIndexCorrupt(): boolean {
+  return lastReadWasCorrupt;
+}
+
+/**
+ * Keeps an unparseable index value aside so whatever it held can still be inspected. The
+ * rebuild that replaces it needs each document type's parser, which this module does not
+ * know; see `rebuildDocumentIndex` in document-workspace-service.ts.
+ */
+export function parkCorruptDocumentIndex(raw: string): LocalStorageWriteResult {
+  if (!isBrowser()) return { ok: true };
+
+  return safeSetLocalStorageItem(window.localStorage, `${DOCUMENT_INDEX_STORAGE_KEY}:corrupt`, raw);
+}
+
+/** Every localStorage key, for prefix scans (index rebuild, workspace clear). */
+export function listLocalStorageKeys(): string[] {
+  if (!isBrowser()) return [];
+
+  const storage = window.localStorage;
+  const keys: string[] = [];
+
+  for (let index = 0; index < (storage.length ?? 0); index += 1) {
+    const key = storage.key(index);
+    if (key !== null) keys.push(key);
+  }
+
+  return keys;
 }
 
 /** Writes the index, bumping `revision` so revision-keyed caches invalidate. */
@@ -91,6 +130,7 @@ export function writeDocumentIndex(index: DocumentIndex): LocalStorageWriteResul
 
   index.revision = nextRevision;
   cachedRevision = nextRevision;
+  lastReadWasCorrupt = false;
 
   for (const listener of revisionListeners) listener(nextRevision);
 

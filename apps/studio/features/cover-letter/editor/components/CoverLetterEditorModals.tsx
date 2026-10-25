@@ -4,11 +4,10 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { DocumentApi } from "@/features/documents/services/document-api";
 import { getDocumentEditorPath } from "@/features/documents/core/routes";
 import {
   createDocumentFromMasterProfile,
-  deleteDocument,
+  deleteDocumentEverywhere,
   listDocumentIndexEntries,
 } from "@/features/documents/services/document-workspace-service";
 
@@ -50,11 +49,7 @@ const CoverLetterEditorModals = ({
     setIsDeleting(true);
 
     try {
-      if (document.sync.cloudDocumentId) {
-        await DocumentApi.delete(document.id);
-      }
-
-      deleteDocument("COVER_LETTER", document.id);
+      await deleteDocumentEverywhere("COVER_LETTER", document);
 
       const next = listDocumentIndexEntries("COVER_LETTER")[0];
 
@@ -70,8 +65,9 @@ const CoverLetterEditorModals = ({
       toast.success("Cover letter deleted successfully");
       onDeleteModalClose();
     } catch (error) {
-      toast.error("Failed to delete from cloud. Please try again.");
-      console.error("Deletion error:", error);
+      toast.error(
+        `Could not delete the cover letter: ${error instanceof Error ? error.message : "please try again."}`,
+      );
     } finally {
       setIsDeleting(false);
     }

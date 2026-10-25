@@ -7,10 +7,14 @@ import {
 import {
   DOCUMENT_INDEX_STORAGE_KEY,
   type DocumentIndexRevisionListener,
+  getDocumentIndexRevision,
+  listLocalStorageKeys,
   readDocumentIndex,
   subscribeToDocumentIndexRevision,
+  wasDocumentIndexCorrupt,
   writeDocumentIndex,
 } from "./document-index";
+import { withDocumentIdentity } from "@/features/documents/core/content-identity";
 import {
   BaseDocumentData,
   DocumentCollection,
@@ -33,7 +37,20 @@ export interface SaveDocumentOptions {
 }
 
 export type SaveDocumentResult =
-  { ok: true; queued: boolean } | { ok: false; reason: "quota-exceeded" | "unknown" };
+  | {
+      ok: true;
+      queued: boolean;
+      /**
+       * Set when the save was redirected because the document had moved to this id (see
+       * `rekeyDocument`). The caller holds a stale id and should switch to this one.
+       */
+      movedTo?: string;
+    }
+  | {
+      ok: false;
+      /** `removed`: the document was deleted (here or on another device) since it was opened. */
+      reason: "quota-exceeded" | "unknown" | "removed";
+    };
 
 export interface LocalStorageConfig<T extends BaseDocumentData> {
   /** Namespace within the shared index, and the `<TYPE>` segment of document keys. */
@@ -48,11 +65,23 @@ export interface LocalStorageConfig<T extends BaseDocumentData> {
   parseItem: (input: unknown) => T | null;
   /** Projects a document down to what list views need. See DocumentIndexEntry. */
   toIndexEntry: (item: T) => DocumentIndexEntry;
+  /**
+   * Rebuilds the shared index from every type's document bodies. The index spans all types,
+   * so one scope cannot rebuild it alone; the workspace service, which knows every type,
+   * supplies this.
+   */
+  repairIndex?: () => LocalStorageWriteResult;
+  /** The revision whose content the last cloud merge wrote for `id`, or null. See `persist`. */
+  cloudContentRevision?: (id: string) => number | null;
+  /** The id a document was moved to (following every move), or null when it never moved. */
+  resolveMovedId?: (id: string) => string | null;
 }
 
 export { DOCUMENT_INDEX_STORAGE_KEY };
 export type { DocumentIndexEntry, DocumentIndexRevisionListener };
 export { subscribeToDocumentIndexRevision };
+
+const CORRUPT_SUFFIX = ":corrupt";
 
 /**
  * Per-document localStorage store with a shared metadata index.
@@ -63,9 +92,19 @@ export { subscribeToDocumentIndexRevision };
  *
  * `loadCollection`/`saveCollection` still exist for the few callers that genuinely need
  * every body at once, but they are the slow path — prefer `listIndex()` when metadata suffices.
+ *
+ * `listIndex` and `getRevision` never write: the document library calls them from a
+ * `useSyncExternalStore` getSnapshot. Every other method first runs {@link prepare}
+ * (legacy migration and corrupt-index repair), which can.
  */
 export class LocalStorageService<T extends BaseDocumentData> {
   private migrated = false;
+
+  /**
+   * Ids deleted in this tab. An editor still holding a removed document (deleted from the
+   * library, or by the sync worker because another device deleted it) must not write it back.
+   */
+  private removedIds = new Set<string>();
 
   constructor(private config: LocalStorageConfig<T>) {}
 
@@ -111,6 +150,28 @@ export class LocalStorageService<T extends BaseDocumentData> {
     return JSON.stringify(previousPayload) !== JSON.stringify(nextPayload);
   }
 
+  /** Sets the envelope's sync block and the content's own copy of it, when it has one. */
+  private withSync(item: T, sync: T["sync"]): T {
+    const content = (item as { content?: unknown }).content;
+
+    return {
+      ...item,
+      sync,
+      ...(content === undefined ? {} : { content: withDocumentIdentity(content, { sync }) }),
+    };
+  }
+
+  /** Sets the envelope's id and the content's own copy of it, when it has one. */
+  private withId(item: T, id: string): T {
+    const content = (item as { content?: unknown }).content;
+
+    return {
+      ...item,
+      id,
+      ...(content === undefined ? {} : { content: withDocumentIdentity(content, { id }) }),
+    };
+  }
+
   private formatActiveId(id: string) {
     return this.config.activeIdScope ? `${this.config.activeIdScope}:${id}` : id;
   }
@@ -126,17 +187,24 @@ export class LocalStorageService<T extends BaseDocumentData> {
   /**
    * Splits a pre-v3 single-blob collection into per-document keys, once.
    *
-   * Runs lazily on first storage access rather than at import time so it cannot
-   * throw during module evaluation or run on the server. The legacy key is removed
-   * only after every document has been written, so an interrupted migration
-   * (quota, crash) retries cleanly on next load instead of losing documents.
+   * Runs on first storage access rather than at import time so it cannot throw during
+   * module evaluation or run on the server, and never from a render (see {@link prepare}).
+   * The legacy key is removed only after every document has been written, so an interrupted
+   * migration (quota, crash) retries on next load instead of losing documents. A retry skips
+   * documents that already have a v3 key: those may hold edits made since the first attempt.
+   * An item that does not parse is parked under `<legacy key>:corrupt` and keeps the legacy
+   * key alive, so nothing is ever deleted unread.
    */
   private migrateLegacyCollectionIfNeeded() {
     if (this.migrated || !this.isBrowser()) return;
-    this.migrated = true;
 
-    const raw = window.localStorage.getItem(this.config.legacyCollectionKey);
-    if (!raw) return;
+    const storage = window.localStorage;
+    const raw = storage.getItem(this.config.legacyCollectionKey);
+
+    if (!raw) {
+      this.migrated = true;
+      return;
+    }
 
     let legacyItems: Record<string, unknown> = {};
 
@@ -151,21 +219,46 @@ export class LocalStorageService<T extends BaseDocumentData> {
         legacyItems = items as Record<string, unknown>;
       }
     } catch {
-      // Corrupted legacy blob: nothing recoverable inside it, so drop it rather
-      // than leaving it to be re-parsed (and re-failed) on every future load.
-      window.localStorage.removeItem(this.config.legacyCollectionKey);
+      // Unparseable as a whole: park the raw text, and drop the legacy key only once it is safe.
+      const parked = safeSetLocalStorageItem(
+        storage,
+        `${this.config.legacyCollectionKey}${CORRUPT_SUFFIX}`,
+        raw,
+      );
+
+      if (parked.ok) storage.removeItem(this.config.legacyCollectionKey);
+      this.migrated = true;
       return;
     }
 
-    const index = readDocumentIndex();
+    const index = this.readHealthyIndex();
+    if (!index) return;
+
+    const unparseable: Record<string, unknown> = {};
     let wroteEverything = true;
 
-    for (const value of Object.values(legacyItems)) {
+    for (const [legacyId, value] of Object.entries(legacyItems)) {
       const item = this.config.parseItem(value);
-      if (!item) continue;
+
+      if (!item) {
+        wroteEverything = false;
+        unparseable[legacyId] = value;
+        continue;
+      }
+
+      const indexKey = this.indexKeyFor(item.id);
+      const existing = storage.getItem(this.config.documentKey(item.id)) !== null;
+
+      if (existing) {
+        if (!index.items[indexKey]) {
+          const current = this.readDocument(item.id);
+          if (current) index.items[indexKey] = this.config.toIndexEntry(current);
+        }
+        continue;
+      }
 
       const write = safeSetLocalStorageItem(
-        window.localStorage,
+        storage,
         this.config.documentKey(item.id),
         JSON.stringify(item),
       );
@@ -175,28 +268,85 @@ export class LocalStorageService<T extends BaseDocumentData> {
         continue;
       }
 
-      index.items[this.indexKeyFor(item.id)] = this.config.toIndexEntry(item);
+      index.items[indexKey] = this.config.toIndexEntry(item);
     }
 
+    if (Object.keys(unparseable).length > 0) {
+      const parked = safeSetLocalStorageItem(
+        storage,
+        `${this.config.legacyCollectionKey}${CORRUPT_SUFFIX}`,
+        JSON.stringify({ items: unparseable }),
+      );
+
+      if (!parked.ok) wroteEverything = false;
+    }
+
+    // Not marked migrated when the index write fails, so the next access retries.
     if (!writeDocumentIndex(index).ok) return;
-    if (wroteEverything) window.localStorage.removeItem(this.config.legacyCollectionKey);
+
+    this.migrated = true;
+    if (wroteEverything) storage.removeItem(this.config.legacyCollectionKey);
   }
 
-  private readIndex(): DocumentIndex {
-    this.migrateLegacyCollectionIfNeeded();
+  /**
+   * The index, repaired first when it is corrupt. Null when the repair could not be written:
+   * the caller must then fail its own write, because writing the index it holds (empty, or
+   * one entry) over the corrupt one would drop every other document from the library.
+   */
+  private readHealthyIndex(): DocumentIndex | null {
+    const index = readDocumentIndex();
+
+    if (!wasDocumentIndexCorrupt() || !this.config.repairIndex) return index;
+
+    if (!this.config.repairIndex().ok) return null;
+
     return readDocumentIndex();
+  }
+
+  /** Index read for write paths: migrated and repaired first. Null as for {@link readHealthyIndex}. */
+  private readIndex(): DocumentIndex | null {
+    this.migrateLegacyCollectionIfNeeded();
+    return this.readHealthyIndex();
+  }
+
+  /**
+   * Runs the one-time legacy migration and repairs a corrupt index. Both write, so this is
+   * called from write paths and effects, never from a render.
+   */
+  prepare() {
+    if (this.isBrowser()) this.readIndex();
+  }
+
+  /**
+   * Index entries rebuilt from this scope's document body keys, for the index repair.
+   * Never reads the index itself.
+   */
+  entriesFromBodies(): Record<string, DocumentIndexEntry> {
+    const entries: Record<string, DocumentIndexEntry> = {};
+
+    for (const key of listLocalStorageKeys()) {
+      if (!key.startsWith(this.config.documentKeyPrefix) || key.endsWith(CORRUPT_SUFFIX)) continue;
+
+      const item = this.readDocument(key.slice(this.config.documentKeyPrefix.length));
+      if (item) entries[this.indexKeyFor(item.id)] = this.config.toIndexEntry(item);
+    }
+
+    return entries;
   }
 
   private readDocument(id: string): T | null {
     if (!this.isBrowser()) return null;
 
-    const raw = window.localStorage.getItem(this.config.documentKey(id));
+    const key = this.config.documentKey(id);
+    const raw = window.localStorage.getItem(key);
     if (!raw) return null;
 
     try {
       return this.config.parseItem(JSON.parse(raw));
     } catch {
-      window.localStorage.removeItem(this.config.documentKey(id));
+      // Kept for recovery rather than deleted: the text may be one bad byte from a document.
+      const parked = safeSetLocalStorageItem(window.localStorage, `${key}${CORRUPT_SUFFIX}`, raw);
+      if (parked.ok) window.localStorage.removeItem(key);
       return null;
     }
   }
@@ -217,6 +367,8 @@ export class LocalStorageService<T extends BaseDocumentData> {
     if (!write.ok) return write;
 
     const nextIndex = index ?? this.readIndex();
+    if (!nextIndex) return { ok: false, reason: "unknown" };
+
     nextIndex.items[this.indexKeyFor(item.id)] = this.config.toIndexEntry(item);
 
     return writeDocumentIndex(nextIndex);
@@ -234,10 +386,10 @@ export class LocalStorageService<T extends BaseDocumentData> {
 
   /**
    * Metadata for every document in this scope, newest first. O(1) in document size —
-   * this reads the index only and never touches a document body.
+   * this reads the index only and never touches a document body. Never writes.
    */
   listIndex(): DocumentIndexEntry[] {
-    const index = this.readIndex();
+    const index = readDocumentIndex();
 
     return Object.values(index.items)
       .filter((entry) => entry.type === this.config.scope)
@@ -246,7 +398,7 @@ export class LocalStorageService<T extends BaseDocumentData> {
 
   /** Monotonic counter for cache keys; changes whenever anything in storage changes. */
   getRevision(): number {
-    return this.readIndex().revision;
+    return getDocumentIndexRevision();
   }
 
   /**
@@ -256,10 +408,7 @@ export class LocalStorageService<T extends BaseDocumentData> {
   loadCollection(): DocumentCollection<T> {
     const items: Record<string, T> = {};
 
-    for (const entry of this.listIndex()) {
-      const item = this.readDocument(entry.id);
-      if (item) items[entry.id] = item;
-    }
+    for (const item of this.list()) items[item.id] = item;
 
     return { version: 3, items };
   }
@@ -270,23 +419,27 @@ export class LocalStorageService<T extends BaseDocumentData> {
 
   /**
    * Writes several documents against a single index read/write, so merging a cloud
-   * hydration of N documents costs one index round trip rather than N.
+   * hydration of N documents costs one index round trip rather than N. Writes each
+   * document as given, sync block included: the callers are the storage owners (cloud
+   * merge, bulk sync toggles).
    */
   persistMany(items: T[]): LocalStorageWriteResult {
     if (!this.isBrowser() || items.length === 0) return { ok: true };
 
     const index = this.readIndex();
+    if (!index) return { ok: false, reason: "unknown" };
 
     for (const item of items) {
+      const toPersist = this.withSync(item, item.sync);
       const write = safeSetLocalStorageItem(
         window.localStorage,
         this.config.documentKey(item.id),
-        JSON.stringify(item),
+        JSON.stringify(toPersist),
       );
 
       if (!write.ok) return write;
 
-      index.items[this.indexKeyFor(item.id)] = this.config.toIndexEntry(item);
+      index.items[this.indexKeyFor(item.id)] = this.config.toIndexEntry(toPersist);
     }
 
     const result = writeDocumentIndex(index);
@@ -298,7 +451,7 @@ export class LocalStorageService<T extends BaseDocumentData> {
   loadActive(): T | null {
     const activeId = this.getActiveId();
     if (activeId) {
-      const active = this.readDocument(activeId);
+      const active = this.loadById(activeId);
       if (active) return active;
     }
 
@@ -312,11 +465,13 @@ export class LocalStorageService<T extends BaseDocumentData> {
   }
 
   loadById(id: string): T | null {
-    this.migrateLegacyCollectionIfNeeded();
+    this.prepare();
     return this.readDocument(id);
   }
 
   list(): T[] {
+    this.prepare();
+
     return this.listIndex()
       .map((entry) => this.readDocument(entry.id))
       .filter((item): item is T => Boolean(item));
@@ -332,15 +487,13 @@ export class LocalStorageService<T extends BaseDocumentData> {
   patchSync(id: string, syncPatch: Partial<T["sync"]>): SaveDocumentResult {
     if (!this.isBrowser()) return { ok: true, queued: false };
 
-    const existing = this.loadById(id);
-    if (!existing) return { ok: false, reason: "unknown" };
+    const index = this.readIndex();
+    const existing = this.readDocument(id);
+    if (!index || !existing) return { ok: false, reason: "unknown" };
 
-    const toPersist: T = {
-      ...existing,
-      sync: { ...existing.sync, ...syncPatch },
-    };
+    const toPersist = this.withSync(existing, { ...existing.sync, ...syncPatch });
 
-    const saveResult = this.writeDocument(toPersist);
+    const saveResult = this.writeDocument(toPersist, index);
     if (!saveResult.ok) return { ok: false, reason: saveResult.reason };
 
     this.emitUpdatedEvent();
@@ -348,59 +501,112 @@ export class LocalStorageService<T extends BaseDocumentData> {
     return { ok: true, queued: false };
   }
 
+  /**
+   * Saves an edit. Storage owns the sync block: editors hold the copy they loaded, which goes
+   * stale the moment the sync worker records a cloud id or revision, so every sync field —
+   * `enabled` included — comes from what is stored and changes only through the sync APIs
+   * (bulk toggles, keep-local-only, a completed sync). Creating a document is the one save
+   * whose sync block is taken from the caller.
+   *
+   * A save whose content matches what is stored writes nothing, so opening a document does
+   * not move its `updatedAt` (or re-queue a sync). A real edit marks it `pending`, except
+   * that a `conflicted` document stays conflicted until the user resolves it, and an edit
+   * made on top of content older than the last cloud merge (an editor opened before another
+   * device's version was pulled in) becomes `conflicted` rather than silently overwriting it.
+   */
   persist(item: T): SaveDocumentResult {
     if (!this.isBrowser()) return { ok: true, queued: false };
 
-    const normalized = this.config.parseItem(item);
-    if (!normalized) return { ok: false, reason: "unknown" };
+    const parsed = this.config.parseItem(item);
+    if (!parsed) return { ok: false, reason: "unknown" };
 
-    const existing = this.readDocument(normalized.id);
-    const shouldMarkPending =
-      normalized.sync.enabled && this.hasPayloadChanged(existing, normalized);
+    const index = this.readIndex();
+    if (!index) return { ok: false, reason: "unknown" };
 
-    const toPersist: T = shouldMarkPending
-      ? {
-          ...normalized,
-          sync: {
-            ...normalized.sync,
-            status: "pending",
-            lastSyncedAt: existing?.sync.lastSyncedAt ?? normalized.sync.lastSyncedAt,
-          },
-        }
-      : normalized;
+    let normalized = parsed;
+    let existing = this.readDocument(normalized.id);
 
-    const saveResult = this.writeDocument(toPersist);
+    // A caller still on an id the document was moved away from (an editor in this tab before
+    // it navigates, or in another tab) saves onto the document's current id, never a stray.
+    const movedTo = existing ? null : (this.config.resolveMovedId?.(normalized.id) ?? null);
+
+    if (movedTo) {
+      normalized = this.withId(normalized, movedTo);
+      existing = this.readDocument(movedTo);
+    }
+
+    // A missing document that the caller knows as cloud-linked was deleted (in another tab, or
+    // on another device by the sync worker) after the caller loaded it; writing it would
+    // resurrect it.
+    if (!existing && (this.removedIds.has(normalized.id) || normalized.sync.cloudDocumentId)) {
+      return { ok: false, reason: "removed" };
+    }
+
+    let toPersist: T;
+
+    if (!existing) {
+      toPersist = this.withSync(normalized, normalized.sync);
+    } else {
+      if (!this.hasPayloadChanged(existing, normalized)) {
+        return movedTo ? { ok: true, queued: false, movedTo } : { ok: true, queued: false };
+      }
+
+      const status = !existing.sync.enabled
+        ? "local-only"
+        : existing.sync.status === "conflicted" || this.isStaleEdit(normalized, existing)
+          ? "conflicted"
+          : "pending";
+
+      toPersist = this.withSync(normalized, { ...existing.sync, status } as T["sync"]);
+    }
+
+    const saveResult = this.writeDocument(toPersist, index);
 
     if (!saveResult.ok) return { ok: false, reason: saveResult.reason };
 
     this.emitUpdatedEvent();
     this.setActiveId(toPersist.id);
 
-    return { ok: true, queued: false };
+    return movedTo ? { ok: true, queued: false, movedTo } : { ok: true, queued: false };
   }
 
-  /*
-   * Removed: `save()`/`flush()` and the `pendingItem` debounce they drove.
+  /**
+   * Whether an edit was made on content older than the last cloud merge of this document.
    *
-   * A second, unused copy of the debounce that `document-workspace-service.saveDocument`
-   * implements — and it had the same defect that one did: the deferred `flush()` result was
-   * discarded, so a quota failure on the real write was invisible to the caller. Every
-   * writer goes through `saveDocument`, which reports the deferred result via `onFlush`.
-   * This existed only for someone to wire an editor to it and silently lose edits again.
+   * The caller's `sync.revision` is the one it loaded. Comparing it with the stored revision
+   * alone would flag every edit after this device's own sync (which moves the revision but not
+   * the content), so the comparison is with the revision whose content a cloud merge last
+   * wrote. Equal revisions skip the lookup: the common, per-keystroke case.
    */
+  private isStaleEdit(item: T, existing: T) {
+    if (item.sync.revision === existing.sync.revision) return false;
 
-  delete(id: string): string | null {
-    if (!this.isBrowser()) return null;
+    const mergedRevision = this.config.cloudContentRevision?.(item.id) ?? null;
+
+    return mergedRevision !== null && item.sync.revision < mergedRevision;
+  }
+
+  /**
+   * Removes the index entry first, then the body: a failed index write leaves the document
+   * fully intact rather than listed without a body.
+   */
+  delete(id: string): LocalStorageWriteResult {
+    if (!this.isBrowser()) return { ok: true };
 
     const index = this.readIndex();
+    if (!index) return { ok: false, reason: "unknown" };
+
     const indexKey = this.indexKeyFor(id);
 
-    if (!index.items[indexKey]) return this.getActiveId();
+    if (index.items[indexKey]) {
+      delete index.items[indexKey];
 
-    delete index.items[indexKey];
+      const written = writeDocumentIndex(index);
+      if (!written.ok) return written;
+    }
+
     window.localStorage.removeItem(this.config.documentKey(id));
-
-    if (!writeDocumentIndex(index).ok) return this.getActiveId();
+    this.removedIds.add(id);
 
     this.emitUpdatedEvent();
 
@@ -412,24 +618,33 @@ export class LocalStorageService<T extends BaseDocumentData> {
       window.localStorage.removeItem(this.config.activeIdKey);
     }
 
-    return nextId;
+    return { ok: true };
   }
 
-  clear() {
-    if (!this.isBrowser()) return;
+  clear(): LocalStorageWriteResult {
+    if (!this.isBrowser()) return { ok: true };
 
     const index = this.readIndex();
+    if (!index) return { ok: false, reason: "unknown" };
+
+    const ids: string[] = [];
 
     for (const entry of Object.values(index.items)) {
       if (entry.type !== this.config.scope) continue;
-      window.localStorage.removeItem(this.config.documentKey(entry.id));
+      ids.push(entry.id);
       delete index.items[this.indexKeyFor(entry.id)];
     }
 
-    writeDocumentIndex(index);
+    const written = writeDocumentIndex(index);
+    if (!written.ok) return written;
+
+    for (const id of ids) window.localStorage.removeItem(this.config.documentKey(id));
+
     window.localStorage.removeItem(this.config.legacyCollectionKey);
     window.localStorage.removeItem(this.config.activeIdKey);
 
     this.emitUpdatedEvent();
+
+    return { ok: true };
   }
 }

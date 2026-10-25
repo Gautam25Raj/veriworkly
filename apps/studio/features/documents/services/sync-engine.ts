@@ -1,5 +1,11 @@
 import type { DocumentSyncStatus } from "@veriworkly/profile-core";
 
+import {
+  safeSetLocalStorageItem,
+  type LocalStorageWriteResult,
+} from "./storage/safe-local-storage";
+import { DOCUMENT_SYNC_OUTBOX_UPDATED_EVENT } from "./storage-keys";
+
 /**
  * Aliased, not declared. The projections in `@veriworkly/profile-core` build a document's
  * sync block, so the status union has to be the same one on both sides; the historical name
@@ -7,25 +13,53 @@ import type { DocumentSyncStatus } from "@veriworkly/profile-core";
  */
 export type SyncStatus = DocumentSyncStatus;
 
+/**
+ * Why a sync attempt did not succeed.
+ *
+ * `upgrade-required` (402), `forbidden` (403) and `rejected` (other 4xx) are terminal: the
+ * worker stops retrying until the user syncs by hand. `deleted` means the cloud copy was
+ * deleted on another device and the local copy has been removed with it; `deleted-elsewhere`
+ * means it was deleted there but the local copy held unsynced edits, so it was kept, unlinked
+ * and local-only.
+ */
+export type SyncFailureReason =
+  | "conflict"
+  | "auth"
+  | "forbidden"
+  | "not-found"
+  | "network"
+  | "deleted"
+  | "deleted-elsewhere"
+  | "upgrade-required"
+  | "rejected"
+  | "in-progress"
+  | "storage"
+  | "unknown";
+
 export interface SyncTelemetry {
   lastAttemptAt: string | null;
   lastSuccessAt: string | null;
   lastErrorAt: string | null;
   lastErrorMessage: string | null;
+  /** Set alongside `lastErrorMessage`; cleared by the next success. */
+  lastErrorReason?: SyncFailureReason | null;
 }
 
 export interface OutboxItem {
   id: string;
   scope: string | null;
-  state: "pending" | "syncing" | "conflicted";
+  /** `failed` is a terminal server rejection; the worker skips it like `conflicted`. */
+  state: "pending" | "syncing" | "conflicted" | "failed";
   attempts: number;
   nextAttemptAt: number;
   updatedAt: number;
 }
 
-const STORAGE_KEYS = {
+export const SYNC_STORAGE_KEYS = {
   OUTBOX: "veriworkly:sync-outbox",
   TELEMETRY: "veriworkly:sync-telemetry",
+  OPT_OUT: "veriworkly:sync-opt-out",
+  CONTENT_REVISIONS: "veriworkly:sync-content-revisions",
 };
 
 export class SyncEngine {
@@ -58,7 +92,7 @@ export class SyncEngine {
   private static readOutbox(): Record<string, OutboxItem> {
     if (!this.isBrowser()) return {};
 
-    const parsed = this.safeParse<{ items?: unknown }>(STORAGE_KEYS.OUTBOX, {});
+    const parsed = this.safeParse<{ items?: unknown }>(SYNC_STORAGE_KEYS.OUTBOX, {});
     const items = parsed.items;
     if (!items || typeof items !== "object") return {};
 
@@ -89,15 +123,29 @@ export class SyncEngine {
     );
   }
 
-  static saveOutbox(items: Record<string, OutboxItem>) {
-    if (!this.isBrowser()) return;
-
-    localStorage.setItem(STORAGE_KEYS.OUTBOX, JSON.stringify({ items }));
-
-    window.dispatchEvent(new Event("veriworkly:sync-outbox-updated"));
+  static getOutboxItem(id: string, scope?: string): OutboxItem | null {
+    return this.readOutbox()[this.normalizeKey(id, scope)] ?? null;
   }
 
-  static upsertOutboxItem(id: string, patch: Partial<OutboxItem> = {}, scope?: string) {
+  static saveOutbox(items: Record<string, OutboxItem>): LocalStorageWriteResult {
+    if (!this.isBrowser()) return { ok: true };
+
+    const result = safeSetLocalStorageItem(
+      localStorage,
+      SYNC_STORAGE_KEYS.OUTBOX,
+      JSON.stringify({ items }),
+    );
+
+    if (result.ok) window.dispatchEvent(new Event(DOCUMENT_SYNC_OUTBOX_UPDATED_EVENT));
+
+    return result;
+  }
+
+  static upsertOutboxItem(
+    id: string,
+    patch: Partial<OutboxItem> = {},
+    scope?: string,
+  ): LocalStorageWriteResult {
     const now = Date.now();
 
     const key = this.normalizeKey(id, scope);
@@ -114,45 +162,139 @@ export class SyncEngine {
       updatedAt: now,
     };
 
-    this.saveOutbox(outbox);
+    return this.saveOutbox(outbox);
   }
 
-  static removeOutboxItem(id: string, scope?: string) {
+  static removeOutboxItem(id: string, scope?: string): LocalStorageWriteResult {
     const key = this.normalizeKey(id, scope);
     const outbox = this.getOutbox();
 
+    if (!outbox[key]) return { ok: true };
+
     delete outbox[key];
 
-    this.saveOutbox(outbox);
+    return this.saveOutbox(outbox);
   }
 
   static getTelemetry(id: string, scope?: string): SyncTelemetry {
     if (!this.isBrowser()) return this.defaultTelemetry();
 
     const key = this.normalizeKey(id, scope);
+
+    return this.readTelemetry()[key] || this.defaultTelemetry();
+  }
+
+  /** Every document's telemetry, keyed by `scope:id`. */
+  static getAllTelemetry(): Record<string, SyncTelemetry> {
+    if (!this.isBrowser()) return {};
+
+    return this.readTelemetry();
+  }
+
+  private static readTelemetry(): Record<string, SyncTelemetry> {
     const state = this.safeParse<{ byDocumentId?: Record<string, SyncTelemetry> }>(
-      STORAGE_KEYS.TELEMETRY,
+      SYNC_STORAGE_KEYS.TELEMETRY,
       {},
     );
 
-    return state.byDocumentId?.[key] || this.defaultTelemetry();
+    return state.byDocumentId && typeof state.byDocumentId === "object" ? state.byDocumentId : {};
   }
 
-  static updateTelemetry(id: string, patch: Partial<SyncTelemetry>, scope?: string) {
-    if (!this.isBrowser()) return;
+  static updateTelemetry(
+    id: string,
+    patch: Partial<SyncTelemetry>,
+    scope?: string,
+  ): LocalStorageWriteResult {
+    if (!this.isBrowser()) return { ok: true };
 
     const key = this.normalizeKey(id, scope);
-    const state = this.safeParse<{ byDocumentId: Record<string, SyncTelemetry> }>(
-      STORAGE_KEYS.TELEMETRY,
-      { byDocumentId: {} },
-    );
+    const byDocumentId = this.readTelemetry();
 
-    state.byDocumentId[key] = {
-      ...(state.byDocumentId[key] || this.defaultTelemetry()),
+    byDocumentId[key] = {
+      ...(byDocumentId[key] || this.defaultTelemetry()),
       ...patch,
     };
 
-    localStorage.setItem(STORAGE_KEYS.TELEMETRY, JSON.stringify(state));
+    return safeSetLocalStorageItem(
+      localStorage,
+      SYNC_STORAGE_KEYS.TELEMETRY,
+      JSON.stringify({ byDocumentId }),
+    );
+  }
+
+  /**
+   * Documents the user chose to keep on this device only. Bulk sync toggles (settings,
+   * sign-in) skip them, and storage refuses to re-enable their sync from a stale editor copy.
+   */
+  static isSyncOptedOut(id: string, scope?: string): boolean {
+    if (!this.isBrowser()) return false;
+
+    return this.readOptOut().includes(this.normalizeKey(id, scope));
+  }
+
+  static setSyncOptedOut(id: string, optedOut: boolean, scope?: string): LocalStorageWriteResult {
+    if (!this.isBrowser()) return { ok: true };
+
+    const key = this.normalizeKey(id, scope);
+    const current = this.readOptOut();
+    const has = current.includes(key);
+
+    if (has === optedOut) return { ok: true };
+
+    const next = optedOut ? [...current, key] : current.filter((entry) => entry !== key);
+
+    return safeSetLocalStorageItem(
+      localStorage,
+      SYNC_STORAGE_KEYS.OPT_OUT,
+      JSON.stringify({ items: next }),
+    );
+  }
+
+  private static readOptOut(): string[] {
+    const parsed = this.safeParse<{ items?: unknown }>(SYNC_STORAGE_KEYS.OPT_OUT, {});
+
+    return Array.isArray(parsed.items)
+      ? parsed.items.filter((item): item is string => typeof item === "string")
+      : [];
+  }
+
+  /**
+   * The revision whose content a cloud merge last wrote into local storage, per document.
+   * Storage compares an editor's loaded revision against it to tell a stale editor (opened
+   * before another device's version was pulled in) from one that only missed this device's
+   * own sync.
+   */
+  static getCloudContentRevision(id: string, scope?: string): number | null {
+    if (!this.isBrowser()) return null;
+
+    const revision = this.readContentRevisions()[this.normalizeKey(id, scope)];
+
+    return typeof revision === "number" ? revision : null;
+  }
+
+  static recordCloudContentRevisions(
+    entries: Array<{ id: string; revision: number }>,
+    scope?: string,
+  ): LocalStorageWriteResult {
+    if (!this.isBrowser() || entries.length === 0) return { ok: true };
+
+    const revisions = this.readContentRevisions();
+
+    for (const entry of entries) revisions[this.normalizeKey(entry.id, scope)] = entry.revision;
+
+    return safeSetLocalStorageItem(
+      localStorage,
+      SYNC_STORAGE_KEYS.CONTENT_REVISIONS,
+      JSON.stringify({ items: revisions }),
+    );
+  }
+
+  private static readContentRevisions(): Record<string, number> {
+    const parsed = this.safeParse<{ items?: unknown }>(SYNC_STORAGE_KEYS.CONTENT_REVISIONS, {});
+
+    return parsed.items && typeof parsed.items === "object"
+      ? (parsed.items as Record<string, number>)
+      : {};
   }
 
   private static defaultTelemetry(): SyncTelemetry {
@@ -161,6 +303,7 @@ export class SyncEngine {
       lastSuccessAt: null,
       lastErrorAt: null,
       lastErrorMessage: null,
+      lastErrorReason: null,
     };
   }
 }

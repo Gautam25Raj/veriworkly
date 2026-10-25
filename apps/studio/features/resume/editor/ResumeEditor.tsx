@@ -4,11 +4,16 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { createElement, useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 
+import type { SaveDocumentResult } from "@/features/documents/services/local-storage-service";
+
+import { getDocumentEditorPath } from "@/features/documents/core/routes";
+
 import { Button } from "@veriworkly/ui";
 
 import { loadResumeById } from "@/features/resume/services/resume-service";
 import {
   startDocumentSyncWorker,
+  subscribeToRemoteDeletions,
   hydrateCloudDocumentByIdToLocalStorage,
 } from "@/features/documents/services/document-sync";
 import { DocumentEditorShell } from "@/features/documents/editor/DocumentEditorShell";
@@ -138,6 +143,51 @@ const ResumeEditor = ({ documentId }: ResumeEditorProps) => {
     lastSaveFailureRef.current = failure;
   }, []);
 
+  // A save refused because the document was deleted (here, or on another device by the sync
+  // worker) has nothing left to edit: say so and leave the dead editor.
+  // The document moved to a new id (its cloud copy had been deleted). The store switches to
+  // it before the route does, so typing in between is saved to the new id, not the old one.
+  const followMove = useCallback(
+    (newId: string) => {
+      const moved = loadResumeById(newId);
+      if (moved) setResume(moved);
+      router.replace(getDocumentEditorPath("RESUME", newId));
+    },
+    [router, setResume],
+  );
+
+  const handleSaveResult = useCallback(
+    (result: SaveDocumentResult) => {
+      reportSaveResult(describeSaveResult(result));
+
+      if (result.ok && result.movedTo) followMove(result.movedTo);
+      if (!result.ok && result.reason === "removed") router.replace("/documents");
+    },
+    [followMove, reportSaveResult, router],
+  );
+
+  useEffect(
+    () =>
+      subscribeToRemoteDeletions((detail) => {
+        if (detail.type !== "RESUME" || detail.id !== documentId) return;
+
+        if (detail.newId) {
+          toast.info(detail.message);
+          followMove(detail.newId);
+          return;
+        }
+
+        if (detail.kept) {
+          toast.warning(detail.message);
+          return;
+        }
+
+        toast.error(detail.message);
+        router.replace("/documents");
+      }),
+    [documentId, followMove, router],
+  );
+
   // Autosave. Surfacing the result is the point: the previous implementation discarded it,
   // so a full-storage failure silently dropped the user's edits. The returned value is only
   // a queue receipt — the write lands 300ms later — so `onFlush` is where the real result
@@ -149,7 +199,7 @@ const ResumeEditor = ({ documentId }: ResumeEditorProps) => {
 
     const receipt = saveToStorage({
       debounceMs: 300,
-      onFlush: (result) => reportSaveResult(describeSaveResult(result)),
+      onFlush: handleSaveResult,
     });
 
     if (receipt.ok && receipt.queued) {
@@ -160,8 +210,8 @@ const ResumeEditor = ({ documentId }: ResumeEditorProps) => {
       return;
     }
 
-    reportSaveResult(describeSaveResult(receipt));
-  }, [resume, saveToStorage, reportSaveResult]);
+    handleSaveResult(receipt);
+  }, [resume, saveToStorage, handleSaveResult]);
 
   useFlushPendingSavesOnExit("RESUME");
 

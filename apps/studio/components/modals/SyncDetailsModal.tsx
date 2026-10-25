@@ -9,8 +9,11 @@ import {
   ChevronRight,
   ExternalLink,
   AlertTriangle,
+  CreditCard,
 } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import type { SyncTelemetry } from "@/features/documents/services/document-sync";
@@ -43,11 +46,20 @@ const SyncDetailsModal = ({
   onSyncNow,
 }: SyncDetailsModalProps) => {
   const router = useRouter();
+  const [confirmingKeepLocal, setConfirmingKeepLocal] = useState(false);
 
   if (!document) return null;
 
   const isSyncing = syncingDocumentId === document.id;
   const isConflicted = document.sync.status === "conflicted";
+  const failureReason = telemetry?.lastErrorReason ?? null;
+  const isPendingFailure = document.sync.enabled && document.sync.status === "pending";
+  // 402: retrying succeeds only once the plan changes, so the retry is labelled as such.
+  const isUpgradeRequired = isPendingFailure && failureReason === "upgrade-required";
+  const isRejected =
+    isPendingFailure && (failureReason === "forbidden" || failureReason === "rejected");
+  const isDeletedElsewhere = !document.sync.enabled && failureReason === "deleted-elsewhere";
+  const canSyncNow = !isConflicted && !isDeletedElsewhere;
   const editorHref = getDocumentEditorPath(document.type, document.id);
 
   const statusConfig = {
@@ -90,11 +102,42 @@ const SyncDetailsModal = ({
       bg: "md:bg-zinc-500/10",
       icon: CloudOff,
     },
+
+    deletedElsewhere: {
+      label: "Deleted elsewhere",
+      description: "Kept on this device with your unsynced changes.",
+      color: "text-orange-500",
+      bg: "md:bg-orange-500/10",
+      icon: CloudOff,
+    },
+
+    upgradeRequired: {
+      label: "Upgrade needed",
+      description: "Free plan limit reached.",
+      color: "text-orange-500",
+      bg: "md:bg-orange-500/10",
+      icon: CreditCard,
+    },
+
+    rejected: {
+      label: "Sync failed",
+      description: "The server rejected this document.",
+      color: "text-destructive",
+      bg: "md:bg-destructive/10",
+      icon: AlertTriangle,
+    },
   };
 
-  const currentStatus = !document.sync.enabled
-    ? statusConfig.disabled
-    : statusConfig[document.sync.status as keyof typeof statusConfig] || statusConfig.disabled;
+  const currentStatus = isDeletedElsewhere
+    ? statusConfig.deletedElsewhere
+    : !document.sync.enabled
+      ? statusConfig.disabled
+      : isUpgradeRequired
+        ? statusConfig.upgradeRequired
+        : isRejected
+          ? statusConfig.rejected
+          : statusConfig[document.sync.status as keyof typeof statusConfig] ||
+            statusConfig.disabled;
 
   const StatusIcon = currentStatus.icon;
 
@@ -199,13 +242,33 @@ const SyncDetailsModal = ({
             </div>
           </div>
 
-          {telemetry?.lastErrorMessage && (
+          {isUpgradeRequired && (
+            <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-3">
+              <p className="text-sm font-bold text-orange-600 dark:text-orange-400">
+                Free plan limit reached — upgrade, then try again
+              </p>
+
+              <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+                This document stays safe on this device. It will sync once your plan allows more
+                documents.
+              </p>
+
+              <Link
+                href="/billing"
+                className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-orange-600 underline-offset-2 hover:underline dark:text-orange-400"
+              >
+                View plans <ChevronRight className="h-3 w-3" />
+              </Link>
+            </div>
+          )}
+
+          {!isUpgradeRequired && telemetry?.lastErrorMessage && (
             <div className="border-destructive/20 bg-destructive/5 rounded-xl border p-3">
               <div className="mb-1 flex items-center gap-2">
                 <AlertTriangle className="text-destructive h-3.5 w-3.5" />
 
                 <p className="text-destructive text-[10px] font-black tracking-widest uppercase">
-                  Runtime Error
+                  {isDeletedElsewhere ? "Deleted on another device" : "Sync error"}
                 </p>
               </div>
 
@@ -259,29 +322,58 @@ const SyncDetailsModal = ({
                   <ChevronRight className="h-3.5 w-3.5 opacity-50" />
                 </Button>
 
-                <div className="grid grid-cols-2 gap-3 pt-1">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="text-[10px] font-black tracking-widest uppercase"
-                    onClick={() => {
-                      toast.info("Opening editor for manual merge...");
-                      router.push(editorHref);
-                      onClose();
-                    }}
-                  >
-                    Merge Manually
-                  </Button>
+                {confirmingKeepLocal ? (
+                  <div className="space-y-3 rounded-xl border border-orange-500/20 p-3">
+                    <p className="text-muted-foreground text-xs leading-snug">
+                      This deletes the cloud copy of this document on all your devices. Your local
+                      version stays on this device only and is no longer backed up.
+                    </p>
 
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => onKeepLocalOnly(document.id)}
-                    className="text-muted-foreground hover:text-foreground text-[10px] font-black tracking-widest uppercase"
-                  >
-                    Keep Local Only
-                  </Button>
-                </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setConfirmingKeepLocal(false)}
+                        className="text-[10px] font-black tracking-widest uppercase"
+                      >
+                        Cancel
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        loading={isSyncing}
+                        onClick={() => onKeepLocalOnly(document.id)}
+                        className="text-[10px] font-black tracking-widest uppercase"
+                      >
+                        Delete Cloud Copy
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="text-[10px] font-black tracking-widest uppercase"
+                      onClick={() => {
+                        toast.info("Opening editor for manual merge...");
+                        router.push(editorHref);
+                        onClose();
+                      }}
+                    >
+                      Merge Manually
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setConfirmingKeepLocal(true)}
+                      className="text-muted-foreground hover:text-foreground text-[10px] font-black tracking-widest uppercase"
+                    >
+                      Keep Local, Delete Cloud
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -299,14 +391,16 @@ const SyncDetailsModal = ({
             </Button>
           )}
 
-          <Button
-            size="sm"
-            loading={isSyncing}
-            onClick={() => onSyncNow(document.id)}
-            className="font-semibold shadow-md active:scale-95"
-          >
-            {isConflicted ? "Retry Handshake" : "Sync Now"}
-          </Button>
+          {canSyncNow && (
+            <Button
+              size="sm"
+              loading={isSyncing}
+              onClick={() => onSyncNow(document.id)}
+              className="font-semibold shadow-md active:scale-95"
+            >
+              {isRejected || isUpgradeRequired ? "Try Again" : "Sync Now"}
+            </Button>
+          )}
         </Modal.Footer>
       </Modal.Content>
     </Modal>

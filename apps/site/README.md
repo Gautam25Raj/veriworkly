@@ -10,7 +10,7 @@ The public-facing marketing site for VeriWorkly ([veriworkly.com](https://veriwo
    npm install
    ```
 
-2. **Copy the environment file** and configure your values (see `.env.example` for details):
+2. **Copy the environment file.** Locally only three variables matter (the site's own URL and the two API URLs); the defaults in `.env.example` work with `npm run dev:server`:
 
    ```bash
    cp .env.example .env
@@ -25,14 +25,30 @@ The public-facing marketing site for VeriWorkly ([veriworkly.com](https://veriwo
    npx next dev
    ```
 
-The site runs on `http://localhost:3000`. Sibling apps have fixed dev ports that `config/site.ts` hardcodes for local link resolution: Studio `3001`, Docs `3002`, Blog `3003`, Portfolio `3004`, and Server `8080`. If you change one, update `links` in `config/site.ts` too or cross-app navigation breaks in local dev.
+The site runs on `http://localhost:3000`. Links to the other apps are not environment variables: `siteConfig.links` in `config/site.ts` is the one place that resolves them, to the local dev ports (Studio `3001`, Docs `3002`, Blog `3003`, Portfolio `3004`) or the production hosts. Server `8080` is only the API default in `.env.example`. If you change a port, change `links` there. Never hardcode a `veriworkly.com` host in a component.
 
 ## 🏗️ Architecture
 
-- **Next.js 16 (App Router)** - Marketing pages are prerendered. `/roadmap` and its three status pages prerender and revalidate weekly, and render per request if a roadmap column failed to load (`connection()`). Release pages (`/changelog/[id]`) and roadmap items prerender when the backend answers and render on demand when it does not; an outage never bakes a 404. `/changelog`, `/stats`, `/affiliate`, `/ambassador` (program flags are read per request) and `/ambassador/apply` render per request. `/api/og` is a Node.js route. `/pricing` revalidates every 12 hours.
+- **Next.js 16 (App Router)** - Marketing pages are prerendered. `/roadmap` and its three status pages prerender and revalidate weekly, and render per request if a roadmap column failed to load (`connection()`). Release pages (`/changelog/[id]`) and roadmap items prerender when the backend answers and render on demand when it does not; an outage never bakes a 404. `/changelog`, `/stats` and `/ambassador/apply` render per request. `/affiliate` and `/ambassador` are static with a 5-minute revalidate: they re-read the program flags from the runtime environment on each regeneration (the Docker build does not receive them), so a flag change applies within 5 minutes without a rebuild. `/api/og` is a Node.js route. `/pricing` revalidates every 12 hours.
 - **Tailwind CSS 4** - Styling via the shared design system in `@veriworkly/ui` (`transpilePackages`, plus `@source` in `globals.css` so the UI package's classes survive the content scan).
 - **Motion** - Framer is loaded only on the pages that animate with it (home, affiliate, ambassador, the ATS pages), each wrapped in `<MotionIsland>` (`providers/motion-island.tsx`: `LazyMotion` with `domAnimation`, `strict`, and `MotionConfig reducedMotion="user"`). Components use `m.*`, never `motion.*`; `tests/contracts/motion-islands.contract.test.ts` enforces both. Scroll-linked effects on the home page (template rows, bento drift, CTA glow) are CSS scroll timelines (`.scroll-shift`, `.glow-scroll`): they run off the main thread, but every clipping ancestor must use `overflow-clip`, never `overflow-hidden`, or the timeline freezes. The process bar and the ambassador playbook stack use framer `useScroll`. `domAnimation` has no `layout`/`layoutId`; sliding pills are measured instead (`hooks/use-sliding-pill.ts` for the navbar, which stays framer-free on every page). FAQs use `components/ui/animated-details.tsx`: a real `<details>` in the server HTML that springs open once interactive. Secondary pages use the CSS `.reveal` entrance (page-scroll timeline, so it works there) and `.hero-rise`. A `requestAnimationFrame` loop must stop when there is nothing to move (see `components/ui/parallax-floating.tsx`).
 - **Strict CSP & Security Headers** - `next.config.ts` enforces a strict Content-Security-Policy. `connect-src` is an explicit allowlist (`'self'`, the origins of `NEXT_PUBLIC_BACKEND_URL` and `NEXT_PUBLIC_VITALS_URL`, `https://*.veriworkly.com`). Security headers also enforce HSTS, `nosniff`, `same-origin-allow-popups` (COOP), `same-site` (CORP), and frame restrictions. Any new third-party client-side API endpoint must be explicitly added to `connectSrc` in `next.config.ts`.
+
+## 🔧 Environment variables
+
+None is required to start the site; set `NEXT_PUBLIC_SITE_URL` and `NEXT_PUBLIC_BACKEND_URL` in production. "Build-time" values are inlined into the bundle: after changing one, rebuild (`docker compose build web`).
+
+| Variable                                                  | When    | Default                      | Purpose                                                                                  |
+| --------------------------------------------------------- | ------- | ---------------------------- | ---------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SITE_URL`                                    | Build   | `https://veriworkly.com`     | This site's canonical origin (canonical URLs, Open Graph, JSON-LD, sitemap).             |
+| `NEXT_PUBLIC_BACKEND_URL`                                 | Build   | none                         | API origin the browser calls; also added to the CSP `connect-src`. Set it in production. |
+| `BACKEND_INTERNAL_URL`                                    | Runtime | `NEXT_PUBLIC_BACKEND_URL`    | API address for server-side rendering; in Docker `http://api:8080/api/v1`.               |
+| `AFFILIATE_PROGRAM_ENABLED`, `AMBASSADOR_PROGRAM_ENABLED` | Runtime | on in dev, off in production | Growth-program flags (`1`, `true`, `yes`, `on`); keep equal to the API's.                |
+| `ERROR_REPORT_URL`                                        | Runtime | none (errors go to stderr)   | Receives server-side errors as plain JSON.                                               |
+| `NEXT_PUBLIC_VITALS_URL`                                  | Build   | none (nothing is sent)       | Receives real-user Web Vitals as plain JSON. An OTLP collector does not accept it.       |
+| `BUILD_STANDALONE`                                        | Build   | unset                        | `1` for container builds that run `node apps/site/server.js`.                            |
+
+The site holds no secrets. In Docker, `compose.yaml` passes these to the `web` service from the root `.env`.
 
 ## 📄 What's on this site
 
@@ -44,7 +60,7 @@ The site runs on `http://localhost:3000`. Sibling apps have fixed dev ports that
 - **Changelog**: `/changelog` and `/changelog/[id]` - public release notes, version history, and GitHub contributor integrations.
 - **Public Roadmap**: `/roadmap` and subviews (`/roadmap/todo`, `/roadmap/in-progress`, `/roadmap/done`, `/roadmap/[id]`) - synced with the administrative Studio board.
 - **Dev Stats**: `/stats` - live repository metrics and activity board.
-- **Growth Programs**: `/affiliate` and `/ambassador` (with `/ambassador/apply`) - gated by runtime feature flags (`AFFILIATE_PROGRAM_ENABLED`, `AMBASSADOR_PROGRAM_ENABLED`).
+- **Growth Programs**: `/affiliate` and `/ambassador` (with `/ambassador/apply`) - gated by runtime feature flags (`AFFILIATE_PROGRAM_ENABLED`, `AMBASSADOR_PROGRAM_ENABLED`); off in production unless set.
 - **Legal & Security**: `/security` (responsible disclosure and data storage breakdown), `/privacy`, and `/terms`.
 - **Open Graph Generator**: `/api/og` - dynamic Open Graph card generator backing share cards across all pages.
 - **Machine-Readable / AI Search Layer**:
@@ -91,10 +107,10 @@ Target is **WCAG 2.2 Level AA**:
 - `components/` - Shared UI components (layout, navbar, footer, marketing primitives, brand swatches, roadmap kanban).
 - `config/` - Static configuration:
   - `brand.ts` - Color tokens, palette metadata, brand download assets.
-  - `site.ts` - Canonical URLs, external links, navigation structure, legal contacts.
+  - `site.ts` - The site's own URL, every cross-app and external link (`siteConfig.links`), legal contacts.
   - `templates.ts` - Resume, cover letter, and portfolio template catalog summaries.
-- `features/` - Domain modules (`landing`, `ats-checker`, `compare`, `pricing`, `roadmap`, `changelog`, `templates`, `stats`, `faq`, `about`, `legal`, `affiliate`, `ambassador`).
-- `hooks/`, `providers/`, `utils/`, `lib/` - Client hooks (`useMediaQuery`, `useFocusTrap`, etc.), theme/motion providers, JSON-LD schema helpers, metadata builders, and API fetch wrappers.
+- `features/` - Domain modules (`landing`, `features`, `how-it-works`, `ats-checker`, `ats-engine`, `compare`, `pricing`, `roadmap`, `changelog`, `github`, `stats`, `templates`, `faq`, `about`, `contact`, `legal`, `security`, `marketing`, `affiliate`, `ambassador`).
+- `hooks/`, `providers/`, `utils/`, `lib/` - Client hooks (`use-focus-trap`, `use-sliding-pill`, `use-media-query`, ...), the theme and motion providers, `utils/` (JSON-LD and metadata builders, `fetchApiData`), and `lib/` (feature flags, server-side API access that forwards only the auth cookies).
 - `scripts/`:
   - `check-design-tokens.mts` - Validates token consistency across `themes.css`, `brand.ts`, and `DESIGN.md`.
   - `build-brand-kit.mts` - Generates the downloadable `veriworkly-brand-kit.zip` bundle (`--check` compares instead of writing).
@@ -102,7 +118,7 @@ Target is **WCAG 2.2 Level AA**:
   - `lighthouse-mobile.mts` - Lighthouse mobile on the six audited pages; the Site Lighthouse workflow posts both tables on pull requests.
 - `tests/`:
   - `tests/contracts/` - Automated contract tests ensuring pricing claims, ATS quotas, changelog markdown parsing, and competitor data remain synchronized.
-- `public/` - Static images, logos, templates previews, and the machine-readable discovery layer (`llms.txt`, `pricing.md`, `.well-known/agent.json`, `.well-known/security.txt`, `openapi.json`).
+- `public/` - Static images, logos, templates previews, and the machine-readable discovery layer (`llms.txt`, `pricing.md`, `.well-known/agent.json`, `.well-known/security.txt`). `/openapi.json` is a redirect to the docs site, not a file.
 
 ## 🔍 Validation & Scripts
 
@@ -136,4 +152,4 @@ npm run format:write
 npm run build
 ```
 
-`sitemap.ts` and the roadmap/changelog services fetch from the backend at build time and gracefully fall back to static definitions if the backend is unreachable during build.
+The backend is optional at build time. Without it the build still succeeds: release and roadmap pages render on demand instead of at build, and `sitemap.ts` lists the static routes only until its hourly revalidation fills in the rest. Fetchers throw on an outage and return nothing only on a real 404, so an outage never bakes a "not found" page.

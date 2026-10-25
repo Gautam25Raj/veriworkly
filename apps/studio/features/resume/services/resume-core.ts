@@ -7,7 +7,7 @@ import type {
   SaveDocumentResult,
 } from "@/features/documents/services/local-storage-service";
 
-import { defaultResume } from "@/features/resume/constants/default-resume";
+import { blankResume } from "@/features/resume/constants/default-resume";
 import { normalizeResumeData } from "@/features/resume/utils/normalize-data";
 
 import {
@@ -77,7 +77,7 @@ export function saveResume(resume: ResumeData, options?: SaveResumeOptions): Sav
 
 export function resetResume(): ResumeData {
   clearDocuments("RESUME");
-  return defaultResume;
+  return blankResume;
 }
 
 /**

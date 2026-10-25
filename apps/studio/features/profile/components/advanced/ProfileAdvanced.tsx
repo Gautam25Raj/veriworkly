@@ -17,9 +17,9 @@ import { Card, Badge, Button, TextArea } from "@veriworkly/ui";
 
 import { cn } from "@/lib/utils";
 
-import { ApiRequestError } from "@/utils/fetchApiData";
-
 import ConfirmationModal from "@/components/modals/ConfirmationModal";
+
+import { resolveConflictUpdatedAt } from "@/features/resume/services/master-profile";
 
 import {
   stringifyProfile,
@@ -29,7 +29,8 @@ import {
 
 type ProfileAdvancedProps = {
   profile: MasterProfile;
-  onSave: (profile: MasterProfile) => Promise<void>;
+  /** `expectedUpdatedAt` overrides the loaded cursor, to overwrite after a conflict. */
+  onSave: (profile: MasterProfile, expectedUpdatedAt?: string) => Promise<void>;
   isSaving?: boolean;
 };
 
@@ -47,6 +48,8 @@ const ProfileAdvanced = ({ profile, onSave, isSaving }: ProfileAdvancedProps) =>
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  /** Set after a 409: the stored profile's cursor, which "Save my version" overwrites. */
+  const [conflictUpdatedAt, setConflictUpdatedAt] = useState<string | null>(null);
 
   const hasChanges = jsonValue !== baseJsonValue;
 
@@ -56,22 +59,25 @@ const ProfileAdvanced = ({ profile, onSave, isSaving }: ProfileAdvancedProps) =>
     isJsonValid = false;
   }
 
-  const handleSave = async () => {
+  /*
+   * The draft stays in the text area whatever happens. On a 409 the server's message says
+   * why the stored profile differs, and "Save my version" overwrites it with the cursor the
+   * conflict carries.
+   */
+  const handleSave = async (expectedUpdatedAt?: string) => {
     try {
       const parsed = parseMasterProfileJson(jsonValue);
 
-      await onSave(parsed);
+      await onSave(parsed, expectedUpdatedAt);
 
       setStatusMessage("Profile updated successfully!");
       setErrorMessage(null);
+      setConflictUpdatedAt(null);
 
       setTimeout(() => setStatusMessage(null), 3000);
     } catch (error) {
-      if (error instanceof ApiRequestError && error.status === 409) {
-        setErrorMessage("Conflict: This profile was updated elsewhere. Please refresh.");
-        return;
-      }
       setErrorMessage(error instanceof Error ? error.message : "Save failed");
+      setConflictUpdatedAt(await resolveConflictUpdatedAt(error));
     }
   };
 
@@ -137,6 +143,7 @@ const ProfileAdvanced = ({ profile, onSave, isSaving }: ProfileAdvancedProps) =>
             onChange={(e) => {
               setJsonValue(e.target.value);
               setErrorMessage(null);
+              setConflictUpdatedAt(null);
             }}
             className={cn(
               "hide-scrollbar font-mono text-[13px] leading-relaxed transition-all focus:ring-1",
@@ -149,7 +156,20 @@ const ProfileAdvanced = ({ profile, onSave, isSaving }: ProfileAdvancedProps) =>
             <div className="animate-in slide-in-from-top-2 flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/5 p-4">
               <AlertCircle className="h-5 w-5 shrink-0 text-red-500" />
 
-              <p className="text-xs leading-normal font-medium text-red-600">{errorMessage}</p>
+              <div className="space-y-3">
+                <p className="text-xs leading-normal font-medium text-red-600">{errorMessage}</p>
+
+                {conflictUpdatedAt && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={isSaving}
+                    onClick={() => void handleSave(conflictUpdatedAt)}
+                  >
+                    Save my version
+                  </Button>
+                )}
+              </div>
             </div>
           )}
 
@@ -166,7 +186,7 @@ const ProfileAdvanced = ({ profile, onSave, isSaving }: ProfileAdvancedProps) =>
           <div className="flex w-full items-center gap-2 sm:w-auto">
             <Button
               size="sm"
-              onClick={handleSave}
+              onClick={() => void handleSave()}
               disabled={isSaving || !isJsonValid || !hasChanges}
               className="flex-1 gap-2 px-6 sm:flex-none"
             >

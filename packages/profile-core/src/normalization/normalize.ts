@@ -73,21 +73,23 @@ export function normalizeMasterProfile(
       ...migrated?.links,
       items: migrated?.links?.items ?? base.links.items,
     },
-    experience: migrated?.experience?.length ? migrated.experience : base.experience,
-    education: migrated?.education?.length ? migrated.education : base.education,
-    projects: migrated?.projects?.length ? migrated.projects : base.projects,
-    skills: migrated?.skills?.length ? migrated.skills : base.skills,
-    languages: migrated?.languages?.length ? migrated.languages : base.languages,
-    interests: migrated?.interests?.length ? migrated.interests : base.interests,
-    awards: migrated?.awards?.length ? migrated.awards : base.awards,
-    certificates: migrated?.certificates?.length ? migrated.certificates : base.certificates,
-    publications: migrated?.publications?.length ? migrated.publications : base.publications,
-    volunteer: migrated?.volunteer?.length ? migrated.volunteer : base.volunteer,
-    references: migrated?.references?.length ? migrated.references : base.references,
-    achievements: migrated?.achievements?.length ? migrated.achievements : base.achievements,
-    customSections: migrated?.customSections?.length
-      ? migrated.customSections
-      : base.customSections,
+    // `??`, not a length check: a list the user emptied stays empty instead of refilling from `base`.
+    experience: migrated?.experience ?? base.experience,
+    education: migrated?.education ?? base.education,
+    projects: migrated?.projects ?? base.projects,
+    skills: migrated?.skills ?? base.skills,
+    languages: migrated?.languages ?? base.languages,
+    interests: migrated?.interests ?? base.interests,
+    awards: migrated?.awards ?? base.awards,
+    certificates: migrated?.certificates ?? base.certificates,
+    publications: migrated?.publications ?? base.publications,
+    volunteer: migrated?.volunteer ?? base.volunteer,
+    references: migrated?.references ?? base.references,
+    achievements: migrated?.achievements ?? base.achievements,
+    // `unflattenLegacySections` always yields an array, so absence is read off the raw value.
+    customSections:
+      migratedValue.customSections === undefined ? base.customSections : migrated.customSections,
+    // The fixed sections cannot be removed in the editor, so an empty list is damage, not a choice.
     sections: migrated?.sections?.length ? migrated.sections : base.sections,
     customization: {
       ...base.customization,

@@ -12,7 +12,7 @@ import {
   saveDocument,
   loadDocumentById,
 } from "@/features/documents/services/document-workspace-service";
-import { DocumentApi } from "@/features/documents/services/document-api";
+import { syncDocumentNow } from "@/features/documents/services/document-sync";
 import { getDocumentDefinition } from "@/features/documents/core/registry";
 
 interface RenameDocumentModalProps {
@@ -47,25 +47,38 @@ export default function RenameDocumentModal({
       const updatedDoc = {
         ...fullDoc,
         title: nextTitle,
+        // A resume's envelope title is rebuilt from `content.title` on every editor save, so
+        // renaming only the envelope was undone the next time the resume was opened.
+        content:
+          doc.type === "RESUME"
+            ? { ...(fullDoc.content as Record<string, unknown>), title: nextTitle }
+            : fullDoc.content,
         updatedAt: new Date().toISOString(),
       };
 
-      if (doc.sync?.cloudDocumentId) {
-        const cloudDoc = await DocumentApi.update(doc.id, {
-          title: nextTitle,
-          updateShareSlug,
-          revision: fullDoc.sync.revision,
-        });
+      // Renamed locally; the sync worker pushes it like any other edit. A PATCH from here
+      // would race the worker's own PATCH for the same revision and lose as a false conflict.
+      const saved = saveDocument(updatedDoc, { flush: true });
 
-        updatedDoc.sync = {
-          ...fullDoc.sync,
-          status: "synced",
-          revision: cloudDoc.revision,
-          lastSyncedAt: cloudDoc.lastSyncedAt ?? cloudDoc.updatedAt,
-        };
+      if (!saved.ok) {
+        throw new Error(
+          saved.reason === "quota-exceeded"
+            ? "This device's storage is full, so the new title could not be saved."
+            : "The new title could not be saved on this device.",
+        );
       }
 
-      saveDocument(updatedDoc);
+      // Moving the share slug needs the server now, through the same per-document sync lock.
+      if (fullDoc.sync.cloudDocumentId && updateShareSlug) {
+        const result = await syncDocumentNow(doc.type, doc.id, { updateShareSlug: true });
+
+        if (!result.ok) {
+          toast.error(`Renamed, but the share link was not updated: ${result.message}`);
+          onSuccess();
+          onClose();
+          return;
+        }
+      }
 
       toast.success("Document renamed successfully");
       onSuccess();

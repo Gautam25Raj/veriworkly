@@ -11,7 +11,10 @@ import type { DocumentDefinition, DocumentExporter, DocumentImportDraft } from "
 
 import { templateCatalogByType } from "./template-catalog";
 
+import { useUserStore } from "@/store/useUserStore";
+
 import {
+  createEmptyCoverLetter,
   createDefaultCoverLetter,
   createCoverLetterFromProfile,
   COVER_LETTER_TEMPLATE_ID,
@@ -19,9 +22,16 @@ import {
 import { parseCoverLetterDocument } from "@/features/cover-letter/schema";
 import { importCoverLetterJson } from "@/features/cover-letter/import";
 
-import { parseResumeDataInput } from "@/features/resume/schemas/resume-storage-schema";
+import { defaultResume } from "@/features/resume/constants/default-resume";
+import { normalizeResumeData } from "@/features/resume/utils/normalize-data";
+import {
+  parseResumeImport,
+  parseResumeDataInput,
+  documentSyncStateSchema,
+} from "@/features/resume/schemas/resume-storage-schema";
 import {
   deriveResumeFromMasterProfile,
+  createEmptyStudioMasterProfile,
   loadMasterProfileFromLocalStorage,
 } from "@/features/resume/services/master-profile";
 
@@ -42,17 +52,34 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * profile effectively unreachable: users filled one in and still got placeholder text.
  *
  * `master` is the profile the caller resolved, which for the async entry points means the
- * database copy. When it is absent this falls back to the device's local cache, which in
- * turn falls back to the `defaultResume`-derived starter profile — so a guest still gets
- * usable sample content and a signed-in user on a device that has opened /profile/master
- * still gets their own data even through a synchronous call.
+ * database copy. When it is absent this falls back to the device's local cache, so a
+ * signed-in user on a device that has opened /profile/master still gets their own data even
+ * through a synchronous call. With no profile anywhere, a guest's document is the sample
+ * resume, so a first visit shows what a finished one looks like; a signed-in user's starts
+ * blank, because whatever it holds is saved and synced as theirs.
  *
  * Sync state is intentionally left at the derived value: `createDocument` overwrites it
  * from `workspaceSettings.autoSyncEnabled` immediately afterwards, and that setting must win.
  */
+function createStartingResume(id: string, master?: MasterProfileData): ResumeData {
+  const cached = loadMasterProfileFromLocalStorage();
+  const profile = master ?? (cached.status === "ok" ? cached.profile : undefined);
+
+  if (profile) return deriveResumeFromMasterProfile(id, profile);
+
+  if (useUserStore.getState().isLoggedIn) {
+    return deriveResumeFromMasterProfile(id, createEmptyStudioMasterProfile());
+  }
+
+  return normalizeResumeData({
+    ...structuredClone(defaultResume),
+    id,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
 function wrapResumeDocument(id: string, master?: MasterProfileData): BaseDocument {
-  const profile = master ?? loadMasterProfileFromLocalStorage().profile;
-  const resume = deriveResumeFromMasterProfile(id, profile);
+  const resume = createStartingResume(id, master);
 
   return {
     id: resume.id,
@@ -68,31 +95,29 @@ function wrapResumeDocument(id: string, master?: MasterProfileData): BaseDocumen
 /**
  * A new cover letter, seeded from the profile when there is one.
  *
- * No local-cache fallback here, unlike the resume above. The studio's cached fallback
- * profile is `defaultResume`'s placeholder content, and a letter is signed: projecting
- * "VeriWorkly User" into the signature and sender block would put a name on a document that
- * is not the user's. With no profile the demo letter is the honest answer — it reads as
- * sample content, which is what it is.
+ * No local-cache fallback here, unlike the resume above: a letter is signed, and only a
+ * profile the caller resolved for this user may put a name on it. With no profile a guest
+ * gets the sample letter, which reads as sample content; a signed-in user gets a blank one.
  */
 function wrapCoverLetterDocument(
   id: string,
   master?: MasterProfileData,
 ): BaseDocument<CoverLetterContent> {
-  return master ? createCoverLetterFromProfile(id, master) : createDefaultCoverLetter(id);
+  if (master) return createCoverLetterFromProfile(id, master);
+
+  return useUserStore.getState().isLoggedIn
+    ? createEmptyCoverLetter(id)
+    : createDefaultCoverLetter(id);
 }
 
-function parseResumeDocument(input: unknown): BaseDocument | null {
-  const document = isRecord(input) ? input : {};
-  const resumeInput = isRecord(document.content) ? document.content : input;
-  const resume = parseResumeDataInput(resumeInput);
-
-  if (!resume) return null;
-
+/** The envelope around a parsed resume body; the envelope's own fields win. */
+function toResumeEnvelope(document: Record<string, unknown>, resume: ResumeData): BaseDocument {
   const id = typeof document.id === "string" ? document.id : resume.id;
   const templateId =
     typeof document.templateId === "string" ? document.templateId : resume.templateId;
   const updatedAt = typeof document.updatedAt === "string" ? document.updatedAt : resume.updatedAt;
-  const sync = isRecord(document.sync) ? { ...resume.sync, ...document.sync } : resume.sync;
+  const envelopeSync = documentSyncStateSchema.safeParse(document.sync);
+  const sync = envelopeSync.success ? { ...resume.sync, ...envelopeSync.data } : resume.sync;
 
   const content = {
     ...resume,
@@ -114,15 +139,31 @@ function parseResumeDocument(input: unknown): BaseDocument | null {
   };
 }
 
+/** Storage and sync read path: an envelope or a bare `ResumeData` body. */
+function parseResumeDocument(input: unknown): BaseDocument | null {
+  const document = isRecord(input) ? input : {};
+  const resume = parseResumeDataInput(isRecord(document.content) ? document.content : input);
+
+  return resume ? toResumeEnvelope(document, resume) : null;
+}
+
 /**
  * Resume side of `DocumentDefinition.importJson`.
  *
- * `parseResumeDocument` already accepts both an envelope and a bare `ResumeData` body —
- * which is what "Export → JSON" writes for a resume — and runs the zod schema, so this
- * only has to drop the identity fields the draft shape must not carry.
+ * Accepts an envelope or a bare `ResumeData` body, which is what "Export → JSON" writes for
+ * a resume, but stricter than the storage path: an envelope must say it is a resume and the
+ * body must carry `basics`, so `{}` or another document type's file is refused instead of
+ * becoming an empty resume. Identity fields are dropped; the draft shape must not carry them.
  */
 function importResumeJson(raw: unknown): DocumentImportDraft<ResumeData> | null {
-  const parsed = parseResumeDocument(raw);
+  if (!isRecord(raw)) return null;
+
+  const isEnvelope = isRecord(raw.content);
+
+  if (isEnvelope && raw.type !== "RESUME") return null;
+
+  const resume = parseResumeImport(isEnvelope ? raw.content : raw);
+  const parsed = resume ? toResumeEnvelope(raw, resume) : null;
 
   if (!parsed) return null;
 

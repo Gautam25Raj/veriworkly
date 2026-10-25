@@ -68,7 +68,9 @@ export function DocumentPreviewCard({
           <dl className="text-muted-foreground grid grid-cols-2 gap-2 text-[11px]">
             <div className="bg-muted/20 border-border/40 min-w-0 rounded-lg border px-2 py-1.5">
               <dt className="sr-only">Status</dt>
-              <dd className="text-foreground truncate font-medium">{getSyncLabel(doc.sync)}</dd>
+              <dd className="text-foreground truncate font-medium">
+                {getSyncLabel(doc.sync, telemetry)}
+              </dd>
             </div>
 
             <div className="bg-muted/20 border-border/40 min-w-0 rounded-lg border px-2 py-1.5">

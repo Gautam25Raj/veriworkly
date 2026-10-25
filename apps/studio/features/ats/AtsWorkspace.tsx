@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -44,14 +44,19 @@ import type {
   ConvertedResume,
 } from "@/features/ats/types";
 import { toAtsDocument } from "@/features/ats/resume-document";
+import { buildResumeFromConversion } from "@/features/ats/converted-resume";
 import { getDocumentEditorPath } from "@/features/documents/core/routes";
-import { defaultResume } from "@/features/resume/constants/default-resume";
 import {
-  saveResume,
-  listSavedResumes,
-  readResumeById,
-} from "@/features/resume/services/resume-service";
-import { normalizeResumeData } from "@/features/resume/utils/normalize-data";
+  DOCUMENT_LIBRARY_SERVER_SNAPSHOT,
+  getDocumentLibrarySnapshot,
+  subscribeToDocumentLibrary,
+} from "@/features/documents/services/document-library";
+import {
+  createDocument,
+  deleteDocument,
+} from "@/features/documents/services/document-workspace-service";
+import { saveResume, readResumeById } from "@/features/resume/services/resume-service";
+import { describeSaveResult } from "@/features/documents/services/save-failure-message";
 import { cn } from "@/lib/utils";
 
 export function AtsWorkspace() {
@@ -73,9 +78,13 @@ export function AtsWorkspace() {
   // Opt-in, never inferred: repair spends credits, so it runs only when the user asked for it
   // and the server finds the parse thin enough to need it.
   const [repairParse, setRepairParse] = useState(false);
-  const [saved] = useState(() =>
-    listSavedResumes().map((item) => ({ id: item.id, title: item.title })),
-  );
+  // Read from storage after hydration: the server snapshot is the empty library, so the
+  // first client render matches the HTML and the list fills in once storage is readable.
+  const saved = useSyncExternalStore(
+    subscribeToDocumentLibrary,
+    () => getDocumentLibrarySnapshot("RESUME"),
+    () => DOCUMENT_LIBRARY_SERVER_SNAPSHOT,
+  ).docs;
   const [quota, setQuota] = useState<AtsQuota | null>(null);
   const [result, setResult] = useState<AtsResult | null>(null);
   const [converted, setConverted] = useState<ConvertedResume | null>(null);
@@ -151,37 +160,28 @@ export function AtsWorkspace() {
 
   function createConvertedResume() {
     if (!converted) return;
-    const id = `resume-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    const withIds = {
-      ...structuredClone(defaultResume),
-      ...converted,
-      id,
-      basics: { ...defaultResume.basics, ...converted.basics },
-      links: {
-        ...defaultResume.links,
-        items: converted.links.map((item, index) => ({
-          id: `link-${index + 1}`,
-          type: "custom" as const,
-          ...item,
-        })),
-      },
-      experience: converted.experience.map((item, index) => ({ id: `exp-${index + 1}`, ...item })),
-      education: converted.education.map((item, index) => ({ id: `edu-${index + 1}`, ...item })),
-      projects: converted.projects.map((item, index) => ({
-        id: `project-${index + 1}`,
-        linkLabel: "Link",
-        showLinkAsText: true,
-        ...item,
-      })),
-      skills: converted.skills.map((item, index) => ({ id: `skills-${index + 1}`, ...item })),
-      updatedAt: new Date().toISOString(),
-    };
-    const nextResume = normalizeResumeData(withIds);
-    nextResume.education = withIds.education;
-    nextResume.skills = withIds.skills;
-    const savedResult = saveResume(nextResume, { flush: true });
-    if (!savedResult.ok) return setError("The converted resume could not be saved.");
-    router.push(getDocumentEditorPath("RESUME", nextResume.id));
+
+    // Through createDocument so the new resume gets the workspace's sync setting and
+    // becomes the active one, like any other new document.
+    const created = createDocument("RESUME");
+    const createFailure = describeSaveResult(created.saveResult);
+
+    if (createFailure) {
+      return setError(`The converted resume could not be saved. ${createFailure}`);
+    }
+
+    const draft = buildResumeFromConversion(converted, created.id);
+    const failure = describeSaveResult(
+      saveResume({ ...draft, sync: created.sync }, { flush: true }),
+    );
+
+    if (failure) {
+      // The placeholder createDocument wrote must not stay behind as the active resume.
+      deleteDocument("RESUME", created.id);
+      return setError(`The converted resume could not be saved. ${failure}`);
+    }
+
+    router.push(getDocumentEditorPath("RESUME", created.id));
   }
 
   return (

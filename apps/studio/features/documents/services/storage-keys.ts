@@ -42,7 +42,25 @@ export const DOCUMENT_ACTIVE_STORAGE_KEY = `veriworkly:docs:${LEGACY_DOCUMENT_ST
 export const DOCUMENT_STORAGE_UPDATED_EVENT = "veriworkly:docs-storage-updated";
 export const DOCUMENT_SYNC_OUTBOX_UPDATED_EVENT = "veriworkly:sync-outbox-updated";
 
+/**
+ * Fired when the sync layer learns a document was deleted on another device. `detail` is
+ * {@link RemoteDeletionDetail}; `kept` is true when unsynced edits kept it here as local-only.
+ */
+export const DOCUMENT_REMOTE_DELETION_EVENT = "veriworkly:document-deleted-elsewhere";
+
+export interface RemoteDeletionDetail {
+  type: DocumentType;
+  id: string;
+  kept: boolean;
+  message: string;
+  /** Set when the document was moved to a new id; an open editor follows it there. */
+  newId?: string;
+}
+
 export const DOCUMENT_INDEX_STORAGE_KEY = `veriworkly:docs:${DOCUMENT_STORAGE_VERSION}:index`;
+
+/** `TYPE:oldId` → new id, for documents moved to a fresh id. See `rekeyDocument`. */
+export const DOCUMENT_MOVES_STORAGE_KEY = `veriworkly:docs:${DOCUMENT_STORAGE_VERSION}:moves`;
 
 export function getDocumentKey(type: DocumentType, id: string): string {
   return `veriworkly:docs:${DOCUMENT_STORAGE_VERSION}:doc:${type.toLowerCase()}:${id}`;

@@ -12,10 +12,16 @@ import {
   Trophy,
   KeyRound,
   Trash2,
+  Download,
 } from "lucide-react";
 
 import { Modal, Button, Input } from "@veriworkly/ui";
 
+import {
+  clearLocalAccountData,
+  downloadWorkspaceBackup,
+} from "@/features/auth/services/current-user";
+import { listDocuments } from "@/features/documents/services/document-workspace-service";
 import { deleteAccount } from "@/features/profile/services/update-profile";
 
 interface DeleteAccountModalProps {
@@ -40,6 +46,19 @@ export const DeleteAccountModal = ({ open, onClose, userEmail }: DeleteAccountMo
     }
   }
 
+  // Read while open only: the modal mounts closed, and the list must reflect the moment
+  // the user is about to delete.
+  const deviceDocuments = open ? listDocuments() : [];
+  const localOnlyCount = deviceDocuments.filter((item) => !item.sync.cloudDocumentId).length;
+
+  const handleDownload = () => {
+    try {
+      downloadWorkspaceBackup(deviceDocuments);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Your documents could not be downloaded.");
+    }
+  };
+
   const isConfirmed = confirmationInput.trim().toLowerCase() === userEmail.trim().toLowerCase();
 
   const handleDelete = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -58,18 +77,10 @@ export const DeleteAccountModal = ({ open, onClose, userEmail }: DeleteAccountMo
 
       toast.success("Your account and all associated data have been permanently deleted.");
 
-      // Wipe local storage caches
-      if (typeof window !== "undefined") {
-        try {
-          localStorage.clear();
-          sessionStorage.clear();
-        } catch {
-          // Ignore storage access errors
-        }
-
-        // Redirect to marketing site
-        window.location.href = "https://veriworkly.com";
-      }
+      // The account is gone, so this device must not keep its documents, outbox or
+      // guest flag for the next person to inherit.
+      clearLocalAccountData();
+      window.location.href = "https://veriworkly.com";
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to delete account";
       setError(message);
@@ -172,6 +183,34 @@ export const DeleteAccountModal = ({ open, onClose, userEmail }: DeleteAccountMo
                 </span>
               </div>
             </div>
+
+            {deviceDocuments.length > 0 ? (
+              <div className="border-border flex flex-col gap-3 rounded-xl border p-4 text-xs sm:flex-row sm:items-center sm:justify-between">
+                <span>
+                  <strong className="text-foreground">
+                    {deviceDocuments.length} document{deviceDocuments.length === 1 ? "" : "s"} on
+                    this device
+                  </strong>
+                  {localOnlyCount > 0
+                    ? `, ${localOnlyCount} of them never saved to the cloud.`
+                    : "."}{" "}
+                  Deleting your account removes them from this device too. Download a copy first if
+                  you want to keep them.
+                </span>
+
+                <Button
+                  size="sm"
+                  type="button"
+                  variant="secondary"
+                  disabled={isDeleting}
+                  onClick={handleDownload}
+                  className="shrink-0 text-xs font-semibold"
+                >
+                  <Download className="mr-1.5 h-3.5 w-3.5" />
+                  Download my documents
+                </Button>
+              </div>
+            ) : null}
 
             <div className="space-y-2 pt-2">
               <label

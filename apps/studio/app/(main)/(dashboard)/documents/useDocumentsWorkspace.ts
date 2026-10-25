@@ -1,7 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
-import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import type { DocumentType } from "@/features/documents/core/document-types";
 
@@ -12,6 +12,8 @@ import {
   getDocumentSyncTelemetryByDocs,
   resolveDocumentConflictUseCloud,
   resolveDocumentConflictUseLocal,
+  hydrateAllDocumentsFromCloud,
+  subscribeToRemoteDeletions,
 } from "@/features/documents/services/document-sync";
 import {
   type DocumentLibraryItem,
@@ -19,9 +21,7 @@ import {
   subscribeToDocumentLibrary,
   DOCUMENT_LIBRARY_SERVER_SNAPSHOT,
 } from "@/features/documents/services/document-library";
-import { DocumentApi } from "@/features/documents/services/document-api";
-import { deleteResumeById } from "@/features/resume/services/resume-service";
-import { deleteDocument } from "@/features/documents/services/document-workspace-service";
+import { deleteDocumentEverywhere } from "@/features/documents/services/document-workspace-service";
 
 import { useUserStore } from "@/store/useUserStore";
 
@@ -56,6 +56,35 @@ export function useDocumentsWorkspace() {
   const totalCount = Object.values(counts).reduce((sum, count) => sum + count, 0);
 
   const bump = useCallback(() => setRefreshKey((key) => key + 1), []);
+
+  // Pull cloud changes (other devices' documents and deletions) whenever a signed-in user
+  // opens the overview or the library; the service throttles repeat pulls itself.
+  useEffect(() => {
+    if (!isLoggedIn) return;
+
+    let cancelled = false;
+
+    void hydrateAllDocumentsFromCloud().then((results) => {
+      if (cancelled) return;
+
+      const failure = results.find((result) => !result.ok);
+      if (failure) toast.error(`Could not load your cloud documents: ${failure.message}`);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn]);
+
+  // The sync worker and the pull above can remove or unlink a document deleted on another
+  // device; say so rather than letting a card silently vanish or turn local-only.
+  useEffect(
+    () =>
+      subscribeToRemoteDeletions((detail) => {
+        toast[detail.kept ? "warning" : "info"](detail.message);
+      }),
+    [],
+  );
 
   const visibleDocs = useMemo(() => {
     return [...docs].sort((left, right) => {
@@ -110,32 +139,31 @@ export function useDocumentsWorkspace() {
     setIsDeleting(true);
 
     try {
-      if (deleteTarget.type === "RESUME") {
-        if (deleteTarget.sync.cloudDocumentId) await DocumentApi.delete(deleteTarget.id);
-        deleteResumeById(deleteTarget.id);
-      } else {
-        deleteDocument(deleteTarget.type, deleteTarget.id);
-      }
+      await deleteDocumentEverywhere(deleteTarget.type, deleteTarget);
 
       toast.success(`${deleteTarget.title} deleted`);
 
       setDeleteTarget(null);
       bump();
-    } catch {
-      toast.error("Delete failed. Please try again.");
+    } catch (error) {
+      toast.error(`Delete failed: ${error instanceof Error ? error.message : "please try again."}`);
     } finally {
       setIsDeleting(false);
     }
   }, [bump, deleteTarget]);
 
   const handleKeepLocalOnly = useCallback(
-    (id: string) => {
+    async (id: string) => {
       const target = docs.find((doc) => doc.id === id);
       if (!target) return;
 
-      const result = keepDocumentLocalOnly(target.type, id);
+      setSyncingDocumentId(id);
 
-      toast.info(result.message);
+      const result = await keepDocumentLocalOnly(target.type, id);
+
+      toast[result.ok ? "info" : "error"](result.message);
+
+      setSyncingDocumentId(null);
 
       setSyncDetailsTargetId(null);
       bump();

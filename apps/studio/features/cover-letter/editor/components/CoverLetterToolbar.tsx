@@ -64,7 +64,14 @@ export const CoverLetterToolbar = memo(function CoverLetterToolbar({
     onSetMessage("Syncing with cloud...");
 
     try {
-      await syncDocumentNow("COVER_LETTER", documentId);
+      const result = await syncDocumentNow("COVER_LETTER", documentId);
+
+      if (!result.ok) {
+        onSetMessage(`Sync failed: ${result.message}`);
+        toast.error(result.message);
+        return;
+      }
+
       onSetMessage("Synced successfully");
       toast.success("Synced successfully");
     } catch (error) {

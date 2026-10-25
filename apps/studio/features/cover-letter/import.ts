@@ -9,6 +9,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+/** `senderName` is on every cover letter's content and on no other document type's. */
+function isCoverLetterContent(value: unknown): value is Record<string, unknown> {
+  return isRecord(value) && typeof value.senderName === "string";
+}
+
 /**
  * Parses a cover letter JSON file into a new document's content.
  *
@@ -19,8 +24,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * new document for both types, matching the resume's non-destructive "restore a backup"
  * behaviour; the merge-into-current semantics are gone deliberately.
  *
- * Accepts both shapes that exist on disk: the full document envelope, and the bare
- * `content` object that this app's own JSON export writes for cover letters.
+ * Accepts both shapes that exist on disk: the full document envelope, which must say it is a
+ * cover letter, and the bare `content` object that this app's own JSON export writes. Anything
+ * else — `{}`, a resume's export — is refused rather than imported as a blank letter.
  *
  * `parseCoverLetterContent` is load-bearing and must stay: it coerces every field to its
  * declared type (page margins can never be `NaN`, link `type` is allow-listed), and it is
@@ -32,7 +38,14 @@ export function importCoverLetterJson(
   if (!isRecord(raw)) return null;
 
   const envelope = isRecord(raw.content) ? raw : null;
-  const content = parseCoverLetterContent(envelope ? envelope.content : raw);
+
+  if (envelope && envelope.type !== "COVER_LETTER") return null;
+
+  const rawContent = envelope ? envelope.content : raw;
+
+  if (!isCoverLetterContent(rawContent)) return null;
+
+  const content = parseCoverLetterContent(rawContent);
 
   const envelopeTitle = envelope && typeof envelope.title === "string" ? envelope.title : "";
   const envelopeTemplateId =

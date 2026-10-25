@@ -12,8 +12,16 @@ import {
   UserRound,
   Settings,
 } from "lucide-react";
+import { toast } from "sonner";
 
-import { signOutCurrentUser } from "@/features/auth/services/current-user";
+import type { DocumentMeta } from "@/features/documents/core/types";
+
+import ConfirmationModal from "@/components/modals/ConfirmationModal";
+import { downloadWorkspaceBackup, signOutCurrentUser } from "@/features/auth/services/current-user";
+import {
+  flushPendingSaves,
+  listDocuments,
+} from "@/features/documents/services/document-workspace-service";
 import { cn } from "@/lib/utils";
 import { useUserStore } from "@/store/useUserStore";
 
@@ -34,7 +42,11 @@ export function AccountMenu({ collapsed, displayName, email, version }: AccountM
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const { logout, isLoggedIn } = useUserStore();
+  const { isLoggedIn } = useUserStore();
+
+  const [unsyncedDocuments, setUnsyncedDocuments] = useState<DocumentMeta[] | null>(null);
+  const [backupFailure, setBackupFailure] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   const [prevPathname, setPrevPathname] = useState(pathname);
 
@@ -72,12 +84,50 @@ export function AccountMenu({ collapsed, displayName, email, version }: AccountM
     router.push(path);
   };
 
-  const handleLogout = async () => {
+  const signOut = async () => {
+    setSigningOut(true);
+
+    try {
+      await signOutCurrentUser();
+      setUnsyncedDocuments(null);
+      router.push("/login");
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Sign-out failed. Please try again.");
+    } finally {
+      setSigningOut(false);
+    }
+  };
+
+  // Signing out deletes this device's copies, so anything the cloud does not hold yet is
+  // offered as a download first.
+  const handleLogout = () => {
     setOpen(false);
-    await signOutCurrentUser();
-    logout();
-    router.push("/login");
-    router.refresh();
+    flushPendingSaves();
+
+    const unsynced = listDocuments().filter((item) => item.sync.status !== "synced");
+
+    if (unsynced.length === 0) {
+      void signOut();
+      return;
+    }
+
+    setBackupFailure(null);
+    setUnsyncedDocuments(unsynced);
+  };
+  const downloadThenSignOut = async () => {
+    if (!unsyncedDocuments) return;
+
+    if (backupFailure === null) {
+      try {
+        downloadWorkspaceBackup(unsyncedDocuments);
+      } catch (error) {
+        setBackupFailure(error instanceof Error ? error.message : "The download failed.");
+        return;
+      }
+    }
+
+    await signOut();
   };
 
   return (
@@ -185,6 +235,23 @@ export function AccountMenu({ collapsed, displayName, email, version }: AccountM
           </>
         ) : null}
       </button>
+
+      <ConfirmationModal
+        open={unsyncedDocuments !== null}
+        onClose={() => {
+          if (!signingOut) setUnsyncedDocuments(null);
+        }}
+        onConfirm={() => void downloadThenSignOut()}
+        loading={signingOut}
+        variant="warning"
+        title={backupFailure === null ? "Back up before signing out?" : "Download failed"}
+        description={
+          backupFailure === null
+            ? `${unsyncedDocuments?.length ?? 0} document(s) on this device have changes that are not in the cloud. Signing out removes them from this device, so they will be downloaded as one JSON backup file first.`
+            : `${backupFailure} Signing out now permanently removes the unsynced documents from this device.`
+        }
+        confirmText={backupFailure === null ? "Download and sign out" : "Sign out anyway"}
+      />
     </div>
   );
 }

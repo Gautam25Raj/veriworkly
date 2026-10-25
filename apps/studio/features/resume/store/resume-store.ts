@@ -16,6 +16,8 @@ import type {
 
 import { create } from "zustand";
 
+import type { MasterProfileData } from "@veriworkly/profile-core";
+
 import {
   createLinkItem,
   createSkillGroup,
@@ -33,7 +35,8 @@ import {
   type SaveResumeOptions,
   saveResume as saveResumeToLocalStorage,
 } from "@/features/resume/services/resume-service";
-import { defaultResume } from "@/features/resume/constants/default-resume";
+import { blankResume } from "@/features/resume/constants/default-resume";
+import { deriveResumeFromMasterProfile } from "@/features/resume/services/master-profile";
 import { getResumeSectionKey } from "@/features/documents/rendering/resume-rendering";
 import { normalizeResumeData } from "@/features/resume/utils/normalize-data";
 import { reorderItems, withTimestamp } from "@/features/resume/store/resume-store-utils";
@@ -48,8 +51,9 @@ interface ResumeStoreState {
   resume: ResumeData;
   setResume: (resume: ResumeData) => void;
   saveToStorage: (options?: SaveResumeOptions) => SaveResumeResult;
-  resetResume: () => void;
-  emptyResume: () => void;
+  /** Back to a new resume's content: from `master` when given, blank otherwise. */
+  resetResume: (master?: MasterProfileData) => SaveResumeResult;
+  emptyResume: () => SaveResumeResult;
   /** Keyed by `getResumeSectionKey`, not by section id — several sections share id "custom". */
   setSectionVisibility: (sectionKey: string, visible: boolean) => void;
   reorderSections: (fromIndex: number, toIndex: number) => void;
@@ -109,8 +113,35 @@ interface ResumeStoreState {
   reorderProjects: (fromIndex: number, toIndex: number) => void;
 }
 
+/**
+ * Reset and "Empty fields" replace what the resume says, not how it looks or what it is
+ * called: template, customization, section order and visibility, title and sync linkage all
+ * carry over. The save result is returned so the caller can report a failed write.
+ */
+function replaceResumeContent(
+  set: (partial: Pick<ResumeStoreState, "resume">) => void,
+  current: ResumeData,
+  next: ResumeData,
+): SaveResumeResult {
+  const resume = withTimestamp(
+    normalizeResumeData({
+      ...next,
+      id: current.id,
+      title: current.title,
+      templateId: current.templateId,
+      customization: current.customization,
+      sections: current.sections,
+      sync: current.sync,
+    }),
+  );
+
+  set({ resume });
+
+  return saveResumeToLocalStorage(resume);
+}
+
 export const useResumeStore = create<ResumeStoreState>((set, get) => ({
-  resume: defaultResume,
+  resume: blankResume,
   setResume: (resume) => set({ resume: withTimestamp(normalizeResumeData(resume)) }),
 
   // No `hydrateFromStorage`: it loaded the active-or-newest resume regardless of the id
@@ -118,65 +149,25 @@ export const useResumeStore = create<ResumeStoreState>((set, get) => ({
   // different document. Editors hydrate by id via `loadResumeById` instead.
   saveToStorage: (options) => saveResumeToLocalStorage(get().resume, options),
 
-  resetResume: () => {
+  resetResume: (master) => {
     const activeResume = get().resume;
+    const next = master
+      ? deriveResumeFromMasterProfile(activeResume.id, master)
+      : { ...blankResume, id: activeResume.id };
 
-    const resetResumeValue = withTimestamp(
-      normalizeResumeData({
-        ...defaultResume,
-        id: activeResume.id,
-      }),
-    );
-
-    saveResumeToLocalStorage(resetResumeValue);
-    set({ resume: resetResumeValue });
+    return replaceResumeContent(set, activeResume, next);
   },
 
   emptyResume: () => {
     const activeResume = get().resume;
 
-    const emptyResumeValue = withTimestamp(
-      normalizeResumeData({
-        ...defaultResume,
-        id: activeResume.id,
-        basics: {
-          fullName: "",
-          role: "",
-          headline: "",
-          email: "",
-          phone: "",
-          location: "",
-          linkEmail: true,
-          linkPhone: true,
-          linkLocation: false,
-        },
-        links: {
-          displayMode: "icon-username",
-          items: [],
-        },
-        summary: "",
-        experience: [],
-        education: [],
-        projects: [],
-        skills: [],
-        languages: [],
-        interests: [],
-        awards: [],
-        certificates: [],
-        publications: [],
-        volunteer: [],
-        references: [],
-        achievements: [],
-        customSections: defaultResume.customSections.map((section) => ({
-          ...section,
-          items: [],
-        })),
-        sync: activeResume.sync,
-      }),
-    );
-
-    saveResumeToLocalStorage(emptyResumeValue);
-    set({ resume: emptyResumeValue });
+    return replaceResumeContent(set, activeResume, {
+      ...blankResume,
+      id: activeResume.id,
+      // The user's own custom sections stay, emptied, so their entries in `sections` still
+      // point at something.
+      customSections: activeResume.customSections.map((section) => ({ ...section, items: [] })),
+    });
   },
 
   /*

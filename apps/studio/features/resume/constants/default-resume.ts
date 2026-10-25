@@ -20,27 +20,22 @@ export const defaultSections: ResumeSection[] = [
 ];
 
 /**
- * Sample content, for guests and for tests. Nothing else.
+ * A structurally complete resume with no content.
  *
- * It must never again be the seed for a signed-in user's document. Every creation path now
- * goes through a `projectTo*` in `@veriworkly/profile-core` with the user's master profile;
- * this is only what a user who has no profile at all is shown, so that a first visit is not
- * a blank page. It is also the base the studio normalises a partial profile over — see
- * `getDefaultProfile` in features/resume/services/master-profile.ts.
+ * The base every partial resume is normalised over, so a key a stored, synced or imported
+ * document lacks comes back empty rather than filled with someone else's sample content.
  */
-export const defaultResume: ResumeData = {
-  id: "default-resume",
+export const blankResume: ResumeData = {
+  id: "blank-resume",
   templateId: "executive-clarity",
 
   basics: {
-    fullName: "VeriWorkly User",
-    role: "Indie Developer & Product Builder",
-    headline: "Building useful, fast, and privacy-first web products - one idea at a time.",
-
-    email: "hello@veriworkly.com",
-    phone: "0000000000",
-    location: "Internet (occasionally Earth)",
-
+    fullName: "",
+    role: "",
+    headline: "",
+    email: "",
+    phone: "",
+    location: "",
     linkEmail: true,
     linkPhone: true,
     linkLocation: false,
@@ -48,132 +43,18 @@ export const defaultResume: ResumeData = {
 
   links: {
     displayMode: "icon-username",
-    items: [
-      {
-        id: "link-1",
-        type: "github",
-        label: "GitHub",
-        url: "https://github.com/VeriWorkly/veriworkly",
-      },
-      {
-        id: "link-2",
-        type: "linkedin",
-        label: "LinkedIn",
-        url: "https://linkedin.com/in/-gautam-raj",
-      },
-      {
-        id: "link-3",
-        type: "portfolio",
-        label: "Portfolio",
-        url: "https://veriworkly.com",
-      },
-    ],
+    items: [],
   },
 
-  summary:
-    "Self-taught developer focused on building practical, real-world products. I enjoy turning ideas into polished user experiences using modern web technologies. Currently building VeriWorkly — a privacy-first resume builder with no login and a focus on simplicity.",
-
-  experience: [
-    {
-      id: "exp-1",
-      company: "VeriWorkly",
-      role: "Founder & Developer",
-      location: "Remote",
-      startDate: "2025-01",
-      endDate: "",
-      current: true,
-
-      summary: "Building a modern resume builder focused on speed, privacy, and user control.",
-
-      highlights: [
-        "Designed and developed a full-featured resume builder with real-time preview and multi-template support.",
-        "Implemented local-first architecture ensuring zero data storage on servers.",
-        "Built modular editor system enabling dynamic sections, customization, and export workflows.",
-        "Focused on performance, clean UX, and developer-friendly architecture using Next.js and TypeScript.",
-      ],
-    },
-  ],
-
-  education: [
-    {
-      id: "edu-1",
-      school: "Self-Taught",
-      degree: "Internet Degree",
-      field: "Computer Science (Unofficial but Effective)",
-      startDate: "2019",
-      endDate: "",
-      current: true,
-
-      summary:
-        "Learned software development through building real-world projects, debugging production issues, and reading way too many docs.",
-    },
-  ],
-
-  projects: [
-    {
-      id: "proj-1",
-      name: "VeriWorkly Resume Builder",
-      role: "Creator",
-      link: "https://veriworkly.com",
-      linkLabel: "Link",
-      showLinkAsText: true,
-      skills: ["Next.js", "TypeScript", "UX"],
-
-      summary:
-        "A privacy-first resume builder with no login, real-time preview, and flexible templates.",
-
-      highlights: [
-        "Built with Next.js App Router, TypeScript, and modern state management.",
-        "Supports dynamic sections, JSON import/export, and PDF generation.",
-        "Focused on UX simplicity and performance with a clean, minimal interface.",
-      ],
-    },
-
-    {
-      id: "proj-2",
-      name: "Realtime Task Board",
-      role: "Full Stack Developer",
-      link: "https://github.com/gautam25raj",
-      linkLabel: "Link",
-      showLinkAsText: true,
-      skills: ["WebSockets", "Node.js", "PostgreSQL"],
-
-      summary: "Collaborative Kanban board with real-time updates and team workflows.",
-
-      highlights: [
-        "Implemented real-time sync using WebSockets.",
-        "Designed role-based permissions and activity tracking.",
-        "Built scalable backend with Node.js and PostgreSQL.",
-      ],
-    },
-  ],
-
-  skills: [
-    {
-      id: "skills-1",
-      name: "Languages",
-      keywords: ["TypeScript", "JavaScript", "SQL"],
-    },
-    {
-      id: "skills-2",
-      name: "Frontend",
-      keywords: ["React", "Next.js", "Tailwind CSS"],
-    },
-    {
-      id: "skills-3",
-      name: "Backend",
-      keywords: ["Node.js", "Express", "PostgreSQL"],
-    },
-    {
-      id: "skills-4",
-      name: "Other",
-      keywords: ["System Design", "Performance", "UX Thinking"],
-    },
-  ],
+  summary: "",
+  experience: [],
+  education: [],
+  projects: [],
+  skills: [],
 
   // Empty, but present: a resume declares every typed section so templates and exporters
   // can read them without a guard, and so the master -> resume projection has a slot for
-  // each one. Sample content lives only in the sections above.
+  // each one.
   languages: [],
   interests: [],
   awards: [],
@@ -218,4 +99,153 @@ export const defaultResume: ResumeData = {
     revision: 1,
   },
   updatedAt: new Date().toISOString(),
+};
+
+/**
+ * Sample content: a fictional person, for a guest's first document, previews and tests.
+ *
+ * Never the seed or the fallback for anything a signed-in user owns; that is
+ * {@link blankResume} or their master profile.
+ */
+export const defaultResume: ResumeData = {
+  ...blankResume,
+  id: "default-resume",
+
+  basics: {
+    fullName: "Alex Morgan",
+    role: "Product Engineer",
+    headline: "Building fast, accessible web products from first sketch to production.",
+
+    email: "alex.morgan@example.com",
+    phone: "+1 415 555 2671",
+    location: "Remote",
+
+    linkEmail: true,
+    linkPhone: true,
+    linkLocation: false,
+  },
+
+  links: {
+    displayMode: "icon-username",
+    items: [
+      {
+        id: "link-1",
+        type: "github",
+        label: "GitHub",
+        url: "https://github.com/example",
+      },
+      {
+        id: "link-2",
+        type: "linkedin",
+        label: "LinkedIn",
+        url: "https://www.linkedin.com/in/example",
+      },
+      {
+        id: "link-3",
+        type: "portfolio",
+        label: "Portfolio",
+        url: "https://example.com",
+      },
+    ],
+  },
+
+  summary:
+    "Product engineer with six years of experience shipping web applications end to end. I enjoy turning rough ideas into polished, reliable user experiences with modern web technologies, and I care about performance, accessibility and clear communication with the people who use what I build.",
+
+  experience: [
+    {
+      id: "exp-1",
+      company: "Acme Corp",
+      role: "Senior Product Engineer",
+      location: "Remote",
+      startDate: "2022-03",
+      endDate: "",
+      current: true,
+
+      summary: "Lead engineer on the customer-facing document editor and its export pipeline.",
+
+      highlights: [
+        "Designed and shipped a real-time editor with live preview and multi-template support.",
+        "Moved document drafts to local-first storage with background sync, cutting save latency to near zero.",
+        "Built a modular section system that let the team add new content types without editor changes.",
+        "Raised performance and accessibility scores across the product using Next.js and TypeScript.",
+      ],
+    },
+  ],
+
+  education: [
+    {
+      id: "edu-1",
+      school: "State University",
+      degree: "B.Sc.",
+      field: "Computer Science",
+      startDate: "2015",
+      endDate: "2019",
+      current: false,
+
+      summary:
+        "Focused on human-computer interaction and distributed systems; final-year project on collaborative editing.",
+    },
+  ],
+
+  projects: [
+    {
+      id: "proj-1",
+      name: "Open-source Markdown Editor",
+      role: "Creator",
+      link: "https://example.com/markdown-editor",
+      linkLabel: "Link",
+      showLinkAsText: true,
+      skills: ["Next.js", "TypeScript", "UX"],
+
+      summary: "A fast, keyboard-first Markdown editor with live preview and flexible themes.",
+
+      highlights: [
+        "Built with Next.js App Router, TypeScript, and modern state management.",
+        "Supports custom themes, JSON import/export, and PDF generation.",
+        "Focused on UX simplicity and performance with a clean, minimal interface.",
+      ],
+    },
+
+    {
+      id: "proj-2",
+      name: "Realtime Task Board",
+      role: "Full Stack Developer",
+      link: "https://example.com/task-board",
+      linkLabel: "Link",
+      showLinkAsText: true,
+      skills: ["WebSockets", "Node.js", "PostgreSQL"],
+
+      summary: "Collaborative Kanban board with real-time updates and team workflows.",
+
+      highlights: [
+        "Implemented real-time sync using WebSockets.",
+        "Designed role-based permissions and activity tracking.",
+        "Built scalable backend with Node.js and PostgreSQL.",
+      ],
+    },
+  ],
+
+  skills: [
+    {
+      id: "skills-1",
+      name: "Languages",
+      keywords: ["TypeScript", "JavaScript", "SQL"],
+    },
+    {
+      id: "skills-2",
+      name: "Frontend",
+      keywords: ["React", "Next.js", "Tailwind CSS"],
+    },
+    {
+      id: "skills-3",
+      name: "Backend",
+      keywords: ["Node.js", "Express", "PostgreSQL"],
+    },
+    {
+      id: "skills-4",
+      name: "Other",
+      keywords: ["System Design", "Performance", "Accessibility"],
+    },
+  ],
 };

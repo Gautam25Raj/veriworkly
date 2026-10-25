@@ -1,32 +1,62 @@
 "use client";
 
-import type { BaseDocument } from "@/features/documents/core/types";
+import type { BaseDocument, DocumentSyncState } from "@/features/documents/core/types";
 
 import type { SaveDocumentResult } from "./local-storage-service";
 
 import { getDocumentDefinition } from "@/features/documents/core/registry";
 import { DOCUMENT_TYPES, type DocumentType } from "@/features/documents/core/document-types";
-import { getWorkspaceStorage } from "@/features/documents/services/document-workspace-service";
+import {
+  deleteDocument,
+  flushPendingSave,
+  getWorkspaceStorage,
+  rekeyDocument,
+} from "@/features/documents/services/document-workspace-service";
 
 import {
+  type SyncNowOptions,
   type SyncResult,
   type SyncWorkerOptions,
   DocumentSyncService,
 } from "./document-sync-service";
-import { SyncEngine, type OutboxItem, type SyncTelemetry } from "./sync-engine";
-import { DOCUMENT_STORAGE_UPDATED_EVENT, DOCUMENT_SYNC_OUTBOX_UPDATED_EVENT } from "./storage-keys";
+import { SyncEngine, type SyncTelemetry } from "./sync-engine";
+import {
+  DOCUMENT_REMOTE_DELETION_EVENT,
+  DOCUMENT_STORAGE_UPDATED_EVENT,
+  DOCUMENT_SYNC_OUTBOX_UPDATED_EVENT,
+  type RemoteDeletionDetail,
+} from "./storage-keys";
 
 export type { SyncResult, SyncTelemetry, SyncWorkerOptions };
-export { DOCUMENT_STORAGE_UPDATED_EVENT, DOCUMENT_SYNC_OUTBOX_UPDATED_EVENT };
+export type { RemoteDeletionDetail };
+export {
+  DOCUMENT_REMOTE_DELETION_EVENT,
+  DOCUMENT_STORAGE_UPDATED_EVENT,
+  DOCUMENT_SYNC_OUTBOX_UPDATED_EVENT,
+};
+
+/** Subscribes to deletions made on another device; returns the unsubscribe function. */
+export function subscribeToRemoteDeletions(listener: (detail: RemoteDeletionDetail) => void) {
+  if (typeof window === "undefined") return () => {};
+
+  const handle = (event: Event) => listener((event as CustomEvent<RemoteDeletionDetail>).detail);
+
+  window.addEventListener(DOCUMENT_REMOTE_DELETION_EVENT, handle);
+  return () => window.removeEventListener(DOCUMENT_REMOTE_DELETION_EVENT, handle);
+}
+
+type SyncStateSnapshot = Record<DocumentType, Record<string, DocumentSyncState>>;
 
 type SharedDocumentSyncService = {
-  syncNow(id: string): Promise<SyncResult>;
-  keepLocalOnly(id: string): SyncResult;
+  syncNow(id: string, options?: SyncNowOptions): Promise<SyncResult>;
+  keepLocalOnly(id: string): Promise<SyncResult>;
   resolveConflictUseLocal(id: string): Promise<SyncResult>;
   resolveConflictUseCloud(id: string): Promise<SyncResult>;
   startWorker(options: SyncWorkerOptions): void;
   syncAllPending(): Promise<SyncResult[]>;
   setAllSyncEnabled(enabled: boolean): SaveDocumentResult;
+  captureSyncStates(): Record<string, DocumentSyncState>;
+  restoreSyncStates(states: Record<string, DocumentSyncState>): SaveDocumentResult;
   hydrateById(id: string, force?: boolean): Promise<SyncResult>;
   hydrate(options?: { force?: boolean; minIntervalMs?: number }): Promise<SyncResult>;
 };
@@ -43,6 +73,11 @@ function createGenericDocumentSyncService(type: DocumentType) {
     updatedEventName: DOCUMENT_STORAGE_UPDATED_EVENT,
     parseItem: (input) => getDocumentDefinition(type).parse(input),
     getDocumentTitle: (item) => item.title,
+    removeLocal: (id) => {
+      deleteDocument(type, id);
+    },
+    flushPendingEdits: (id) => flushPendingSave(type, id),
+    rekeyLocal: (id) => rekeyDocument(type, id),
   });
 }
 
@@ -58,11 +93,15 @@ function getService(type: DocumentType) {
   return documentSyncServices[type];
 }
 
-export async function syncDocumentNow(type: DocumentType, id: string): Promise<SyncResult> {
-  return getService(type).syncNow(id);
+export async function syncDocumentNow(
+  type: DocumentType,
+  id: string,
+  options?: SyncNowOptions,
+): Promise<SyncResult> {
+  return getService(type).syncNow(id, options);
 }
 
-export function keepDocumentLocalOnly(type: DocumentType, id: string): SyncResult {
+export async function keepDocumentLocalOnly(type: DocumentType, id: string): Promise<SyncResult> {
   return getService(type).keepLocalOnly(id);
 }
 
@@ -81,15 +120,68 @@ export function startDocumentSyncWorker(type: DocumentType, options: SyncWorkerO
 export async function syncAllPendingDocuments(type?: DocumentType): Promise<SyncResult[]> {
   if (type) return getService(type).syncAllPending();
 
-  const results = await Promise.all(
+  const settled = await Promise.allSettled(
     DOCUMENT_TYPES.map((documentType) => syncAllPendingDocuments(documentType)),
   );
 
-  return results.flat();
+  return settled.flatMap((result) =>
+    result.status === "fulfilled"
+      ? result.value
+      : [
+          {
+            ok: false,
+            message: String(result.reason?.message ?? result.reason),
+            reason: "unknown",
+          },
+        ],
+  );
+}
+
+/**
+ * Pulls cloud changes for every type: documents created or edited on another device, and
+ * deletions made there. The documents library and the overview run this on mount for
+ * signed-in users, which is what makes a second device show the user's documents.
+ */
+export async function hydrateAllDocumentsFromCloud(options?: {
+  force?: boolean;
+  minIntervalMs?: number;
+}): Promise<SyncResult[]> {
+  const settled = await Promise.allSettled(
+    DOCUMENT_TYPES.map((type) => getService(type).hydrate(options)),
+  );
+
+  return settled.map((result) =>
+    result.status === "fulfilled"
+      ? result.value
+      : { ok: false, message: String(result.reason?.message ?? result.reason), reason: "unknown" },
+  );
+}
+
+/** Starts (or stops) the background sync worker for every document type. */
+export function startAllDocumentSyncWorkers(options: SyncWorkerOptions) {
+  for (const type of DOCUMENT_TYPES) getService(type).startWorker(options);
 }
 
 export function setDocumentSyncEnabled(type: DocumentType, enabled: boolean) {
   return getService(type).setAllSyncEnabled(enabled);
+}
+
+/** Every document's sync block, so a rejected bulk toggle can be undone document by document. */
+export function captureAllDocumentSyncStates(): SyncStateSnapshot {
+  return Object.fromEntries(
+    DOCUMENT_TYPES.map((type) => [type, getService(type).captureSyncStates()]),
+  ) as SyncStateSnapshot;
+}
+
+export function restoreAllDocumentSyncStates(snapshot: SyncStateSnapshot): SaveDocumentResult {
+  let lastResult: SaveDocumentResult = { ok: true, queued: false };
+
+  for (const type of DOCUMENT_TYPES) {
+    lastResult = getService(type).restoreSyncStates(snapshot[type] ?? {});
+    if (!lastResult.ok) return lastResult;
+  }
+
+  return lastResult;
 }
 
 export function setAllDocumentsSyncEnabled(enabled: boolean): SaveDocumentResult {
@@ -124,23 +216,20 @@ export function getDocumentSyncTelemetryByDocs(
   }, {});
 }
 
+/** Latest attempt and latest success across every document (of one type, if given). */
 export function getWorkspaceSyncTelemetry(type?: DocumentType) {
-  const outbox: Record<string, OutboxItem> = type
-    ? SyncEngine.getOutbox(type)
-    : DOCUMENT_TYPES.reduce<Record<string, OutboxItem>>(
-        (result, documentType) => ({
-          ...result,
-          ...SyncEngine.getOutbox(documentType),
-        }),
-        {},
-      );
+  const entries = Object.entries(SyncEngine.getAllTelemetry())
+    .filter(([key]) => !type || key.startsWith(`${type}:`))
+    .map(([, telemetry]) => telemetry);
 
-  const values = Object.values(outbox);
-
-  const maxAttempt = Math.max(...values.map((i) => i.updatedAt), 0);
+  const latest = (values: Array<string | null>) =>
+    values.reduce<string | null>(
+      (max, value) => (value && (!max || Date.parse(value) > Date.parse(max)) ? value : max),
+      null,
+    );
 
   return {
-    lastAttemptAt: maxAttempt ? new Date(maxAttempt).toISOString() : null,
-    lastSuccessAt: null,
+    lastAttemptAt: latest(entries.map((entry) => entry.lastAttemptAt)),
+    lastSuccessAt: latest(entries.map((entry) => entry.lastSuccessAt)),
   };
 }

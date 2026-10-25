@@ -297,7 +297,7 @@ describe("template render contract", () => {
       expect(html).toContain(content.senderName);
       expect(html).toContain(content.recipientName);
       expect(html).toContain(content.subject);
-      expect(html).toContain("Product Engineer role at Veriworkly");
+      expect(html).toContain("Product Engineer role at Acme Corp");
       expect(html).toContain("Built React and TypeScript document workflows");
       expect(html).toContain("P.S.");
     }

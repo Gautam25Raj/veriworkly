@@ -13,6 +13,8 @@ import {
   syncAllPendingDocuments,
   getWorkspaceSyncTelemetry,
   setAllDocumentsSyncEnabled,
+  captureAllDocumentSyncStates,
+  restoreAllDocumentSyncStates,
   DOCUMENT_SYNC_OUTBOX_UPDATED_EVENT,
 } from "@/features/documents/services/document-sync";
 import {
@@ -66,28 +68,49 @@ export default function SyncSection() {
     if (!isLoggedIn) return;
 
     const previous = autoSync;
+    // Per document, so a rollback restores each one's own choice (a document kept local
+    // stays local) instead of flattening every document to the old global value.
+    const previousStates = captureAllDocumentSyncStates();
 
     setAutoSync(checked);
     setAutoSyncEnabledInLocalStorage(checked);
-    setAllDocumentsSyncEnabled(checked);
+
+    const applied = setAllDocumentsSyncEnabled(checked);
+
+    if (!applied.ok) {
+      setAutoSync(previous);
+      setAutoSyncEnabledInLocalStorage(previous);
+      restoreAllDocumentSyncStates(previousStates);
+      toast.error("Could not update your documents: this device's storage is full.");
+      return;
+    }
 
     try {
       await updateAutoSyncPreference(checked);
     } catch (err) {
-      console.error("Failed to sync preference with server", err);
-
       // Roll back the optimistic update — the UI must not keep showing a state the
       // server rejected, silently disagreeing with the backend indefinitely.
       setAutoSync(previous);
       setAutoSyncEnabledInLocalStorage(previous);
-      setAllDocumentsSyncEnabled(previous);
-      toast.error("Could not save your sync preference. Please try again.");
+      restoreAllDocumentSyncStates(previousStates);
+      toast.error(
+        `Could not save your sync preference: ${err instanceof Error ? err.message : "please try again."}`,
+      );
       return;
     }
 
-    if (checked) {
-      setLoading(true);
-      await syncAllPendingDocuments();
+    if (!checked) return;
+
+    setLoading(true);
+
+    try {
+      const results = await syncAllPendingDocuments();
+      const failed = results.filter((result) => !result.ok && result.reason !== "in-progress");
+
+      if (failed.length > 0) {
+        toast.error(`${failed.length} document(s) did not sync: ${failed[0].message}`);
+      }
+    } finally {
       setLoading(false);
     }
   };

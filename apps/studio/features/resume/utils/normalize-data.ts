@@ -3,7 +3,7 @@ import { unflattenLegacySections } from "@veriworkly/profile-core";
 import type { ResumeData, ResumeLinkType, ResumeSection } from "@/types/resume";
 
 import { normalizeFontFamilyId } from "@/features/documents/constants/fonts";
-import { defaultResume, defaultSections } from "@/features/resume/constants/default-resume";
+import { blankResume, defaultSections } from "@/features/resume/constants/default-resume";
 
 function isKnownLinkType(value: string): value is ResumeLinkType {
   return [
@@ -28,7 +28,7 @@ function normalizeLinks(value: Partial<ResumeData> | null | undefined) {
 
   if (incomingLinks) {
     return {
-      displayMode: incomingLinks.displayMode ?? defaultResume.links.displayMode,
+      displayMode: incomingLinks.displayMode ?? blankResume.links.displayMode,
       items: (incomingLinks.items ?? []).map((item, index) => ({
         id: item.id || `link-${index + 1}`,
         type: normalizeLinkType(item.type),
@@ -38,7 +38,7 @@ function normalizeLinks(value: Partial<ResumeData> | null | undefined) {
     };
   }
 
-  return defaultResume.links;
+  return blankResume.links;
 }
 
 /**
@@ -175,11 +175,11 @@ export function normalizeResumeData(value: Partial<ResumeData> | null | undefine
   const customSections = normalizeCustomSections(typed.customSections);
 
   return {
-    ...defaultResume,
+    ...blankResume,
     ...value,
-    templateId: value?.templateId ?? defaultResume.templateId,
+    templateId: value?.templateId ?? blankResume.templateId,
     basics: {
-      ...defaultResume.basics,
+      ...blankResume.basics,
       ...value?.basics,
     },
     links: normalizeLinks(value),
@@ -191,7 +191,7 @@ export function normalizeResumeData(value: Partial<ResumeData> | null | undefine
             endDate: normalizeMonthDate(item.endDate),
             current: item.current ?? item.endDate?.trim().toLowerCase() === "present",
           }))
-        : defaultResume.experience,
+        : blankResume.experience,
     education:
       value?.education !== undefined && value?.education !== null
         ? value.education.map((item) => ({
@@ -200,18 +200,18 @@ export function normalizeResumeData(value: Partial<ResumeData> | null | undefine
             endDate: normalizeNumericDate(item.endDate, 4),
             current: item.current ?? item.endDate?.trim().toLowerCase() === "present",
           }))
-        : defaultResume.education,
+        : blankResume.education,
     projects:
       value?.projects !== undefined && value?.projects !== null
         ? value.projects.map((project) => ({
             ...project,
-            linkLabel: project.linkLabel || "Link",
+            linkLabel: project.linkLabel ?? "",
             showLinkAsText: project.showLinkAsText ?? true,
             skills: project.skills ?? [],
           }))
-        : defaultResume.projects,
+        : blankResume.projects,
     skills:
-      value?.skills !== undefined && value?.skills !== null ? value.skills : defaultResume.skills,
+      value?.skills !== undefined && value?.skills !== null ? value.skills : blankResume.skills,
     languages: typed.languages,
     interests: typed.interests,
     awards: typed.awards,
@@ -223,12 +223,12 @@ export function normalizeResumeData(value: Partial<ResumeData> | null | undefine
     customSections,
     sections: normalizeSections(value, customSections),
     customization: {
-      ...defaultResume.customization,
+      ...blankResume.customization,
       ...incomingCustomization,
       fontFamily: normalizeFontFamilyId(incomingFontFamily),
     },
     sync: {
-      ...defaultResume.sync,
+      ...blankResume.sync,
       ...value?.sync,
     },
     updatedAt: value?.updatedAt ?? new Date().toISOString(),

@@ -1,6 +1,6 @@
 import type { SaveDocumentResult } from "./local-storage-service";
 
-export type SaveFailureReason = "quota-exceeded" | "unknown";
+export type SaveFailureReason = "quota-exceeded" | "unknown" | "removed";
 
 /**
  * User-facing text for a failed local save.
@@ -12,6 +12,10 @@ export type SaveFailureReason = "quota-exceeded" | "unknown";
 export function getSaveFailureMessage(reason: SaveFailureReason): string {
   if (reason === "quota-exceeded") {
     return "Storage is full. Remove older documents or exports and try again.";
+  }
+
+  if (reason === "removed") {
+    return "This document was deleted, so this change was not saved.";
   }
 
   return "Unable to save locally right now. Please try again.";

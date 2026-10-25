@@ -54,7 +54,9 @@ export function DocumentListRow({
         <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
           <span className="bg-muted/25 rounded-md px-2 py-1">{doc.templateName}</span>
 
-          <span className="bg-muted/25 rounded-md px-2 py-1">{getSyncLabel(doc.sync)}</span>
+          <span className="bg-muted/25 rounded-md px-2 py-1">
+            {getSyncLabel(doc.sync, telemetry)}
+          </span>
 
           <span className="bg-muted/25 rounded-md px-2 py-1">
             {getActivityLabel(doc.sync, telemetry)}

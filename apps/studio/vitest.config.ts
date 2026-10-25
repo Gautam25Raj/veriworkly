@@ -15,5 +15,7 @@ export default defineConfig({
     environment: "node",
     include: ["tests/contracts/**/*.test.ts", "tests/contracts/**/*.test.tsx"],
     globals: false,
+    // Several contracts render real PDFs; under a full parallel run they pass the 5 s default.
+    testTimeout: 20_000,
   },
 });

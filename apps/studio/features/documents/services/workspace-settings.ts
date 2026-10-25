@@ -2,7 +2,10 @@ import { WORKSPACE_SETTINGS_STORAGE_KEY } from "@/lib/constants";
 
 import { z } from "zod";
 
-import { safeSetLocalStorageItem } from "@/features/documents/services/storage/safe-local-storage";
+import {
+  safeSetLocalStorageItem,
+  type LocalStorageWriteResult,
+} from "@/features/documents/services/storage/safe-local-storage";
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -16,13 +19,15 @@ const defaultWorkspaceSettings: WorkspaceSettings = {
   autoSyncEnabled: false,
 };
 
-const workspaceSettingsSchema = z
-  .object({
-    autoSyncEnabled: z.boolean().optional(),
-  })
-  .passthrough();
+const workspaceSettingsSchema = z.object({
+  autoSyncEnabled: z.boolean(),
+});
 
-export function loadWorkspaceSettingsFromLocalStorage() {
+/**
+ * An unreadable stored value is reported and left in place, not deleted: removing it would
+ * turn auto-sync off for good without the user ever having chosen that.
+ */
+export function loadWorkspaceSettingsFromLocalStorage(): WorkspaceSettings {
   if (!isBrowser()) {
     return defaultWorkspaceSettings;
   }
@@ -33,37 +38,41 @@ export function loadWorkspaceSettingsFromLocalStorage() {
     return defaultWorkspaceSettings;
   }
 
+  let stored: unknown;
+
   try {
-    const parsed = workspaceSettingsSchema.safeParse(JSON.parse(rawValue));
-
-    if (!parsed.success) {
-      window.localStorage.removeItem(WORKSPACE_SETTINGS_STORAGE_KEY);
-      return defaultWorkspaceSettings;
-    }
-
-    return {
-      autoSyncEnabled: Boolean(parsed.data.autoSyncEnabled),
-    };
-  } catch {
-    window.localStorage.removeItem(WORKSPACE_SETTINGS_STORAGE_KEY);
+    stored = JSON.parse(rawValue);
+  } catch (error) {
+    console.warn("Stored workspace settings are not JSON; using the defaults.", error);
     return defaultWorkspaceSettings;
   }
-}
 
-export function saveWorkspaceSettingsToLocalStorage(settings: WorkspaceSettings) {
-  if (!isBrowser()) {
-    return;
+  const parsed = workspaceSettingsSchema.safeParse(stored);
+
+  if (!parsed.success) {
+    console.warn("Stored workspace settings are invalid; using the defaults.", parsed.error);
+    return defaultWorkspaceSettings;
   }
 
-  const validatedSettings = workspaceSettingsSchema.parse(settings);
+  return parsed.data;
+}
 
-  safeSetLocalStorageItem(
+export function saveWorkspaceSettingsToLocalStorage(
+  settings: WorkspaceSettings,
+): LocalStorageWriteResult {
+  if (!isBrowser()) {
+    return { ok: true };
+  }
+
+  return safeSetLocalStorageItem(
     window.localStorage,
     WORKSPACE_SETTINGS_STORAGE_KEY,
-    JSON.stringify(validatedSettings),
+    JSON.stringify(workspaceSettingsSchema.parse(settings)),
   );
 }
 
-export function setAutoSyncEnabledInLocalStorage(autoSyncEnabled: boolean) {
-  saveWorkspaceSettingsToLocalStorage({ autoSyncEnabled });
+export function setAutoSyncEnabledInLocalStorage(
+  autoSyncEnabled: boolean,
+): LocalStorageWriteResult {
+  return saveWorkspaceSettingsToLocalStorage({ autoSyncEnabled });
 }

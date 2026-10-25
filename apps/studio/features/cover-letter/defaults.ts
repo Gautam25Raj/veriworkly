@@ -29,12 +29,17 @@ function toStudioAppearance(appearance: CoverLetterAppearanceCore): CoverLetterA
   return { ...cloned, fontFamily: normalizeFontFamilyId(cloned.fontFamily) };
 }
 
+/**
+ * Sample content: a letter from a fictional applicant to a fictional company, for a guest's
+ * first letter, previews and tests. A signed-in user without a profile gets
+ * {@link createEmptyCoverLetter} instead.
+ */
 export function createDefaultCoverLetter(id: string): BaseDocument<CoverLetterContent> {
   const now = new Date().toISOString();
   return {
     id,
     type: "COVER_LETTER",
-    title: "Product Engineer - Veriworkly",
+    title: "Product Engineer - Acme Corp",
     templateId: COVER_LETTER_TEMPLATE_ID,
 
     updatedAt: now,
@@ -48,12 +53,12 @@ export function createDefaultCoverLetter(id: string): BaseDocument<CoverLetterCo
     },
 
     content: {
-      senderName: "Veriworkly User",
+      senderName: "Alex Morgan",
       senderTitle: "Product Engineer",
-      senderEmail: "user@veriworkly.com",
-      senderPhone: "+1 (555) 010-2026",
+      senderEmail: "alex.morgan@example.com",
+      senderPhone: "+1 415 555 2671",
       senderLocation: "Remote",
-      senderWebsite: "veriworkly.com",
+      senderWebsite: "example.com",
       links: {
         displayMode: "icon-username",
         items: [],
@@ -65,30 +70,30 @@ export function createDefaultCoverLetter(id: string): BaseDocument<CoverLetterCo
         day: "numeric",
       }).format(new Date()),
 
-      recipientName: "Veriworkly Hiring Team",
-      recipientTitle: "Product and Engineering",
+      recipientName: "Jordan Lee",
+      recipientTitle: "Engineering Manager",
 
-      companyName: "Veriworkly",
+      companyName: "Acme Corp",
       companyLocation: "Remote",
 
       jobTitle: "Product Engineer",
-      subject: "Application for Product Engineer at Veriworkly",
+      subject: "Application for Product Engineer at Acme Corp",
 
-      greeting: "Dear Veriworkly Hiring Team,",
+      greeting: "Dear Jordan Lee,",
 
       opening:
-        "I am excited to apply for the Product Engineer role at Veriworkly. The product mission is close to the work I care about: helping people present credible professional documents, move faster through career workflows, and keep their materials consistent across resume, cover letter, and document experiences.",
+        "I am excited to apply for the Product Engineer role at Acme Corp. The team's focus on dependable, well-crafted software is close to the work I care about: helping people get real tasks done quickly, with tools that stay out of their way and keep their work safe.",
 
-      body: "I would bring a practical product engineering mindset to Veriworkly. I enjoy building polished document editors, export flows, cloud sync, sharing, and preview experiences that feel dependable for real users. I care about details like autosave behavior, hydration-safe rendering, reusable document actions, and templates that help users start with strong defaults instead of a blank page.\n\nVeriworkly stands out because it combines user-facing craft with systems that need to be trustworthy: local drafts, public links, document exports, and collaboration between dashboard and editor surfaces. I would be excited to help make those workflows sharper, faster, and easier to maintain.",
+      body: "I would bring a practical product engineering mindset to Acme Corp. I enjoy building polished editors, export flows, background sync, sharing, and preview experiences that feel dependable for real users. I care about details like autosave behavior, hydration-safe rendering, reusable UI actions, and defaults that help people start strong instead of facing a blank page.\n\nAcme Corp stands out because it combines user-facing craft with systems that need to be trustworthy: offline drafts, public links, data exports, and collaboration across web and mobile surfaces. I would be excited to help make those workflows sharper, faster, and easier to maintain.",
 
       highlights:
-        "- Built React and TypeScript document workflows with live preview, export, and autosave behavior\n- Improved shared UI actions so resumes, cover letters, and other documents behave consistently\n- Debugged hydration, routing, and local-storage edge cases in Next.js applications",
+        "- Built React and TypeScript document workflows with live preview, export, and autosave behavior\n- Improved shared UI actions so every document type in the product behaves consistently\n- Debugged hydration, routing, and local-storage edge cases in Next.js applications",
 
       closing: "Sincerely,",
-      signature: "Veriworkly User",
+      signature: "Alex Morgan",
 
       postscript:
-        "I would welcome the chance to help Veriworkly make professional document creation feel faster, clearer, and more reliable.",
+        "I would welcome the chance to help Acme Corp make its product feel faster, clearer, and more reliable.",
 
       appearance: toStudioAppearance(DEFAULT_COVER_LETTER_APPEARANCE),
     },
@@ -98,10 +103,8 @@ export function createDefaultCoverLetter(id: string): BaseDocument<CoverLetterCo
 /**
  * A new cover letter seeded from the user's master profile.
  *
- * `createDefaultCoverLetter` above keeps its exact output — the contract and parity suites
- * pin it and the five templates were built against it — but it now reads its appearance from
- * the same constant this does, so the two cannot drift. It is sample content for a user with
- * no profile; this is what a signed-in user gets.
+ * `createDefaultCoverLetter` above reads its appearance from the same constant this does, so
+ * the two cannot drift. It is sample content; this is what a user with a profile gets.
  *
  * The letter arrives with the identity block filled and the letter itself blank — the
  * projection deliberately writes no opening, body or highlights, because inventing prose a

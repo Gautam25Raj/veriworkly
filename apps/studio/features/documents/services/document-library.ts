@@ -11,6 +11,7 @@ import {
 import {
   getWorkspaceRevision,
   listDocumentIndexEntries,
+  prepareWorkspaceStorage,
 } from "@/features/documents/services/document-workspace-service";
 import { invalidateDocumentIndexCache } from "@/features/documents/services/document-index";
 import { DOCUMENT_TYPES } from "@/features/documents/core/document-types";
@@ -59,6 +60,10 @@ const snapshotCache = new Map<string, DocumentLibrarySnapshot>();
 
 export function subscribeToDocumentLibrary(onStoreChange: () => void) {
   if (typeof window === "undefined") return () => {};
+
+  // Subscription runs after commit, so the one-time migration and index repair (both of which
+  // write) happen here; the snapshot read below stays pure. Their write event re-renders.
+  prepareWorkspaceStorage();
 
   // A cross-tab write bypasses this tab's in-memory revision mirror, so drop it
   // before recomputing or we would serve a stale snapshot for the other tab's edit.

@@ -10,7 +10,10 @@ import {
   setAutoSyncEnabledInLocalStorage,
   loadWorkspaceSettingsFromLocalStorage,
 } from "@/features/documents/services/workspace-settings";
-import { setAllDocumentsSyncEnabled } from "@/features/documents/services/document-sync";
+import {
+  setAllDocumentsSyncEnabled,
+  startAllDocumentSyncWorkers,
+} from "@/features/documents/services/document-sync";
 
 export function AuthInitializer({ initialUser }: { initialUser: SessionUser | null }) {
   const setUser = useUserStore((state) => state.setUser);
@@ -18,15 +21,20 @@ export function AuthInitializer({ initialUser }: { initialUser: SessionUser | nu
   useEffect(() => {
     setUser(initialUser);
 
+    const autoSyncEnabled = initialUser?.autoSyncEnabled ?? false;
+
     if (initialUser) {
       const localSettings = loadWorkspaceSettingsFromLocalStorage();
-      const autoSyncEnabled = initialUser.autoSyncEnabled ?? false;
 
       if (localSettings.autoSyncEnabled !== autoSyncEnabled) {
         setAutoSyncEnabledInLocalStorage(autoSyncEnabled);
         setAllDocumentsSyncEnabled(autoSyncEnabled);
       }
     }
+
+    // Back up pending documents of every type as soon as the user is signed in, not only
+    // once an editor of that type is opened.
+    startAllDocumentSyncWorkers({ enabled: Boolean(initialUser) && autoSyncEnabled });
   }, [initialUser, setUser]);
 
   return null;

@@ -13,6 +13,10 @@ function createLocalStorageMock() {
 
   return {
     store,
+    get length() {
+      return store.size;
+    },
+    key: vi.fn((index: number) => [...store.keys()][index] ?? null),
     getItem: vi.fn((key: string) => store.get(key) ?? null),
     setItem: vi.fn((key: string, value: string) => {
       store.set(key, value);
@@ -59,6 +63,7 @@ async function loadStorageModules() {
     workspace: await import("@/features/documents/services/document-workspace-service"),
     library: await import("@/features/documents/services/document-library"),
     index: await import("@/features/documents/services/document-index"),
+    sync: await import("@/features/documents/services/sync-engine"),
   };
 }
 
@@ -226,13 +231,305 @@ describe("document storage layout", () => {
     expect(storageMock.store.has(getLegacyDocumentCollectionKey("RESUME"))).toBe(true);
   });
 
-  it("recovers from a corrupted index instead of throwing", async () => {
+  it("S-014/S-113: rebuilds a corrupt index from the document bodies", async () => {
+    const { workspace } = await loadStorageModules();
+
+    workspace.saveDocument(createResumeDocument("resume-a"), { flush: true });
+    workspace.saveDocument(createResumeDocument("resume-b"), { flush: true });
+
     storageMock.store.set(DOCUMENT_INDEX_STORAGE_KEY, "{not json");
+
+    const fresh = await loadStorageModules();
+
+    expect(() => fresh.workspace.listDocumentIndexEntries("RESUME")).not.toThrow();
+
+    fresh.workspace.prepareWorkspaceStorage();
+
+    expect(
+      fresh.workspace
+        .listDocumentIndexEntries("RESUME")
+        .map((entry) => entry.id)
+        .sort(),
+    ).toEqual(["resume-a", "resume-b"]);
+    expect(storageMock.store.get(`${DOCUMENT_INDEX_STORAGE_KEY}:corrupt`)).toBe("{not json");
+  });
+
+  it("S-014: a save against a corrupt index does not drop the other documents", async () => {
+    const { workspace } = await loadStorageModules();
+
+    workspace.saveDocument(createResumeDocument("resume-a"), { flush: true });
+    storageMock.store.set(DOCUMENT_INDEX_STORAGE_KEY, "{not json");
+
+    const fresh = await loadStorageModules();
+    fresh.workspace.saveDocument(createResumeDocument("resume-b"), { flush: true });
+
+    expect(
+      fresh.workspace
+        .listDocumentIndexEntries("RESUME")
+        .map((entry) => entry.id)
+        .sort(),
+    ).toEqual(["resume-a", "resume-b"]);
+  });
+
+  it("S-169: building the library snapshot never writes storage", async () => {
+    const legacy = createResumeDocument("legacy-a");
+
+    storageMock.store.set(
+      getLegacyDocumentCollectionKey("RESUME"),
+      JSON.stringify({ version: 2, items: { [legacy.id]: legacy } }),
+    );
+
+    const { library } = await loadStorageModules();
+    storageMock.setItem.mockClear();
+    storageMock.removeItem.mockClear();
+
+    library.getDocumentLibrarySnapshot("ALL");
+
+    expect(storageMock.setItem).not.toHaveBeenCalled();
+    expect(storageMock.removeItem).not.toHaveBeenCalled();
+  });
+
+  it("S-015: parks an unparseable document body instead of deleting it", async () => {
+    storageMock.store.set(getDocumentKey("RESUME", "broken"), "{truncated");
 
     const { workspace } = await loadStorageModules();
 
-    expect(() => workspace.listDocumentIndexEntries("RESUME")).not.toThrow();
-    expect(workspace.listDocumentIndexEntries("RESUME")).toEqual([]);
+    expect(workspace.loadDocumentById("RESUME", "broken")).toBeNull();
+    expect(storageMock.store.get(`${getDocumentKey("RESUME", "broken")}:corrupt`)).toBe(
+      "{truncated",
+    );
+  });
+
+  it("S-117: keeps the legacy blob and parks an item that fails to parse", async () => {
+    const good = createResumeDocument("legacy-good");
+
+    storageMock.store.set(
+      getLegacyDocumentCollectionKey("RESUME"),
+      JSON.stringify({ version: 2, items: { [good.id]: good, bad: { id: 42 } } }),
+    );
+
+    const { workspace } = await loadStorageModules();
+    workspace.listDocumentIndexEntries("RESUME");
+    workspace.loadDocumentById("RESUME", good.id);
+
+    expect(storageMock.store.has(getLegacyDocumentCollectionKey("RESUME"))).toBe(true);
+    expect(
+      JSON.parse(storageMock.store.get(`${getLegacyDocumentCollectionKey("RESUME")}:corrupt`)!),
+    ).toEqual({ items: { bad: { id: 42 } } });
+    expect(workspace.loadDocumentById("RESUME", good.id)?.title).toBe("Resume legacy-good");
+  });
+
+  it("S-133: a migration whose index write fails is retried", async () => {
+    const legacy = createResumeDocument("legacy-retry");
+
+    storageMock.store.set(
+      getLegacyDocumentCollectionKey("RESUME"),
+      JSON.stringify({ version: 2, items: { [legacy.id]: legacy } }),
+    );
+
+    let failIndex = true;
+    storageMock.setItem.mockImplementation((key: string, value: string) => {
+      if (key === DOCUMENT_INDEX_STORAGE_KEY && failIndex) {
+        throw new DOMException("Storage quota exceeded", "QuotaExceededError");
+      }
+      storageMock.store.set(key, value);
+    });
+
+    const { workspace } = await loadStorageModules();
+    workspace.loadDocumentById("RESUME", legacy.id);
+
+    expect(storageMock.store.has(getLegacyDocumentCollectionKey("RESUME"))).toBe(true);
+
+    failIndex = false;
+    workspace.loadDocumentById("RESUME", legacy.id);
+
+    expect(storageMock.store.has(getLegacyDocumentCollectionKey("RESUME"))).toBe(false);
+    expect(workspace.listDocumentIndexEntries("RESUME").map((entry) => entry.id)).toEqual([
+      "legacy-retry",
+    ]);
+  });
+
+  it("S-016: a delete whose index write fails leaves the document intact", async () => {
+    const { workspace } = await loadStorageModules();
+
+    workspace.saveDocument(createResumeDocument("resume-a"), { flush: true });
+
+    storageMock.setItem.mockImplementation((key: string) => {
+      if (key === DOCUMENT_INDEX_STORAGE_KEY) {
+        throw new DOMException("Storage quota exceeded", "QuotaExceededError");
+      }
+    });
+
+    expect(workspace.deleteDocument("RESUME", "resume-a").ok).toBe(false);
+    expect(storageMock.store.has(getDocumentKey("RESUME", "resume-a"))).toBe(true);
+    expect(workspace.listDocumentIndexEntries("RESUME").map((entry) => entry.id)).toEqual([
+      "resume-a",
+    ]);
+  });
+
+  it("S-002: a stale editor save keeps the cloud id and revision the sync recorded", async () => {
+    const { workspace } = await loadStorageModules();
+    const base = createResumeDocument("resume-a");
+    const doc = { ...base, sync: { ...base.sync, enabled: true, status: "pending" as const } };
+
+    workspace.saveDocument(doc, { flush: true });
+    workspace
+      .getWorkspaceStorage("RESUME")
+      .patchSync("resume-a", { cloudDocumentId: "x", revision: 3, status: "synced" });
+
+    const stale = {
+      ...doc,
+      content: {
+        ...(doc.content as Record<string, unknown>),
+        summary: "typed after the sync",
+      },
+    };
+    workspace.saveDocument(stale, { flush: true });
+
+    const saved = workspace.loadDocumentById("RESUME", "resume-a");
+    expect(saved?.sync).toMatchObject({ cloudDocumentId: "x", revision: 3, status: "pending" });
+    expect((saved?.content as { sync: { cloudDocumentId: string } }).sync.cloudDocumentId).toBe(
+      "x",
+    );
+  });
+
+  it("S-240: an edit to a conflicted document keeps it conflicted", async () => {
+    const { workspace } = await loadStorageModules();
+    const base = createResumeDocument("resume-a");
+    const doc = { ...base, sync: { ...base.sync, enabled: true, status: "pending" as const } };
+
+    workspace.saveDocument(doc, { flush: true });
+    workspace.getWorkspaceStorage("RESUME").patchSync("resume-a", { status: "conflicted" });
+
+    workspace.saveDocument(
+      {
+        ...doc,
+        content: { ...(doc.content as Record<string, unknown>), summary: "next keystroke" },
+      },
+      { flush: true },
+    );
+
+    expect(workspace.loadDocumentById("RESUME", "resume-a")?.sync.status).toBe("conflicted");
+  });
+
+  it("an editor still holding a deleted document cannot write it back", async () => {
+    const { workspace } = await loadStorageModules();
+    const doc = createResumeDocument("resume-a");
+
+    workspace.saveDocument(doc, { flush: true });
+    workspace.deleteDocument("RESUME", "resume-a");
+
+    expect(workspace.saveDocument(doc, { flush: true })).toEqual({ ok: false, reason: "removed" });
+    expect(workspace.loadDocumentById("RESUME", "resume-a")).toBeNull();
+  });
+
+  it("a tab still editing a document deleted in another tab does not re-create it", async () => {
+    const { workspace } = await loadStorageModules();
+    const base = createResumeDocument("resume-a");
+    // Cloud-linked, as the other tab's editor loaded it; then the document is gone.
+    const doc = { ...base, sync: { ...base.sync, enabled: true, cloudDocumentId: "resume-a" } };
+
+    expect(workspace.saveDocument(doc, { flush: true })).toEqual({ ok: false, reason: "removed" });
+    expect(workspace.loadDocumentById("RESUME", "resume-a")).toBeNull();
+  });
+
+  it("an index repair that cannot be written fails the save instead of shrinking the index", async () => {
+    const { workspace } = await loadStorageModules();
+
+    workspace.saveDocument(createResumeDocument("resume-a"), { flush: true });
+    workspace.saveDocument(createResumeDocument("resume-b"), { flush: true });
+    storageMock.store.set(DOCUMENT_INDEX_STORAGE_KEY, "{not json");
+
+    const fresh = await loadStorageModules();
+
+    storageMock.setItem.mockImplementation((key: string, value: string) => {
+      if (key === DOCUMENT_INDEX_STORAGE_KEY) {
+        throw new DOMException("Storage quota exceeded", "QuotaExceededError");
+      }
+      storageMock.store.set(key, value);
+    });
+
+    expect(fresh.workspace.saveDocument(createResumeDocument("resume-c"), { flush: true }).ok).toBe(
+      false,
+    );
+    expect(storageMock.store.get(DOCUMENT_INDEX_STORAGE_KEY)).toBe("{not json");
+  });
+
+  it("an editor save cannot change whether a document syncs", async () => {
+    const { workspace } = await loadStorageModules();
+    const base = createResumeDocument("resume-a");
+    const doc = { ...base, sync: { ...base.sync, enabled: false, status: "local-only" as const } };
+
+    workspace.saveDocument(doc, { flush: true });
+    workspace.saveDocument(
+      {
+        ...doc,
+        sync: { ...doc.sync, enabled: true, status: "pending" as const },
+        content: { ...(doc.content as Record<string, unknown>), summary: "edited" },
+      },
+      { flush: true },
+    );
+
+    expect(workspace.loadDocumentById("RESUME", "resume-a")?.sync).toMatchObject({
+      enabled: false,
+      status: "local-only",
+    });
+  });
+
+  it("a corrupt index is rebuilt even when there is no room to keep a copy of it", async () => {
+    const { workspace } = await loadStorageModules();
+
+    workspace.saveDocument(createResumeDocument("resume-a"), { flush: true });
+    storageMock.store.set(DOCUMENT_INDEX_STORAGE_KEY, "{not json");
+
+    const fresh = await loadStorageModules();
+
+    storageMock.setItem.mockImplementation((key: string, value: string) => {
+      if (key.endsWith(":corrupt")) {
+        throw new DOMException("Storage quota exceeded", "QuotaExceededError");
+      }
+      storageMock.store.set(key, value);
+    });
+
+    expect(fresh.workspace.saveDocument(createResumeDocument("resume-b"), { flush: true }).ok).toBe(
+      true,
+    );
+    expect(
+      fresh.workspace
+        .listDocumentIndexEntries("RESUME")
+        .map((entry) => entry.id)
+        .sort(),
+    ).toEqual(["resume-a", "resume-b"]);
+  });
+
+  it("S-020: saving unchanged content does not move updatedAt", async () => {
+    const { workspace } = await loadStorageModules();
+    const doc = { ...createResumeDocument("resume-a"), updatedAt: "2026-01-01T00:00:00.000Z" };
+
+    workspace.saveDocument(doc, { flush: true });
+    workspace.saveDocument({ ...doc, updatedAt: "2026-10-26T00:00:00.000Z" }, { flush: true });
+
+    expect(workspace.loadDocumentById("RESUME", "resume-a")?.updatedAt).toBe(
+      "2026-01-01T00:00:00.000Z",
+    );
+  });
+
+  it("clearWorkspaceStorage removes every document, sync and master-profile key", async () => {
+    const { workspace, sync } = await loadStorageModules();
+
+    workspace.saveDocument(createResumeDocument("resume-a"), { flush: true });
+    sync.SyncEngine.upsertOutboxItem("resume-a", {}, "RESUME");
+    sync.SyncEngine.updateTelemetry("resume-a", { lastAttemptAt: "x" }, "RESUME");
+    storageMock.store.set("veriworkly:master-profile", "{}");
+    storageMock.store.set("veriworkly:master-profile:corrupt", "{");
+    storageMock.store.set("veriworkly:cloud-hydrate-meta:resume", "{}");
+    storageMock.store.set(`${getDocumentKey("RESUME", "old")}:corrupt`, "{");
+    storageMock.store.set("veriworkly:workspace-settings", "{}");
+
+    workspace.clearWorkspaceStorage();
+
+    expect([...storageMock.store.keys()]).toEqual(["veriworkly:workspace-settings"]);
+    expect(workspace.listDocumentIndexEntries()).toEqual([]);
   });
 
   it("removes the document body and index entry on delete", async () => {

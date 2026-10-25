@@ -4,6 +4,10 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 
+import type { SaveDocumentResult } from "@/features/documents/services/local-storage-service";
+
+import { getDocumentEditorPath } from "@/features/documents/core/routes";
+
 import { Button } from "@veriworkly/ui";
 
 import { useUserStore } from "@/store/useUserStore";
@@ -13,6 +17,7 @@ import { DocumentEditorShell } from "@/features/documents/editor/DocumentEditorS
 import { DocumentStateCard } from "@/features/documents/editor/DocumentStateCard";
 import {
   startDocumentSyncWorker,
+  subscribeToRemoteDeletions,
   hydrateCloudDocumentByIdToLocalStorage,
 } from "@/features/documents/services/document-sync";
 import { importCoverLetterMarkdownFile } from "@/features/cover-letter/markdown-import";
@@ -97,6 +102,50 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
     lastSaveFailureRef.current = failure;
   }, []);
 
+  // A save refused because the document was deleted (here, or on another device by the sync
+  // worker) has nothing left to edit: say so and leave the dead editor.
+  // The document moved to a new id (its cloud copy had been deleted). The store switches to
+  // it before the route does, so typing in between is saved to the new id, not the old one.
+  const followMove = useCallback(
+    (newId: string) => {
+      hydrateFromStorage(newId);
+      router.replace(getDocumentEditorPath("COVER_LETTER", newId));
+    },
+    [router, hydrateFromStorage],
+  );
+
+  const handleSaveResult = useCallback(
+    (result: SaveDocumentResult) => {
+      reportSaveResult(describeSaveResult(result));
+
+      if (result.ok && result.movedTo) followMove(result.movedTo);
+      if (!result.ok && result.reason === "removed") router.replace("/documents");
+    },
+    [followMove, reportSaveResult, router],
+  );
+
+  useEffect(
+    () =>
+      subscribeToRemoteDeletions((detail) => {
+        if (detail.type !== "COVER_LETTER" || detail.id !== documentId) return;
+
+        if (detail.newId) {
+          toast.info(detail.message);
+          followMove(detail.newId);
+          return;
+        }
+
+        if (detail.kept) {
+          toast.warning(detail.message);
+          return;
+        }
+
+        toast.error(detail.message);
+        router.replace("/documents");
+      }),
+    [documentId, followMove, router],
+  );
+
   // Autosave. Surfacing the result is the point: the previous implementation discarded it,
   // so a full-storage failure silently dropped the user's edits. Inspecting the returned
   // value was still not enough — a debounced save returns `{ queued: true }` before the
@@ -106,7 +155,7 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
 
     const receipt = saveToStorage({
       debounceMs: 300,
-      onFlush: (result) => reportSaveResult(describeSaveResult(result)),
+      onFlush: handleSaveResult,
     });
 
     if (receipt.ok && receipt.queued) {
@@ -117,8 +166,8 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
       return;
     }
 
-    reportSaveResult(describeSaveResult(receipt));
-  }, [document, saveToStorage, reportSaveResult]);
+    handleSaveResult(receipt);
+  }, [document, saveToStorage, handleSaveResult]);
 
   useFlushPendingSavesOnExit("COVER_LETTER");
 

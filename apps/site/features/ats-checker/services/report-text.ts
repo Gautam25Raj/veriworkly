@@ -1,10 +1,9 @@
+import { siteConfig } from "@/config/site";
+
 import { categoryMeta, sortByCategoryOrder } from "../data/categories";
 import type { AtsFullReport, AtsRuleResult } from "../types";
 
-export function reportToPlainText(
-  report: AtsFullReport,
-  siteUrl: string = "https://veriworkly.com",
-): string {
+export function reportToPlainText(report: AtsFullReport, siteUrl: string = siteConfig.url): string {
   const lines: string[] = [];
 
   lines.push("========================================");

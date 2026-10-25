@@ -3,6 +3,7 @@ import Image from "next/image";
 import { ExternalLink, Info } from "lucide-react";
 
 import { Card } from "@veriworkly/ui";
+import { siteConfig } from "@/config/site";
 
 import { SectionHeader } from "./SectionHeader";
 
@@ -12,22 +13,22 @@ const REFERENCES = [
   {
     title: "Theme tokens",
     detail: "packages/ui/src/styles/themes.css",
-    href: "https://github.com/VeriWorkly/veriworkly/blob/master/packages/ui/src/styles/themes.css",
+    href: `${siteConfig.links.github}/blob/master/packages/ui/src/styles/themes.css`,
   },
   {
     title: "Published palette",
     detail: "apps/site/config/brand.ts",
-    href: "https://github.com/VeriWorkly/veriworkly/blob/master/apps/site/config/brand.ts",
+    href: `${siteConfig.links.github}/blob/master/apps/site/config/brand.ts`,
   },
   {
     title: "Logo source",
     detail: "apps/site/public/brand/logo/",
-    href: "https://github.com/VeriWorkly/veriworkly/tree/master/apps/site/public/brand/logo",
+    href: `${siteConfig.links.github}/tree/master/apps/site/public/brand/logo`,
   },
   {
     title: "UI package",
     detail: "packages/ui",
-    href: "https://github.com/VeriWorkly/veriworkly/tree/master/packages/ui",
+    href: `${siteConfig.links.github}/tree/master/packages/ui`,
   },
 ];
 

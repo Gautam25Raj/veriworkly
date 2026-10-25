@@ -6,8 +6,7 @@ import { LandingButton } from "@/components/marketing/LandingButton";
 import { SECURITY_COMMITMENTS } from "../../data";
 import { SECURITY_LAST_UPDATED } from "@/features/security/data/lastUpdated";
 
-export const SECURITY_POLICY_URL =
-  "https://github.com/VeriWorkly/veriworkly/blob/master/SECURITY.md";
+export const SECURITY_POLICY_URL = `${siteConfig.links.github}/blob/master/SECURITY.md`;
 
 export const SecurityHero = () => (
   <PageHero

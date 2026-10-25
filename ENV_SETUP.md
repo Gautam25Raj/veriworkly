@@ -33,10 +33,9 @@ VeriWorkly uses a multi-app monorepo structure where each application and the ro
 
 ### 4. Marketing Site (`apps/site/.env`)
 
-- `NEXT_PUBLIC_SITE_URL`: Canonical public origin, no trailing slash (default: `https://veriworkly.com`; `http://localhost:3000` in development). Build-time.
+- `NEXT_PUBLIC_SITE_URL`: Canonical public origin, no trailing slash (default: `https://veriworkly.com`; `http://localhost:3000` in development). Build-time. The other apps' addresses (app, docs, blog, portfolio) are not variables: `config/site.ts` resolves them for local and production.
 - `NEXT_PUBLIC_BACKEND_URL`: Public API endpoint the browser calls (default: `http://localhost:8080/api/v1`). Build-time.
 - `BACKEND_INTERNAL_URL`: API endpoint the server-side render calls; in Docker the service name (`http://api:8080/api/v1`). Runtime.
-- `PORTFOLIO_URL`: Portfolio app origin for template links (default: `https://portfolio.veriworkly.com`). Runtime.
 - `AFFILIATE_PROGRAM_ENABLED`, `AMBASSADOR_PROGRAM_ENABLED`: Growth-program flags, read at runtime and re-read every 5 minutes. Default on in development and off in production; keep them equal to the API's flags.
 - `ERROR_REPORT_URL` (optional): Endpoint that receives server-side errors as plain JSON. Runtime.
 - `NEXT_PUBLIC_VITALS_URL` (optional): Endpoint that receives real-user Web Vitals as plain JSON. Build-time.

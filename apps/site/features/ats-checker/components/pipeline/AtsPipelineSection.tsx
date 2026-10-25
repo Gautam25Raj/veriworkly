@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { FileText, Search, TriangleAlert } from "lucide-react";
 
 import { PageSection, TYPE } from "@/components/marketing/PageLayout";
+import { ENGINE_LINKS } from "@/features/ats-engine/data/content";
 
 import { PIPELINE_STEPS } from "../../data/pipelineSteps";
 import { SCORE_FACTS } from "../../data/scoreFacts";
@@ -99,7 +100,7 @@ export function AtsScoreFacts() {
           </Link>
           , open source on{" "}
           <a
-            href="https://github.com/VeriWorkly/ats-engine"
+            href={ENGINE_LINKS.github}
             target="_blank"
             rel="noopener noreferrer"
             className="text-accent font-semibold hover:underline"
@@ -117,7 +118,7 @@ export function AtsScoreFacts() {
           </a>
           . You can{" "}
           <a
-            href="https://docs.veriworkly.com/ats-engine/reference/rubric"
+            href={ENGINE_LINKS.rubric}
             target="_blank"
             rel="noopener noreferrer"
             className="text-accent font-semibold hover:underline"

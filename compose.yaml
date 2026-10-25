@@ -15,7 +15,6 @@ services:
       PORT: 3000
       NEXT_PUBLIC_BACKEND_URL: ${NEXT_PUBLIC_BACKEND_URL:-http://localhost:8080/api/v1}
       BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://api:8080/api/v1}
-      PORTFOLIO_URL: ${PORTFOLIO_URL:-https://portfolio.veriworkly.com}
       # Read at runtime. Production defaults to off; keep them equal to the API's flags.
       AFFILIATE_PROGRAM_ENABLED: ${AFFILIATE_PROGRAM_ENABLED:-false}
       AMBASSADOR_PROGRAM_ENABLED: ${AMBASSADOR_PROGRAM_ENABLED:-false}

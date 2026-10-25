@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 import { version } from "./package.json";
+import { siteConfig } from "./config/site";
 import { HTML_LIMITED_BOT_UA_RE } from "next/dist/shared/lib/router/utils/html-bots";
 
 /** Extends Next's default list (setting it replaces the default) so AI crawlers get <title> in <head>, not streamed. */
@@ -108,12 +109,12 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       // Legacy root-domain URLs that Search Console reported as 404s; keep their accumulated links.
-      { source: "/blog", destination: "https://blog.veriworkly.com", permanent: true },
-      { source: "/docs", destination: "https://docs.veriworkly.com/docs", permanent: true },
-      { source: "/dashboard", destination: "https://app.veriworkly.com", permanent: true },
+      { source: "/blog", destination: siteConfig.links.blog, permanent: true },
+      { source: "/docs", destination: `${siteConfig.links.docs}/docs`, permanent: true },
+      { source: "/dashboard", destination: siteConfig.links.app, permanent: true },
       {
         source: "/openapi.json",
-        destination: "https://docs.veriworkly.com/openapi.json",
+        destination: `${siteConfig.links.docs}/openapi.json`,
         permanent: true,
       },
 
@@ -122,7 +123,7 @@ const nextConfig: NextConfig = {
       { source: "/careers", destination: "/about", permanent: true },
       { source: "/integrations", destination: "/features", permanent: true },
       { source: "/partners", destination: "/affiliate", permanent: true },
-      { source: "/tutorials", destination: "https://docs.veriworkly.com/docs", permanent: true },
+      { source: "/tutorials", destination: `${siteConfig.links.docs}/docs`, permanent: true },
       { source: "/Free", destination: "/", permanent: true },
 
       {

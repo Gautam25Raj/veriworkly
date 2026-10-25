@@ -1,12 +1,6 @@
 import type { TemplateSummary } from "@/config/templates";
 import { siteConfig } from "@/config/site";
 
-const portfolioBaseUrl =
-  process.env.PORTFOLIO_URL ||
-  (process.env.NODE_ENV === "development"
-    ? "http://portfolio.localhost:3004"
-    : "https://portfolio.veriworkly.com");
-
 export const getTemplateHref = (template: Pick<TemplateSummary, "documentType" | "id">) => {
   return `/templates/${template.documentType}/${template.id}`;
 };
@@ -16,7 +10,7 @@ export const buildEditorUrl = (
 ) => {
   // The portfolio dashboard ignores ?template=, so link the portfolio app's own page for the template.
   if (template.documentType === "portfolio-website") {
-    return `${portfolioBaseUrl}/templates/${encodeURIComponent(template.editorTemplateId)}`;
+    return `${siteConfig.links.portfolio}/templates/${encodeURIComponent(template.editorTemplateId)}`;
   }
 
   const base = siteConfig.links.app;
@@ -28,7 +22,7 @@ export const buildPreviewUrl = (
   template: Pick<TemplateSummary, "editorTemplateId" | "documentType">,
 ) => {
   if (template.documentType === "portfolio-website") {
-    return `${portfolioBaseUrl}/templates/${template.editorTemplateId}/preview`;
+    return `${siteConfig.links.portfolio}/templates/${template.editorTemplateId}/preview`;
   }
 
   return null;

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { siteConfig } from "@/config/site";
 import { templateSummaries } from "@/config/templates";
 import { categories, faqs } from "@/features/faq/data/faqItems";
 import { COMPETITORS } from "@/features/compare/data/competitors";
@@ -25,7 +26,7 @@ export function GET() {
   const templateSection = templateSummaries
     .map(
       (t) =>
-        `- ${t.name} (${t.documentTypeLabel}, ${t.family}, ${t.layout}): ${t.shortDescription} https://veriworkly.com/templates/${t.documentType}/${t.id}`,
+        `- ${t.name} (${t.documentTypeLabel}, ${t.family}, ${t.layout}): ${t.shortDescription} ${siteConfig.url}/templates/${t.documentType}/${t.id}`,
     )
     .join("\n");
 
@@ -34,7 +35,7 @@ export function GET() {
       `### VeriWorkly vs ${c.name}`,
       c.verdict,
       `Pricing: ${c.pricingSummary}`,
-      `Details: https://veriworkly.com/compare/${c.id}`,
+      `Details: ${siteConfig.url}/compare/${c.id}`,
     ].join("\n\n"),
   ).join("\n\n");
 

@@ -281,7 +281,7 @@ function validateProduction(env: RawEnv, ctx: z.RefinementCtx): void {
 
   required("DATABASE_URL", "Prisma reads it directly and an empty value only fails on first query");
 
-  const redisUrl = required("REDIS_URL", "the default is redis://localhost:6379");
+  const redisUrl = required("REDIS_URL", "set it explicitly; localhost is fine on a single server");
   if (redisUrl !== undefined) {
     let parsed: URL | null = null;
     try {
@@ -289,10 +289,10 @@ function validateProduction(env: RawEnv, ctx: z.RefinementCtx): void {
     } catch {
       addIssue(ctx, "REDIS_URL", "is not a valid URL");
     }
+    // A local Redis is normal on a single VPS (bound to loopback), so localhost is allowed; the
+    // value only has to be set explicitly so the localhost default is never used by accident.
     if (parsed && parsed.protocol !== "redis:" && parsed.protocol !== "rediss:") {
       addIssue(ctx, "REDIS_URL", "must start with redis:// or rediss://");
-    } else if (parsed && isLocalHostname(canonicalHostname(parsed))) {
-      addIssue(ctx, "REDIS_URL", "must not point at localhost in production");
     }
   }
 

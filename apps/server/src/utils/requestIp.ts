@@ -1,5 +1,24 @@
+import { createHash, timingSafeEqual } from "node:crypto";
+import { isIP } from "node:net";
+
 import type { Request } from "express";
+
+import { config } from "#config";
 import { logger } from "#lib/logger";
+
+/**
+ * Constant-time check of a presented shared secret against the configured one. An unset secret
+ * never matches. Both sides are hashed first so `timingSafeEqual` always compares equal-length
+ * buffers and the real secret's length does not leak through an early return.
+ */
+export function matchesSharedSecret(presented: unknown, secret: string | undefined): boolean {
+  if (!secret || typeof presented !== "string" || presented.length === 0) return false;
+
+  const left = createHash("sha256").update(presented).digest();
+  const right = createHash("sha256").update(secret).digest();
+
+  return left.length === right.length && timingSafeEqual(left, right);
+}
 
 function normalizeIpValue(value: string): string {
   const trimmed = value.trim();
@@ -27,8 +46,24 @@ function readHeaderValue(headers: Request["headers"], name: string): string | un
   return undefined;
 }
 
+/**
+ * The client IP a trusted server-to-server caller (studio/portfolio SSR) forwards for the
+ * browser it acts for (V-151). Honoured only when the same request carries `x-internal-key`
+ * equal to `INTERNAL_API_KEY`; from anyone else the header is ignored.
+ */
+function readTrustedForwardedClientIp(req: Request): string | undefined {
+  const forwarded = readHeaderValue(req.headers, "x-forwarded-client-ip")?.trim();
+  if (!forwarded || isIP(forwarded.replace(/^::ffff:/, "")) === 0) return undefined;
+
+  const key = readHeaderValue(req.headers, "x-internal-key");
+  if (!matchesSharedSecret(key, config.internal?.apiKey)) return undefined;
+
+  return normalizeIpValue(forwarded);
+}
+
 export function getRequestIpDetails(req: Request) {
   try {
+    const trustedForwardedIp = readTrustedForwardedClientIp(req);
     const realIp = readHeaderValue(req.headers, "x-real-ip");
     const clientIpHeader = readHeaderValue(req.headers, "x-client-ip");
     const forwardedFor = readHeaderValue(req.headers, "x-forwarded-for");
@@ -45,15 +80,17 @@ export function getRequestIpDetails(req: Request) {
 
     const isProxyTrusted = req.app ? !!req.app.get("trust proxy") : true;
 
-    const resolvedIp = isProxyTrusted
-      ? requestIp ||
-        (clientIpHeader ? normalizeIpValue(clientIpHeader) : undefined) ||
-        (forwardedForCandidate ? normalizeIpValue(forwardedForCandidate) : undefined) ||
-        (realIp ? normalizeIpValue(realIp) : undefined) ||
-        (cfConnectingIp ? normalizeIpValue(cfConnectingIp) : undefined) ||
-        socketIp ||
-        "unknown"
-      : socketIp || "unknown";
+    const resolvedIp = trustedForwardedIp
+      ? trustedForwardedIp
+      : isProxyTrusted
+        ? requestIp ||
+          (clientIpHeader ? normalizeIpValue(clientIpHeader) : undefined) ||
+          (forwardedForCandidate ? normalizeIpValue(forwardedForCandidate) : undefined) ||
+          (realIp ? normalizeIpValue(realIp) : undefined) ||
+          (cfConnectingIp ? normalizeIpValue(cfConnectingIp) : undefined) ||
+          socketIp ||
+          "unknown"
+        : socketIp || "unknown";
 
     return {
       requestIp: requestIp || "unknown",

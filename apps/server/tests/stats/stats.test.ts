@@ -21,6 +21,9 @@ vi.mock("#config", () => ({
     github: {
       syncApiKey: "secret-sync-key",
     },
+    metrics: {
+      statsInternalKey: "stats-internal-key-0123456789abcdef0123",
+    },
     rateLimit: {
       authWindowMs: 60000,
       authMaxRequests: 20,
@@ -62,8 +65,21 @@ describe("stats events endpoint validation and auth", () => {
     req.body = { event: "resume_created" };
     await StatsController.recordUsageMetric(req, res, next);
 
-    expect(mockIncrementUsageMetric).toHaveBeenCalledWith({ event: "resume_created" });
+    expect(mockIncrementUsageMetric).toHaveBeenCalledWith(
+      { event: "resume_created", value: 1 },
+      { allowCustom: false },
+    );
     expect(res.status).toHaveBeenCalledWith(202);
+  });
+
+  it("forces value to 1 for public requests (V-024)", async () => {
+    req.body = { event: "resume_created", value: 1000 };
+    await StatsController.recordUsageMetric(req, res, next);
+
+    expect(mockIncrementUsageMetric).toHaveBeenCalledWith(
+      { event: "resume_created", value: 1 },
+      { allowCustom: false },
+    );
   });
 
   it("rejects non-allowlisted event for public requests", async () => {
@@ -80,22 +96,34 @@ describe("stats events endpoint validation and auth", () => {
     );
   });
 
-  it("allows non-allowlisted custom events for internal requests with x-internal-key", async () => {
+  it("allows custom events and a value with x-internal-key = STATS_INTERNAL_KEY", async () => {
+    req.body = { event: "custom_funnel_event", value: 5 };
+    req.headers["x-internal-key"] = "stats-internal-key-0123456789abcdef0123";
+    await StatsController.recordUsageMetric(req, res, next);
+
+    expect(mockIncrementUsageMetric).toHaveBeenCalledWith(
+      { event: "custom_funnel_event", value: 5 },
+      { allowCustom: true },
+    );
+    expect(res.status).toHaveBeenCalledWith(202);
+  });
+
+  it("does not treat the GitHub sync key as the stats key (V-151)", async () => {
     req.body = { event: "custom_funnel_event" };
     req.headers["x-internal-key"] = "secret-sync-key";
     await StatsController.recordUsageMetric(req, res, next);
 
-    expect(mockIncrementUsageMetric).toHaveBeenCalledWith({ event: "custom_funnel_event" });
-    expect(res.status).toHaveBeenCalledWith(202);
+    expect(mockIncrementUsageMetric).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
   });
 
-  it("allows non-allowlisted custom events when authenticated via API Key", async () => {
+  it("treats an API key of any scope as a public caller (V-024)", async () => {
     req.body = { event: "another_custom_event" };
     req.apiKey = { id: "key_1", scopes: ["user:read"] };
     await StatsController.recordUsageMetric(req, res, next);
 
-    expect(mockIncrementUsageMetric).toHaveBeenCalledWith({ event: "another_custom_event" });
-    expect(res.status).toHaveBeenCalledWith(202);
+    expect(mockIncrementUsageMetric).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
   });
 
   it("rejects events with names exceeding 64 characters", async () => {

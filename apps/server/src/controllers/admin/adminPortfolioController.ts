@@ -1,4 +1,4 @@
-import { adminHandler } from "#controllers/admin/adminRequestHandler";
+import { adminHandler, deleteRequestInput } from "#controllers/admin/adminRequestHandler";
 
 import * as AdminPortfolioService from "#services/admin/adminPortfolioService";
 import { ADMIN_AUDIT_ACTIONS, recordAdminAudit } from "#services/admin/adminAuditService";
@@ -74,7 +74,7 @@ export const AdminPortfolioController = {
   /** DELETE /admin/portfolios/:id — hard takedown; frees the subdomain. */
   unpublish: adminHandler(async ({ req, actorId }) => {
     const { id } = adminIdParamSchema.parse(req.params);
-    const input = adminPortfolioUnpublishSchema.parse(req.body);
+    const input = adminPortfolioUnpublishSchema.parse(deleteRequestInput(req));
 
     const result = await AdminPortfolioService.forceUnpublish(id);
 

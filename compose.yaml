@@ -152,6 +152,10 @@ services:
       # Metrics
       USAGE_METRICS_FLUSH_CRON: ${USAGE_METRICS_FLUSH_CRON}
       USAGE_METRICS_FLUSH_TIMEZONE: ${USAGE_METRICS_FLUSH_TIMEZONE:-UTC}
+
+      # Internal server-to-server keys (x-internal-key); optional, 32+ chars in production
+      STATS_INTERNAL_KEY: ${STATS_INTERNAL_KEY}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
     depends_on:
       redis:
         condition: service_healthy

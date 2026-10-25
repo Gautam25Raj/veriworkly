@@ -92,6 +92,9 @@ const EXAMPLE_ANALYTICS_HASH_PEPPER = "veriworkly-analytics-pepper";
 const EXAMPLE_PORTFOLIO_REVALIDATE_SECRET = "dev-revalidate-secret";
 const MIN_AUTH_SECRET_LENGTH = 32;
 
+const INTERNAL_SHARED_SECRETS = ["STATS_INTERNAL_KEY", "INTERNAL_API_KEY"] as const;
+const MIN_INTERNAL_SECRET_LENGTH = 32;
+
 /** Names `proxy-addr` (Express `trust proxy`) understands in addition to IPs and CIDRs. */
 const TRUST_PROXY_NAMED_RANGES = new Set(["loopback", "linklocal", "uniquelocal"]);
 const BOOLEAN_WORDS = new Set(["true", "false", "yes", "no", "on", "off"]);
@@ -209,6 +212,15 @@ function validateProduction(env: RawEnv, ctx: z.RefinementCtx): void {
     if (value === undefined) addIssue(ctx, variable, `is required in production (${why})`);
     return value;
   };
+
+  const statsKey = env.STATS_INTERNAL_KEY;
+  if (statsKey !== undefined && statsKey === env.INTERNAL_API_KEY) {
+    addIssue(
+      ctx,
+      "STATS_INTERNAL_KEY",
+      "must differ from INTERNAL_API_KEY (one lets a caller write metrics, the other set client IPs)",
+    );
+  }
 
   // TRUST_PROXY (V-091): unset/false means every client shares the load balancer's IP for rate
   // limits, OTP throttles and audit attribution; `true` trusts any spoofed X-Forwarded-For.
@@ -350,6 +362,16 @@ function validateProduction(env: RawEnv, ctx: z.RefinementCtx): void {
   if (revalidateSecret === EXAMPLE_PORTFOLIO_REVALIDATE_SECRET) {
     addIssue(ctx, "PORTFOLIO_REVALIDATE_SECRET", "is the development value; generate a new one");
   }
+
+  // Optional shared secrets sent as `x-internal-key` (V-024, V-151). Unset disables the feature;
+  // when set they must be long enough that guessing one is not a way to spoof client IPs or
+  // write arbitrary usage metrics.
+  for (const variable of INTERNAL_SHARED_SECRETS) {
+    const value = env[variable];
+    if (value !== undefined && value.length < MIN_INTERNAL_SECRET_LENGTH) {
+      addIssue(ctx, variable, `must be at least ${MIN_INTERNAL_SECRET_LENGTH} characters when set`);
+    }
+  }
 }
 
 export const environmentSchema = z
@@ -369,6 +391,21 @@ export const environmentSchema = z
   })
   .passthrough()
   .superRefine((env, ctx) => {
+    const ipHeaders = (env as RawEnv).AUTH_IP_ADDRESS_HEADERS;
+    if (
+      ipHeaders !== undefined &&
+      ipHeaders
+        .split(",")
+        .map((header) => header.trim().toLowerCase())
+        .includes("x-forwarded-client-ip")
+    ) {
+      addIssue(
+        ctx,
+        "AUTH_IP_ADDRESS_HEADERS",
+        "must not include x-forwarded-client-ip: it is only trusted together with x-internal-key = INTERNAL_API_KEY, and better-auth would accept it from any client",
+      );
+    }
+
     if (env.NODE_ENV === "production") validateProduction(env as RawEnv, ctx);
   });
 

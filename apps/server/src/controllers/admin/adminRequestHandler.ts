@@ -5,6 +5,24 @@ import { requireAuthUser } from "#middleware/auth";
 import { createSuccessResponse, handleValidationError } from "#lib/errors";
 
 /**
+ * The input of an admin DELETE: its JSON body, with `reason` also accepted as a query parameter,
+ * because some proxies strip DELETE bodies (V-082). A body value wins. `confirmEmail` stays
+ * body-only: access logs record full URIs, so a deleted user's email would outlive the deletion.
+ */
+export function deleteRequestInput(req: Request): Record<string, unknown> {
+  const body =
+    req.body && typeof req.body === "object" && !Array.isArray(req.body)
+      ? (req.body as Record<string, unknown>)
+      : {};
+  const input: Record<string, unknown> = { ...body };
+
+  const reason = req.query.reason;
+  if (input.reason === undefined && typeof reason === "string") input.reason = reason;
+
+  return input;
+}
+
+/**
  * Wraps an admin controller body.
  *
  * Every admin endpoint shares the same three concerns — resolve the acting admin, turn a

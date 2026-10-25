@@ -92,6 +92,8 @@ export function applyServerEnv(target: NodeJS.ProcessEnv = process.env): Integra
     STUDIO_URL: "http://localhost:3001",
     PORTFOLIO_URL: "http://localhost:3004",
     PORTFOLIO_REVALIDATE_SECRET: "integration-test-revalidate",
+    STATS_INTERNAL_KEY: STATS_INTERNAL_KEY_VALUE,
+    INTERNAL_API_KEY: INTERNAL_API_KEY_VALUE,
     // Billing: a real Standard Webhooks secret so signed deliveries verify. 32 zero bytes, base64.
     DODO_PAYMENTS_API_KEY: "integration-test-dodo-key",
     DODO_PAYMENTS_WEBHOOK_SECRET: "whsec_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
@@ -116,6 +118,10 @@ export function applyServerEnv(target: NodeJS.ProcessEnv = process.env): Integra
 
   return resolved;
 }
+
+/** Shared secrets sent as `x-internal-key` (V-024 stats, V-151 forwarded client IP). */
+export const STATS_INTERNAL_KEY_VALUE = "integration-stats-internal-key-0123456789abcdef";
+export const INTERNAL_API_KEY_VALUE = "integration-internal-api-key-0123456789abcdef01";
 
 /** Origin header every browser-style request carries so `flexibleAuth` treats it as first-party. */
 export const STUDIO_ORIGIN = "http://localhost:3001";

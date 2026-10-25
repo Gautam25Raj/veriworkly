@@ -90,7 +90,9 @@ export const config = {
     )
       .split(",")
       .map((header) => header.trim().toLowerCase())
-      .filter(Boolean),
+      // Never trusted by name: it is honoured only with `x-internal-key` = INTERNAL_API_KEY
+      // (`utils/requestIp.ts`), and better-auth would read it from anyone (V-151).
+      .filter((header) => Boolean(header) && header !== "x-forwarded-client-ip"),
     sessionTtlSeconds: parseIntegerEnv(process.env.AUTH_SESSION_TTL_SECONDS, 2592000),
     sessionResetTtlOnUse: parseIntegerEnv(process.env.AUTH_SESSION_RESET_TTL_ON_USE, 86400),
     sessionCacheEnabled: parseBoolean(
@@ -178,7 +180,7 @@ export const config = {
   ai: {
     apiKey: process.env.AI_API_KEY || "",
     baseUrl: process.env.AI_BASE_URL || "",
-    timeoutMs: parseIntegerEnv(process.env.AI_TIMEOUT_MS, 120000),
+    timeoutMs: parseIntegerEnv(process.env.AI_TIMEOUT_MS, 45000),
     rateLimitWindowMs: parseIntegerEnv(process.env.AI_RATE_LIMIT_WINDOW_MS, 60000),
     rateLimitMaxRequests: parseIntegerEnv(process.env.AI_RATE_LIMIT_MAX_REQUESTS, 20),
     siteUrl: process.env.SITE_URL || "",
@@ -207,6 +209,15 @@ export const config = {
     flushCron: process.env.USAGE_METRICS_FLUSH_CRON || "10 0 * * *",
     flushTimezone: process.env.USAGE_METRICS_FLUSH_TIMEZONE || "UTC",
     redisRetentionDays: parseIntegerEnv(process.env.USAGE_METRICS_REDIS_RETENTION_DAYS, 10),
+    // `x-internal-key` value that marks a `/stats/events` call as internal (V-024). Unset means
+    // no caller is internal.
+    statsInternalKey: process.env.STATS_INTERNAL_KEY || "",
+  },
+
+  // Trusted server-to-server calls (studio/portfolio SSR): `x-internal-key` equal to this lets
+  // the caller name the real client IP in `x-forwarded-client-ip` (V-151). Unset disables it.
+  internal: {
+    apiKey: process.env.INTERNAL_API_KEY || "",
   },
 
   github: {

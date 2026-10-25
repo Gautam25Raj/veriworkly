@@ -26,9 +26,9 @@ export class AmbassadorService {
     });
 
     if (!user) throw new ApiError(404, "User not found.");
-    if (user.role === "AMBASSADOR") throw new ApiError(400, "You are already a campus ambassador.");
+    if (user.role === "AMBASSADOR") throw new ApiError(409, "You are already a campus ambassador.");
     if (user.ambassadorApplication?.status === "PENDING")
-      throw new ApiError(400, "Your ambassador application is already pending review.");
+      throw new ApiError(409, "Your ambassador application is already pending review.");
 
     const [application] = await prisma.$transaction([
       prisma.ambassadorApplication.upsert({
@@ -134,7 +134,7 @@ export class AmbassadorService {
     });
     if (!application) throw new ApiError(404, "Ambassador application not found.");
     if (application.status !== "PENDING")
-      throw new ApiError(400, "This application has already been reviewed.");
+      throw new ApiError(409, "This application has already been reviewed.");
 
     const status = action === "APPROVE" ? "APPROVED" : "REJECTED";
 

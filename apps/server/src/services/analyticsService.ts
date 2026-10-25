@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 
 import { config } from "#config";
 
+import { ApiError } from "#lib/errors";
 import { prisma } from "#lib/prisma";
 import { cacheDel, cacheGet, cacheSet, getRedis } from "#lib/redis";
 
@@ -87,17 +88,63 @@ function sanitizeIncrementValue(value?: number) {
  * * payload: Contains the event name and optional increment value.
  */
 
-export async function incrementUsageMetric(payload: UsageIncrementPayload) {
+export async function incrementUsageMetric(
+  payload: UsageIncrementPayload,
+  options: { allowCustom?: boolean } = {},
+) {
   const redis = getRedis();
 
   const event = toEventField(payload.event);
   const amount = sanitizeIncrementValue(payload.value);
 
-  const key = usageRedisKey(toDateKey());
+  const dateKey = toDateKey();
+  const key = usageRedisKey(dateKey);
 
   const ttl = Math.max(1, config.metrics.redisRetentionDays) * 24 * 60 * 60;
 
+  if (!(KNOWN_EVENTS as readonly string[]).includes(event)) {
+    if (!options.allowCustom) throw new ApiError(400, `Event '${payload.event}' is not allowed.`);
+    await reserveCustomEventName(dateKey, event);
+  }
+
   await redis.multi().hIncrBy(key, event, amount).expire(key, ttl).exec();
+}
+
+/**
+ * At most this many distinct `custom_*` names per UTC day (V-024). Each name becomes a field in
+ * `usage:daily:*` and a `UsageMetricDaily` row, so without a cap one caller can grow both
+ * without bound.
+ */
+export const MAX_CUSTOM_EVENTS_PER_DAY = 50;
+
+/** Kept outside `usage:daily:*` so the flush job's key scan never treats it as metric data. */
+function customEventsRedisKey(dateKey: string) {
+  return `usage:custom-events:${dateKey}`;
+}
+
+/**
+ * Admits `event` into today's set of custom names, or throws 429 when it would be the 51st.
+ * `SADD` then `SCARD` in one `MULTI`: a name over the cap is removed again, so concurrent
+ * newcomers can't push the set past the cap.
+ */
+async function reserveCustomEventName(dateKey: string, event: string) {
+  const redis = getRedis();
+  const key = customEventsRedisKey(dateKey);
+
+  const [added, size] = (await redis
+    .multi()
+    .sAdd(key, event)
+    .sCard(key)
+    .expire(key, 2 * 24 * 60 * 60)
+    .exec()) as unknown as [number, number, number];
+
+  if (Number(added) === 1 && Number(size) > MAX_CUSTOM_EVENTS_PER_DAY) {
+    await redis.sRem(key, event);
+    throw new ApiError(
+      429,
+      `At most ${MAX_CUSTOM_EVENTS_PER_DAY} distinct custom events can be recorded per day.`,
+    );
+  }
 }
 
 /**
@@ -133,6 +180,8 @@ export async function getPendingUsageMetricDates() {
  */
 
 const FLUSH_LOCK_TTL_SECONDS = 120;
+/** Well inside the flush lock's TTL, so the lock can't expire under a still-running flush. */
+const FLUSH_TRANSACTION_TIMEOUT_MS = 30_000;
 
 export async function flushUsageMetricsForDate(date: Date) {
   const redis = getRedis();
@@ -180,32 +229,30 @@ export async function flushUsageMetricsForDate(date: Date) {
     if (!batchId) throw new Error(`Failed to initialize usage metrics batch for ${dateKey}`);
 
     try {
-      await prisma.$transaction(async (tx) => {
-        await tx.usageMetricFlushBatch.create({
-          data: { id: batchId, date: metricDate },
-        });
+      const events = entries.map(([event]) => event);
+      const counts = entries.map(([, rawCount]) => parseInt(rawCount, 10) || 0);
+      const ids = entries.map(() => randomUUID());
 
-        for (const [event, rawCount] of entries) {
-          const count = parseInt(rawCount, 10);
-
-          await tx.usageMetricDaily.upsert({
-            where: {
-              date_event: {
-                date: metricDate,
-                event,
-              },
-            },
-            create: {
-              date: metricDate,
-              event,
-              count,
-            },
-            update: {
-              count: { increment: count },
-            },
+      // One upsert statement for the whole field set instead of one round trip per event inside
+      // an interactive transaction with Prisma's 5 s default timeout, which a large field set
+      // overran on every run, leaving that date's `:processing` key undrained (V-024).
+      await prisma.$transaction(
+        async (tx) => {
+          await tx.usageMetricFlushBatch.create({
+            data: { id: batchId, date: metricDate },
           });
-        }
-      });
+
+          await tx.$executeRaw`
+            INSERT INTO "UsageMetricDaily" ("id", "date", "event", "count", "createdAt", "updatedAt")
+            SELECT row.id, CAST(${dateKey} AS timestamp(3)), row.event, row.count, NOW(), NOW()
+            FROM unnest(${ids}::text[], ${events}::text[], ${counts}::int[]) AS row(id, event, count)
+            ON CONFLICT ("date", "event")
+            DO UPDATE SET "count" = "UsageMetricDaily"."count" + EXCLUDED."count",
+                          "updatedAt" = NOW()
+          `;
+        },
+        { timeout: FLUSH_TRANSACTION_TIMEOUT_MS },
+      );
     } catch (error) {
       if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) {
         throw error;

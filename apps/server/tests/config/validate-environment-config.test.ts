@@ -231,6 +231,50 @@ describe("validateEnvironmentConfig", () => {
       ).not.toThrow();
     });
 
+    it("accepts the internal keys unset and refuses them shorter than 32 characters (V-151)", () => {
+      expect(() => validateEnvironmentConfig(validProductionEnv)).not.toThrow();
+      expect(() =>
+        validateEnvironmentConfig({
+          ...validProductionEnv,
+          STATS_INTERNAL_KEY: "s".repeat(32),
+          INTERNAL_API_KEY: "i".repeat(32),
+        }),
+      ).not.toThrow();
+      expect(
+        failingVariables({
+          ...validProductionEnv,
+          STATS_INTERNAL_KEY: "short",
+          INTERNAL_API_KEY: "also-short",
+        }),
+      ).toEqual(expect.arrayContaining(["STATS_INTERNAL_KEY", "INTERNAL_API_KEY"]));
+    });
+
+    it("refuses STATS_INTERNAL_KEY equal to INTERNAL_API_KEY", () => {
+      const shared = "k".repeat(40);
+      expect(
+        failingVariables({
+          ...validProductionEnv,
+          STATS_INTERNAL_KEY: shared,
+          INTERNAL_API_KEY: shared,
+        }),
+      ).toContain("STATS_INTERNAL_KEY");
+    });
+
+    it("refuses x-forwarded-client-ip in AUTH_IP_ADDRESS_HEADERS in any environment", () => {
+      expect(
+        failingVariables({
+          ...validProductionEnv,
+          AUTH_IP_ADDRESS_HEADERS: "x-client-ip, X-Forwarded-Client-IP",
+        }),
+      ).toContain("AUTH_IP_ADDRESS_HEADERS");
+      expect(
+        failingVariables({
+          NODE_ENV: "development",
+          AUTH_IP_ADDRESS_HEADERS: "x-forwarded-client-ip",
+        }),
+      ).toEqual(["AUTH_IP_ADDRESS_HEADERS"]);
+    });
+
     it("never echoes secret values back in the error message", () => {
       const message = messageFor({
         ...validProductionEnv,

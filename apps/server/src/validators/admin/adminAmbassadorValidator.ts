@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import { adminPaginationSchema, adminSearchSchema } from "#validators/admin/adminCommonValidator";
+import {
+  adminPaginationSchema,
+  adminProvidedReasonSchema,
+  adminSearchSchema,
+} from "#validators/admin/adminCommonValidator";
 
 export const adminAmbassadorListQuerySchema = adminPaginationSchema
   .merge(adminSearchSchema)
@@ -18,7 +22,9 @@ export type AdminAmbassadorListQuery = z.infer<typeof adminAmbassadorListQuerySc
 
 export const adminAmbassadorReviewSchema = z.object({
   action: z.enum(["APPROVE", "REJECT"]),
-  reviewNote: z.string().trim().max(500).optional(),
+  /** Also the audit reason for the review (V-081). */
+  // TODO(V-081): make required once the studio sends it
+  reviewNote: adminProvidedReasonSchema,
 });
 
 export type AdminAmbassadorReviewInput = z.infer<typeof adminAmbassadorReviewSchema>;

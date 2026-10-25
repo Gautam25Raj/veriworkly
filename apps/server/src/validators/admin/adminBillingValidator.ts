@@ -70,14 +70,16 @@ export const adminEntitlementSchema = z.object({
   reason: adminReasonSchema,
 });
 
-export const adminEntitlementListQuerySchema = adminPaginationSchema.extend({
-  userId: z.string().trim().min(1).optional(),
-  key: z.enum(ENTITLEMENT_KEYS).optional(),
-  active: z
-    .union([z.string(), z.boolean()])
-    .optional()
-    .transform((value) => (value === undefined ? undefined : value === true || value === "true")),
-});
+export const adminEntitlementListQuerySchema = adminPaginationSchema
+  .merge(adminSearchSchema)
+  .extend({
+    userId: z.string().trim().min(1).optional(),
+    key: z.enum(ENTITLEMENT_KEYS).optional(),
+    active: z
+      .union([z.string(), z.boolean()])
+      .optional()
+      .transform((value) => (value === undefined ? undefined : value === true || value === "true")),
+  });
 
 export const adminEntitlementRevokeSchema = z.object({
   reason: adminReasonSchema,

@@ -77,6 +77,14 @@ describe("flexibleAuth middleware", () => {
     await flexibleAuth(req as Request, res as Response, next);
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(401);
+    // V-136: the standard error envelope, with the old `code` kept under `details`.
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        statusCode: 401,
+        details: { code: "API_KEY_REQUIRED" },
+      }),
+    );
   });
 
   it("validates API keys before origin checks", async () => {
@@ -121,6 +129,9 @@ describe("flexibleAuth middleware", () => {
 
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 401, details: { code: "AUTH_REQUIRED" } }),
+    );
   });
 
   it("passes for exact referer origin", async () => {

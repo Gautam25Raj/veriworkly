@@ -1,4 +1,4 @@
-import { adminHandler } from "#controllers/admin/adminRequestHandler";
+import { adminHandler, deleteRequestInput } from "#controllers/admin/adminRequestHandler";
 
 import * as AdminDocumentService from "#services/admin/adminDocumentService";
 import { ADMIN_AUDIT_ACTIONS, recordAdminAudit } from "#services/admin/adminAuditService";
@@ -60,7 +60,7 @@ export const AdminDocumentController = {
   /** DELETE /admin/documents/:id — soft delete, reversible via the restore endpoint. */
   remove: adminHandler(async ({ req, actorId }) => {
     const { id } = adminIdParamSchema.parse(req.params);
-    const input = adminDocumentDeleteSchema.parse(req.body);
+    const input = adminDocumentDeleteSchema.parse(deleteRequestInput(req));
 
     const document = await AdminDocumentService.softDeleteDocument(id);
 
@@ -106,7 +106,7 @@ export const AdminShareLinkController = {
   /** DELETE /admin/share-links/:id — kills a public URL immediately. */
   revoke: adminHandler(async ({ req, actorId }) => {
     const { id } = adminIdParamSchema.parse(req.params);
-    const input = adminShareLinkRevokeSchema.parse(req.body);
+    const input = adminShareLinkRevokeSchema.parse(deleteRequestInput(req));
 
     const result = await AdminDocumentService.revokeShareLink(id);
 

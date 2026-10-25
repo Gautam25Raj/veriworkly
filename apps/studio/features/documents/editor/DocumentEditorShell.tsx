@@ -13,7 +13,7 @@ import {
   PanelRightOpen,
   PanelRightClose,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@veriworkly/ui";
 
@@ -53,8 +53,25 @@ interface DocumentEditorShellProps {
 }
 
 const ZOOM_STEP = 10;
-const MIN_ZOOM = 45;
+const MIN_ZOOM = 25;
 const MAX_ZOOM = 140;
+/** The desktop starting zoom; a narrower canvas starts at whatever fits its width. */
+const DEFAULT_ZOOM = 78;
+
+function clampZoom(zoom: number) {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
+}
+
+/** The zoom at which the page is exactly as wide as the canvas, or null while either is hidden. */
+function measureFitZoom(canvas: HTMLElement | null, page: HTMLElement | null): number | null {
+  if (!canvas || !page || canvas.clientWidth === 0 || page.offsetWidth === 0) return null;
+
+  const style = window.getComputedStyle(canvas);
+  const available =
+    canvas.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+
+  return Math.floor((available / page.offsetWidth) * 100);
+}
 
 export function DocumentEditorShell({
   toolbar,
@@ -77,8 +94,35 @@ export function DocumentEditorShell({
     panY: number;
   } | null>(null);
 
-  const [zoom, setZoom] = useState(78);
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
+  // Until the user zooms by hand, the zoom follows the canvas: a phone gets a page that fits
+  // its width instead of a fixed 78% that is wider than the screen.
+  const zoomedByUserRef = useRef(false);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const page = pageRef.current;
+
+    if (!canvas || !page) return;
+
+    // Observes both: the canvas is display:none on a hidden mobile tab, and the page has no
+    // width until the template has loaded.
+    const observer = new ResizeObserver(() => {
+      if (zoomedByUserRef.current) return;
+
+      const fit = measureFitZoom(canvas, page);
+      if (fit !== null) setZoom(clampZoom(Math.min(DEFAULT_ZOOM, fit)));
+    });
+
+    observer.observe(canvas);
+    observer.observe(page);
+
+    return () => observer.disconnect();
+  }, []);
 
   const [activeTab, setActiveTab] = useState<MobileTab>("content");
 
@@ -108,11 +152,24 @@ export function DocumentEditorShell({
   );
 
   function updateZoom(nextZoom: number) {
-    setZoom(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom)));
+    zoomedByUserRef.current = true;
+    setZoom(clampZoom(nextZoom));
+  }
+
+  /** Fits the page to the canvas width (never past 100%) and recentres it. */
+  function fitCanvas() {
+    const fit = measureFitZoom(canvasRef.current, pageRef.current);
+
+    zoomedByUserRef.current = false;
+    setZoom(clampZoom(fit === null ? DEFAULT_ZOOM : Math.min(100, fit)));
+    setPan({ x: 0, y: 0 });
   }
 
   function resetCanvas() {
-    setZoom(78);
+    const fit = measureFitZoom(canvasRef.current, pageRef.current);
+
+    zoomedByUserRef.current = false;
+    setZoom(clampZoom(fit === null ? DEFAULT_ZOOM : Math.min(DEFAULT_ZOOM, fit)));
     setPan({ x: 0, y: 0 });
   }
 
@@ -308,7 +365,7 @@ export function DocumentEditorShell({
               <ZoomIn className="h-4 w-4" />
             </IconToolButton>
 
-            <IconToolButton label="Fit canvas" onClick={() => updateZoom(78)}>
+            <IconToolButton label="Fit canvas" onClick={fitCanvas}>
               <Maximize2 className="h-4 w-4" />
             </IconToolButton>
 
@@ -329,7 +386,9 @@ export function DocumentEditorShell({
             role="group"
             aria-label="Document preview canvas. Arrow keys pan, Shift for larger steps, Home resets."
             className={cn(
-              "focus-visible:ring-accent/40 h-full min-h-0 cursor-grab touch-none overflow-hidden focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing",
+              // `touch-pinch-zoom`, not `touch-none`: a one-finger drag still pans through the
+              // handlers below, and two fingers can zoom in to read the page.
+              "focus-visible:ring-accent/40 h-full min-h-0 cursor-grab touch-pinch-zoom overflow-hidden focus-visible:ring-2 focus-visible:outline-none active:cursor-grabbing",
               dragStart ? "select-none" : "",
             )}
             onKeyDown={handleCanvasKeyDown}
@@ -339,10 +398,14 @@ export function DocumentEditorShell({
             onPointerCancel={handlePointerEnd}
           >
             <div className="relative h-full w-full overflow-hidden bg-[linear-gradient(to_right,color-mix(in_oklab,var(--border)_42%,transparent)_1px,transparent_1px),linear-gradient(to_bottom,color-mix(in_oklab,var(--border)_42%,transparent)_1px,transparent_1px)] bg-size-[28px_28px]">
-              <div className="absolute inset-0 flex items-start justify-center overflow-hidden px-6 pt-20 pb-12">
+              <div
+                ref={canvasRef}
+                className="absolute inset-0 flex items-start justify-center overflow-hidden px-3 pt-20 pb-12 md:px-6"
+              >
                 {/* `motion-reduce:transition-none`: the pan/zoom transform is the largest
                     motion in the editor and arrow-key panning fires it repeatedly. */}
                 <div
+                  ref={pageRef}
                   className="origin-top transform-gpu transition-transform duration-150 ease-out motion-reduce:transition-none"
                   id={previewId}
                   style={previewTransform}

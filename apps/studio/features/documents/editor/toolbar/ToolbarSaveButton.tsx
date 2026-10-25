@@ -12,7 +12,13 @@ import { Button } from "@veriworkly/ui";
  */
 const ToolbarSaveButton = ({ onSave }: { onSave: () => void }) => {
   return (
-    <Button onClick={onSave} size="sm" variant="secondary" className="rounded-xl">
+    <Button
+      onClick={onSave}
+      size="sm"
+      variant="secondary"
+      title="Save on this device"
+      className="rounded-xl"
+    >
       <Save className="mr-2 h-4 w-4" />
       Save
     </Button>

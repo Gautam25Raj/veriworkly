@@ -12,14 +12,42 @@ import { importJsonFile } from "@/features/documents/services/import-service";
 import { getSaveFailureMessage } from "@/features/documents/services/save-failure-message";
 import { useUserStore } from "@/store/useUserStore";
 import { fetchApiData } from "@/utils/fetchApiData";
+import { listDocuments } from "@/features/documents/services/document-workspace-service";
+import {
+  hasUnlimitedDocuments,
+  FREE_DOCUMENTS_PER_TYPE,
+} from "@/features/documents/services/document-limit";
 
-/** Guests and free accounts keep one active document per type; payers have no limit. */
-async function resolveDocumentsPerType(isLoggedIn: boolean): Promise<number | null> {
-  if (!isLoggedIn) return 1;
+/** Whether restoring the backup in `file` would take any type past the free limit. */
+async function backupExceedsFreeLimit(file: File): Promise<boolean> {
+  const { documents = [] } = JSON.parse(await file.text()) as {
+    documents?: Array<{ type?: DocumentType }>;
+  };
+  const added = new Map<DocumentType, number>();
+
+  for (const entry of documents) {
+    if (entry?.type) added.set(entry.type, (added.get(entry.type) ?? 0) + 1);
+  }
+
+  return [...added].some(
+    ([type, count]) => listDocuments(type).length + count > FREE_DOCUMENTS_PER_TYPE,
+  );
+}
+
+/**
+ * Guests and free accounts keep one active document per type; payers have no limit. The
+ * plan is fetched only when the backup would go past the free limit, where the answer changes
+ * what is restored; otherwise an offline account could not restore at all.
+ */
+export async function resolveDocumentsPerType(
+  isLoggedIn: boolean,
+  file: File,
+): Promise<number | null> {
+  if (!isLoggedIn || !(await backupExceedsFreeLimit(file))) return FREE_DOCUMENTS_PER_TYPE;
 
   const billing = await fetchApiData<BillingSummary>("/billing/me", { method: "GET" });
 
-  return billing.plan !== "FREE" || billing.entitlements.length > 0 ? null : 1;
+  return hasUnlimitedDocuments(billing) ? null : FREE_DOCUMENTS_PER_TYPE;
 }
 
 /**
@@ -46,7 +74,7 @@ export function useDocumentJsonImport(type: DocumentType, onMessage: (message: s
       let outcome;
 
       try {
-        outcome = await importJsonFile(type, file, () => resolveDocumentsPerType(isLoggedIn));
+        outcome = await importJsonFile(type, file, () => resolveDocumentsPerType(isLoggedIn, file));
       } catch (error) {
         const failure =
           error instanceof SyntaxError || !(error instanceof Error)

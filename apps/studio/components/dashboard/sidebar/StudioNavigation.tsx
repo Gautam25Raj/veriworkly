@@ -7,6 +7,7 @@ import {
   KeyRound,
   Newspaper,
   FolderOpen,
+  UserRound,
   HelpCircle,
   PanelsTopLeft,
   ScanSearch,
@@ -37,6 +38,13 @@ export const mainNav: StudioNavItem[] = [
     label: "Documents",
     icon: FolderOpen,
     match: (pathname) => pathname.startsWith("/documents"),
+  },
+
+  {
+    href: "/profile/master",
+    label: "Master Profile",
+    icon: UserRound,
+    match: (pathname) => pathname.startsWith("/profile/master"),
   },
 
   {

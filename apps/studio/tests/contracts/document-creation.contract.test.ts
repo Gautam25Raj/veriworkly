@@ -4,8 +4,23 @@ import type { ResumeData } from "@/types/resume";
 
 import { MASTER_PROFILE_STORAGE_KEY } from "@/lib/constants";
 import { defaultResume } from "@/features/resume/constants/default-resume";
-import { createDocument } from "@/features/documents/services/document-workspace-service";
+import {
+  createDocument,
+  listDocuments,
+  loadDocumentById,
+} from "@/features/documents/services/document-workspace-service";
+import {
+  createDocumentWithinLimit,
+  duplicateDocumentWithinLimit,
+  hasUnlimitedDocuments,
+} from "@/features/documents/services/document-limit";
 import { createResume } from "@/features/resume/services/resume-core";
+import { resolveDocumentsPerType } from "@/features/documents/editor/toolbar/useDocumentJsonImport";
+import { useUserStore } from "@/store/useUserStore";
+
+const { fetchApiData } = vi.hoisted(() => ({ fetchApiData: vi.fn() }));
+
+vi.mock("@/utils/fetchApiData", () => ({ fetchApiData }));
 
 /**
  * There is exactly one way to construct a resume, and it derives from the master profile.
@@ -137,5 +152,197 @@ describe("resume creation contract", () => {
     expect(content.sync.enabled).toBe(true);
     expect(content.sync.status).toBe("pending");
     expect(content.id).toBe(document.id);
+  });
+});
+
+/**
+ * The free limit (one active document per type) is enforced in one place every "new document"
+ * path goes through. It used to run in the click handler before any await: a double click made
+ * two documents, a billing outage made a paying customer "free", and the template link from the
+ * marketing site skipped it entirely.
+ */
+describe("free document limit (S-069, S-194, S-215)", () => {
+  /**
+   * Answers `/billing/me` with `billing` (or rejects with it) and has no master profile; every
+   * request takes `delayMs`.
+   */
+  function serveBilling(billing: { plan: string } | Error, delayMs = 0) {
+    fetchApiData.mockImplementation(async (path: string) => {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+      if (path === "/billing/me") {
+        if (billing instanceof Error) throw billing;
+        return billing;
+      }
+
+      return null;
+    });
+  }
+
+  beforeEach(() => {
+    const localStorageMock = createLocalStorageMock();
+
+    vi.stubGlobal("localStorage", localStorageMock);
+    vi.stubGlobal("window", {
+      localStorage: localStorageMock,
+      setTimeout: globalThis.setTimeout,
+      clearTimeout: globalThis.clearTimeout,
+      dispatchEvent: vi.fn(),
+    });
+
+    fetchApiData.mockReset();
+    useUserStore.setState({ isLoggedIn: false, user: null });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    useUserStore.setState({ isLoggedIn: false, user: null });
+  });
+
+  it("S-069: a double click creates exactly one document", async () => {
+    const [first, second] = await Promise.all([
+      createDocumentWithinLimit("RESUME"),
+      createDocumentWithinLimit("RESUME"),
+    ]);
+
+    expect(first.ok).toBe(true);
+    expect(second).toEqual({ ok: false, reason: "busy" });
+    expect(listDocuments("RESUME")).toHaveLength(1);
+  });
+
+  it("S-069: a guest at the limit is refused and pointed at the document they have", async () => {
+    const existing = createDocument("RESUME");
+
+    const result = await createDocumentWithinLimit("RESUME");
+
+    expect(result).toMatchObject({ ok: false, reason: "limit", existingId: existing.id });
+    expect(listDocuments("RESUME")).toHaveLength(1);
+    // Another type is a separate allowance.
+    expect((await createDocumentWithinLimit("COVER_LETTER")).ok).toBe(true);
+  });
+
+  it("S-215: the limit message names every product that lifts it", async () => {
+    createDocument("RESUME");
+
+    const result = await createDocumentWithinLimit("RESUME");
+    const message = result.ok || result.reason !== "limit" ? "" : result.message;
+
+    for (const product of ["Creator Pro", "AI Credits", "Bundle", "pass"]) {
+      expect(message).toContain(product);
+    }
+  });
+
+  it("S-069: counts after the awaits, so a create elsewhere during the profile fetch is caught", async () => {
+    useUserStore.setState({ isLoggedIn: true });
+    serveBilling({ plan: "FREE" }, 20);
+
+    const pending = createDocumentWithinLimit("RESUME");
+    // Another tab or entry point wins the race while the master profile is in flight.
+    createDocument("RESUME");
+
+    expect(await pending).toMatchObject({ ok: false, reason: "limit" });
+    expect(listDocuments("RESUME")).toHaveLength(1);
+  });
+
+  it("S-069: needs no plan for the first document, so an offline account can still create one", async () => {
+    useUserStore.setState({ isLoggedIn: true });
+    serveBilling(new Error("Failed to fetch"));
+
+    expect((await createDocumentWithinLimit("RESUME")).ok).toBe(true);
+    expect(fetchApiData).not.toHaveBeenCalledWith("/billing/me");
+  });
+
+  it("S-069: past the limit, a billing failure is an error, never the free plan", async () => {
+    useUserStore.setState({ isLoggedIn: true });
+    serveBilling(new Error("Service unavailable"));
+    createDocument("RESUME");
+
+    const result = await createDocumentWithinLimit("RESUME");
+
+    expect(result).toEqual({
+      ok: false,
+      reason: "billing",
+      message: "Could not check your plan: Service unavailable",
+    });
+    expect(listDocuments("RESUME")).toHaveLength(1);
+  });
+
+  it("S-069: a paying customer is not held to the free limit", async () => {
+    useUserStore.setState({ isLoggedIn: true });
+    serveBilling({ plan: "AI_CREDITS" });
+    createDocument("RESUME");
+
+    expect((await createDocumentWithinLimit("RESUME")).ok).toBe(true);
+    expect(listDocuments("RESUME")).toHaveLength(2);
+  });
+
+  it("matches the server's paid predicate: any document grant, not a credit pack alone", () => {
+    for (const plan of ["AI_CREDITS", "PORTFOLIO_PRO", "BUNDLE"] as const) {
+      expect(hasUnlimitedDocuments({ plan })).toBe(true);
+    }
+
+    expect(hasUnlimitedDocuments({ plan: "FREE" })).toBe(false);
+  });
+
+  it("S-211: a blank resume has none of the sample or profile content", async () => {
+    storeMasterProfile({
+      basics: { ...defaultResume.basics, fullName: "Ada Lovelace" },
+    });
+
+    const result = await createDocumentWithinLimit("RESUME", "blank");
+    const resume = (result.ok ? result.document.content : null) as ResumeData;
+
+    expect(resume.basics.fullName).toBe("");
+    expect(resume.summary).toBe("");
+  });
+
+  it("S-215: a new resume is titled 'Untitled resume', not the person's name", () => {
+    storeMasterProfile({
+      basics: { ...defaultResume.basics, fullName: "Ada Lovelace" },
+    });
+
+    const created = createDocument("RESUME");
+
+    expect(created.title).toBe("Untitled resume");
+    expect((created.content as ResumeData).title).toBe("Untitled resume");
+  });
+
+  it("S-215: Duplicate copies the content into a new, unsynced document under the limit", async () => {
+    useUserStore.setState({ isLoggedIn: true });
+    serveBilling({ plan: "BUNDLE" });
+
+    const source = createDocument("COVER_LETTER");
+    const result = await duplicateDocumentWithinLimit(source);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.document.id).not.toBe(source.id);
+    expect(result.document.title).toBe(`${source.title} (copy)`);
+    expect(result.document.sync.cloudDocumentId).toBeNull();
+    expect(loadDocumentById("COVER_LETTER", result.document.id)?.content).toEqual(source.content);
+
+    // A free user at the limit cannot duplicate their way past it.
+    serveBilling({ plan: "FREE" });
+    expect(await duplicateDocumentWithinLimit(source)).toMatchObject({ reason: "limit" });
+  });
+
+  it("restoring a backup asks for the plan only when it would go past the free limit", async () => {
+    useUserStore.setState({ isLoggedIn: true });
+    serveBilling(new Error("Failed to fetch"));
+
+    const backup = new File(
+      [JSON.stringify({ format: "veriworkly-backup", documents: [{ type: "RESUME" }] })],
+      "backup.json",
+    );
+
+    expect(await resolveDocumentsPerType(true, backup)).toBe(1);
+    expect(fetchApiData).not.toHaveBeenCalled();
+
+    createDocument("RESUME");
+    await expect(resolveDocumentsPerType(true, backup)).rejects.toThrow("Failed to fetch");
+
+    serveBilling({ plan: "BUNDLE" });
+    expect(await resolveDocumentsPerType(true, backup)).toBeNull();
   });
 });

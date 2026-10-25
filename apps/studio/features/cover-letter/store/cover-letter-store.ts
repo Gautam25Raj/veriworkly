@@ -110,10 +110,10 @@ export const useCoverLetterStore = create<CoverLetterStoreState>((set, get) => (
   hydrateFromStorage: (documentId) => {
     const stored = loadDocumentById("COVER_LETTER", documentId) as CoverLetterDocument | null;
 
-    if (!stored) return false;
-
+    // A miss clears the store: keeping the previous letter would show (and autosave) it
+    // under a URL that names a different one.
     set({ document: stored });
-    return true;
+    return Boolean(stored);
   },
 
   saveToStorage: (options) => {

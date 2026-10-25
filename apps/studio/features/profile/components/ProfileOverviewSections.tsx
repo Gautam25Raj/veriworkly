@@ -37,15 +37,15 @@ const profileLinks = [
   {
     href: "/profile/master",
     icon: Database,
-    title: "Master career data",
-    text: "Reusable resume source data. Separate from user account profile.",
+    title: "Master Profile",
+    text: "Your career details, reused to start new documents. Separate from your account.",
   },
 
   {
     href: "/profile/advanced",
     icon: FileJson,
     title: "Advanced JSON",
-    text: "Inspect, import, export, and repair master profile data.",
+    text: "Inspect, import, export, and repair your Master Profile as JSON.",
   },
 
   {
@@ -123,8 +123,8 @@ export function ProfileDataLayers() {
 
       <LayerCard
         icon={ShieldCheck}
-        title="Career data source"
-        text="Master profile stores reusable resume facts, not account identity."
+        title="Master Profile"
+        text="Holds reusable career facts, not your account identity."
       />
     </section>
   );

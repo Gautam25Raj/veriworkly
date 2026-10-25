@@ -1,54 +1,83 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 import type { DocumentType } from "@/features/documents/core/document-types";
-import type { BillingSummary } from "@/features/billing/types";
 import { getDocumentEditorPath } from "@/features/documents/core/routes";
-import { describeSaveResult } from "@/features/documents/services/save-failure-message";
 import {
-  listDocuments,
-  createDocumentFromMasterProfile,
+  flushPendingSave,
+  loadDocumentById,
 } from "@/features/documents/services/document-workspace-service";
-import { fetchApiData } from "@/utils/fetchApiData";
-import { useUserStore } from "@/store/useUserStore";
+import {
+  createDocumentWithinLimit,
+  duplicateDocumentWithinLimit,
+  type NewDocumentSource,
+  type CreateWithinLimitResult,
+} from "@/features/documents/services/document-limit";
+
+type AppRouter = ReturnType<typeof useRouter>;
+
+/**
+ * What the user sees when a create did not happen. The free limit is not a dead end: the
+ * toast carries the way out.
+ */
+export function reportCreateFailure(
+  result: Exclude<CreateWithinLimitResult, { ok: true }>,
+  router: AppRouter,
+) {
+  if (result.reason === "busy") return;
+
+  if (result.reason === "limit") {
+    toast.error(result.message, {
+      action: { label: "Upgrade", onClick: () => router.push("/billing") },
+    });
+    return;
+  }
+
+  toast.error(
+    result.reason === "billing"
+      ? result.message
+      : `Could not create the document: ${result.message}`,
+  );
+}
 
 export function useCreateDocument() {
   const router = useRouter();
-  const { user } = useUserStore();
 
-  const createNewDocument = async (type: DocumentType) => {
-    const existingDocs = listDocuments(type);
-
-    let isPaid = false;
-    if (user?.email) {
-      try {
-        const billingData = await fetchApiData<BillingSummary>("/billing/me");
-        isPaid = billingData && billingData.plan !== "FREE";
-      } catch {
-        // ignore fetch failures and default to free rules
-      }
-    }
-
-    if (!isPaid && existingDocs.length >= 1) {
-      toast.error(
-        `Free/guest users can only have 1 active ${type.toLowerCase().replace("_", " ")} at a time. Upgrade to Creator Pro to create unlimited documents.`,
-      );
-      return;
-    }
-
-    const document = await createDocumentFromMasterProfile(type);
-    const failure = describeSaveResult(document.saveResult);
+  const createNewDocument = async (type: DocumentType, source?: NewDocumentSource) => {
+    const result = await createDocumentWithinLimit(type, source);
 
     // Never open an editor on a document that did not reach storage: it would show "not found".
-    if (failure) {
-      toast.error(`Could not create the document: ${failure}`);
+    if (!result.ok) {
+      reportCreateFailure(result, router);
       return;
     }
 
-    router.push(getDocumentEditorPath(type, document.id));
+    router.push(getDocumentEditorPath(type, result.document.id));
   };
 
-  return { createNewDocument };
+  const duplicateDocument = async (type: DocumentType, id: string) => {
+    // An open editor may still hold the latest keystrokes in its debounce.
+    flushPendingSave(type, id);
+
+    const source = loadDocumentById(type, id);
+
+    if (!source) {
+      toast.error("Could not duplicate: the document is not on this device.");
+      return;
+    }
+
+    const result = await duplicateDocumentWithinLimit(source);
+
+    if (!result.ok) {
+      reportCreateFailure(result, router);
+      return;
+    }
+
+    toast.success(`Duplicated as "${result.document.title}"`);
+    router.push(getDocumentEditorPath(type, result.document.id));
+  };
+
+  return { createNewDocument, duplicateDocument };
 }

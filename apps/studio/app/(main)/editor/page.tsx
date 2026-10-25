@@ -19,11 +19,11 @@ export default async function EditorEntryPage({ searchParams }: EditorEntryPageP
 
   if (!type) redirect("/documents");
 
-  const definition = getDocumentDefinition(type);
-  const resolvedTemplate =
-    definition.templates.find((template) => template.id === templateParam) ??
-    definition.templates.find((template) => template.id === definition.defaultTemplateId) ??
-    definition.templates[0];
+  // Only a template the link named: a new document already starts on the type's default, and
+  // an existing one opened at the free limit must not have its template replaced by it.
+  const requestedTemplate = getDocumentDefinition(type).templates.find(
+    (template) => template.id === templateParam,
+  );
 
-  return <EditorEntryRedirect type={type} templateId={resolvedTemplate?.id} />;
+  return <EditorEntryRedirect type={type} templateId={requestedTemplate?.id} />;
 }

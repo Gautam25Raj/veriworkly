@@ -78,13 +78,20 @@ function createStartingResume(id: string, master?: MasterProfileData): ResumeDat
   });
 }
 
+/**
+ * Not the person's name (the profile projection titles a resume after them): every resume
+ * would carry it, so three of them read "Jane Doe" in the library. Set on the content too,
+ * because saving rebuilds the envelope's title from it.
+ */
+const NEW_RESUME_TITLE = "Untitled resume";
+
 function wrapResumeDocument(id: string, master?: MasterProfileData): BaseDocument {
-  const resume = createStartingResume(id, master);
+  const resume = { ...createStartingResume(id, master), title: NEW_RESUME_TITLE };
 
   return {
     id: resume.id,
     type: "RESUME",
-    title: resume.title || resume.basics.fullName || "Resume",
+    title: resume.title,
     templateId: resume.templateId,
     content: resume,
     updatedAt: resume.updatedAt,

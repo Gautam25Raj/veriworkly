@@ -1,31 +1,15 @@
 import { z } from "zod";
 
-import { adminReasonSchema } from "#validators/admin/adminCommonValidator";
+import { adminDaysParam, adminReasonSchema } from "#validators/admin/adminCommonValidator";
 
 export const adminUsageMetricsQuerySchema = z.object({
-  days: z
-    .union([z.string(), z.number()])
-    .optional()
-    .transform((value) => {
-      const parsed = value === undefined ? 30 : Number(value);
-      if (!Number.isFinite(parsed)) return 30;
-
-      return Math.min(Math.max(Math.trunc(parsed), 1), 180);
-    }),
+  days: adminDaysParam(1, 180),
   event: z.string().trim().min(1).max(64).optional(),
 });
 
 export const adminOverviewQuerySchema = z.object({
   /** Window used for the "new in period" deltas on the overview cards. */
-  days: z
-    .union([z.string(), z.number()])
-    .optional()
-    .transform((value) => {
-      const parsed = value === undefined ? 30 : Number(value);
-      if (!Number.isFinite(parsed)) return 30;
-
-      return Math.min(Math.max(Math.trunc(parsed), 1), 365);
-    }),
+  days: adminDaysParam(1, 365),
 });
 
 export const adminTimeSeriesQuerySchema = z.object({
@@ -33,15 +17,7 @@ export const adminTimeSeriesQuerySchema = z.object({
    * Window for the dashboard charts. Floored at 7 because a chart of fewer points reads as
    * noise, and capped at 180 because every point is a row scan per metric.
    */
-  days: z
-    .union([z.string(), z.number()])
-    .optional()
-    .transform((value) => {
-      const parsed = value === undefined ? 30 : Number(value);
-      if (!Number.isFinite(parsed)) return 30;
-
-      return Math.min(Math.max(Math.trunc(parsed), 7), 180);
-    }),
+  days: adminDaysParam(7, 180),
 });
 
 export const adminGithubSyncSchema = z.object({

@@ -1,6 +1,6 @@
 import { getBaseLayout, escapeHtml } from "../shared/layout.js";
 
-export interface ContactAdminMailData {
+interface ContactAdminMailData {
   name: string;
   email: string;
   subject: string;

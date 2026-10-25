@@ -142,7 +142,8 @@ async function wallet(userId: string) {
 }
 
 async function reservationStatus(requestId: string) {
-  const row = await prisma.creditReservation.findUnique({
+  // Request ids are unique per user, not globally, so this is a scan by request id on purpose.
+  const row = await prisma.creditReservation.findFirst({
     where: { requestId },
     select: { status: true },
   });

@@ -8,16 +8,10 @@ import { PortfolioAssetService } from "#services/portfolioAssetService";
 
 import { createSuccessResponse, handleValidationError } from "#lib/errors";
 
-const uploadSchema = z.object({
-  kind: z.enum(["AVATAR", "PROJECT_COVER", "SOCIAL_IMAGE"]),
-  mimeType: z.string().min(1),
-  sizeBytes: z.number().int().positive(),
-});
-
-const completeSchema = z.object({
-  assetId: z.string().min(1),
-  checksum: z.string().max(256).optional(),
-});
+import {
+  portfolioAssetCompleteSchema,
+  portfolioAssetUploadSchema,
+} from "#validators/portfolioAssetValidator";
 
 export class PortfolioAssetController {
   static async uploadUrl(req: Request, res: Response, next: NextFunction) {
@@ -26,7 +20,7 @@ export class PortfolioAssetController {
         createSuccessResponse(
           await PortfolioAssetService.createUploadUrl(
             requireAuthUser(req).id,
-            uploadSchema.parse(req.body),
+            portfolioAssetUploadSchema.parse(req.body),
           ),
         ),
       );
@@ -37,7 +31,7 @@ export class PortfolioAssetController {
 
   static async complete(req: Request, res: Response, next: NextFunction) {
     try {
-      const input = completeSchema.parse(req.body);
+      const input = portfolioAssetCompleteSchema.parse(req.body);
 
       res.json(
         createSuccessResponse(

@@ -29,29 +29,16 @@ export const AdminUserController = {
     const { id } = adminIdParamSchema.parse(req.params);
     const input = adminUserUpdateSchema.parse(req.body);
 
-    const { user, previousRole } = await AdminUserService.updateUser(id, input);
-
-    await recordAdminAudit({
+    // The audit entry (user.update or user.role.change) is written by the service, in the
+    // same transaction as the update.
+    const { user, roleChanged } = await AdminUserService.updateUser(id, input, {
       actorId,
-      action:
-        input.role && input.role !== previousRole
-          ? ADMIN_AUDIT_ACTIONS.userRoleChange
-          : ADMIN_AUDIT_ACTIONS.userUpdate,
-      targetType: "User",
-      targetId: id,
       reason: input.reason,
-      metadata: {
-        ...(input.role ? { previousRole, nextRole: input.role } : {}),
-        ...(input.name !== undefined ? { name: input.name } : {}),
-        ...(input.username !== undefined ? { username: input.username } : {}),
-        ...(input.emailVerified !== undefined ? { emailVerified: input.emailVerified } : {}),
-        ...(input.autoSyncEnabled !== undefined ? { autoSyncEnabled: input.autoSyncEnabled } : {}),
-      },
     });
 
     // A role change that leaves live sessions in place lets the user keep their old
     // privileges until every cached session expires.
-    if (input.role && input.role !== previousRole) await AdminUserService.revokeUserSessions(id);
+    if (roleChanged) await AdminUserService.revokeUserSessions(id);
 
     return user;
   }, "User updated successfully"),
@@ -80,10 +67,9 @@ export const AdminUserController = {
     const { id } = adminIdParamSchema.parse(req.params);
     const input = adminUserDeleteSchema.parse(deleteRequestInput(req));
 
-    // Audited before the delete: `AdminAuditEntry.actorId` survives, but the target row will
-    // not, so writing afterwards risks losing the record if the delete succeeds and the audit
-    // write then fails.
-    await recordAdminAudit({
+    // Audited inside the delete's transaction: the record exists exactly when the deletion
+    // happened, never for a refused one and never missing for a committed one.
+    return AdminUserService.deleteUser(id, input.confirmEmail, {
       actorId,
       action: ADMIN_AUDIT_ACTIONS.userDelete,
       targetType: "User",
@@ -91,7 +77,5 @@ export const AdminUserController = {
       reason: input.reason,
       metadata: { confirmEmail: input.confirmEmail },
     });
-
-    return AdminUserService.deleteUser(id, input.confirmEmail);
   }, "User deleted successfully"),
 };

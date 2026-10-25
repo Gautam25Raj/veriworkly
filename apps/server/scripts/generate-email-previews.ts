@@ -34,7 +34,7 @@ const emailSamples = [
     id: "auth-welcome",
     name: "2. Auth: Welcome Email",
     category: "Authentication",
-    html: renderWelcomeEmail("Alex Morgan", "https://veriworkly.com/dashboard"),
+    html: renderWelcomeEmail("Alex Morgan", "https://app.veriworkly.com/"),
   },
   {
     id: "auth-login-alert",
@@ -64,7 +64,7 @@ const emailSamples = [
     id: "portfolio-updated",
     name: "7. Portfolio: Portfolio Published Live",
     category: "Portfolio",
-    html: renderPortfolioUpdatedEmail("https://veriworkly.com/p/alex-morgan"),
+    html: renderPortfolioUpdatedEmail("https://alex-morgan.veriworkly.com"),
   },
   {
     id: "contact-admin-notification",

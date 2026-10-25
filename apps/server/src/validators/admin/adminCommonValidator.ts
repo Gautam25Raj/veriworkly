@@ -8,8 +8,8 @@ import { z } from "zod";
  * full-table scan against production.
  */
 
-export const ADMIN_PAGE_SIZE_DEFAULT = 25;
-export const ADMIN_PAGE_SIZE_MAX = 100;
+const ADMIN_PAGE_SIZE_DEFAULT = 25;
+const ADMIN_PAGE_SIZE_MAX = 100;
 
 const numericString = (fallback: number, min: number, max: number) =>
   z
@@ -23,6 +23,30 @@ const numericString = (fallback: number, min: number, max: number) =>
 
       return Math.min(Math.max(Math.trunc(parsed), min), max);
     });
+
+/** A `?days=` window: absent or non-numeric is 30, anything else is truncated and clamped. */
+export const adminDaysParam = (min: number, max: number) =>
+  z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((value) => {
+      const parsed = value === undefined ? 30 : Number(value);
+      if (!Number.isFinite(parsed)) return 30;
+
+      return Math.min(Math.max(Math.trunc(parsed), min), max);
+    });
+
+/** A query flag: `true`/`"true"` is true, anything else false (absent included). */
+export const adminFlagParam = z
+  .union([z.string(), z.boolean()])
+  .optional()
+  .transform((value) => value === true || value === "true");
+
+/** As `adminFlagParam`, but absent stays `undefined` (no filter) instead of false. */
+export const adminOptionalFlagParam = z
+  .union([z.string(), z.boolean()])
+  .optional()
+  .transform((value) => (value === undefined ? undefined : value === true || value === "true"));
 
 export const adminPaginationSchema = z.object({
   limit: numericString(ADMIN_PAGE_SIZE_DEFAULT, 1, ADMIN_PAGE_SIZE_MAX),
@@ -46,8 +70,6 @@ export const adminDateRangeSchema = z.object({
  */
 export const adminReasonSchema = z.string().trim().min(3).max(500);
 
-export const adminOptionalReasonSchema = z.string().trim().max(500).optional();
-
 /**
  * A reason the studio does not send yet (V-081): optional, but when present it must meet the
  * same 3-character minimum as `adminReasonSchema`. A blank value counts as absent.
@@ -65,8 +87,6 @@ export const adminProvidedReasonSchema = z
 export const adminIdParamSchema = z.object({
   id: z.string().trim().min(1).max(64),
 });
-
-export type AdminPagination = z.infer<typeof adminPaginationSchema>;
 
 /** Turns the validated `from`/`to` pair into a Prisma `createdAt` filter, or nothing. */
 export function toCreatedAtFilter(range: { from?: string; to?: string }) {

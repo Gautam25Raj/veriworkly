@@ -22,13 +22,7 @@ vi.mock("#services/mail/billingMail", () => billingMailMock);
 
 const WEBHOOK_PATH = "/api/v1/billing/webhooks/dodo";
 const DAY_MS = 24 * 60 * 60 * 1000;
-const PORTFOLIO_KEYS = [
-  "portfolio_publish",
-  "custom_subdomain",
-  "seo_controls",
-  "analytics",
-  "watermark_removal",
-];
+const PORTFOLIO_KEYS = ["portfolio_publish", "seo_controls", "analytics", "watermark_removal"];
 
 /**
  * Event timestamps sit a minute in the past so grants that start "at the event" are already
@@ -293,7 +287,7 @@ describe("V-002 one-time bundle passes", () => {
     expect(await prisma.creditGrant.count({ where: { userId: user.id } })).toBe(1);
     expect(
       await prisma.entitlementGrant.count({ where: { userId: user.id, sourceId: paymentId } }),
-    ).toBe(6);
+    ).toBe(["ai_credits", ...PORTFOLIO_KEYS].length);
   });
 
   it("grants the 3-day pass from product_id alone when the metadata carries no product", async () => {

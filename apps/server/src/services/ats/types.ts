@@ -3,19 +3,7 @@
  * existing imports keep working. What remains defined in this file is what the engine has no
  * business knowing: the quota summary is a product concern.
  */
-export type {
-  AtsCategoryScore,
-  AtsLayoutSignals,
-  AtsParsedDate,
-  AtsParsedEducation,
-  AtsParsedField,
-  AtsParsedResume,
-  AtsParsedRole,
-  AtsProvenance,
-  AtsReport,
-  AtsRuleResult,
-  AtsSeverity,
-} from "@veriworkly/ats-engine";
+export type { AtsParsedResume, AtsReport } from "@veriworkly/ats-engine";
 
 export type { AtsAiInsights } from "@veriworkly/ats-engine/ai";
 

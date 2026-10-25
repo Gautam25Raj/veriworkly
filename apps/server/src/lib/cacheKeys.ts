@@ -8,6 +8,11 @@ export function userProfileCacheKey(userId: string): string {
   return `user:profile:v2:${userId}`;
 }
 
+/** The master profile read (`GET /profiles/master`), whose summary repeats account fields. */
+export function masterProfileCacheKey(userId: string): string {
+  return `profile:${userId}`;
+}
+
 /**
  * Generation namespaces (see `#lib/cacheGeneration`). Each is invalidated as a whole by one
  * `bumpGeneration`, so variants keyed by type, pagination or filters need no prefix SCAN.

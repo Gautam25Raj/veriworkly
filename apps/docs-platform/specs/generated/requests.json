@@ -1,0 +1,1365 @@
+{
+  "$comment": "Generated from the server's zod validators by `npm run generate:openapi -w @veriworkly/server` (apps/server/src/openapi/registry.ts). Do not edit.",
+  "operations": {
+    "PUT /api/v1/users/me/name": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 255 } },
+          "required": ["name"]
+        }
+      }
+    },
+    "PUT /api/v1/users/me/username": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": { "username": { "type": "string" } },
+          "required": ["username"]
+        }
+      }
+    },
+    "PUT /api/v1/users/me/sync": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": { "enabled": { "type": "boolean" } },
+          "required": ["enabled"]
+        }
+      }
+    },
+    "GET /api/v1/users/{username}/availability": {
+      "parameters": [
+        { "name": "username", "in": "path", "required": true, "schema": { "type": "string" } }
+      ]
+    },
+    "GET /api/v1/roadmap": {
+      "parameters": [
+        {
+          "name": "status",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "string", "enum": ["todo", "in-progress", "done"] }
+        },
+        {
+          "name": "sort",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "string", "enum": ["newest", "oldest", "recently-completed"] }
+        },
+        {
+          "name": "page",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "integer", "minimum": 1 }
+        },
+        {
+          "name": "pageSize",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "integer", "minimum": 1, "maximum": 50 }
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "integer", "minimum": 1, "maximum": 50 }
+        },
+        {
+          "name": "offset",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "integer", "minimum": 0 }
+        },
+        {
+          "name": "excludeId",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "string", "minLength": 1, "maxLength": 100 }
+        }
+      ]
+    },
+    "GET /api/v1/changelog": {
+      "parameters": [
+        {
+          "name": "type",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "string", "enum": ["major", "minor", "patch"] }
+        },
+        {
+          "name": "tag",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "string", "minLength": 1, "maxLength": 60 }
+        },
+        {
+          "name": "search",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "string", "minLength": 1, "maxLength": 120 }
+        },
+        {
+          "name": "page",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "integer", "minimum": 1 }
+        },
+        {
+          "name": "pageSize",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "integer", "minimum": 1, "maximum": 50 }
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "integer", "minimum": 1, "maximum": 50 }
+        },
+        {
+          "name": "offset",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "integer", "minimum": 0 }
+        }
+      ]
+    },
+    "GET /api/v1/github/issues": {
+      "parameters": [
+        {
+          "name": "status",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "string", "enum": ["todo", "in-progress", "done"] }
+        },
+        {
+          "name": "kind",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "string", "enum": ["issue", "pull-request", "all"] }
+        },
+        {
+          "name": "page",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "integer", "minimum": 1 }
+        },
+        {
+          "name": "pageSize",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "integer", "minimum": 1, "maximum": 50 }
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "integer", "minimum": 1, "maximum": 50 }
+        },
+        {
+          "name": "offset",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "integer", "minimum": 0 }
+        },
+        {
+          "name": "createdFrom",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              { "type": "string", "format": "date" },
+              { "type": "string", "format": "date-time" }
+            ]
+          }
+        },
+        {
+          "name": "createdTo",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              { "type": "string", "format": "date" },
+              { "type": "string", "format": "date-time" }
+            ]
+          }
+        },
+        {
+          "name": "updatedFrom",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              { "type": "string", "format": "date" },
+              { "type": "string", "format": "date-time" }
+            ]
+          }
+        },
+        {
+          "name": "updatedTo",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              { "type": "string", "format": "date" },
+              { "type": "string", "format": "date-time" }
+            ]
+          }
+        }
+      ]
+    },
+    "POST /api/v1/api-keys": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+            "expiresAt": {
+              "anyOf": [
+                { "type": "string", "const": "" },
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            }
+          },
+          "required": ["name"]
+        }
+      },
+      "readOutsideSchema": { "body": ["scopes", "rateLimit"] }
+    },
+    "POST /api/v1/api-keys/{id}/rotate": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 100 }, { "type": "null" }]
+            },
+            "expiresAt": {
+              "anyOf": [
+                { "type": "string", "const": "" },
+                { "type": "string", "format": "date-time" },
+                { "type": "null" }
+              ]
+            }
+          }
+        }
+      },
+      "readOutsideSchema": { "body": ["scopes", "rateLimit"] }
+    },
+    "PUT /api/v1/profiles/master": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "profile": {
+              "type": "object",
+              "properties": {
+                "schemaVersion": { "default": 2, "type": "integer", "exclusiveMinimum": 0 },
+                "templateId": { "type": "string", "minLength": 1, "maxLength": 64 },
+                "basics": {
+                  "type": "object",
+                  "properties": {
+                    "fullName": { "type": "string", "maxLength": 120 },
+                    "role": { "type": "string", "maxLength": 120 },
+                    "headline": { "type": "string", "maxLength": 250 },
+                    "email": { "type": "string", "maxLength": 200 },
+                    "phone": { "type": "string", "maxLength": 24 },
+                    "location": { "type": "string", "maxLength": 120 },
+                    "linkEmail": { "type": "boolean" },
+                    "linkPhone": { "type": "boolean" },
+                    "linkLocation": { "type": "boolean" }
+                  },
+                  "required": [
+                    "fullName",
+                    "role",
+                    "headline",
+                    "email",
+                    "phone",
+                    "location",
+                    "linkEmail",
+                    "linkPhone",
+                    "linkLocation"
+                  ]
+                },
+                "links": {
+                  "type": "object",
+                  "properties": {
+                    "displayMode": { "type": "string", "enum": ["icon", "url", "icon-username"] },
+                    "items": {
+                      "maxItems": 50,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "github",
+                              "linkedin",
+                              "dribbble",
+                              "twitter",
+                              "portfolio",
+                              "behance",
+                              "medium",
+                              "youtube",
+                              "custom"
+                            ]
+                          },
+                          "label": { "type": "string", "maxLength": 80 },
+                          "url": { "type": "string", "maxLength": 2048 }
+                        },
+                        "required": ["id", "type", "label", "url"]
+                      }
+                    }
+                  },
+                  "required": ["displayMode", "items"]
+                },
+                "summary": { "type": "string", "maxLength": 8000 },
+                "experience": {
+                  "default": [],
+                  "maxItems": 200,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "company": { "type": "string", "maxLength": 160 },
+                      "role": { "type": "string", "maxLength": 160 },
+                      "location": { "type": "string", "maxLength": 120 },
+                      "startDate": { "type": "string", "maxLength": 7 },
+                      "endDate": { "type": "string", "maxLength": 7 },
+                      "current": { "type": "boolean" },
+                      "summary": { "type": "string", "maxLength": 5000 },
+                      "highlights": {
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": { "type": "string", "maxLength": 400 }
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "company",
+                      "role",
+                      "location",
+                      "startDate",
+                      "endDate",
+                      "current",
+                      "summary",
+                      "highlights"
+                    ]
+                  }
+                },
+                "education": {
+                  "default": [],
+                  "maxItems": 200,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "school": { "type": "string", "maxLength": 160 },
+                      "degree": { "type": "string", "maxLength": 160 },
+                      "field": { "type": "string", "maxLength": 160 },
+                      "startDate": { "type": "string", "maxLength": 4 },
+                      "endDate": { "type": "string", "maxLength": 4 },
+                      "current": { "type": "boolean" },
+                      "summary": { "type": "string", "maxLength": 5000 }
+                    },
+                    "required": [
+                      "id",
+                      "school",
+                      "degree",
+                      "field",
+                      "startDate",
+                      "endDate",
+                      "current",
+                      "summary"
+                    ]
+                  }
+                },
+                "projects": {
+                  "default": [],
+                  "maxItems": 200,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "name": { "type": "string", "maxLength": 160 },
+                      "role": { "type": "string", "maxLength": 160 },
+                      "link": { "type": "string", "maxLength": 2048 },
+                      "linkLabel": { "default": "Link", "type": "string", "maxLength": 80 },
+                      "showLinkAsText": { "default": true, "type": "boolean" },
+                      "summary": { "type": "string", "maxLength": 5000 },
+                      "highlights": {
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": { "type": "string", "maxLength": 400 }
+                      },
+                      "skills": {
+                        "default": [],
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": { "type": "string", "maxLength": 80 }
+                      }
+                    },
+                    "required": ["id", "name", "role", "link", "summary", "highlights"]
+                  }
+                },
+                "skills": {
+                  "default": [],
+                  "maxItems": 200,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "name": { "type": "string", "maxLength": 120 },
+                      "keywords": {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": { "type": "string", "maxLength": 80 }
+                      }
+                    },
+                    "required": ["id", "name", "keywords"]
+                  }
+                },
+                "languages": {
+                  "default": [],
+                  "maxItems": 200,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "language": { "type": "string", "maxLength": 80 },
+                      "fluency": {
+                        "type": "string",
+                        "enum": ["elementary", "limited", "professional", "fluent", "native"]
+                      }
+                    },
+                    "required": ["id", "language", "fluency"]
+                  }
+                },
+                "interests": {
+                  "default": [],
+                  "maxItems": 200,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "name": { "type": "string", "maxLength": 120 },
+                      "keywords": {
+                        "maxItems": 100,
+                        "type": "array",
+                        "items": { "type": "string", "maxLength": 80 }
+                      }
+                    },
+                    "required": ["id", "name", "keywords"]
+                  }
+                },
+                "awards": {
+                  "default": [],
+                  "maxItems": 200,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "title": { "type": "string", "maxLength": 200 },
+                      "awarder": { "type": "string", "maxLength": 200 },
+                      "date": { "type": "string", "maxLength": 7 },
+                      "website": { "type": "string", "maxLength": 2048 },
+                      "description": { "type": "string", "maxLength": 5000 },
+                      "showLink": { "type": "boolean" }
+                    },
+                    "required": ["id", "title", "awarder", "date", "description", "showLink"]
+                  }
+                },
+                "certificates": {
+                  "default": [],
+                  "maxItems": 200,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "title": { "type": "string", "maxLength": 200 },
+                      "issuer": { "type": "string", "maxLength": 200 },
+                      "date": { "type": "string", "maxLength": 7 },
+                      "website": { "type": "string", "maxLength": 2048 },
+                      "referenceId": { "type": "string", "maxLength": 200 },
+                      "description": { "type": "string", "maxLength": 5000 },
+                      "showLink": { "type": "boolean" }
+                    },
+                    "required": ["id", "title", "issuer", "date", "description", "showLink"]
+                  }
+                },
+                "publications": {
+                  "default": [],
+                  "maxItems": 200,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "title": { "type": "string", "maxLength": 200 },
+                      "publisher": { "type": "string", "maxLength": 200 },
+                      "date": { "type": "string", "maxLength": 7 },
+                      "website": { "type": "string", "maxLength": 2048 },
+                      "description": { "type": "string", "maxLength": 5000 },
+                      "showLink": { "type": "boolean" }
+                    },
+                    "required": ["id", "title", "publisher", "date", "description", "showLink"]
+                  }
+                },
+                "volunteer": {
+                  "default": [],
+                  "maxItems": 200,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "organization": { "type": "string", "maxLength": 200 },
+                      "role": { "type": "string", "maxLength": 160 },
+                      "startDate": { "type": "string", "maxLength": 7 },
+                      "endDate": { "type": "string", "maxLength": 7 },
+                      "current": { "type": "boolean" },
+                      "location": { "type": "string", "maxLength": 120 },
+                      "summary": { "type": "string", "maxLength": 5000 }
+                    },
+                    "required": [
+                      "id",
+                      "organization",
+                      "role",
+                      "startDate",
+                      "endDate",
+                      "current",
+                      "location",
+                      "summary"
+                    ]
+                  }
+                },
+                "references": {
+                  "default": [],
+                  "maxItems": 200,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "name": { "type": "string", "maxLength": 160 },
+                      "title": { "type": "string", "maxLength": 160 },
+                      "organization": { "type": "string", "maxLength": 200 },
+                      "email": { "type": "string", "maxLength": 200 },
+                      "phone": { "type": "string", "maxLength": 24 },
+                      "relationship": { "type": "string", "maxLength": 200 }
+                    },
+                    "required": ["id", "name", "title", "organization", "relationship"]
+                  }
+                },
+                "achievements": {
+                  "default": [],
+                  "maxItems": 200,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "title": { "type": "string", "maxLength": 200 },
+                      "description": { "type": "string", "maxLength": 5000 }
+                    },
+                    "required": ["id", "title", "description"]
+                  }
+                },
+                "customSections": {
+                  "default": [],
+                  "maxItems": 200,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "certifications",
+                          "awards",
+                          "publications",
+                          "languages",
+                          "interests",
+                          "volunteer",
+                          "references",
+                          "achievements",
+                          "custom"
+                        ]
+                      },
+                      "title": { "type": "string", "maxLength": 120 },
+                      "items": {
+                        "maxItems": 200,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                            "name": { "type": "string", "maxLength": 200 },
+                            "issuer": { "type": "string", "maxLength": 200 },
+                            "date": { "type": "string", "maxLength": 40 },
+                            "link": { "type": "string", "maxLength": 2048 },
+                            "referenceId": { "type": "string", "maxLength": 200 },
+                            "description": { "type": "string", "maxLength": 5000 },
+                            "details": {
+                              "maxItems": 50,
+                              "type": "array",
+                              "items": { "type": "string", "maxLength": 500 }
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "issuer",
+                            "date",
+                            "link",
+                            "referenceId",
+                            "description",
+                            "details"
+                          ]
+                        }
+                      },
+                      "editableTitle": { "type": "boolean" }
+                    },
+                    "required": ["id", "kind", "title", "items"]
+                  }
+                },
+                "sections": {
+                  "default": [],
+                  "maxItems": 200,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "enum": [
+                          "basics",
+                          "links",
+                          "summary",
+                          "experience",
+                          "education",
+                          "projects",
+                          "skills",
+                          "certifications",
+                          "awards",
+                          "publications",
+                          "languages",
+                          "interests",
+                          "volunteer",
+                          "references",
+                          "achievements",
+                          "custom"
+                        ]
+                      },
+                      "label": { "type": "string", "maxLength": 80 },
+                      "visible": { "type": "boolean" },
+                      "order": { "type": "integer", "minimum": 0, "maximum": 1000 },
+                      "customSectionId": { "type": "string", "maxLength": 128 }
+                    },
+                    "required": ["id", "label", "visible", "order"]
+                  }
+                },
+                "customization": {
+                  "type": "object",
+                  "properties": {
+                    "accentColor": { "type": "string", "maxLength": 32 },
+                    "textColor": { "type": "string", "maxLength": 32 },
+                    "mutedTextColor": { "type": "string", "maxLength": 32 },
+                    "pageBackgroundColor": { "type": "string", "maxLength": 32 },
+                    "sectionBackgroundColor": { "type": "string", "maxLength": 32 },
+                    "borderColor": { "type": "string", "maxLength": 32 },
+                    "sectionHeadingColor": { "type": "string", "maxLength": 32 },
+                    "fontFamily": { "type": "string", "minLength": 1, "maxLength": 32 },
+                    "sectionSpacing": { "type": "number", "minimum": 0, "maximum": 120 },
+                    "pagePadding": { "type": "number", "minimum": 0, "maximum": 120 },
+                    "bodyLineHeight": { "type": "number", "minimum": 1, "maximum": 3 },
+                    "headingLineHeight": { "type": "number", "minimum": 1, "maximum": 3 }
+                  },
+                  "required": [
+                    "accentColor",
+                    "textColor",
+                    "mutedTextColor",
+                    "pageBackgroundColor",
+                    "sectionBackgroundColor",
+                    "borderColor",
+                    "sectionHeadingColor",
+                    "fontFamily",
+                    "sectionSpacing",
+                    "pagePadding",
+                    "bodyLineHeight",
+                    "headingLineHeight"
+                  ]
+                },
+                "updatedAt": { "type": "string", "format": "date-time" }
+              },
+              "required": ["templateId", "basics", "links", "summary", "customization"]
+            },
+            "expectedUpdatedAt": { "type": "string", "format": "date-time" }
+          },
+          "required": ["profile"]
+        }
+      }
+    },
+    "POST /api/v1/profiles/import/github": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "usernameOrUrl": { "type": "string", "minLength": 1 },
+            "replaceMaster": { "default": false, "type": "boolean" }
+          },
+          "required": ["usernameOrUrl"]
+        }
+      }
+    },
+    "POST /api/v1/profiles/import/linkedin": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "profileText": { "type": "string", "minLength": 10 },
+            "replaceMaster": { "default": false, "type": "boolean" }
+          },
+          "required": ["profileText"]
+        }
+      }
+    },
+    "GET /api/v1/documents": {
+      "parameters": [
+        {
+          "name": "type",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "enum": ["RESUME", "COVER_LETTER", "PORTFOLIO", "LINK_IN_BIO"]
+          }
+        },
+        {
+          "name": "updatedSince",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "string", "format": "date-time" }
+        },
+        {
+          "name": "includeContent",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "string", "enum": ["true", "false"] }
+        }
+      ]
+    },
+    "POST /api/v1/documents": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "type": {
+              "type": "string",
+              "enum": ["RESUME", "COVER_LETTER", "PORTFOLIO", "LINK_IN_BIO"]
+            },
+            "title": { "type": "string", "minLength": 1, "maxLength": 255 },
+            "slug": { "type": "string", "minLength": 1, "maxLength": 255 },
+            "tags": {
+              "maxItems": 20,
+              "type": "array",
+              "items": { "type": "string", "minLength": 1, "maxLength": 40 }
+            },
+            "content": { "type": "object", "additionalProperties": {} },
+            "metadata": { "type": "object", "additionalProperties": {} },
+            "templateId": { "type": "string", "minLength": 1, "maxLength": 64 },
+            "visibility": { "type": "string", "enum": ["PRIVATE", "UNLISTED", "PUBLIC"] }
+          },
+          "required": ["type"]
+        }
+      }
+    },
+    "PATCH /api/v1/documents/{id}": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string", "minLength": 1, "maxLength": 255 },
+            "slug": { "type": "string", "minLength": 1, "maxLength": 255 },
+            "updateShareSlug": { "type": "boolean" },
+            "tags": {
+              "maxItems": 20,
+              "type": "array",
+              "items": { "type": "string", "minLength": 1, "maxLength": 40 }
+            },
+            "content": { "type": "object", "additionalProperties": {} },
+            "metadata": { "type": "object", "additionalProperties": {} },
+            "templateId": { "type": "string", "minLength": 1, "maxLength": 64 },
+            "visibility": { "type": "string", "enum": ["PRIVATE", "UNLISTED", "PUBLIC"] },
+            "revision": { "type": "integer", "minimum": 1 }
+          },
+          "required": ["revision"]
+        }
+      }
+    },
+    "POST /api/v1/ats/check": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "resume": {
+              "anyOf": [
+                { "type": "string", "minLength": 1, "maxLength": 50000 },
+                { "type": "object", "additionalProperties": {} }
+              ]
+            },
+            "jobDescription": { "type": "string", "maxLength": 20000 },
+            "layout": {
+              "type": "object",
+              "properties": {
+                "columnRatio": {
+                  "anyOf": [{ "type": "number", "minimum": 0, "maximum": 1 }, { "type": "null" }]
+                },
+                "tableCount": { "type": "integer", "minimum": 0 },
+                "pageCount": { "type": "integer", "minimum": 0 },
+                "imageCount": { "type": "integer", "minimum": 0 },
+                "hiddenTextChars": { "type": "integer", "minimum": 0 },
+                "hiddenText": { "type": "string", "maxLength": 5000 },
+                "hiddenTextRead": { "type": "string", "maxLength": 5000 },
+                "imageOnlyPages": { "type": "integer", "minimum": 0 },
+                "metadataText": { "type": "string", "maxLength": 2000 },
+                "encrypted": { "type": "boolean" },
+                "trackedChanges": { "type": "integer", "minimum": 0 },
+                "comments": { "type": "integer", "minimum": 0 }
+              },
+              "required": ["columnRatio", "tableCount", "pageCount"]
+            },
+            "file": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+                "bytes": { "type": "integer", "minimum": 0, "maximum": 104857600 }
+              }
+            }
+          },
+          "required": ["resume"]
+        }
+      }
+    },
+    "POST /api/v1/ats/analyze": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "resume": {
+              "anyOf": [
+                { "type": "string", "minLength": 1, "maxLength": 50000 },
+                { "type": "object", "additionalProperties": {} }
+              ]
+            },
+            "jobDescription": { "type": "string", "maxLength": 20000 },
+            "layout": {
+              "type": "object",
+              "properties": {
+                "columnRatio": {
+                  "anyOf": [{ "type": "number", "minimum": 0, "maximum": 1 }, { "type": "null" }]
+                },
+                "tableCount": { "type": "integer", "minimum": 0 },
+                "pageCount": { "type": "integer", "minimum": 0 },
+                "imageCount": { "type": "integer", "minimum": 0 },
+                "hiddenTextChars": { "type": "integer", "minimum": 0 },
+                "hiddenText": { "type": "string", "maxLength": 5000 },
+                "hiddenTextRead": { "type": "string", "maxLength": 5000 },
+                "imageOnlyPages": { "type": "integer", "minimum": 0 },
+                "metadataText": { "type": "string", "maxLength": 2000 },
+                "encrypted": { "type": "boolean" },
+                "trackedChanges": { "type": "integer", "minimum": 0 },
+                "comments": { "type": "integer", "minimum": 0 }
+              },
+              "required": ["columnRatio", "tableCount", "pageCount"]
+            },
+            "file": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string", "minLength": 1, "maxLength": 255 },
+                "bytes": { "type": "integer", "minimum": 0, "maximum": 104857600 }
+              }
+            },
+            "jobUrl": { "type": "string", "maxLength": 2048, "format": "uri" },
+            "fetchJobUrl": { "default": false, "type": "boolean" },
+            "requestId": { "type": "string", "minLength": 8, "maxLength": 128 },
+            "repairParse": { "default": false, "type": "boolean" }
+          },
+          "required": ["resume", "requestId"]
+        }
+      }
+    },
+    "POST /api/v1/ats/convert-resume": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "resume": { "type": "string", "minLength": 1, "maxLength": 50000 },
+            "requestId": { "type": "string", "minLength": 8, "maxLength": 128 }
+          },
+          "required": ["resume", "requestId"]
+        }
+      }
+    },
+    "POST /api/v1/ai/generate": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "rewrite_short_text",
+                "rewrite_section",
+                "generate_section",
+                "generate_portfolio_copy",
+                "generate_cover_letter",
+                "tailor_resume_to_job",
+                "generate_document"
+              ]
+            },
+            "mode": { "default": "standard", "type": "string", "enum": ["standard", "expert"] },
+            "input": {
+              "type": "object",
+              "properties": {
+                "text": { "default": "", "type": "string", "maxLength": 50000 },
+                "context": { "default": "", "type": "string", "maxLength": 50000 },
+                "jobDescription": { "default": "", "type": "string", "maxLength": 20000 },
+                "instructions": { "default": "", "type": "string", "maxLength": 500 }
+              }
+            },
+            "requestId": { "type": "string", "minLength": 8, "maxLength": 200 },
+            "documentId": { "type": "string", "minLength": 1, "maxLength": 200 }
+          },
+          "required": ["action", "input", "requestId"]
+        }
+      }
+    },
+    "GET /api/v1/portfolios/public": {
+      "parameters": [
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "integer", "minimum": 1, "maximum": 100 }
+        },
+        {
+          "name": "offset",
+          "in": "query",
+          "required": false,
+          "schema": { "type": "integer", "minimum": 0, "maximum": 5000 }
+        }
+      ]
+    },
+    "POST /api/v1/portfolios/public/{subdomain}/view": {
+      "requestBody": {
+        "schema": { "type": "object", "properties": { "referrer": { "type": "string" } } }
+      }
+    },
+    "PUT /api/v1/portfolios/draft": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "documentId": { "type": "string", "minLength": 1 },
+            "subdomain": { "type": "string", "minLength": 1, "maxLength": 63 },
+            "revision": { "type": "integer", "minimum": 1 },
+            "snapshot": {
+              "type": "object",
+              "properties": {
+                "schemaVersion": { "type": "number", "const": 1 },
+                "templateId": {
+                  "type": "string",
+                  "enum": ["signal", "atelier", "nimbus", "cipher"]
+                },
+                "identity": {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string", "maxLength": 120 },
+                    "headline": { "type": "string", "maxLength": 240 },
+                    "bio": { "type": "string", "maxLength": 1600 },
+                    "location": { "type": "string", "maxLength": 120 },
+                    "email": {
+                      "anyOf": [
+                        { "type": "string", "const": "" },
+                        { "type": "string", "maxLength": 254, "format": "email" }
+                      ]
+                    },
+                    "availability": { "type": "string", "maxLength": 160 },
+                    "avatar": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                            "url": { "type": "string", "maxLength": 2048, "format": "uri" }
+                          },
+                          "required": ["id", "url"]
+                        },
+                        { "type": "null" }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "headline",
+                    "bio",
+                    "location",
+                    "email",
+                    "availability",
+                    "avatar"
+                  ]
+                },
+                "seo": {
+                  "type": "object",
+                  "properties": {
+                    "title": { "type": "string", "maxLength": 120 },
+                    "description": { "type": "string", "maxLength": 300 },
+                    "socialImage": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                            "url": { "type": "string", "maxLength": 2048, "format": "uri" }
+                          },
+                          "required": ["id", "url"]
+                        },
+                        { "type": "null" }
+                      ]
+                    }
+                  },
+                  "required": ["title", "description", "socialImage"]
+                },
+                "socialLinks": {
+                  "maxItems": 12,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "label": { "type": "string", "maxLength": 80 },
+                      "url": {
+                        "anyOf": [
+                          { "type": "string", "const": "" },
+                          { "type": "string", "maxLength": 2048, "format": "uri" }
+                        ]
+                      }
+                    },
+                    "required": ["id", "label", "url"]
+                  }
+                },
+                "sections": {
+                  "maxItems": 24,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "projects",
+                          "experience",
+                          "services",
+                          "skills",
+                          "education",
+                          "writing",
+                          "testimonials",
+                          "awards",
+                          "certifications",
+                          "languages",
+                          "interests",
+                          "publications",
+                          "patents",
+                          "testScores",
+                          "achievements",
+                          "volunteer",
+                          "custom",
+                          "contact"
+                        ]
+                      },
+                      "title": { "type": "string", "maxLength": 120 },
+                      "subtitle": { "type": "string", "maxLength": 240 },
+                      "visible": { "type": "boolean" },
+                      "items": {
+                        "maxItems": 24,
+                        "type": "array",
+                        "items": { "type": "object", "additionalProperties": {} }
+                      },
+                      "settings": { "type": "object", "additionalProperties": {} }
+                    },
+                    "required": ["id", "type", "title", "visible", "items"]
+                  }
+                },
+                "pages": {
+                  "maxItems": 10,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                      "slug": { "type": "string", "minLength": 1, "maxLength": 63 },
+                      "title": { "type": "string", "maxLength": 120 },
+                      "sections": {
+                        "maxItems": 24,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                            "type": {
+                              "type": "string",
+                              "enum": [
+                                "projects",
+                                "experience",
+                                "services",
+                                "skills",
+                                "education",
+                                "writing",
+                                "testimonials",
+                                "awards",
+                                "certifications",
+                                "languages",
+                                "interests",
+                                "publications",
+                                "patents",
+                                "testScores",
+                                "achievements",
+                                "volunteer",
+                                "custom",
+                                "contact"
+                              ]
+                            },
+                            "title": { "type": "string", "maxLength": 120 },
+                            "subtitle": { "type": "string", "maxLength": 240 },
+                            "visible": { "type": "boolean" },
+                            "items": {
+                              "maxItems": 24,
+                              "type": "array",
+                              "items": { "type": "object", "additionalProperties": {} }
+                            },
+                            "settings": { "type": "object", "additionalProperties": {} }
+                          },
+                          "required": ["id", "type", "title", "visible", "items"]
+                        }
+                      }
+                    },
+                    "required": ["id", "slug", "title", "sections"]
+                  }
+                },
+                "removeWatermark": { "type": "boolean" }
+              },
+              "required": [
+                "schemaVersion",
+                "templateId",
+                "identity",
+                "seo",
+                "socialLinks",
+                "sections"
+              ]
+            }
+          },
+          "required": ["subdomain", "snapshot"]
+        }
+      }
+    },
+    "GET /api/v1/portfolios/subdomains/{slug}/availability": {
+      "parameters": [
+        {
+          "name": "slug",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "minLength": 1, "maxLength": 63 }
+        }
+      ]
+    },
+    "POST /api/v1/portfolios/publish": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "documentId": { "type": "string", "minLength": 1 },
+            "subdomain": { "type": "string", "minLength": 1, "maxLength": 63 },
+            "revision": { "type": "integer", "minimum": 1 }
+          },
+          "required": ["documentId", "subdomain", "revision"]
+        }
+      }
+    },
+    "POST /api/v1/portfolio-assets/upload-url": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "kind": { "type": "string", "enum": ["AVATAR", "PROJECT_COVER", "SOCIAL_IMAGE"] },
+            "mimeType": { "type": "string", "minLength": 1 },
+            "sizeBytes": { "type": "integer", "exclusiveMinimum": 0 }
+          },
+          "required": ["kind", "mimeType", "sizeBytes"]
+        }
+      }
+    },
+    "POST /api/v1/portfolio-assets/complete": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "assetId": { "type": "string", "minLength": 1 },
+            "checksum": { "type": "string", "maxLength": 256 }
+          },
+          "required": ["assetId"]
+        }
+      }
+    },
+    "POST /api/v1/billing/checkout": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "productKey": {
+              "default": "portfolio_pro",
+              "type": "string",
+              "enum": ["ai_credits", "portfolio_pro", "bundle"]
+            },
+            "interval": { "type": "string", "enum": ["one_day", "seven_day", "monthly", "annual"] },
+            "redirectUrl": { "type": "string", "pattern": "^\\/(?!\\/)" }
+          },
+          "required": ["interval"]
+        }
+      }
+    },
+    "POST /api/v1/billing/credits/checkout": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "packKey": { "type": "string", "enum": ["credit_pack_250", "credit_pack_500"] },
+            "redirectUrl": { "type": "string", "pattern": "^\\/(?!\\/)" }
+          },
+          "required": ["packKey"]
+        }
+      }
+    },
+    "POST /api/v1/shares": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "documentId": { "type": "string", "minLength": 1 },
+            "snapshot": { "type": "object", "additionalProperties": {} },
+            "password": { "type": "string", "minLength": 1 },
+            "expiresAt": {
+              "anyOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }]
+            },
+            "noExpiry": { "type": "boolean" },
+            "updateSlug": { "type": "boolean" },
+            "removePassword": { "type": "boolean" }
+          },
+          "required": ["documentId", "snapshot"]
+        }
+      }
+    },
+    "GET /api/v1/shares/documents/shared-ids": {
+      "parameters": [
+        { "name": "ids", "in": "query", "required": false, "schema": { "type": "string" } }
+      ]
+    },
+    "GET /api/v1/shares/public/{username}/{slug}": {
+      "parameters": [
+        { "name": "username", "in": "path", "required": true, "schema": { "type": "string" } },
+        { "name": "slug", "in": "path", "required": true, "schema": { "type": "string" } }
+      ]
+    },
+    "POST /api/v1/shares/public/{username}/{slug}/verify": {
+      "parameters": [
+        { "name": "username", "in": "path", "required": true, "schema": { "type": "string" } },
+        { "name": "slug", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": { "password": { "type": "string", "minLength": 1 } },
+          "required": ["password"]
+        }
+      }
+    },
+    "POST /api/v1/affiliates/click": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "minLength": 4,
+              "maxLength": 32,
+              "pattern": "^[a-z0-9-]+$"
+            },
+            "referrerHost": { "type": "string", "maxLength": 255 }
+          },
+          "required": ["code"]
+        }
+      }
+    },
+    "POST /api/v1/affiliates/referral": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "code": { "type": "string", "minLength": 4, "maxLength": 32, "pattern": "^[a-z0-9-]+$" }
+          },
+          "required": ["code"]
+        }
+      }
+    },
+    "POST /api/v1/affiliates/withdrawals": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "amountCents": { "type": "integer", "minimum": 2500, "maximum": 10000000 }
+          },
+          "required": ["amountCents"]
+        }
+      }
+    },
+    "POST /api/v1/ambassador/apply": {
+      "requestBody": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "collegeName": { "type": "string", "minLength": 2, "maxLength": 120 },
+            "graduationYear": { "type": "string", "pattern": "^\\d{4}$" },
+            "whyJoin": { "type": "string", "minLength": 20, "maxLength": 1000 },
+            "superpower": { "type": "string", "minLength": 2, "maxLength": 160 },
+            "funFact": { "type": "string", "minLength": 2, "maxLength": 200 },
+            "vibeCheck": { "type": "string", "maxLength": 80 },
+            "socialHandle": { "type": "string", "maxLength": 100 }
+          },
+          "required": ["collegeName", "graduationYear", "whyJoin", "superpower", "funFact"]
+        }
+      }
+    }
+  },
+  "handWritten": {
+    "GET /api/v1/api-keys": "page/limit/offset are read leniently by parseOffsetPagination",
+    "GET /api/v1/shares/documents/{documentId}": "page/limit/offset are read leniently by parseOffsetPagination",
+    "GET /api/v1/affiliates/leaderboard": "period: anything but all_time means monthly",
+    "POST /api/v1/auth/email-otp/send-verification-otp": "Better Auth endpoint",
+    "POST /api/v1/auth/sign-in/email-otp": "Better Auth endpoint"
+  }
+}

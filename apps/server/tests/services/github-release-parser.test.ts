@@ -212,3 +212,132 @@ Intro.
     expect(samePullRequests([fromDb], [{ ...withAuthor, author: null }])).toBe(false);
   });
 });
+
+/**
+ * V-065: everything after the first bullet that did not start with [A-Z#] used to be glued onto
+ * the previous bullet, and GitHub's own "What's Changed" list all landed in `added`.
+ */
+describe("GitHub Release Body Parser, real-world markdown (V-065)", () => {
+  it("splits GitHub's generated notes by PR kind, drops the suffix and records the PR numbers", () => {
+    const rawMarkdown = `## What's Changed
+* [Feature] [Studio]: add cover letter templates by @Gautam25Raj in https://github.com/VeriWorkly/veriworkly/pull/230
+* fix(server): stop double-charging credits by @dev-two in https://github.com/VeriWorkly/veriworkly/pull/231
+* [Refactor] [Server]: split billing service by @Gautam25Raj in https://github.com/VeriWorkly/veriworkly/pull/232
+* [Security] [Server]: hash share passwords with scrypt by @Gautam25Raj in https://github.com/VeriWorkly/veriworkly/pull/234
+* Bump zod from 3.25.0 to 3.25.76 by @dependabot[bot] in https://github.com/VeriWorkly/veriworkly/pull/233
+
+## New Contributors
+* @dev-two made their first contribution in https://github.com/VeriWorkly/veriworkly/pull/231
+
+**Full Changelog**: https://github.com/VeriWorkly/veriworkly/compare/v3.30.0...v3.31.0
+`;
+
+    const result = parseReleaseBody(rawMarkdown);
+
+    expect(result.added).toEqual(["[Feature] [Studio]: add cover letter templates"]);
+    expect(result.fixed).toEqual(["fix(server): stop double-charging credits"]);
+    expect(result.improved).toEqual(["[Refactor] [Server]: split billing service"]);
+    expect(result.security).toEqual(["[Security] [Server]: hash share passwords with scrypt"]);
+    expect(result.pullRequests.map((pr) => pr.number)).toEqual([230, 231, 232, 234, 233]);
+    expect(result.pullRequests[0]).toEqual({
+      number: 230,
+      title: "[Feature] [Studio]: add cover letter templates",
+    });
+  });
+
+  it("keeps code fences, tables, images, bold sub-headers and <details> out of the bullets", () => {
+    const rawMarkdown = [
+      "## v3.31.0",
+      "",
+      "Faster studio and a new billing page.",
+      "",
+      "![banner](https://user-images.githubusercontent.com/1/banner.png)",
+      "",
+      "### ✨ Features",
+      "",
+      "- **Billing page**: see invoices and credit packs",
+      "  in one place.",
+      "- multi-currency pricing",
+      "  - INR and USD at launch",
+      "  - EUR later",
+      "- 2FA for admin accounts",
+      "",
+      "**Studio**",
+      "",
+      "- autosave now waits for typing to pause",
+      "",
+      "### 🐛 Fixes",
+      "",
+      "- Fixed the export crash:",
+      "",
+      "```bash",
+      "npm run db:generate",
+      "- not a bullet",
+      "```",
+      "",
+      "- 404 on shared links with trailing slashes",
+      "",
+      "| Endpoint | Before | After |",
+      "| --- | --- | --- |",
+      "| /documents | 900 ms | 120 ms |",
+      "",
+      "The share page also loads faster now.",
+      "",
+      "<details>",
+      "<summary>Internal notes</summary>",
+      "",
+      "- moved the queue to redis",
+      "",
+      "</details>",
+      "",
+      "### Breaking changes",
+      "",
+      "1. `POST /sync` now answers 202",
+      "2) the old `/v0` routes are gone",
+    ].join("\n");
+
+    const result = parseReleaseBody(rawMarkdown);
+
+    expect(result.summary).toBe("Faster studio and a new billing page.");
+    expect(result.added).toEqual([
+      "**Billing page**: see invoices and credit packs in one place.",
+      "multi-currency pricing: INR and USD at launch; EUR later",
+      "2FA for admin accounts",
+      "autosave now waits for typing to pause",
+    ]);
+    expect(result.fixed).toEqual([
+      "Fixed the export crash:",
+      "404 on shared links with trailing slashes",
+      "The share page also loads faster now.",
+    ]);
+    expect(result.breaking).toEqual([
+      "`POST /sync` now answers 202",
+      "the old `/v0` routes are gone",
+    ]);
+    expect(result.improved).toEqual([]);
+  });
+
+  it("files a bold sub-header's bullets under the category it names", () => {
+    const result = parseReleaseBody(
+      [
+        "## Release notes",
+        "",
+        "**Bug fixes**",
+        "- crash on save",
+        "",
+        "**Security**",
+        "- rotate keys",
+      ].join("\n"),
+    );
+
+    expect(result.fixed).toEqual(["crash on save"]);
+    expect(result.security).toEqual(["rotate keys"]);
+    expect(result.added).toEqual([]);
+  });
+
+  it("CRLF bodies parse the same as LF ones", () => {
+    const lf = "### Fixed\n- one\n  wrapped\n- two\n";
+    expect(parseReleaseBody(lf.replace(/\n/g, "\r\n"))).toEqual(parseReleaseBody(lf));
+    expect(parseReleaseBody(lf).fixed).toEqual(["one wrapped", "two"]);
+  });
+});

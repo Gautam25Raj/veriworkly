@@ -1,4 +1,4 @@
-export type ChangelogType = "major" | "minor" | "patch";
+import type { ChangelogType } from "#services/changelog/types";
 
 export function slugifyVersion(version: string): string {
   return `v${version

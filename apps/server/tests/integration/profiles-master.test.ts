@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 
@@ -19,6 +21,13 @@ function asUser(user: TestUser) {
     put: (url: string) =>
       request(app).put(url).set("Origin", STUDIO_ORIGIN).set("Cookie", user.cookie),
   };
+}
+
+/** The configured admin (env.ts sets ADMIN_EMAIL), created on first use. */
+let admin: TestUser | undefined;
+async function adminSession() {
+  admin ??= await createUserWithSession({ email: "admin@example.test" });
+  return admin;
 }
 
 function validProfile(fullName = "Jane Doe") {
@@ -176,5 +185,95 @@ describe("PUT /profiles/master validation (V-137)", () => {
       expect(typeof issue.message).toBe("string");
     }
     expect(await prisma.masterProfile.count({ where: { userId: user.id } })).toBe(0);
+  });
+});
+
+describe("GET /profiles/master after account changes (V-031)", () => {
+  it("shows a new name and auto-sync setting at once, not after the hour-long cache", async () => {
+    const user = await createUserWithSession({ name: "Old Name" });
+    const api = asUser(user);
+
+    expect(
+      (await api.put("/api/v1/profiles/master").send({ profile: validProfile() })).status,
+    ).toBe(200);
+
+    const before = await api.get("/api/v1/profiles/master");
+    expect(before.body.data.summary).toMatchObject({ name: "Old Name", autoSyncEnabled: true });
+
+    expect((await api.put("/api/v1/users/me/name").send({ name: "New Name" })).status).toBe(200);
+    expect((await api.get("/api/v1/profiles/master")).body.data.summary.name).toBe("New Name");
+
+    expect((await api.put("/api/v1/users/me/sync").send({ enabled: false })).status).toBe(200);
+    expect((await api.get("/api/v1/profiles/master")).body.data.summary.autoSyncEnabled).toBe(
+      false,
+    );
+  });
+
+  it("shows an admin's change of name or auto-sync at once too", async () => {
+    const user = await createUserWithSession({ name: "Before Admin" });
+    const api = asUser(user);
+    const admin = await adminSession();
+
+    await api.put("/api/v1/profiles/master").send({ profile: validProfile() });
+    expect((await api.get("/api/v1/profiles/master")).body.data.summary.name).toBe("Before Admin");
+
+    const patched = await request(app)
+      .patch(`/api/v1/admin/users/${user.id}`)
+      .set("Origin", STUDIO_ORIGIN)
+      .set("Cookie", admin.cookie)
+      .send({ name: "After Admin", autoSyncEnabled: false, reason: "support ticket" });
+    expect(patched.status).toBe(200);
+
+    expect((await api.get("/api/v1/profiles/master")).body.data.summary).toMatchObject({
+      name: "After Admin",
+      autoSyncEnabled: false,
+    });
+  });
+});
+
+describe("affiliate leaderboard after a rename", () => {
+  it("shows the new name or username at once, from the user or an admin", async () => {
+    const affiliate = await createUserWithSession({ name: "Leader Old", username: "leader-old" });
+    await prisma.user.update({
+      where: { id: affiliate.id },
+      data: { affiliateStatus: "ACTIVE", affiliateCode: `code${randomUUID().slice(0, 8)}` },
+    });
+    const referred = await createUserWithSession();
+    const referral = await prisma.affiliateReferral.create({
+      data: { affiliateId: affiliate.id, referredUserId: referred.id, code: "code" },
+    });
+    await prisma.affiliateCommission.create({
+      data: {
+        affiliateId: affiliate.id,
+        referralId: referral.id,
+        providerPaymentId: `pay_${randomUUID()}`,
+        amountCents: 900,
+        rateBps: 2_000,
+        status: "AVAILABLE",
+      },
+    });
+
+    const board = async () => {
+      const response = await request(app)
+        .get("/api/v1/affiliates/leaderboard?period=all_time")
+        .set("Origin", STUDIO_ORIGIN);
+      expect(response.status).toBe(200);
+      return response.body.data[0].user as { name: string; username: string };
+    };
+
+    expect(await board()).toMatchObject({ name: "Leader Old", username: "leader-old" });
+
+    const api = asUser(affiliate);
+    expect((await api.put("/api/v1/users/me/name").send({ name: "Leader New" })).status).toBe(200);
+    expect((await board()).name).toBe("Leader New");
+
+    const admin = await adminSession();
+    const patched = await request(app)
+      .patch(`/api/v1/admin/users/${affiliate.id}`)
+      .set("Origin", STUDIO_ORIGIN)
+      .set("Cookie", admin.cookie)
+      .send({ username: "leader-new", reason: "support ticket" });
+    expect(patched.status).toBe(200);
+    expect((await board()).username).toBe("leader-new");
   });
 });

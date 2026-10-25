@@ -459,7 +459,7 @@ describe("V-075 admin billing edits reconcile access", () => {
     expect(audits).toBe(1);
   });
 
-  it("an Idempotency-Key reused for a different request is a 409 and credits nobody", async () => {
+  it("an Idempotency-Key reused with a different amount is a 409; for another user it is a fresh adjustment", async () => {
     const userA = await createUserWithSession();
     const userB = await createUserWithSession();
     const key = `adj-${randomUUID()}`;
@@ -469,14 +469,6 @@ describe("V-075 admin billing edits reconcile access", () => {
       .send({ userId: userA.id, amount: 50, reason: "Support goodwill credit" });
     expect(first.status).toBe(200);
 
-    const otherUser = await asUser(
-      await admin(),
-      request(app).post("/api/v1/admin/billing/credits"),
-    )
-      .set("Idempotency-Key", key)
-      .send({ userId: userB.id, amount: 50, reason: "Support goodwill credit" });
-    expect(otherUser.status).toBe(409);
-
     const otherAmount = await asUser(
       await admin(),
       request(app).post("/api/v1/admin/billing/credits"),
@@ -485,8 +477,20 @@ describe("V-075 admin billing edits reconcile access", () => {
       .send({ userId: userA.id, amount: 75, reason: "Support goodwill credit" });
     expect(otherAmount.status).toBe(409);
 
-    expect(await prisma.creditWallet.findUnique({ where: { userId: userB.id } })).toBeNull();
+    // Request ids are scoped per user: the same key against another account is that account's
+    // own first request, not a collision with user A's (and never a 500).
+    const otherUser = await asUser(
+      await admin(),
+      request(app).post("/api/v1/admin/billing/credits"),
+    )
+      .set("Idempotency-Key", key)
+      .send({ userId: userB.id, amount: 50, reason: "Support goodwill credit" });
+    expect(otherUser.status).toBe(200);
+
     expect((await prisma.creditWallet.findUnique({ where: { userId: userA.id } }))?.balance).toBe(
+      50,
+    );
+    expect((await prisma.creditWallet.findUnique({ where: { userId: userB.id } }))?.balance).toBe(
       50,
     );
   });

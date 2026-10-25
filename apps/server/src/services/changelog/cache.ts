@@ -11,6 +11,8 @@ export const CHANGELOG_CACHE_KEYS = {
   STATS_NAMESPACE: "changelog:stats",
   RELEASE_SYNC_LOCK: "changelog:release-sync:lock",
   SYNC_MARKER: "changelog:release-sync:last-run",
+  /** The last run's status and outcome, for `GET /admin/changelog/sync` (V-080). */
+  SYNC_RUN: "changelog:release-sync:status",
 } as const;
 
 export function buildChangelogListCacheKey(

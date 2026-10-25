@@ -3,6 +3,8 @@ import OpenAI from "openai";
 import { config } from "#config";
 import { ApiError } from "#lib/errors";
 
+// One client per process: it holds a connection-pooling agent, so building one per request
+// would throw away keep-alive and pay a fresh TLS handshake on every generation.
 let client: OpenAI | null = null;
 
 export function createAiClient() {
@@ -17,14 +19,11 @@ export function createAiClient() {
     baseURL: config.ai.baseUrl,
     timeout: config.ai.timeoutMs,
     /**
-     * The SDK retries twice by default. Callers that wrap a retry loop around a request —
-     * `AtsAiService.analyze` does — would otherwise multiply the two together and bill every
-     * attempt: a policy asking for 2 retries becomes 9 provider calls, not 3, and the extra
-     * six are invisible because the SDK swallows them below the call site.
-     *
-     * Retrying is a caller decision here: only the caller knows whether a failure is worth
-     * paying to repeat, and `withRetries` already declines to repeat the ones that aren't.
-     * So the transport performs none of its own.
+     * The SDK retries twice by default. This client serves only `AiService.generate`, which
+     * makes one provider call per credit reservation; SDK retries would be billed by the
+     * provider without being charged or logged, and would run the request past its deadline.
+     * (The ATS AI path does not use this client: it calls the provider through the engine
+     * package's fetch adapter and runs its own retry loop.) So the transport retries nothing.
      */
     maxRetries: 0,
     defaultHeaders: config.ai.siteUrl ? { "HTTP-Referer": config.ai.siteUrl } : undefined,

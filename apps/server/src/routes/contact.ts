@@ -20,7 +20,9 @@ const contactSchema = z.object({
   website: z.string().optional().or(z.literal("")),
   // Client-side timestamp (ms) when the form was loaded. Required: while it was optional, a bot
   // skipped the timing check by leaving it out (V-046). Captcha is still open.
-  _ts: z.number({ required_error: "Form timestamp is required" }),
+  _ts: z.number({
+    error: (issue) => (issue.input === undefined ? "Form timestamp is required" : undefined),
+  }),
 });
 
 router.post("/", async (req, res) => {
@@ -32,7 +34,10 @@ router.post("/", async (req, res) => {
         createErrorResponse(
           400,
           "Validation failed",
-          parsed.error.errors.map((e) => ({ path: e.path.join("."), message: e.message })),
+          parsed.error.issues.map((e) => ({
+            path: e.path.map(String).join("."),
+            message: e.message,
+          })),
         ),
       );
       return;

@@ -1,4 +1,4 @@
-export interface MailLayoutOptions {
+interface MailLayoutOptions {
   title: string;
   preheader: string;
   bodyHtml: string;

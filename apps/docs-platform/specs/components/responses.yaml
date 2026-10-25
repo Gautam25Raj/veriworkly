@@ -1,9 +1,18 @@
 ValidationError:
-  description: Bad Request - The request body or parameters are invalid.
+  description: |
+    Bad Request - The request body or parameters are invalid. `details` lists every failing
+    field as `{ path, message }`, `path` being the dotted field path.
   content:
     application/json:
       schema:
         $ref: "./schemas.yaml#/ErrorResponse"
+      example:
+        success: false
+        statusCode: 400
+        message: "Validation failed"
+        details:
+          - path: "profile.basics.email"
+            message: "Invalid email"
 
 UnauthorizedError:
   description: Unauthorized - Authentication failed or session expired.

@@ -3,6 +3,7 @@ import { prisma } from "#lib/prisma";
 
 import { AFFILIATE_TIER_RATE_BPS, AFFILIATE_WALLET_CURRENCY } from "#services/affiliate/constants";
 import { invalidateAffiliate } from "#services/affiliate/cache";
+import { writeAdminAudit, type AdminAuditInput } from "#services/admin/adminAuditService";
 
 export const SHARED_ADDRESS_REASON = "Shared address with affiliate; review before release";
 
@@ -13,21 +14,24 @@ function normalizeCurrency(value: string | undefined) {
   return currency;
 }
 
-export async function createCommission(input: {
-  referredUserId: string;
-  subscriptionId?: string;
-  providerPaymentId: string;
-  purchaseAmountCents: number;
-  status: "PENDING" | "AVAILABLE";
-  reason?: string;
-  /** ISO 4217 code of `purchaseAmountCents`; defaults to the wallet currency (USD). */
-  currency?: string;
-  /**
-   * Manual conversion (admin only): the pending non-USD commission this USD commission replaces.
-   * The original is marked REVERSED in the same transaction so it cannot be converted twice.
-   */
-  convertedFromId?: string;
-}) {
+export async function createCommission(
+  input: {
+    referredUserId: string;
+    subscriptionId?: string;
+    providerPaymentId: string;
+    purchaseAmountCents: number;
+    status: "PENDING" | "AVAILABLE";
+    reason?: string;
+    /** ISO 4217 code of `purchaseAmountCents`; defaults to the wallet currency (USD). */
+    currency?: string;
+    /**
+     * Manual conversion (admin only): the pending non-USD commission this USD commission replaces.
+     * The original is marked REVERSED in the same transaction so it cannot be converted twice.
+     */
+    convertedFromId?: string;
+  },
+  audit?: AdminAuditInput,
+) {
   const referral = await prisma.affiliateReferral.findUnique({
     where: { referredUserId: input.referredUserId },
     include: { affiliate: { select: { affiliateTier: true, affiliateStatus: true } } },
@@ -110,6 +114,13 @@ export async function createCommission(input: {
             ? { pendingCents: { increment: amountCents } }
             : { availableCents: { increment: amountCents } },
       });
+    // A manual commission is money an admin is minting: its audit entry commits with it (V-074).
+    if (audit)
+      await writeAdminAudit(tx, {
+        ...audit,
+        targetId: commission.id,
+        metadata: { ...audit.metadata, amountCents, currency, status },
+      });
     return commission;
   });
   await invalidateAffiliate(referral.affiliateId, true);
@@ -126,10 +137,16 @@ export async function updateCommission(
   id: string,
   status: "AVAILABLE" | "REVERSED",
   reason?: string,
+  audit?: AdminAuditInput,
 ) {
   const result = await prisma.$transaction(async (tx) => {
     const commission = await tx.affiliateCommission.findUnique({ where: { id } });
     if (!commission) throw new ApiError(404, "Commission not found.");
+    // The affiliate deleted their account: the row stays as history, but there is no wallet
+    // left to release into, and nobody to pay.
+    const affiliateId = commission.affiliateId;
+    if (!affiliateId)
+      throw new ApiError(409, "This commission belongs to a deleted account and cannot change.");
 
     const inWalletCurrency = commission.currency === AFFILIATE_WALLET_CURRENCY;
     if (status === "AVAILABLE" && !inWalletCurrency)
@@ -153,7 +170,7 @@ export async function updateCommission(
     // Non-USD commissions were never added to the wallet, so there is nothing to move.
     if (inWalletCurrency) {
       const moved = await tx.affiliateWallet.updateMany({
-        where: { userId: commission.affiliateId, pendingCents: { gte: commission.amountCents } },
+        where: { userId: affiliateId, pendingCents: { gte: commission.amountCents } },
         data: {
           pendingCents: { decrement: commission.amountCents },
           ...(status === "AVAILABLE"
@@ -167,7 +184,13 @@ export async function updateCommission(
         throw new ApiError(409, "Wallet pending balance does not cover this commission.");
     }
 
-    return tx.affiliateCommission.findUniqueOrThrow({ where: { id } });
+    if (audit)
+      await writeAdminAudit(tx, {
+        ...audit,
+        metadata: { ...audit.metadata, status, amountCents: commission.amountCents },
+      });
+
+    return { ...(await tx.affiliateCommission.findUniqueOrThrow({ where: { id } })), affiliateId };
   });
   await invalidateAffiliate(result.affiliateId, true);
   return result;

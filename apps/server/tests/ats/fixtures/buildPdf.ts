@@ -9,7 +9,7 @@
  * `resources` is added to the page's resource dictionary, e.g. an inline `/ExtGState<<…>>`.
  * `info` is the body of the document Info dictionary, e.g. `/Keywords(…)`.
  * `extra` objects are numbered from 7 on, for resources that must be indirect: a form XObject,
- * an image XObject (`<</Type/XObject…>>\nstream\n…\nendstream`; see `stream`).
+ * an image XObject (`<</Type/XObject…>>\nstream\n…\nendstream`).
  */
 export function buildPdf(
   contentStream: string,
@@ -40,11 +40,6 @@ export function buildPdf(
   pdf += `trailer\n<</Size ${objects.length + 1}/Root 1 0 R/Info 6 0 R>>\nstartxref\n${xrefAt}\n%%EOF\n`;
 
   return Buffer.from(pdf, "latin1");
-}
-
-/** A stream object for `buildPdf`'s `extra`: `dictionary` without its `<<>>` or `/Length`. */
-export function stream(dictionary: string, content: string) {
-  return `<<${dictionary}/Length ${Buffer.byteLength(content, "latin1")}>>\nstream\n${content}\nendstream`;
 }
 
 /** One text-showing operator at an absolute page position, in points from the bottom left. */
@@ -81,21 +76,3 @@ export const RIGHT_COLUMN = [
   "Kafka RabbitMQ and streaming",
   "Education University of California",
 ];
-
-/** Draws a stroked `rows` x `cols` grid with text in every cell. */
-export function ruledTable(rows: number, cols: number) {
-  const [x0, y0, cellW, cellH] = [60, 380, 160, 40];
-  const ops = ["0.5 w"];
-
-  for (let row = 0; row <= rows; row += 1)
-    ops.push(`${x0} ${y0 + row * cellH} m ${x0 + cols * cellW} ${y0 + row * cellH} l S`);
-  for (let col = 0; col <= cols; col += 1)
-    ops.push(`${x0 + col * cellW} ${y0} m ${x0 + col * cellW} ${y0 + rows * cellH} l S`);
-  for (let row = 0; row < rows; row += 1)
-    for (let col = 0; col < cols; col += 1)
-      ops.push(
-        text(x0 + col * cellW + 8, y0 + (rows - row - 1) * cellH + 15, `cell ${row}${col} value`),
-      );
-
-  return ops.join("\n");
-}

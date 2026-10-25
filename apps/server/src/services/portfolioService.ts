@@ -4,6 +4,12 @@ import { randomUUID } from "node:crypto";
 import { config } from "#config";
 import { BILLING_SUSPENSION_REASONS, BillingService } from "#services/billingService";
 import { EntitlementService } from "#services/entitlementService";
+import { enforcedEntitlement } from "#services/entitlementEnforcement";
+import {
+  PortfolioAssetService,
+  referencedAssetIds,
+  USER_UNPUBLISHED_REASON,
+} from "#services/portfolioAssetService";
 import { ENTITLEMENT_KEYS } from "#services/productCatalog";
 
 import {
@@ -15,9 +21,10 @@ import {
 
 import { prisma } from "#lib/prisma";
 import { logger } from "#lib/logger";
-import { ApiError } from "#lib/errors";
+import { ApiError, handleValidationError } from "#lib/errors";
 import { normalizePortfolioSubdomain, portfolioSubdomainLookupKey } from "#utils/slugs";
 import { cacheGet, cacheSet, cacheDel, getRedis } from "#lib/redis";
+import { acquireJobLock } from "#lib/jobLock";
 import { bumpGeneration, singleFlight } from "#lib/cacheGeneration";
 import { cacheNamespaces, documentCacheNamespaces, userProfileCacheKey } from "#lib/cacheKeys";
 import { hashForAnalytics } from "#utils/analyticsHash";
@@ -28,6 +35,21 @@ import {
   portfolioContentSchema,
   type PortfolioContentInput,
 } from "#validators/portfolioValidator";
+
+/** The paid portfolio features, each checked below (V-142; see `entitlementEnforcement`). */
+const PORTFOLIO_PUBLISH = enforcedEntitlement(
+  ENTITLEMENT_KEYS.PORTFOLIO_PUBLISH,
+  "PortfolioService.publish (premium templates), getPublicPortfolio (premium rendering)",
+);
+const WATERMARK_REMOVAL = enforcedEntitlement(
+  ENTITLEMENT_KEYS.WATERMARK_REMOVAL,
+  "PortfolioService.publish (badge)",
+);
+const SEO_CONTROLS = enforcedEntitlement(
+  ENTITLEMENT_KEYS.SEO_CONTROLS,
+  "PortfolioService.publish (SEO block)",
+);
+const ANALYTICS = enforcedEntitlement(ENTITLEMENT_KEYS.ANALYTICS, "PortfolioService.getAnalytics");
 
 const VIEW_BUFFER_TTL_SECONDS = 14 * 24 * 60 * 60;
 const MAX_VIEW_BUFFER_FIELDS = 10_000;
@@ -56,10 +78,6 @@ const BUFFER_PORTFOLIO_VIEW_SCRIPT = `
   return 1
 `;
 
-const RELEASE_VIEW_FLUSH_LOCK_SCRIPT = `
-  if redis.call("GET", KEYS[1]) == ARGV[1] then return redis.call("DEL", KEYS[1]) end
-  return 0
-`;
 // The sitemap asks for everything; a bound keeps one unparameterised GET from streaming the table.
 const PUBLIC_LIST_MAX = 1000;
 
@@ -72,7 +90,6 @@ const PUBLIC_LIST_MAX = 1000;
  * (`adminPortfolioService.updatePublicationStatus`) lifts it.
  */
 export const MODERATION_SUSPENSION_PREFIX = "moderation:";
-export const USER_UNPUBLISHED_REASON = "user_unpublished";
 
 export function isModerationLocked(publication: {
   status: string;
@@ -168,27 +185,17 @@ export function resolveWatermarkFlag(
   return canRemoveWatermark ? requested === true : false;
 }
 
-function collectAssetIds(content: PortfolioContentInput) {
-  const ids = new Set<string>();
-  if (content.identity.avatar?.id) ids.add(content.identity.avatar.id);
-  if (content.seo.socialImage?.id) ids.add(content.seo.socialImage.id);
-
-  for (const section of content.sections) {
-    for (const item of section.items) {
-      const cover = item.coverImage;
-      if (
-        cover &&
-        typeof cover === "object" &&
-        "id" in cover &&
-        typeof cover.id === "string" &&
-        cover.id
-      ) {
-        ids.add(cover.id);
-      }
-    }
-  }
-
-  return [...ids];
+/**
+ * The SEO block (meta title, description, social image) is a paid control (`seo_controls`,
+ * V-142). Without it the published snapshot carries the empty block, and the public page
+ * falls back to the name and bio as it does for any portfolio that never set one. The draft
+ * keeps what the user typed, so it goes live as soon as they upgrade and republish.
+ */
+export function resolveSeo(
+  requested: PortfolioContentInput["seo"],
+  canControlSeo: boolean,
+): PortfolioContentInput["seo"] {
+  return canControlSeo ? requested : { title: "", description: "", socialImage: null };
 }
 
 export class PortfolioService {
@@ -269,7 +276,7 @@ export class PortfolioService {
             // pass, MANUAL comp), the same predicate `canPublish` uses.
             entitlementGrants: {
               where: {
-                key: ENTITLEMENT_KEYS.PORTFOLIO_PUBLISH,
+                key: PORTFOLIO_PUBLISH,
                 startsAt: { lte: now },
                 revokedAt: null,
                 OR: [{ endsAt: null }, { endsAt: { gt: now } }],
@@ -395,15 +402,16 @@ export class PortfolioService {
       await ownedSubdomains(userId, input.documentId),
     );
 
+    // `content` too: the images the body being replaced referenced are released after the save.
     const existing = input.documentId
       ? await prisma.document.findFirst({
           where: { id: input.documentId, userId, type: "PORTFOLIO", deletedAt: null },
-          select: { id: true, revision: true },
+          select: { id: true, revision: true, content: true },
         })
       : await prisma.document.findFirst({
           where: { userId, type: "PORTFOLIO", deletedAt: null },
           orderBy: { updatedAt: "desc" },
-          select: { id: true, revision: true },
+          select: { id: true, revision: true, content: true },
         });
 
     if (input.documentId && !existing) throw new ApiError(404, "Portfolio draft not found.");
@@ -459,6 +467,13 @@ export class PortfolioService {
         cacheDel(userProfileCacheKey(userId)),
       ]);
 
+      // A replaced avatar or cover is deleted once nothing references it (V-045).
+      if (existing)
+        await PortfolioAssetService.releaseReplacedAssets(
+          userId,
+          referencedAssetIds(existing.content),
+        );
+
       return document;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")
@@ -475,8 +490,7 @@ export class PortfolioService {
     userId: string,
     input: { documentId: string; subdomain: string; revision: number },
   ) {
-    const billing = await BillingService.getSummary(userId);
-    const hasSubscription = billing.canPublish;
+    const hasSubscription = await EntitlementService.has(userId, PORTFOLIO_PUBLISH);
 
     const document = await prisma.document.findFirst({
       where: { id: input.documentId, userId, type: "PORTFOLIO", deletedAt: null },
@@ -497,7 +511,14 @@ export class PortfolioService {
 
     const existingPublication = await prisma.portfolioPublication.findUnique({
       where: { userId },
-      select: { documentId: true, subdomain: true, status: true, suspensionReason: true },
+      select: {
+        documentId: true,
+        subdomain: true,
+        status: true,
+        suspensionReason: true,
+        // The images the snapshot being replaced shows are released after the publish.
+        snapshot: true,
+      },
     });
 
     const subdomain = normalizeSubdomain(
@@ -510,14 +531,16 @@ export class PortfolioService {
     const publishable = portfolioContentSchema.safeParse(document.content);
 
     if (!publishable.success) {
+      // The standard `[{ path, message }]` details (V-135), not zod's `flatten()` shape.
       throw new ApiError(
         400,
         "Complete the required portfolio details before publishing.",
-        publishable.error.flatten(),
+        handleValidationError(publishable.error).details,
       );
     }
 
-    const assetIds = collectAssetIds(publishable.data);
+    // Every image the body shows, extra pages included (the same walk the asset cleanup uses).
+    const assetIds = [...referencedAssetIds(publishable.data)];
     if (assetIds.length) {
       const ownedAssets = await prisma.portfolioAsset.count({
         where: { id: { in: assetIds }, userId, status: "READY" },
@@ -526,15 +549,16 @@ export class PortfolioService {
         throw new ApiError(400, "Portfolio contains an unavailable or invalid image.");
     }
 
-    // See resolveWatermarkFlag: the posted value is a request, not a fact.
-    const canRemoveWatermark = await EntitlementService.has(
-      userId,
-      ENTITLEMENT_KEYS.WATERMARK_REMOVAL,
-    );
+    // See resolveWatermarkFlag and resolveSeo: the posted values are requests, not facts.
+    const [canRemoveWatermark, canControlSeo] = await Promise.all([
+      EntitlementService.has(userId, WATERMARK_REMOVAL),
+      EntitlementService.has(userId, SEO_CONTROLS),
+    ]);
 
     const snapshot: PortfolioContentInput = {
       ...publishable.data,
       removeWatermark: resolveWatermarkFlag(publishable.data.removeWatermark, canRemoveWatermark),
+      seo: resolveSeo(publishable.data.seo, canControlSeo),
     };
 
     if (existingPublication && isModerationLocked(existingPublication))
@@ -591,6 +615,13 @@ export class PortfolioService {
       ]);
 
       void revalidatePublicPortfolios(subdomains);
+
+      // Images only the replaced snapshot showed are deleted now (V-045).
+      if (existingPublication)
+        await PortfolioAssetService.releaseReplacedAssets(
+          userId,
+          referencedAssetIds(existingPublication.snapshot),
+        );
 
       const publicUrl =
         config.nodeEnv === "development"
@@ -724,12 +755,11 @@ export class PortfolioService {
 
     // Serialize flush attempts for this date so a manual admin retry overlapping the cron tick
     // (or a rolling deploy briefly running two worker processes) can't race the same batch id and
-    // permanently discard that day's buffered views on a unique-constraint rollback.
-    const lockToken = randomUUID();
-    const lockAcquired =
-      (await redis.set(lockKey, lockToken, { NX: true, EX: VIEW_FLUSH_LOCK_SECONDS })) === "OK";
+    // permanently discard that day's buffered views on a unique-constraint rollback. A token
+    // lock, renewed while the flush runs and released by compare-and-delete (V-127).
+    const lock = await acquireJobLock(lockKey, { ttlMs: VIEW_FLUSH_LOCK_SECONDS * 1000 });
 
-    if (!lockAcquired) return { dateKey, flushedCount: 0, skipped: true as const };
+    if (!lock) return { dateKey, flushedCount: 0, skipped: true as const };
 
     try {
       if (!(await redis.exists(processingKey))) {
@@ -831,6 +861,19 @@ export class PortfolioService {
       if (staleCount > 0)
         logger.warn("Discarded portfolio views for deleted publications", { staleCount });
 
+      // Committed. A runner that took the lock over meanwhile may be reading `:processing`;
+      // deleting it and the batch id under them would let them commit these views again under
+      // a fresh id. They finish the cleanup (their retry hits the batch row and confirms it).
+      if (!(await lock.stillOwner())) {
+        logger.warn(
+          "Views flush lost its lock after committing; leaving Redis cleanup to the holder",
+          {
+            dateKey,
+          },
+        );
+        return { dateKey, flushedCount };
+      }
+
       if (!(await redis.exists(pendingAdjustedKey))) {
         const adjustment = redis.multi();
         for (const [pendingKey, count] of pendingAdjustments) {
@@ -843,9 +886,7 @@ export class PortfolioService {
       await redis.del([processingKey, batchKey, pendingAdjustedKey]);
       return { dateKey, flushedCount };
     } finally {
-      await redis
-        .eval(RELEASE_VIEW_FLUSH_LOCK_SCRIPT, { keys: [lockKey], arguments: [lockToken] })
-        .catch(() => {});
+      await lock.release();
     }
   }
 
@@ -853,10 +894,10 @@ export class PortfolioService {
     // Visitor analytics is a Creator Pro feature. This is the enforcement point — the
     // dashboard's lock overlay is presentation only, so without this check the numbers
     // were still serialized into the page (and readable straight off the endpoint) for
-    // every free account. `canPublish` is the same entitlement the publish path gates on.
-    const billing = await BillingService.getSummary(userId);
-
-    if (!billing.canPublish) return { locked: true, totalViews: 0, daily: [], referrers: [] };
+    // every free account. Gated on the `analytics` grant itself (V-142), which every
+    // portfolio plan carries alongside `portfolio_publish`.
+    if (!(await EntitlementService.has(userId, ANALYTICS)))
+      return { locked: true, totalViews: 0, daily: [], referrers: [] };
 
     const publication = await prisma.portfolioPublication.findUnique({
       where: { userId },

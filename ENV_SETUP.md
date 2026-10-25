@@ -6,28 +6,23 @@ VeriWorkly uses a multi-app monorepo structure where each application and the ro
 
 ## 🔑 Workspace Environment Configurations
 
-### 1. Root Monorepo (`.env`)
+### 1. Root (`.env`)
 
-- `NODE_ENV`: Runtime environment (`development`, `production`, `test`).
-- `PORT`: Port bindings for multi-workspace coordination.
+The root `.env.example` lists shared frontend values (`SITE_URL`, `NEXT_PUBLIC_BACKEND_URL`, `BACKEND_INTERNAL_URL`, `ADMIN_EMAIL`, `AUTH_SECRET`). `.env.docker.example` is the template for the variables `compose.yaml` interpolates.
 
 ### 2. Backend Server (`apps/server/.env`)
 
-- `DATABASE_URL`: PostgreSQL connection string (supports Neon / Supabase / local PostgreSQL).
-- `AUTH_SECRET`: Random 32+ character secure secret for Better-Auth encryption.
-- `REDIS_URL`: **Required.** Backs Better-Auth secondary session storage, API rate limiting, ATS and profile import quotas, view count buffers, and distributed cron job locks.
-- `AUTH_SMTP_HOST`, `AUTH_SMTP_PORT`, `AUTH_SMTP_USER`, `AUTH_SMTP_PASS`, `AUTH_SMTP_FROM`: SMTP credentials for passwordless email OTP authentication.
-- `ADMIN_EMAIL`: Email address of the administrative superuser.
-- `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_WEBHOOK_KEY`: Dodo Payments API and webhook credentials.
-- `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`: Cloudflare R2 bucket credentials for portfolio media asset uploads.
-- `AI_GATEWAY_AUTH_TOKEN`: Private API token for frontier LLM routing.
+The server validates its environment at boot and refuses to start in production when a variable is missing or unsafe. The variables, their defaults and the production rules are documented in one place, next to the code:
+
+- [`apps/server/.env.example`](apps/server/.env.example): every variable, with comments.
+- [`apps/server/README.md`](apps/server/README.md): setup, migrations, Redis and database sizing.
 
 ### 3. Builder Studio (`apps/studio/.env`)
 
 - `SITE_URL`: Marketing site base URL (default: `http://localhost:3000`).
 - `NEXT_PUBLIC_BACKEND_URL`: Public API endpoint for browser calls (default: `http://localhost:8080/api/v1`).
 - `BACKEND_INTERNAL_URL`: Server-side API endpoint for Next.js SSR requests (default: `http://localhost:8080/api/v1`).
-- `NEXT_PUBLIC_PORTFOLIO_URL`: Portfolio builder workspace URL (default: `http://localhost:3004`).
+- `NEXT_PUBLIC_APP_URL`: Public origin of the studio, used for Open Graph image URLs (default: `http://localhost:3001`).
 - `ADMIN_EMAIL`: Matches server admin email for admin UI surfaces.
 - `AUTH_SECRET`: Matches server auth secret.
 
@@ -43,7 +38,7 @@ VeriWorkly uses a multi-app monorepo structure where each application and the ro
 ### 5. Portfolio Builder (`apps/portfolio/.env`)
 
 - `SITE_URL`: Public origin for portfolio app (default: `http://localhost:3004`).
-- `NEXT_PUBLIC_PORTFOLIO_URL`: Studio app URL (default: `http://localhost:3001`).
+- `NEXT_PUBLIC_APP_URL`: Public origin of the portfolio app, used for Open Graph image URLs (default: `http://localhost:3004`).
 - `NEXT_PUBLIC_BACKEND_URL`: Public API endpoint (default: `http://localhost:8080/api/v1`).
 - `BACKEND_INTERNAL_URL`: Server-side API endpoint (default: `http://localhost:8080/api/v1`).
 - `ADMIN_EMAIL`: Admin email for checkout/publish staging gate bypass.

@@ -12,6 +12,3 @@ export const importLinkedinSchema = z.object({
     .min(10, "LinkedIn profile text must be at least 10 characters long"),
   replaceMaster: z.boolean().default(false),
 });
-
-export type ImportGithubInput = z.infer<typeof importGithubSchema>;
-export type ImportLinkedinInput = z.infer<typeof importLinkedinSchema>;

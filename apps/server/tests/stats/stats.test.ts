@@ -39,6 +39,7 @@ vi.mock("#config", () => ({
       workers: 1,
     },
   },
+  isProduction: false,
 }));
 
 describe("stats events endpoint validation and auth", () => {

@@ -295,7 +295,38 @@ const resumeDataSchemaBase = z
   })
   .passthrough();
 
-const resumeDataInputSchema = resumeDataSchemaBase.deepPartial();
+/**
+ * zod 3's `.deepPartial()`, which zod 4 removed: every object key at every depth becomes
+ * optional, through arrays, optionals and nullables, and an object keeps its unknown-key mode.
+ *
+ * A defaulted field loses its default here. zod 3 wrapped it as `optional(default(x))`, which
+ * left an absent key absent; zod 4 would fill it in, and `normalizeResumeData` has to see which
+ * keys the stored payload really carried.
+ */
+function deepPartial(schema: z.ZodType): z.ZodType {
+  if (schema instanceof z.ZodObject) {
+    const shape = Object.fromEntries(
+      Object.entries(schema.shape as Record<string, z.ZodType>).map(([key, field]) => [
+        key,
+        // A defaulted field is unwrapped but its inner object is not deep-partialled, as in zod 3.
+        field instanceof z.ZodDefault
+          ? (field.unwrap() as z.ZodType).optional()
+          : deepPartial(field).optional(),
+      ]),
+    );
+    const catchall = schema.def.catchall;
+
+    return catchall ? z.object(shape).catchall(catchall) : z.object(shape);
+  }
+
+  if (schema instanceof z.ZodArray) return z.array(deepPartial(schema.element as z.ZodType));
+  if (schema instanceof z.ZodOptional) return deepPartial(schema.unwrap() as z.ZodType).optional();
+  if (schema instanceof z.ZodNullable) return deepPartial(schema.unwrap() as z.ZodType).nullable();
+
+  return schema;
+}
+
+const resumeDataInputSchema = deepPartial(resumeDataSchemaBase);
 
 export interface ResumeCollection {
   version: 1;

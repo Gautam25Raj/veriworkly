@@ -38,14 +38,15 @@ const INTEGER_VARIABLES: Record<string, { min: number; max?: number }> = {
   DB_IDLE_IN_TRANSACTION_TIMEOUT_MS: { min: 1 },
 
   AUTH_SESSION_TTL_SECONDS: { min: 1 },
-  AUTH_SESSION_RESET_TTL_ON_USE: { min: 0 },
+  AUTH_SESSION_RESET_TTL_ON_USE: { min: 1 },
   AUTH_SESSION_CACHE_MAX_AGE_SECONDS: { min: 1 },
   AUTH_OTP_TTL_SECONDS: { min: 1 },
   AUTH_OTP_ALLOWED_ATTEMPTS: { min: 1 },
   AUTH_SMTP_PORT: { min: 1, max: 65535 },
 
-  API_KEY_AUTH_CACHE_TTL_SECONDS: { min: 0 },
-  API_KEY_LAST_USED_TOUCH_INTERVAL_SECONDS: { min: 0 },
+  // 0 is refused: both are Redis expiries (SET EX 0 is an error).
+  API_KEY_AUTH_CACHE_TTL_SECONDS: { min: 1 },
+  API_KEY_LAST_USED_TOUCH_INTERVAL_SECONDS: { min: 1 },
   API_KEY_DEFAULT_RATE_LIMIT: { min: 1 },
   API_KEY_MAX_RATE_LIMIT: { min: 1 },
   API_KEY_DEFAULT_LIFETIME_DAYS: { min: 1 },
@@ -77,7 +78,6 @@ const INTEGER_VARIABLES: Record<string, { min: number; max?: number }> = {
 
   ROADMAP_CACHE_TTL_SECONDS: { min: 1 },
   ROADMAP_STATS_CACHE_TTL_SECONDS: { min: 1 },
-  ROADMAP_TAGS_CACHE_TTL_SECONDS: { min: 1 },
   GITHUB_STATS_CACHE_TTL_SECONDS: { min: 1 },
   CHANGELOG_CACHE_TTL_SECONDS: { min: 1 },
   USAGE_METRICS_REDIS_RETENTION_DAYS: { min: 1 },
@@ -387,7 +387,7 @@ function validateProduction(env: RawEnv, ctx: z.RefinementCtx): void {
   }
 }
 
-export const environmentSchema = z
+const environmentSchema = z
   .object({
     NODE_ENV: z
       .string()
@@ -431,7 +431,7 @@ function normalizeEnv(env: RawEnv): RawEnv {
   return normalized;
 }
 
-export function formatEnvironmentIssues(issues: z.ZodIssue[]): string {
+function formatEnvironmentIssues(issues: z.ZodIssue[]): string {
   const lines = issues.map((issue) => `  - ${String(issue.path[0] ?? "(env)")}: ${issue.message}`);
   const noun = issues.length === 1 ? "problem" : "problems";
 

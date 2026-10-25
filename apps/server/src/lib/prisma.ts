@@ -5,7 +5,7 @@ import pg from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
-import { config } from "#config";
+import { config, isProduction } from "#config";
 
 import { logger } from "./logger.js";
 
@@ -13,8 +13,6 @@ function parsePositiveInt(value: string | undefined, fallback: number) {
   const parsed = Number.parseInt(value ?? "", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
-
-const isProduction = process.env.NODE_ENV === "production";
 
 /**
  * A transaction left open by a crashed request would otherwise hold its locks and a pool slot
@@ -44,7 +42,7 @@ export function idleInTransactionTimeoutOption(env: NodeJS.ProcessEnv = process.
 // Read defensively: this is a sizing hint, and the database layer must not fail to load because
 // of it. Falling back to a single worker only ever under-commits the pool, which degrades
 // throughput rather than taking the process down.
-export const clusterWorkerCount =
+const clusterWorkerCount =
   config.server?.clusteringEnabled && config.server.workers > 0 ? config.server.workers : 1;
 
 const clusterPoolBudget = parsePositiveInt(process.env.DB_POOL_MAX_TOTAL, isProduction ? 80 : 10);
@@ -143,7 +141,7 @@ export const prisma =
     log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
   });
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+if (!isProduction) globalForPrisma.prisma = prisma;
 
 export async function closePrisma() {
   try {
@@ -153,5 +151,3 @@ export async function closePrisma() {
     logger.error("Error closing Prisma connections", error);
   }
 }
-
-export default prisma;

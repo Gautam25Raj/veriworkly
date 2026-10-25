@@ -15,7 +15,6 @@ import { ShareService } from "#services/shareService";
 import { prisma } from "#lib/prisma";
 import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
-import { assertDocumentNotPurged, PURGED_DOCUMENT_CONTENT } from "#jobs/retentionJob";
 import { buildUniqueSlugHelper } from "#utils/slugs";
 import { cacheGet, cacheSet, cacheDel } from "#lib/redis";
 import { bumpGeneration, resolveGenerationalKey } from "#lib/cacheGeneration";
@@ -38,7 +37,7 @@ const MAX_DOCUMENTS_PER_LIST = 500;
  */
 const SYNC_CURSOR_SLACK_MS = 5_000;
 
-export type DocumentCreateInput = {
+type DocumentCreateInput = {
   id?: string;
   type: DocumentType;
   title?: string;
@@ -50,7 +49,7 @@ export type DocumentCreateInput = {
   visibility?: Visibility;
 };
 
-export type DocumentUpdateInput = {
+type DocumentUpdateInput = {
   title?: string;
   slug?: string;
   updateShareSlug?: boolean;
@@ -62,7 +61,7 @@ export type DocumentUpdateInput = {
   revision: number;
 };
 
-export type DocumentListItem = {
+type DocumentListItem = {
   id: string;
   type: DocumentType;
   title: string;
@@ -299,16 +298,6 @@ export class DocumentService {
    * If content is not provided, it attempts to seed from MasterProfile.
    */
 
-  /** `client` keeps the entitlement count on the caller's transaction connection. */
-  static async isPaidUser(userId: string, client: Prisma.TransactionClient = prisma) {
-    const at = new Date();
-
-    return (
-      (await EntitlementService.has(userId, "ai_credits", at, client)) ||
-      (await EntitlementService.has(userId, "portfolio_publish", at, client))
-    );
-  }
-
   /**
    * Free users keep one active document per type. Callers that do expensive work before the
    * insert (the imports) use this as a pre-check; the authoritative check runs again inside the
@@ -319,7 +308,8 @@ export class DocumentService {
     type: DocumentType,
     client: Prisma.TransactionClient = prisma,
   ) {
-    if (await this.isPaidUser(userId, client)) return;
+    // `client` keeps the entitlement count on the caller's transaction connection.
+    if (await EntitlementService.isPaid(userId, new Date(), client)) return;
 
     const activeCount = await client.document.count({
       where: { userId, type, deletedAt: null },
@@ -555,7 +545,12 @@ export class DocumentService {
   }
 
   /**
-   * Update a document with optimistic concurrency control (revision check)
+   * Update a document with optimistic concurrency control (revision check).
+   *
+   * Answers with the row minus `content` and `metadata` (V-028). Every autosave sends the whole
+   * body, up to 1 MB, and echoing it back doubled the transfer for nothing: the studio reads
+   * `id`, `revision`, `updatedAt` and `lastSyncedAt` from the reply and keeps its own copy of the
+   * body. `title`, `slug` and `templateId` stay, because a rename or template switch changes them.
    */
 
   static async updateDocument(userId: string, documentId: string, input: DocumentUpdateInput) {
@@ -656,6 +651,9 @@ export class DocumentService {
             revision: { increment: 1 },
             lastSyncedAt: new Date(),
           },
+
+          // Not read back from Postgres either: the reply never carries them.
+          omit: { content: true, metadata: true },
         });
 
         if (shareLinkSlugUpdate) {
@@ -674,7 +672,7 @@ export class DocumentService {
         ...(shareLinkSlugUpdate ? [cacheNamespaces.shareList(userId)] : []),
       );
 
-      return withMigratedContent(updated);
+      return updated;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
         // A soft-deleted document is "not found" to a writer, whatever revision it carries.
@@ -769,6 +767,8 @@ export class DocumentService {
     await bumpGeneration(
       ...documentCacheNamespaces(userId, documentId),
       cacheNamespaces.sharedDocumentIds(userId),
+      // The share list leaves out links on soft-deleted documents (V-030).
+      cacheNamespaces.shareList(userId),
       ...(existing.user?.username && existing.shareLinks.length > 0
         ? [cacheNamespaces.publicShare(existing.user.username)]
         : []),
@@ -778,87 +778,6 @@ export class DocumentService {
       await invalidatePublicPortfolioCaches([livePublication.subdomain]);
       void revalidatePublicPortfolios([livePublication.subdomain]);
     }
-
-    return document;
-  }
-
-  /**
-   * Restore a soft-deleted document
-   */
-
-  static async restoreDocument(userId: string, documentId: string) {
-    const docWithShares = await prisma.document.findFirst({
-      where: { id: documentId, userId },
-      select: {
-        content: true,
-        user: { select: { username: true } },
-        shareLinks: { select: { slug: true } },
-      },
-    });
-
-    // Refuses a document the retention job has already purged (see assertDocumentNotPurged).
-    if (docWithShares) assertDocumentNotPurged(docWithShares);
-
-    // Conditional, so a purge that lands between the read above and this write wins: the restore
-    // then answers 410 instead of bringing back the marker as the document's content.
-    const restored = await prisma.document.updateMany({
-      where: {
-        id: documentId,
-        userId,
-        deletedAt: { not: null },
-        NOT: { content: { equals: PURGED_DOCUMENT_CONTENT as Prisma.InputJsonObject } },
-      },
-      data: { deletedAt: null },
-    });
-
-    const document = await prisma.document.findFirst({ where: { id: documentId, userId } });
-    if (!document) throw new ApiError(404, "Document not found");
-    // Nothing restored: either it was not deleted (a no-op, as before) or it was purged meanwhile.
-    if (restored.count === 0) assertDocumentNotPurged(document);
-
-    await bumpGeneration(
-      ...documentCacheNamespaces(userId, documentId),
-      cacheNamespaces.sharedDocumentIds(userId),
-      ...(docWithShares?.user?.username && docWithShares.shareLinks.length > 0
-        ? [cacheNamespaces.publicShare(docWithShares.user.username)]
-        : []),
-    );
-
-    return document;
-  }
-
-  /**
-   * Permanently delete a document
-   */
-
-  static async hardDeleteDocument(userId: string, documentId: string) {
-    const docWithShares = await prisma.document.findFirst({
-      where: { id: documentId, userId },
-      select: {
-        user: { select: { username: true } },
-        shareLinks: { select: { slug: true } },
-      },
-    });
-
-    let document;
-    try {
-      document = await prisma.document.delete({
-        where: { id: documentId, userId },
-      });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025")
-        throw new ApiError(404, "Document not found");
-      throw error;
-    }
-
-    await bumpGeneration(
-      ...documentCacheNamespaces(userId, documentId),
-      cacheNamespaces.sharedDocumentIds(userId),
-      ...(docWithShares?.user?.username && docWithShares.shareLinks.length > 0
-        ? [cacheNamespaces.publicShare(docWithShares.user.username)]
-        : []),
-    );
-    await cacheDel(userProfileCacheKey(userId));
 
     return document;
   }

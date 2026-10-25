@@ -21,9 +21,7 @@ export class ProfileImportQuotaService {
    * Free users get once a month for LinkedIn, once a day for GitHub.
    */
   static async checkQuota(userId: string, provider: "linkedin" | "github") {
-    const isPaid =
-      (await EntitlementService.has(userId, "ai_credits")) ||
-      (await EntitlementService.has(userId, "portfolio_publish"));
+    const isPaid = await EntitlementService.isPaid(userId);
 
     if (isPaid) {
       return {
@@ -136,9 +134,7 @@ export class ProfileImportQuotaService {
    * (`consumeFreeQuota`), so a failed fetch or AI call never burns the month's import.
    */
   static async assertQuotaAvailable(userId: string, provider: "linkedin" | "github") {
-    const isPaid =
-      (await EntitlementService.has(userId, "ai_credits")) ||
-      (await EntitlementService.has(userId, "portfolio_publish"));
+    const isPaid = await EntitlementService.isPaid(userId);
 
     if (isPaid) return;
 

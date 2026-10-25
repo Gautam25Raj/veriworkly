@@ -1,9 +1,5 @@
 export type {
   ChangelogType,
-  ChangelogQuery,
-  ChangelogListResult,
-  ChangelogContributor,
-  ChangelogStatsResult,
   ChangelogAdminCreateInput,
   ChangelogAdminUpdateInput,
 } from "./types.js";

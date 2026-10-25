@@ -5,7 +5,9 @@ import { Prisma } from "@prisma/client";
 import { config } from "#config";
 
 import { ApiError } from "#lib/errors";
+import { logger } from "#lib/logger";
 import { prisma } from "#lib/prisma";
+import { acquireJobLock } from "#lib/jobLock";
 import { cacheDel, cacheGet, cacheSet, getRedis } from "#lib/redis";
 
 /**
@@ -195,10 +197,10 @@ export async function flushUsageMetricsForDate(date: Date) {
   // Serialize flush attempts for this date so a manual admin retry overlapping the cron tick (or
   // a rolling deploy briefly running two worker processes) can't both compute a pre-transaction
   // entry count and then have one of them silently discard data on a unique-constraint rollback.
-  const lockAcquired =
-    (await redis.set(lockKey, "1", { NX: true, EX: FLUSH_LOCK_TTL_SECONDS })) === "OK";
+  // A token lock, renewed while the flush runs and released by compare-and-delete (V-127).
+  const lock = await acquireJobLock(lockKey, { ttlMs: FLUSH_LOCK_TTL_SECONDS * 1000 });
 
-  if (!lockAcquired) {
+  if (!lock) {
     return { dateKey, flushedEvents: 0, skipped: true as const };
   }
 
@@ -269,12 +271,26 @@ export async function flushUsageMetricsForDate(date: Date) {
       if (!existingBatch) throw error;
     }
 
+    // The batch is committed. If the lock was lost meanwhile, another runner may already be
+    // reading `:processing`; deleting it and the batch id under them would let them commit the
+    // same counts again under a fresh id. They finish the cleanup (their retry hits the batch
+    // row and confirms it); this run only reports what it flushed.
+    if (!(await lock.stillOwner())) {
+      logger.warn(
+        "Usage flush lost its lock after committing; leaving Redis cleanup to the holder",
+        {
+          dateKey,
+        },
+      );
+      return { dateKey, flushedEvents: entries.length };
+    }
+
     await redis.del([processingKey, batchKey]);
     await cacheDel("admin:dashboard:stats");
 
     return { dateKey, flushedEvents: entries.length };
   } finally {
-    await redis.del(lockKey).catch(() => {});
+    await lock.release();
   }
 }
 

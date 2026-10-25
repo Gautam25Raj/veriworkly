@@ -2,7 +2,7 @@ import { AtsPolicyError } from "@veriworkly/ats-engine";
 import type { AtsEnginePolicy, AtsEnginePolicyInput } from "@veriworkly/ats-engine";
 import { BUILT_IN_LOCALES, withLocales } from "@veriworkly/ats-engine/locales";
 
-import { config } from "#config";
+import { isProduction } from "#config";
 import { getAtsEnginePolicyJson } from "#services/aiPrivateConfig";
 import { ApiError } from "#lib/errors";
 import { logger } from "#lib/logger";
@@ -30,7 +30,7 @@ let cached: AtsEnginePolicy | null = null;
  * start, with the offending field named in the log above.
  */
 export function validateAtsEngineRuntimeConfig() {
-  if (config.nodeEnv === "production") getAtsEnginePolicy();
+  if (isProduction) getAtsEnginePolicy();
 }
 
 export function getAtsEnginePolicy(): AtsEnginePolicy {

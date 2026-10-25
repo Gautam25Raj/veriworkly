@@ -1741,6 +1741,76 @@ DocumentResponse:
     data:
       $ref: "#/Document"
 
+DocumentUpdateResponse:
+  type: object
+  required: [success, message, data]
+  properties:
+    success:
+      type: boolean
+    message:
+      type: string
+    data:
+      $ref: "#/DocumentUpdateResult"
+
+DocumentUpdateResult:
+  type: object
+  description: |
+    The updated document without `content` and `metadata`: an update sends the whole body, so it
+    is not echoed back. `GET /documents/{id}` returns them.
+  required:
+    - id
+    - userId
+    - type
+    - title
+    - slug
+    - tags
+    - templateId
+    - schemaVersion
+    - revision
+    - visibility
+    - createdAt
+    - updatedAt
+  properties:
+    id:
+      type: string
+    userId:
+      type: string
+    type:
+      type: string
+      enum: [RESUME, COVER_LETTER, PORTFOLIO, LINK_IN_BIO]
+    title:
+      type: string
+    slug:
+      type: string
+    tags:
+      type: array
+      items:
+        type: string
+    templateId:
+      type: string
+    schemaVersion:
+      type: integer
+    revision:
+      type: integer
+      description: The new revision. Send it with the next update.
+    visibility:
+      type: string
+      enum: [PRIVATE, UNLISTED, PUBLIC]
+    lastSyncedAt:
+      type: string
+      format: date-time
+      nullable: true
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+    deletedAt:
+      type: string
+      format: date-time
+      nullable: true
+
 DocumentCreateRequest:
   type: object
   required: [type]

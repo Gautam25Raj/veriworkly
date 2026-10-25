@@ -104,6 +104,17 @@ export class EntitlementService {
     return grants.some((grant) => grant.key === key && isActive(grant, at));
   }
 
+  /**
+   * The one "paid user" rule: a live AI-credits or portfolio-publish entitlement. Paid users skip
+   * the free-tier document cap and the profile-import quotas. `client` as for `has`.
+   */
+  static async isPaid(userId: string, at = new Date(), client: Prisma.TransactionClient = prisma) {
+    return (
+      (await this.has(userId, "ai_credits", at, client)) ||
+      (await this.has(userId, "portfolio_publish", at, client))
+    );
+  }
+
   static async require(userId: string, key: EntitlementKey, message: string) {
     if (!(await this.has(userId, key))) throw new ApiError(402, message);
   }

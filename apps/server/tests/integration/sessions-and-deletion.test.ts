@@ -8,7 +8,7 @@ import { prisma } from "#lib/prisma";
 import { cacheGet, cacheSet, getRedis } from "#lib/redis";
 import { getGeneration } from "#lib/cacheGeneration";
 import { cacheNamespaces } from "#lib/cacheKeys";
-import { ApiKeyService } from "#services/apiKeyService";
+import { ApiKeyService, hashKey } from "#services/apiKeyService";
 import { getSessionCacheKey, invalidateCacheByToken } from "#utils/authCache";
 
 import { STUDIO_ORIGIN } from "./env.js";
@@ -100,7 +100,7 @@ describe("self-service account deletion (V-118, V-048, V-021)", () => {
   it("stops the account's API keys authenticating immediately", async () => {
     const user = await createUserWithSession();
     const created = await ApiKeyService.generateKey(user.id, { name: "deletion-test" });
-    const authCacheKey = `apikey:auth:${ApiKeyService.hashKey(created.key)}`;
+    const authCacheKey = `apikey:auth:${hashKey(created.key)}`;
 
     const warm = await request(app).get("/api/v1/users/me").set("X-API-Key", created.key);
     expect(warm.status).toBe(200);
@@ -277,7 +277,7 @@ describe("admin account deletion (V-119 / V-102)", () => {
     const adminUser = await admin();
     const target = await createUserWithSession();
     const created = await ApiKeyService.generateKey(target.id, { name: "admin-deletion-test" });
-    const authCacheKey = `apikey:auth:${ApiKeyService.hashKey(created.key)}`;
+    const authCacheKey = `apikey:auth:${hashKey(created.key)}`;
 
     const warm = await request(app).get("/api/v1/users/me").set("X-API-Key", created.key);
     expect(warm.status).toBe(200);

@@ -11,7 +11,7 @@ import {
 import { sendMail } from "./transporter.js";
 
 /** The support address the site publishes; mails that say "reply to this email" reply here. */
-export const SUPPORT_REPLY_TO = "info@veriworkly.com";
+const SUPPORT_REPLY_TO = "info@veriworkly.com";
 
 interface AuthOtpEmailPayload {
   email: string;

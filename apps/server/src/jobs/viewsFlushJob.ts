@@ -115,9 +115,9 @@ export function startViewsFlushJob() {
 }
 
 /** Stops scheduling and resolves once the run in progress, if any, has finished. */
-export function stopViewsFlushJob(): Promise<void> {
+export async function stopViewsFlushJob(): Promise<void> {
   if (job) {
-    job.stop();
+    await job.stop();
     job = null;
     logger.info("Views flush job stopped");
   }

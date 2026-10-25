@@ -91,6 +91,7 @@ function serialize(data: unknown, space?: number): string {
 }
 
 function writeLog(level: LogLevel, message: string, data?: unknown) {
+  // Read per call, not from `#config`: the logger tests toggle NODE_ENV at runtime.
   const isProduction = process.env.NODE_ENV === "production";
 
   if (isProduction) {

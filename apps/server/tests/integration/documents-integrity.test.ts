@@ -244,6 +244,46 @@ describe("document update and delete on soft-deleted rows (V-025)", () => {
     expect(renamed.status).toBe(200);
     expect(renamed.body.data.slug).toBe("brand-new");
   });
+
+  /**
+   * V-028: every autosave PATCH carries the whole body and used to get the whole body back. The
+   * reply is the row without `content` and `metadata`: what the studio reads (id, revision,
+   * updatedAt, lastSyncedAt) and the fields a rename changes (title, slug, templateId).
+   */
+  it("answers a PATCH without echoing the body back", async () => {
+    const user = await createUserWithSession();
+    const api = asUser(user);
+
+    const created = await api.post("/api/v1/documents").send({ type: "RESUME", title: "Slim" });
+    const id: string = created.body.data.id;
+
+    const patched = await api.patch(`/api/v1/documents/${id}`).send({
+      title: "Slim",
+      content: { basics: { name: "x".repeat(10_000) } },
+      metadata: { note: "y".repeat(10_000) },
+      templateId: "modern",
+      revision: 1,
+    });
+
+    expect(patched.status).toBe(200);
+    expect(patched.body.data).toMatchObject({
+      id,
+      revision: 2,
+      title: "Slim",
+      slug: "slim",
+      templateId: "modern",
+      type: "RESUME",
+    });
+    expect(typeof patched.body.data.updatedAt).toBe("string");
+    expect(typeof patched.body.data.lastSyncedAt).toBe("string");
+    expect(patched.body.data).not.toHaveProperty("content");
+    expect(patched.body.data).not.toHaveProperty("metadata");
+    expect(JSON.stringify(patched.body).length).toBeLessThan(2_000);
+
+    // The body itself was stored.
+    const stored = await api.get(`/api/v1/documents/${id}`);
+    expect(stored.body.data.content.basics.name).toHaveLength(10_000);
+  });
 });
 
 describe("GET /documents?updatedSince (V-132)", () => {

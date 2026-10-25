@@ -2,6 +2,7 @@ import { adminHandler } from "#controllers/admin/adminRequestHandler";
 
 import * as AdminSystemService from "#services/admin/adminSystemService";
 import { ADMIN_AUDIT_ACTIONS, recordAdminAudit } from "#services/admin/adminAuditService";
+import { startGitHubSync } from "#services/admin/adminSyncTrigger";
 
 import { adminRequestLogQuerySchema } from "#validators/admin/adminAuditValidator";
 import {
@@ -38,12 +39,17 @@ export const AdminSystemController = {
     "GitHub sync status fetched successfully",
   ),
 
-  /** POST /admin/system/github/sync — manual sync, normally driven by a 12-hourly job. */
-  syncGithub: adminHandler(async ({ req, actorId }) => {
+  /**
+   * POST /admin/system/github/sync — manual sync, normally driven by a 12-hourly job. Answers 202
+   * once the lock is taken and runs the sync in the background (V-080); poll GET /github.
+   */
+  syncGithub: adminHandler(async ({ req, res, actorId }) => {
     const input = adminGithubSyncSchema.parse(req.body);
 
-    const result = await AdminSystemService.triggerGithubSync(input.force);
+    const result = await startGitHubSync(input.force);
 
+    // After the start, so a refused sync (409/503) leaves no entry. Never throws: a failed write
+    // is logged, and the admin still gets the 202 for the sync that is running.
     await recordAdminAudit({
       actorId,
       action: ADMIN_AUDIT_ACTIONS.githubSync,
@@ -52,8 +58,9 @@ export const AdminSystemController = {
       metadata: { force: input.force },
     });
 
+    res.status(202);
     return result;
-  }, "GitHub sync triggered successfully"),
+  }, "GitHub sync started"),
 
   /** GET /admin/system/request-logs — the API request trail, for incident triage. */
   requestLogs: adminHandler(async ({ req }) => {

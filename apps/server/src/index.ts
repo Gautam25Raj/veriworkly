@@ -1,7 +1,6 @@
 import cluster from "node:cluster";
 import throng from "throng";
 
-import "./polyfills.js";
 import { app } from "./app.js";
 
 import { config, isDevelopment } from "#config";
@@ -240,7 +239,8 @@ function main() {
           const respawn = installWorkerRespawn(cluster);
           for (const signal of ["SIGTERM", "SIGINT"] as const) process.on(signal, respawn.stop);
         },
-        worker: startWorker,
+        // startWorker logs and exits on its own failures, like the single-process call below.
+        worker: (id, disconnect) => void startWorker(id, disconnect),
         count: workers,
         lifetime: 0,
         grace: THRONG_GRACE_MS,

@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import express, { Router } from "express";
+import request from "supertest";
 import type { Request, Response, NextFunction } from "express";
 
 const { mockGetRedis } = vi.hoisted(() => {
@@ -319,6 +321,63 @@ describe("rateLimitMiddleware path normalisation", () => {
     const over = await outcome(21);
     expect(over.passed).toBe(false);
     expect(over.res.status).toHaveBeenCalledWith(429);
+  });
+});
+
+/**
+ * V-162: the per-route key used to be built from the raw path, so every random 404 path made a
+ * new Redis key for the whole window. A path no route answers now shares one `unmatched` bucket
+ * per client, in the generic class.
+ */
+describe("rateLimitMiddleware unmatched paths", () => {
+  function appUnderTest() {
+    const app = express();
+    app.use(rateLimitMiddleware);
+    const things = Router();
+    things.get("/:id", (_req, res) => res.json({ ok: true }));
+    things.route("/:id/parts").get((_req, res) => res.json({ ok: true }));
+    app.use("/api/v1/things", things);
+    app.post("/api/v1/contact", (_req, res) => res.json({ ok: true }));
+    return app;
+  }
+
+  async function keysFor(method: "get" | "post" | "head", path: string) {
+    const evalFn = vi.fn().mockResolvedValue([1, 60000, 1, 900000]);
+    mockGetRedis.mockReturnValue({ isReady: true, eval: evalFn });
+    await request(appUnderTest())[method](path);
+    const [, options] = evalFn.mock.calls[0] as [string, { keys: string[]; arguments: string[] }];
+    return { routeKey: options.keys[0]!, windowMs: options.arguments[0] };
+  }
+
+  beforeEach(() => {
+    mockGetRedis.mockReset();
+  });
+
+  it("keys a matched route on its path", async () => {
+    const { routeKey } = await keysFor("get", "/api/v1/things/widget");
+    expect(routeKey).toMatch(/^rate-limit:GET:\/api\/v1\/things\/widget:/);
+    expect((await keysFor("get", "/api/v1/things/widget/parts")).routeKey).toMatch(
+      /^rate-limit:GET:\/api\/v1\/things\/widget\/parts:/,
+    );
+    // HEAD is answered by the GET route.
+    expect((await keysFor("head", "/api/v1/things/widget")).routeKey).toMatch(
+      /^rate-limit:HEAD:\/api\/v1\/things\/widget:/,
+    );
+  });
+
+  it("puts every path no route answers in one bucket per client, in the generic class", async () => {
+    const random = await keysFor("get", `/api/v1/${"x".repeat(2000)}`);
+    const other = await keysFor("get", "/wp-admin/setup-config.php");
+    const deeper = await keysFor("get", "/api/v1/things/widget/parts/extra");
+    const wrongMethod = await keysFor("post", "/api/v1/things/widget");
+    // Under a class prefix, but no route: still the generic class, not the contact one.
+    const contactish = await keysFor("post", "/api/v1/contact/anything");
+
+    const client = random.routeKey.split(":").pop();
+    for (const outcome of [random, other, deeper, wrongMethod, contactish]) {
+      expect(outcome.routeKey).toBe(`rate-limit:unmatched:${client}`);
+      expect(outcome.windowMs).toBe("60000");
+    }
   });
 });
 

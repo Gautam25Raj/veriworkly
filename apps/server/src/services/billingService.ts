@@ -9,7 +9,7 @@ import {
   type Subscription as PrismaSubscription,
 } from "@prisma/client";
 
-import { config } from "#config";
+import { config, isProduction } from "#config";
 
 import {
   dodoPaymentSchema,
@@ -21,6 +21,7 @@ import { prisma } from "#lib/prisma";
 import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
 import { cacheDel, cacheGet, cacheSet, getRedis } from "#lib/redis";
+import { acquireJobLock } from "#lib/jobLock";
 import { userProfileCacheKey } from "#lib/cacheKeys";
 import { PREMIUM_PORTFOLIO_TEMPLATE_IDS } from "#validators/portfolioValidator";
 import { EntitlementService } from "#services/entitlementService";
@@ -40,6 +41,7 @@ import {
   isCatalogInterval,
   isProductKey,
   productCatalog,
+  PRODUCT_KEYS,
   publicCatalog,
   publicCreditEconomics,
   type CreditPackKey,
@@ -54,11 +56,51 @@ import {
 type BillingIntervalInput = "one_day" | "seven_day" | "monthly" | "annual";
 const BILLING_SUMMARY_TTL_SECONDS = 60;
 const BILLING_HISTORY_TTL_SECONDS = 60;
-const CHECKOUT_LOCK_TTL_SECONDS = 600;
+/**
+ * One open checkout session per (user, product), remembered for as long as the provider keeps
+ * the session payable (Dodo checkout sessions stay valid for 24 hours). Shorter, and a forgotten
+ * tab could pay the old session after a new one was opened for the same product: two
+ * subscriptions, one customer (V-125). The record goes away earlier when a webhook settles the
+ * product or when `cancelCheckout` confirms with the provider that nothing is being paid.
+ */
+const CHECKOUT_RECORD_TTL_SECONDS = 24 * 60 * 60;
+/**
+ * The record is stamped after the provider call returns, on our clock: a subscription the
+ * provider created for this very session can carry a slightly earlier `created_at`.
+ */
+const CHECKOUT_SETTLE_CLOCK_SLACK_MS = 5 * 60 * 1000;
+/** The claim held while the provider call is in flight, so two clicks at once make one session. */
+const CHECKOUT_CLAIM_TTL_SECONDS = 60;
+/**
+ * The provider call made while the claim is held must finish well inside the claim's TTL: the
+ * SDK defaults (60 s timeout, 2 retries) could outlive it, letting a second click claim the key
+ * and open a second session. No retries either: creating a session is not idempotent, so a retry
+ * after a timeout can leave a payable session behind that nothing tracks.
+ */
+const CHECKOUT_PROVIDER_TIMEOUT_MS = 20_000;
+const CHECKOUT_PROVIDER_MAX_RETRIES = 0;
+const CHECKOUT_CLAIM_WAIT_ATTEMPTS = 10;
+const CHECKOUT_CLAIM_WAIT_MS = 300;
+/** The studio keys its "reset and retry" button on this phrase; keep it when rewording. */
+const CHECKOUT_ACTIVE_MESSAGE =
+  "A billing checkout is already active. Complete it or try again soon.";
+/**
+ * Provider payment states in which money is moving or has moved: a session in one of these is
+ * never cleared by `cancelCheckout`; the webhook settles it.
+ */
+const PAYMENT_IN_FLIGHT_STATUSES = new Set<string>([
+  "succeeded",
+  "processing",
+  "requires_capture",
+  "partially_captured",
+  "partially_captured_and_capturable",
+  "requires_merchant_action",
+]);
 /**
  * Must outlive one full processing attempt: the entitlement transaction alone may wait 10 s for
  * a connection and run 20 s, and the pre/post work (event row, cache invalidation, affiliate
- * commission) adds more. A lock that expires mid-flight lets a retry run in parallel.
+ * commission) adds more. The lock is renewed while the attempt runs (`acquireJobLock`), so this
+ * is the budget for a Redis stall, not for the attempt itself.
  */
 const WEBHOOK_LOCK_TTL_SECONDS = 60;
 const WEBHOOK_LOCK_WAIT_ATTEMPTS = 10;
@@ -81,13 +123,61 @@ export const BILLING_SUSPENSION_REASONS = [
   "grace_expired",
 ] as const;
 
-/** Compare-and-delete: only the attempt that took the lock may release it. */
-const releaseWebhookLockScript = `
+/** Compare-and-delete: only the holder of a checkout claim or record may remove it. */
+const compareAndDeleteScript = `
   if redis.call("get", KEYS[1]) == ARGV[1] then
     return redis.call("del", KEYS[1])
   end
   return 0
 `;
+
+/**
+ * Compare-and-set: replaces our checkout claim with the open record, but only while the key still
+ * holds that claim. A claim that expired and was re-claimed by another request is not ours.
+ */
+const compareAndSetScript = `
+  if redis.call("get", KEYS[1]) == ARGV[1] then
+    redis.call("set", KEYS[1], ARGV[2], "EX", ARGV[3])
+    return 1
+  end
+  return 0
+`;
+
+type CheckoutRecord =
+  | { state: "claimed"; token: string }
+  | {
+      state: "open";
+      sessionId: string;
+      url: string;
+      interval: BillingIntervalInput;
+      createdAt: string;
+    };
+
+function checkoutRecordKey(userId: string, productKey: ProductKey) {
+  return `billing:checkout:${userId}:${productKey}`;
+}
+
+function parseCheckoutRecord(raw: string | null): CheckoutRecord | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as CheckoutRecord;
+    return parsed.state === "claimed" || parsed.state === "open" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The products an open checkout for `productKey` must not overlap with: the same rule as the
+ * active-subscription check, since the bundle contains both single products.
+ */
+function overlappingProductKeys(productKey: ProductKey): ProductKey[] {
+  return productKey === "bundle" ? [...PRODUCT_KEYS] : [productKey, "bundle"];
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /**
  * Prisma's interactive-transaction defaults (maxWait 2s / timeout 5s) are tuned for single-shot
@@ -105,13 +195,22 @@ function billingHistoryCacheKey(userId: string) {
   return `billing:history:${userId}`;
 }
 
-function getDodoClient() {
+function getDodoClient(options: { timeout?: number; maxRetries?: number } = {}) {
   if (!config.dodo.apiKey) throw new ApiError(503, "Billing is not configured.");
 
   return new DodoPayments({
     bearerToken: config.dodo.apiKey,
     webhookKey: config.dodo.webhookSecret || undefined,
     environment: config.dodo.environment,
+    ...options,
+  });
+}
+
+/** The client that creates checkout sessions: bounded so the call fits inside the claim TTL. */
+function getDodoCheckoutClient() {
+  return getDodoClient({
+    timeout: CHECKOUT_PROVIDER_TIMEOUT_MS,
+    maxRetries: CHECKOUT_PROVIDER_MAX_RETRIES,
   });
 }
 
@@ -522,53 +621,83 @@ export class BillingService {
     return result;
   }
 
+  /**
+   * Opens a checkout session, or returns the one already open for this user and product.
+   *
+   * The record in Redis is the purchase idempotency (V-125): keyed per (user, product), claimed
+   * before the provider call so two clicks at once make one session, kept for the provider's
+   * session lifetime, consumed by the webhook that settles the product, and cleared by
+   * `cancelCheckout` only once the provider confirms nothing is being paid. A repeat request for
+   * the same interval gets the same URL; a different interval, or an overlapping product, is
+   * refused until that session is settled or cleared.
+   */
   static async createCheckout(
     userId: string,
     productKey: ProductKey,
     interval: BillingIntervalInput,
     redirectUrl?: string,
   ) {
-    const checkoutLockKey = `billing:checkout:${userId}`;
-    const lockAcquired =
-      (await getRedis().set(checkoutLockKey, `${productKey}:${interval}`, {
-        NX: true,
-        EX: CHECKOUT_LOCK_TTL_SECONDS,
-      })) === "OK";
-    if (!lockAcquired)
-      throw new ApiError(
-        409,
-        "A billing checkout is already active. Complete it or try again soon.",
-      );
+    const productId = getProviderProductId(productKey, interval);
+
+    if (!productCatalog[productKey].prices[interval])
+      throw new ApiError(400, "That billing interval is not available for this product.");
+    if (!productId) throw new ApiError(503, "The selected billing product is not configured.");
+
+    // The "has this user subscribed before" lookup that used to sit here existed only
+    // to decide trial eligibility. With no trials, it is a query per checkout for a
+    // value nothing reads.
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+
+    if (!user) throw new ApiError(404, "User not found");
+    const activeProduct = await prisma.subscription.findFirst({
+      where: {
+        userId,
+        productKey:
+          productKey === "bundle"
+            ? undefined
+            : {
+                in: [productKey, "bundle"],
+              },
+        status: { in: ["ACTIVE"] },
+        OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: new Date() } }],
+      },
+      select: { id: true },
+    });
+    if (activeProduct) throw new ApiError(409, "You already have an active subscription.");
+
+    const redis = getRedis();
+    const recordKey = checkoutRecordKey(userId, productKey);
+    const claim: CheckoutRecord = { state: "claimed", token: randomUUID() };
+
+    for (let attempt = 0; ; attempt += 1) {
+      // Another product's open session blocks this one when the two overlap (bundle vs single).
+      for (const other of overlappingProductKeys(productKey)) {
+        if (other === productKey) continue;
+        if (parseCheckoutRecord(await redis.get(checkoutRecordKey(userId, other))))
+          throw new ApiError(409, CHECKOUT_ACTIVE_MESSAGE);
+      }
+
+      const claimed =
+        (await redis.set(recordKey, JSON.stringify(claim), {
+          NX: true,
+          EX: CHECKOUT_CLAIM_TTL_SECONDS,
+        })) === "OK";
+      if (claimed) break;
+
+      const existing = parseCheckoutRecord(await redis.get(recordKey));
+      if (existing?.state === "open") {
+        if (existing.interval === interval) return { url: existing.url, reused: true };
+        throw new ApiError(409, CHECKOUT_ACTIVE_MESSAGE);
+      }
+      // A claim: a concurrent request is creating the session right now. Wait for it and hand
+      // back its URL rather than opening a second one. Gone meanwhile (the other call failed
+      // and released it): the loop claims it on the next pass.
+      if (attempt >= CHECKOUT_CLAIM_WAIT_ATTEMPTS)
+        throw new ApiError(409, "A checkout is being prepared. Try again in a moment.");
+      await sleep(CHECKOUT_CLAIM_WAIT_MS);
+    }
 
     try {
-      const productId = getProviderProductId(productKey, interval);
-
-      if (!productCatalog[productKey].prices[interval])
-        throw new ApiError(400, "That billing interval is not available for this product.");
-      if (!productId) throw new ApiError(503, "The selected billing product is not configured.");
-
-      // The "has this user subscribed before" lookup that used to sit here existed only
-      // to decide trial eligibility. With no trials, it is a query per checkout for a
-      // value nothing reads.
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-
-      if (!user) throw new ApiError(404, "User not found");
-      const activeProduct = await prisma.subscription.findFirst({
-        where: {
-          userId,
-          productKey:
-            productKey === "bundle"
-              ? undefined
-              : {
-                  in: [productKey, "bundle"],
-                },
-          status: { in: ["ACTIVE"] },
-          OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: new Date() } }],
-        },
-        select: { id: true },
-      });
-      if (activeProduct) throw new ApiError(409, "You already have an active subscription.");
-
       const buildRedirectUrl = (base: string, callback?: string) => {
         if (!callback) return base;
 
@@ -584,7 +713,7 @@ export class BillingService {
         }
       };
 
-      const checkout = await getDodoClient().checkoutSessions.create({
+      const checkout = await getDodoCheckoutClient().checkoutSessions.create({
         product_cart: [{ product_id: productId, quantity: 1 }],
         customer: { email: user.email, name: user.name || "VeriWorkly User" },
         metadata: {
@@ -604,17 +733,132 @@ export class BillingService {
       if (!checkout.checkout_url)
         throw new ApiError(502, "Billing provider did not return a checkout URL.");
 
-      return { url: checkout.checkout_url };
+      const record: CheckoutRecord = {
+        state: "open",
+        sessionId: checkout.session_id,
+        url: checkout.checkout_url,
+        interval,
+        createdAt: new Date().toISOString(),
+      };
+      const stored = await redis.eval(compareAndSetScript, {
+        keys: [recordKey],
+        arguments: [
+          JSON.stringify(claim),
+          JSON.stringify(record),
+          String(CHECKOUT_RECORD_TTL_SECONDS),
+        ],
+      });
+      if (Number(stored) !== 1) {
+        // Our claim expired while the provider call ran, and the key may now hold another
+        // request's session. Overwriting it would leave one of the two sessions payable and
+        // untracked, and handing out this URL would invite paying it.
+        logger.error("Checkout claim lost before the session was recorded", {
+          userId,
+          productKey,
+          sessionId: checkout.session_id,
+        });
+        throw new ApiError(409, CHECKOUT_ACTIVE_MESSAGE);
+      }
+
+      return { url: checkout.checkout_url, reused: false };
     } catch (error) {
-      await getRedis().del(checkoutLockKey);
+      // Only our own claim: a record another request completed meanwhile stays.
+      await redis
+        .eval(compareAndDeleteScript, { keys: [recordKey], arguments: [JSON.stringify(claim)] })
+        .catch((releaseError) =>
+          logger.warn("Failed to release a checkout claim", { userId, error: releaseError }),
+        );
       throw error;
     }
   }
 
+  /**
+   * Forgets the user's open checkout sessions, but only those the provider confirms are not
+   * being paid. A session whose payment succeeded or is processing stays until its webhook
+   * settles it: dropping it would let a second session for the same product be opened and paid.
+   */
   static async cancelCheckout(userId: string) {
-    const checkoutLockKey = `billing:checkout:${userId}`;
-    await getRedis().del(checkoutLockKey);
-    return { success: true };
+    const redis = getRedis();
+    const cleared: ProductKey[] = [];
+    const paying: ProductKey[] = [];
+    let preparing = false;
+
+    for (const productKey of PRODUCT_KEYS) {
+      const key = checkoutRecordKey(userId, productKey);
+      const raw = await redis.get(key);
+      const record = parseCheckoutRecord(raw);
+      if (!record) continue;
+      if (record.state === "claimed") {
+        preparing = true;
+        continue;
+      }
+
+      let paymentStatus: string | null | undefined;
+      try {
+        paymentStatus = (await getDodoClient().checkoutSessions.retrieve(record.sessionId))
+          .payment_status;
+      } catch (error) {
+        if (error instanceof ApiError) throw error;
+        throw new ApiError(
+          503,
+          "Could not confirm the checkout with the billing provider. Try again in a moment.",
+          { reason: error instanceof Error ? error.message : "provider unavailable" },
+        );
+      }
+
+      if (paymentStatus && PAYMENT_IN_FLIGHT_STATUSES.has(paymentStatus)) {
+        paying.push(productKey);
+        continue;
+      }
+
+      // Compare-and-delete on the exact record read: a webhook or a newer session wins.
+      await redis.eval(compareAndDeleteScript, { keys: [key], arguments: [raw as string] });
+      cleared.push(productKey);
+    }
+
+    if (paying.length > 0)
+      throw new ApiError(
+        409,
+        `A payment for ${paying.map((key) => productCatalog[key].name).join(", ")} is still being processed. Wait for the confirmation before starting another checkout.`,
+      );
+    if (preparing && cleared.length === 0)
+      throw new ApiError(409, "A checkout is still being prepared. Try again in a moment.");
+
+    return { success: true, cleared };
+  }
+
+  /**
+   * The provider settled this product one way or another; the open-session record is spent, but
+   * only when the event is about that session. An event naming another checkout session, or one
+   * about a subscription or payment created before the record was opened (a late cancel or
+   * renewal of an older subscription), leaves a newer open checkout alone. A claim is a session
+   * still being created, which no event can be about yet.
+   */
+  private static async settleCheckoutRecord(
+    userId: string,
+    productKey: ProductKey,
+    event: { checkoutSessionId?: string | null; createdAt?: string | null },
+  ) {
+    try {
+      const redis = getRedis();
+      const key = checkoutRecordKey(userId, productKey);
+      const raw = await redis.get(key);
+      const record = parseCheckoutRecord(raw);
+      if (!record || record.state !== "open") return;
+
+      if (event.checkoutSessionId) {
+        if (event.checkoutSessionId !== record.sessionId) return;
+      } else if (event.createdAt) {
+        const eventCreatedAt = Date.parse(event.createdAt);
+        const openedAt = Date.parse(record.createdAt);
+        if (eventCreatedAt < openedAt - CHECKOUT_SETTLE_CLOCK_SLACK_MS) return;
+      }
+
+      // Compare-and-delete on the exact record read: a session opened meanwhile stays.
+      await redis.eval(compareAndDeleteScript, { keys: [key], arguments: [raw as string] });
+    } catch (error) {
+      logger.warn("Failed to clear a settled checkout record", { error });
+    }
   }
 
   static async createPortal(userId: string) {
@@ -650,7 +894,7 @@ export class BillingService {
       if (redirectUrl) url.searchParams.set("callbackURL", redirectUrl);
       return url.toString();
     };
-    const checkout = await getDodoClient().checkoutSessions.create({
+    const checkout = await getDodoCheckoutClient().checkoutSessions.create({
       product_cart: [{ product_id: productId, quantity: 1 }],
       customer: { email: user.email, name: user.name || "VeriWorkly User" },
       metadata: { veriworkly_user_id: userId, veriworkly_product: packKey },
@@ -671,7 +915,7 @@ export class BillingService {
    */
   static allowsUnsignedWebhook(remoteAddress: string | undefined): boolean {
     if (process.env.ALLOW_UNSIGNED_WEBHOOKS !== "1") return false;
-    if (config.nodeEnv === "production") return false;
+    if (isProduction) return false;
 
     const address = (remoteAddress ?? "").replace(/^::ffff:/i, "");
     return address === "::1" || address.startsWith("127.");
@@ -708,13 +952,13 @@ export class BillingService {
   ) {
     const parsedEvent = dodoWebhookEventSchema.parse(event);
 
-    const lockKey = `billing:webhook:lock:${providerEventId}`;
-    const lockToken = randomUUID();
-    const lockAcquired =
-      (await getRedis().set(lockKey, lockToken, { NX: true, EX: WEBHOOK_LOCK_TTL_SECONDS })) ===
-      "OK";
+    // Token lock, renewed while the attempt runs and released by compare-and-delete (V-127):
+    // an attempt that outlives the TTL keeps its lock, and never deletes a retry's.
+    const lock = await acquireJobLock(`billing:webhook:lock:${providerEventId}`, {
+      ttlMs: WEBHOOK_LOCK_TTL_SECONDS * 1000,
+    });
 
-    if (!lockAcquired) {
+    if (!lock) {
       // A concurrent delivery of the same event is already processing it (webhook retry racing
       // the original, or the provider double-sending). Wait for it to finish rather than racing
       // applySubscriptionEvent/applyPaymentEvent in parallel.
@@ -826,9 +1070,7 @@ export class BillingService {
         throw error;
       }
     } finally {
-      await getRedis()
-        .eval(releaseWebhookLockScript, { keys: [lockKey], arguments: [lockToken] })
-        .catch((error) => logger.warn("Failed to release billing webhook lock", error));
+      await lock.release();
     }
   }
 
@@ -969,6 +1211,26 @@ export class BillingService {
           });
         }
 
+        // The checkout record is the only thing standing between a customer and a second
+        // subscription for one product (V-125); if it ever failed, this is the alarm. Not a
+        // reason to fail the event: the customer paid, and the fix is a refund by hand.
+        if (normalizedStatus === "ACTIVE") {
+          const others = await tx.subscription.count({
+            where: {
+              userId,
+              productKey,
+              status: "ACTIVE",
+              providerSubId: { not: subscription.subscription_id },
+              OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: new Date() } }],
+            },
+          });
+          if (others > 0)
+            logger.error(
+              `CRITICAL: user ${userId} holds more than one ACTIVE subscription for ${productKey}; refund the duplicate.`,
+              { userId, productKey, subscriptionId: subscription.subscription_id, others },
+            );
+        }
+
         const access = accessStatus({ status: normalizedStatus, currentPeriodEnd, graceEndsAt });
 
         if (touchesGrants) {
@@ -1029,6 +1291,10 @@ export class BillingService {
       }, BILLING_TRANSACTION_OPTIONS);
     }
 
+    // Any outcome settles the open checkout; `pending` is not one yet (the first charge or the
+    // mandate is still in flight), and the record must keep a second session closed meanwhile.
+    if (subscription.status !== "pending")
+      await this.settleCheckoutRecord(userId, productKey, { createdAt: subscription.created_at });
     await this.invalidateAfterBillingChange(userId);
 
     if (staleEvent) return userId;
@@ -1152,6 +1418,13 @@ export class BillingService {
         throw new ApiError(400, "Payment webhook references an unknown product.");
       }
       const { productKey, interval } = product;
+      // A subscription payment that names no checkout session is a renewal; the subscription's
+      // own events settle its checkout.
+      if (payment.checkout_session_id || !payment.subscription_id)
+        await this.settleCheckoutRecord(userId, productKey, {
+          checkoutSessionId: payment.checkout_session_id,
+          createdAt: payment.created_at,
+        });
 
       // The allowance lives at least one catalog interval from the payment. The stored period
       // end is only trusted when it is further out: `payment.succeeded` and

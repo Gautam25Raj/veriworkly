@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 
 vi.mock("#config", () => ({
   config: { nodeEnv: "production" },
+  isProduction: true,
 }));
 
 vi.mock("#lib/logger", () => ({

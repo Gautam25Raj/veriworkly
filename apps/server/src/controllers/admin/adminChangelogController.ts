@@ -6,7 +6,8 @@ import {
   deleteChangelogEntry,
   updateChangelogEntry,
 } from "#services/admin/adminChangelogService";
-import { type ChangelogType, syncChangelogFromGitHubReleases } from "#services/changelog/index";
+import { type ChangelogType, getChangelogSyncStatus } from "#services/changelog/index";
+import { startChangelogSync } from "#services/admin/adminSyncTrigger";
 
 import {
   changelogAdminCreateSchema,
@@ -144,30 +145,37 @@ export async function deleteChangelogEntryController(
 /**
  * Manually trigger a sync of missing GitHub releases into the changelog (admin only).
  *
- * res:
- * - 200 with { created, skipped, total } sync summary
+ * The sync pages through GitHub for minutes, so it runs in the background (V-080).
  *
- * next:
- * - forwards runtime errors (including a 409 if a sync is already in progress)
+ * res:
+ * - 202 with { status: "started", statusUrl }; poll GET /admin/changelog/sync for the outcome
+ * - 409 if a sync is already in progress, 503 when Redis (which holds the lock) is down
  */
 
-export async function syncChangelogReleasesController(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) {
-  try {
-    const result = await syncChangelogFromGitHubReleases();
+export const syncChangelogReleasesController = adminHandler(async ({ res, actorId }) => {
+  const started = await startChangelogSync();
 
-    await recordAdminAudit({
-      actorId: requireAuthUser(req).id,
-      action: ADMIN_AUDIT_ACTIONS.changelogSync,
-      targetType: "ChangelogEntry",
-      metadata: { ...result },
-    });
+  // After the start, so a refused sync (409/503) leaves no entry. Never throws: a failed write is
+  // logged, and the admin still gets the 202 for the sync that is running.
+  await recordAdminAudit({
+    actorId,
+    action: ADMIN_AUDIT_ACTIONS.changelogSync,
+    targetType: "ChangelogEntry",
+  });
 
-    res.json(createSuccessResponse(result, "Changelog release sync completed successfully"));
-  } catch (error) {
-    next(error);
-  }
-}
+  res.status(202);
+  return started;
+}, "Changelog release sync started");
+
+/**
+ * Whether a release sync is running, and how the last one went (admin only).
+ *
+ * res:
+ * - 200 with { running, lastRun: { status, startedAt, finishedAt?, result?, error? } | null };
+ *   both null when Redis cannot be read
+ */
+
+export const changelogSyncStatusController = adminHandler(
+  () => getChangelogSyncStatus(),
+  "Changelog release sync status fetched successfully",
+);

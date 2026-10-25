@@ -4,20 +4,23 @@ import { config } from "#config";
 import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
 import { getRedis } from "#lib/redis";
-import { createRunTracker } from "#lib/jobLock";
+import { createRunTracker, type JobLock } from "#lib/jobLock";
 
-import {
-  shouldSyncChangelogReleases,
-  syncChangelogFromGitHubReleases,
-} from "#services/changelog/index";
+import { syncChangelogFromGitHubReleases } from "#services/changelog/index";
 
 let job: ScheduledTask | null = null;
 const runs = createRunTracker();
 
-/** Never rejects; a Redis blip is a skipped tick logged at warn, not an error (V-101). */
-export async function runChangelogSync(reason: "startup" | "cron"): Promise<void> {
+/**
+ * Never rejects; a Redis blip is a skipped tick logged at warn, not an error (V-101). An "admin"
+ * run arrives holding the lock its request took (V-080).
+ */
+export async function runChangelogSync(
+  reason: "startup" | "cron" | "admin",
+  lock?: JobLock,
+): Promise<void> {
   try {
-    getRedis();
+    if (!lock) getRedis();
   } catch (error) {
     logger.warn(`Skipping changelog release sync (${reason}): Redis not ready`, {
       error: error instanceof Error ? error.message : error,
@@ -27,13 +30,16 @@ export async function runChangelogSync(reason: "startup" | "cron"): Promise<void
 
   try {
     // Mirrors the GitHub stats job: a restart is not a reason to re-scan GitHub. The cron
-    // is the schedule, so it always runs; only the boot path checks freshness.
-    if (reason === "startup" && !(await shouldSyncChangelogReleases())) {
+    // is the schedule, so it always runs; only the boot path checks freshness, under the lock.
+    const result = await syncChangelogFromGitHubReleases({
+      lock,
+      onlyIfStale: reason === "startup",
+    });
+
+    if (!result) {
       logger.debug("Changelog release sync (startup) skipped: last sync is still fresh.");
       return;
     }
-
-    const result = await syncChangelogFromGitHubReleases();
 
     logger.info(`Changelog release sync (${reason}) success`, {
       created: result.created,
@@ -51,6 +57,14 @@ export async function runChangelogSync(reason: "startup" | "cron"): Promise<void
       message: error instanceof Error ? error.message : "Unknown error",
     });
   }
+}
+
+/**
+ * Runs an admin-triggered sync after its request has answered 202, holding the lock the request
+ * took. Tracked like the scheduled runs, so shutdown waits for it.
+ */
+export function runChangelogSyncInBackground(lock: JobLock): void {
+  runs.track(runChangelogSync("admin", lock));
 }
 
 /** Whether startChangelogSyncJob schedules anything; `/health/jobs` reports it disabled otherwise. */
@@ -76,9 +90,9 @@ export function startChangelogSyncJob() {
 }
 
 /** Stops scheduling and resolves once the sync in progress, if any, has finished. */
-export function stopChangelogSyncJob(): Promise<void> {
+export async function stopChangelogSyncJob(): Promise<void> {
   if (job) {
-    job.stop();
+    await job.stop();
     job = null;
 
     logger.info("Changelog release sync cron stopped.");

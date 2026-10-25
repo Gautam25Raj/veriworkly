@@ -1,4 +1,3 @@
-import { adminOverview, updateAffiliate } from "#services/affiliate/admin";
 import { createCommission, updateCommission } from "#services/affiliate/commissions";
 import { getDashboard } from "#services/affiliate/dashboard";
 import { applyReferral, enroll, trackClick } from "#services/affiliate/enrollment";
@@ -15,8 +14,6 @@ export const AffiliateService = {
   updateWithdrawal,
   createCommission,
   updateCommission,
-  adminOverview,
-  updateAffiliate,
 };
 
 export * from "#services/affiliate/constants";

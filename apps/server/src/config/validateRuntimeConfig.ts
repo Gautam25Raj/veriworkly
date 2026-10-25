@@ -6,7 +6,8 @@ import { config, isProduction } from "#config";
 // without loading `.env`. It does not repeat the Dodo/R2 checks below.
 export { validateEnvironmentConfig } from "./environmentSchema.js";
 
-function ensure(condition: boolean, message: string): asserts condition {
+/** Throws `message` unless `condition` holds. Shared by the boot-time runtime checks. */
+export function ensure(condition: boolean, message: string): asserts condition {
   if (!condition) {
     throw new Error(message);
   }

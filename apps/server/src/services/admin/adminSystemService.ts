@@ -8,7 +8,7 @@ import { bumpGeneration } from "#lib/cacheGeneration";
 import { PUBLIC_LIST_CACHE_NAMESPACE } from "#utils/portfolioPublicationCache";
 
 import { getAdminDashboardMetrics, getUsageSnapshotForDate } from "#services/analyticsService";
-import { getGitHubStats, syncGitHubStatsFromGitHub } from "#services/github/index";
+import { GITHUB_SYNC_LOCK, getGitHubStats } from "#services/github/index";
 import { CHANGELOG_CACHE_KEYS } from "#services/changelog/cache";
 import { ROADMAP_CACHE_NAMESPACES } from "#services/roadmapService";
 
@@ -105,7 +105,7 @@ export async function getSystemHealth() {
   };
 }
 
-export interface UsageMetricPoint {
+interface UsageMetricPoint {
   date: string;
   event: string;
   count: number;
@@ -170,8 +170,21 @@ export async function getDashboardMetrics() {
   return getAdminDashboardMetrics();
 }
 
+/** Whether a sync holds the lock now; null when Redis cannot be read. */
+async function isGithubSyncRunning(): Promise<boolean | null> {
+  try {
+    return (await getRedis().exists(GITHUB_SYNC_LOCK)) === 1;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * `running` is what an admin polls after `POST /github/sync` answers 202 (V-080); once it is false,
+ * `latestSync.lastSyncStatus` and `lastError` say how the run went.
+ */
 export async function getGithubSyncStatus() {
-  const [stats, latest, itemCounts] = await Promise.all([
+  const [stats, latest, itemCounts, running] = await Promise.all([
     getGitHubStats(),
     prisma.gitHubSync.findFirst({
       orderBy: { syncedAt: "desc" },
@@ -191,17 +204,15 @@ export async function getGithubSyncStatus() {
       },
     }),
     prisma.gitHubSyncItem.groupBy({ by: ["status"], _count: { _all: true } }),
+    isGithubSyncRunning(),
   ]);
 
   return {
+    running,
     stats,
     latestSync: latest,
     itemsByStatus: Object.fromEntries(itemCounts.map((row) => [row.status, row._count._all])),
   };
-}
-
-export async function triggerGithubSync(force = false) {
-  return syncGitHubStatsFromGitHub(force);
 }
 
 /**

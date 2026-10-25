@@ -9,6 +9,7 @@ import type {
   adminApiKeyListQuerySchema,
   adminApiKeyUpdateSchema,
 } from "#validators/admin/adminApiKeyValidator";
+import { listPage } from "#utils/pagination";
 
 type ApiKeyListQuery = z.infer<typeof adminApiKeyListQuerySchema>;
 type ApiKeyUpdateInput = z.infer<typeof adminApiKeyUpdateSchema>;
@@ -84,7 +85,7 @@ export async function listApiKeys(query: ApiKeyListQuery) {
     prisma.apiKey.count({ where }),
   ]);
 
-  return { items, total, limit: query.limit, offset: query.offset };
+  return listPage(items, total, query);
 }
 
 export async function updateApiKey(apiKeyId: string, input: ApiKeyUpdateInput) {

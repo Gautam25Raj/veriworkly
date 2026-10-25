@@ -6,10 +6,12 @@ import { z } from "zod";
  * controller parsers, which already answer 400.
  */
 
-export const API_KEY_NAME_MAX_LENGTH = 100;
+const API_KEY_NAME_MAX_LENGTH = 100;
 
 const apiKeyNameSchema = z
-  .string({ invalid_type_error: "Key name must be a string" })
+  .string({
+    error: (issue) => (issue.input === undefined ? undefined : "Key name must be a string"),
+  })
   .trim()
   .min(1, "Key name is required")
   .max(API_KEY_NAME_MAX_LENGTH, `Key name must be at most ${API_KEY_NAME_MAX_LENGTH} characters`);

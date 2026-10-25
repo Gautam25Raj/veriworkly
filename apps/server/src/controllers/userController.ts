@@ -8,6 +8,7 @@ import { UserService } from "#services/userService";
 import { invalidateSessionCache } from "#utils/authCache";
 
 import {
+  updateAutoSyncSchema,
   updateUserNameSchema,
   updateUsernameSchema,
   usernameAvailabilityParamsSchema,
@@ -102,7 +103,7 @@ export class UserController {
   static async updateAutoSync(req: Request, res: Response, next: NextFunction) {
     try {
       const user = requireAuthUser(req);
-      const { enabled } = z.object({ enabled: z.boolean() }).parse(req.body);
+      const { enabled } = updateAutoSyncSchema.parse(req.body);
 
       const updated = await UserService.updateAutoSync(user.id, enabled);
 

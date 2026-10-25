@@ -10,10 +10,9 @@ let job: ScheduledTask | null = null;
 const runs = createRunTracker();
 
 /**
- * Returns a Date object representing the start of yesterday in UTC.
- * This ensures we only flush complete day cycles.
+ * Midnight UTC today. Only dates before it are flushed, so a day is written to Postgres once it
+ * is complete and never while its counters are still moving.
  */
-
 function getTodayUtcDate() {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -92,9 +91,9 @@ export function startUsageMetricsJob() {
  * finished.
  */
 
-export function stopUsageMetricsJob(): Promise<void> {
+export async function stopUsageMetricsJob(): Promise<void> {
   if (job) {
-    job.stop();
+    await job.stop();
     job = null;
     logger.info("Usage metrics flush job stopped");
   }

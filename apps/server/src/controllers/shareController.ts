@@ -10,52 +10,23 @@ import { incrementFixedWindow } from "#middleware/rateLimit";
 import { ShareService } from "#services/shareService";
 
 import { logger } from "#lib/logger";
-import { normalizeSlug, normalizeUsername } from "#utils/slugs";
 import { addressBucket, getRequestIpDetails } from "#utils/requestIp";
 import { cacheGet, cacheSet, cacheDel } from "#lib/redis";
 import { bumpGeneration, resolveGenerationalKey } from "#lib/cacheGeneration";
-import { cacheNamespaces, userProfileCacheKey } from "#lib/cacheKeys";
+import { cacheNamespaces, masterProfileCacheKey, userProfileCacheKey } from "#lib/cacheKeys";
 import { parseOffsetPagination, createOffsetPaginationMeta } from "#utils/pagination";
 import { createSuccessResponse, handleValidationError, ApiError } from "#lib/errors";
 
-/**
- * Validation schemas for sharing-related requests
- */
-
-const shareLinkCreateSchema = z.object({
-  documentId: z.string().min(1),
-  snapshot: z.record(z.any()),
-  password: z.string().min(1).optional(),
-  expiresAt: z.string().datetime().nullable().optional(),
-  noExpiry: z.boolean().optional(),
-  updateSlug: z.boolean().optional(),
-  removePassword: z.boolean().optional(),
-});
+import {
+  publicReadableParamsSchema,
+  sharedDocumentIdsQuerySchema,
+  shareLinkCreateSchema,
+  shareLinkPasswordSchema,
+} from "#validators/shareValidator";
 
 /** Password attempts per (share link, client network) per window; a correct password resets it. */
 const SHARE_VERIFY_MAX_ATTEMPTS = 5;
 const SHARE_VERIFY_WINDOW_SECONDS = 5 * 60;
-
-const shareLinkPasswordSchema = z.object({
-  password: z.string().min(1),
-});
-
-const sharedDocumentIdsQuerySchema = z.object({
-  ids: z
-    .string()
-    .optional()
-    .transform((value) =>
-      (value ?? "")
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-    ),
-});
-
-const publicReadableParamsSchema = z.object({
-  username: z.string().transform((value) => normalizeUsername(value)),
-  slug: z.string().transform((value) => normalizeSlug(value)),
-});
 
 type PublicShareLinkView = Omit<PublicShareLink, "passwordHash"> & { hasPassword: boolean };
 
@@ -127,7 +98,7 @@ export class ShareController {
           cacheNamespaces.sharedDocumentIds(user.id),
           cacheNamespaces.publicShare(shareLink.username),
         ),
-        cacheDel(`profile:${user.id}`),
+        cacheDel(masterProfileCacheKey(user.id)),
         cacheDel(userProfileCacheKey(user.id)),
       ]);
 
@@ -241,7 +212,7 @@ export class ShareController {
           cacheNamespaces.sharedDocumentIds(user.id),
           cacheNamespaces.publicShare(revoked.username),
         ),
-        cacheDel(`profile:${user.id}`),
+        cacheDel(masterProfileCacheKey(user.id)),
         cacheDel(userProfileCacheKey(user.id)),
       ]);
 

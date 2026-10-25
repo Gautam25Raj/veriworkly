@@ -5,7 +5,7 @@ import { getRedis } from "#lib/redis";
 
 import { signSessionCookie } from "./auth.js";
 
-export type TestSession = {
+type TestSession = {
   sessionToken: string;
   /** Value for the `Cookie` header, signed the way better-call signs cookies. */
   cookie: string;

@@ -38,7 +38,7 @@ vi.mock("#lib/cacheGeneration", () => ({
 }));
 
 vi.mock("#services/entitlementService", () => ({
-  EntitlementService: { has: vi.fn(async () => true) },
+  EntitlementService: { has: vi.fn(async () => true), isPaid: vi.fn(async () => true) },
 }));
 
 vi.mock("#utils/slugs", () => ({

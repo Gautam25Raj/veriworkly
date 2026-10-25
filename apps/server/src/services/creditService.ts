@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type CreditTransaction } from "@prisma/client";
 
 import { getAiModePolicy } from "#services/aiPolicy";
 import type { AiActionKey, AiMode } from "#services/aiTypes";
@@ -36,6 +36,12 @@ type CreditContext = {
   metadata?: Prisma.InputJsonValue;
   /** Who performed the operation when it was not the wallet owner (admin adjustments). */
   actorId?: string;
+  /**
+   * Runs inside the ledger transaction once the transaction row exists, and only for a new row (a
+   * replayed request id returns the stored row and skips it). The admin paths write their audit
+   * entry here so it commits with the adjustment or not at all (V-074).
+   */
+  onWrite?: (tx: Prisma.TransactionClient, transaction: CreditTransaction) => Promise<void>;
 };
 
 type CreditGrantContext = CreditContext & {
@@ -330,7 +336,9 @@ export class CreditService {
         const wallet = await lockWallet(tx, userId);
 
         // After the lock: a same-requestId twin queued behind us sees our committed row here.
-        const existing = await tx.creditReservation.findUnique({ where: { requestId } });
+        const existing = await tx.creditReservation.findUnique({
+          where: { userId_requestId: { userId, requestId } },
+        });
         if (existing) throw reservationConflict(existing, userId, action, cost);
 
         // `balance` alone still counts grants that expired under a pending reservation, so the
@@ -362,7 +370,9 @@ export class CreditService {
     } catch (error) {
       // Two reserves with one request id at once: the loser must get a clean 409, not a P2002.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-        const existing = await prisma.creditReservation.findUnique({ where: { requestId } });
+        const existing = await prisma.creditReservation.findUnique({
+          where: { userId_requestId: { userId, requestId } },
+        });
         throw existing
           ? reservationConflict(existing, userId, action, cost)
           : new ApiError(409, "This AI request is processing.");
@@ -379,9 +389,10 @@ export class CreditService {
     context: Omit<CreditContext, "requestId" | "action">,
   ) {
     const result = await prisma.$transaction(async (tx) => {
-      const reservation = await tx.creditReservation.findUnique({ where: { requestId } });
-      if (!reservation || reservation.userId !== userId)
-        throw new ApiError(404, "AI credit reservation was not found.");
+      const reservation = await tx.creditReservation.findUnique({
+        where: { userId_requestId: { userId, requestId } },
+      });
+      if (!reservation) throw new ApiError(404, "AI credit reservation was not found.");
 
       // Wallet lock before the flip: the release sweep locks wallet → reservation, so taking
       // the reservation row first here would deadlock against it. The flip is conditional so a
@@ -419,7 +430,7 @@ export class CreditService {
       });
       if (!settled.count)
         throw new ApiError(409, "Credit ledger is out of balance for this wallet.");
-      const { actorId, metadata, ...rest } = context;
+      const { actorId, metadata, onWrite, ...rest } = context;
       const transaction = await tx.creditTransaction.create({
         data: {
           walletId: reservation.walletId,
@@ -436,6 +447,7 @@ export class CreditService {
       await tx.creditUsageAllocation.createMany({
         data: allocations.map((item) => ({ transactionId: transaction.id, ...item })),
       });
+      if (onWrite) await onWrite(tx, transaction);
       return transaction;
     }, CREDIT_TRANSACTION_OPTIONS);
     await this.invalidate(userId);
@@ -444,9 +456,10 @@ export class CreditService {
 
   static async releaseReservation(userId: string, requestId: string) {
     const released = await prisma.$transaction(async (tx) => {
-      const reservation = await tx.creditReservation.findUnique({ where: { requestId } });
-      if (!reservation || reservation.userId !== userId || reservation.status !== "PENDING")
-        return false;
+      const reservation = await tx.creditReservation.findUnique({
+        where: { userId_requestId: { userId, requestId } },
+      });
+      if (!reservation || reservation.status !== "PENDING") return false;
       await lockWallet(tx, userId);
       const changed = await tx.creditReservation.updateMany({
         where: { id: reservation.id, status: "PENDING" },
@@ -495,10 +508,10 @@ export class CreditService {
 
     const result = await prisma.$transaction(async (tx) => {
       const existing = await tx.creditTransaction.findUnique({
-        where: { requestId: context.requestId },
+        where: { userId_requestId: { userId, requestId: context.requestId } },
       });
       if (existing) {
-        if (existing.userId !== userId || existing.amount !== -cost)
+        if (existing.amount !== -cost)
           throw new ApiError(409, "Credit request id was already used for another operation.");
         return existing;
       }
@@ -539,7 +552,7 @@ export class CreditService {
       });
       if (!updated.count)
         throw new ApiError(409, "Credit ledger is out of balance for this wallet.");
-      const { actorId, metadata, ...rest } = context;
+      const { actorId, metadata, onWrite, ...rest } = context;
       const transaction = await tx.creditTransaction.create({
         data: {
           walletId: wallet.id,
@@ -554,6 +567,7 @@ export class CreditService {
       await tx.creditUsageAllocation.createMany({
         data: allocations.map((item) => ({ transactionId: transaction.id, ...item })),
       });
+      if (onWrite) await onWrite(tx, transaction);
       return transaction;
     }, CREDIT_TRANSACTION_OPTIONS);
     await this.invalidate(userId);
@@ -565,7 +579,7 @@ export class CreditService {
     try {
       const result = await prisma.$transaction(async (tx) => {
         const existing = await tx.creditTransaction.findUnique({
-          where: { requestId: context.requestId },
+          where: { userId_requestId: { userId, requestId: context.requestId } },
         });
         if (existing) return existing;
         const wallet = await tx.creditWallet.upsert({
@@ -599,6 +613,7 @@ export class CreditService {
             metadata: withActor(context.metadata, context.actorId),
           },
         });
+        if (context.onWrite) await context.onWrite(tx, transaction);
         return transaction;
       }, CREDIT_TRANSACTION_OPTIONS);
       await this.invalidate(userId);
@@ -606,7 +621,7 @@ export class CreditService {
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         const existing = await prisma.creditTransaction.findUnique({
-          where: { requestId: context.requestId },
+          where: { userId_requestId: { userId, requestId: context.requestId } },
         });
         if (existing) return existing;
       }

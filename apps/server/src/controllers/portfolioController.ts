@@ -6,6 +6,8 @@ import {
   portfolioPublishSchema,
   portfolioSaveDraftSchema,
   portfolioSubdomainParamsSchema,
+  portfolioViewBeaconSchema,
+  publicPortfolioListQuerySchema,
 } from "#validators/portfolioValidator";
 
 import { requireAuthUser } from "#middleware/auth";
@@ -16,10 +18,24 @@ import { PortfolioService } from "#services/portfolioService";
 import { ApiError, createSuccessResponse, handleValidationError } from "#lib/errors";
 import { isAdminUser } from "#lib/isAdminUser";
 
-const publicPortfolioListQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).optional(),
-  offset: z.coerce.number().int().min(0).max(5000).optional(),
-});
+/**
+ * The view body as either parser left it (V-131): JSON from `fetch`, or the JSON string a
+ * `sendBeacon` sends as `text/plain`, which is what a portfolio subdomain can send without a
+ * preflight. No body at all is an empty view.
+ */
+function parseViewBeacon(body: unknown) {
+  let value: unknown = body ?? {};
+
+  if (typeof value === "string") {
+    try {
+      value = value.trim() ? JSON.parse(value) : {};
+    } catch {
+      throw new ApiError(400, "Validation failed", [{ path: "", message: "Expected JSON" }]);
+    }
+  }
+
+  return portfolioViewBeaconSchema.parse(value);
+}
 
 export class PortfolioController {
   static async listPublic(req: Request, res: Response, next: NextFunction) {
@@ -46,11 +62,13 @@ export class PortfolioController {
 
   static async recordView(req: Request, res: Response, next: NextFunction) {
     try {
-      await PortfolioService.recordView(req.params.subdomain, req.body?.referrer, req.ip);
+      const { referrer } = parseViewBeacon(req.body);
+
+      await PortfolioService.recordView(req.params.subdomain, referrer, req.ip);
 
       res.status(202).json(createSuccessResponse(null));
     } catch (error) {
-      next(error);
+      next(error instanceof z.ZodError ? handleValidationError(error) : error);
     }
   }
 

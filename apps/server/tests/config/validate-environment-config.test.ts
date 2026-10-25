@@ -348,6 +348,22 @@ describe("validateEnvironmentConfig", () => {
       expect(names.sort()).toEqual(["PORT", "TRUST_PROXY"]);
     });
 
+    it("refuses 0 for the TTLs that become Redis expiries or the session refresh age, in every environment", () => {
+      // Formerly checked again by validateAuthRuntimeConfig; the schema is now the only check.
+      expect(
+        failingVariables({
+          NODE_ENV: "development",
+          AUTH_SESSION_RESET_TTL_ON_USE: "0",
+          API_KEY_AUTH_CACHE_TTL_SECONDS: "0",
+          API_KEY_LAST_USED_TOUCH_INTERVAL_SECONDS: "0",
+        }).sort(),
+      ).toEqual([
+        "API_KEY_AUTH_CACHE_TTL_SECONDS",
+        "API_KEY_LAST_USED_TOUCH_INTERVAL_SECONDS",
+        "AUTH_SESSION_RESET_TTL_ON_USE",
+      ]);
+    });
+
     it("accepts the .env.example values in development", () => {
       expect(() =>
         validateEnvironmentConfig({ ...exampleEnv, NODE_ENV: "development" }),

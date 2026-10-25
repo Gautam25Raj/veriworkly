@@ -1,7 +1,7 @@
 import { adminHandler } from "#controllers/admin/adminRequestHandler";
 
 import * as AdminAffiliateService from "#services/admin/adminAffiliateService";
-import { ADMIN_AUDIT_ACTIONS, recordAdminAudit } from "#services/admin/adminAuditService";
+import { ADMIN_AUDIT_ACTIONS } from "#services/admin/adminAuditService";
 
 import { adminIdParamSchema } from "#validators/admin/adminCommonValidator";
 import {
@@ -15,6 +15,10 @@ import {
   adminWithdrawalStatusSchema,
 } from "#validators/admin/adminAffiliateValidator";
 
+/**
+ * Every mutation here moves affiliate money or the rate it accrues at, so each one hands its
+ * audit entry to the service, which writes it in the same transaction as the change (V-074).
+ */
 export const AdminAffiliateController = {
   /** GET /admin/affiliates/summary — program-wide totals for the page header. */
   summary: adminHandler(
@@ -43,22 +47,17 @@ export const AdminAffiliateController = {
   /** POST /admin/affiliates/commissions — manual commission for an out-of-band payment. */
   createCommission: adminHandler(async ({ req, actorId }) => {
     const input = adminCommissionSchema.parse(req.body);
-    const commission = await AdminAffiliateService.createCommission(input);
 
-    await recordAdminAudit({
+    return AdminAffiliateService.createCommission(input, {
       actorId,
       action: ADMIN_AUDIT_ACTIONS.affiliateCommissionCreate,
       targetType: "AffiliateCommission",
-      targetId: commission.id,
       reason: input.reason,
       metadata: {
         referredUserId: input.referredUserId,
         purchaseAmountCents: input.purchaseAmountCents,
-        amountCents: commission.amountCents,
       },
     });
-
-    return commission;
   }, "Commission created successfully"),
 
   /** PATCH /admin/affiliates/commissions/:id — release or reverse a pending commission. */
@@ -66,18 +65,13 @@ export const AdminAffiliateController = {
     const { id } = adminIdParamSchema.parse(req.params);
     const input = adminCommissionStatusSchema.parse(req.body);
 
-    const commission = await AdminAffiliateService.updateCommission(id, input.status, input.reason);
-
-    await recordAdminAudit({
+    return AdminAffiliateService.updateCommission(id, input.status, input.reason, {
       actorId,
       action: ADMIN_AUDIT_ACTIONS.affiliateCommissionUpdate,
       targetType: "AffiliateCommission",
-      targetId: commission.id,
+      targetId: id,
       reason: input.reason,
-      metadata: { status: input.status, amountCents: commission.amountCents },
     });
-
-    return commission;
   }, "Commission updated successfully"),
 
   /** GET /admin/affiliates/withdrawals */
@@ -96,23 +90,13 @@ export const AdminAffiliateController = {
     const { id } = adminIdParamSchema.parse(req.params);
     const input = adminWithdrawalStatusSchema.parse(req.body);
 
-    const withdrawal = await AdminAffiliateService.updateWithdrawal(
-      id,
-      input.status,
-      input.payoutNote,
-      actorId,
-    );
-
-    await recordAdminAudit({
+    return AdminAffiliateService.updateWithdrawal(id, input.status, input.payoutNote, actorId, {
       actorId,
       action: ADMIN_AUDIT_ACTIONS.affiliateWithdrawalUpdate,
       targetType: "AffiliateWithdrawal",
-      targetId: withdrawal.id,
+      targetId: id,
       reason: input.payoutNote,
-      metadata: { status: input.status, amountCents: withdrawal.amountCents },
     });
-
-    return withdrawal;
   }, "Withdrawal updated successfully"),
 
   /** GET /admin/affiliates/:id — one affiliate's referrals, commissions and payout history. */
@@ -126,17 +110,13 @@ export const AdminAffiliateController = {
     const { id } = adminIdParamSchema.parse(req.params);
     const input = adminAffiliateSchema.parse(req.body);
 
-    const { affiliate, previous } = await AdminAffiliateService.updateAffiliateStanding(id, input);
-
-    await recordAdminAudit({
+    const { affiliate } = await AdminAffiliateService.updateAffiliateStanding(id, input, {
       actorId,
       action: ADMIN_AUDIT_ACTIONS.affiliateUpdate,
       targetType: "User",
       targetId: id,
       reason: input.reason,
       metadata: {
-        previousStatus: previous.affiliateStatus,
-        previousTier: previous.affiliateTier,
         ...(input.status ? { status: input.status } : {}),
         ...(input.tier ? { tier: input.tier } : {}),
       },

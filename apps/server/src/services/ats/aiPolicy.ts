@@ -1,9 +1,10 @@
 import { z } from "zod";
 
-import { config } from "#config";
+import { config, isProduction } from "#config";
 import { getAtsAiPolicyJson, resolvePrivateAiModel } from "#services/aiPrivateConfig";
 import { maxRetriesWithinDeadline } from "#services/ats/aiDeadline";
 import { ApiError } from "#lib/errors";
+import { logger } from "#lib/logger";
 
 const modelSchema = z.object({
   model: z.string().min(1),
@@ -31,7 +32,7 @@ const modelSchema = z.object({
    * be a per-model switch someone flips after checking that model's providers.
    */
   structuredOutputs: z.boolean().default(false),
-  providerOptions: z.record(z.unknown()).optional(),
+  providerOptions: z.record(z.string(), z.unknown()).optional(),
 });
 
 const generationSchema = z.object({
@@ -47,7 +48,7 @@ const generationSchema = z.object({
   temperature: z.number().min(0).max(2).default(0.2),
   /** See `modelSchema.structuredOutputs`. Same switch, same reason to default it off. */
   structuredOutputs: z.boolean().default(false),
-  providerOptions: z.record(z.unknown()).optional(),
+  providerOptions: z.record(z.string(), z.unknown()).optional(),
 });
 
 const atsPolicySchema = z.object({
@@ -75,9 +76,8 @@ const atsPolicySchema = z.object({
 });
 
 export type AtsComplexity = "standard" | "detailed" | "advanced" | "expert";
-let cached: z.infer<typeof atsPolicySchema> | null = null;
 
-import { logger } from "#lib/logger";
+let cached: z.infer<typeof atsPolicySchema> | null = null;
 
 function loadAtsAiPolicy() {
   if (!cached) {
@@ -157,5 +157,5 @@ export function publicAtsPolicy() {
 }
 
 export function validateAtsAiRuntimeConfig() {
-  if (config.nodeEnv === "production") getAtsAiPolicy();
+  if (isProduction) getAtsAiPolicy();
 }

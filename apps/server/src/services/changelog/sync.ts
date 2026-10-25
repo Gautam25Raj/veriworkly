@@ -4,7 +4,7 @@ import { config } from "#config";
 import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
 import { getRedis } from "#lib/redis";
-import { acquireJobLock } from "#lib/jobLock";
+import { acquireJobLock, type JobLock } from "#lib/jobLock";
 import { recordJobSuccess } from "#lib/metrics";
 import { logger } from "#lib/logger";
 
@@ -29,7 +29,7 @@ import { refreshContributorStats } from "./contributors.js";
  * Whether a startup sync is worth running. Cron runs deliberately bypass this — the schedule is
  * the intent there — so only the boot path pays the freshness check.
  */
-export async function shouldSyncChangelogReleases(): Promise<boolean> {
+async function shouldSyncChangelogReleases(): Promise<boolean> {
   try {
     const marker = await getRedis().get(CHANGELOG_CACHE_KEYS.SYNC_MARKER);
     return marker === null;
@@ -37,6 +37,73 @@ export async function shouldSyncChangelogReleases(): Promise<boolean> {
     logger.warn("Changelog release sync freshness check failed; syncing anyway", error);
     return true;
   }
+}
+
+type ChangelogSyncResult = {
+  created: number;
+  refreshed: number;
+  skipped: number;
+  total: number;
+};
+
+/** The last run as the admin status endpoint reports it: started, then finished one way or the other. */
+type ChangelogSyncRun = {
+  status: "running" | "ok" | "error";
+  startedAt: string;
+  finishedAt?: string;
+  result?: ChangelogSyncResult;
+  error?: string;
+};
+
+const SYNC_RUN_TTL_SECONDS = 7 * 24 * 3600;
+
+/** Best effort: a run that cannot record itself still syncs. */
+async function recordSyncRun(run: ChangelogSyncRun) {
+  try {
+    await getRedis().set(CHANGELOG_CACHE_KEYS.SYNC_RUN, JSON.stringify(run), {
+      EX: SYNC_RUN_TTL_SECONDS,
+    });
+  } catch (error) {
+    logger.warn("Could not record the changelog sync run", {
+      error: error instanceof Error ? error.message : error,
+    });
+  }
+}
+
+/**
+ * What `GET /admin/changelog/sync` reports: whether a sync holds the lock now, and how the last
+ * one went. Either is null when Redis cannot be read.
+ */
+export async function getChangelogSyncStatus(): Promise<{
+  running: boolean | null;
+  lastRun: ChangelogSyncRun | null;
+}> {
+  try {
+    const redis = getRedis();
+    const [lock, run] = await Promise.all([
+      redis.exists(CHANGELOG_CACHE_KEYS.RELEASE_SYNC_LOCK),
+      redis.get(CHANGELOG_CACHE_KEYS.SYNC_RUN),
+    ]);
+
+    return { running: lock === 1, lastRun: run ? (JSON.parse(run) as ChangelogSyncRun) : null };
+  } catch (error) {
+    logger.warn("Could not read the changelog sync status", {
+      error: error instanceof Error ? error.message : error,
+    });
+    return { running: null, lastRun: null };
+  }
+}
+
+/**
+ * The release sync's lock, renewed while the sync runs (V-127). 409 when another runner holds it;
+ * throws as `acquireJobLock` does when Redis is not ready.
+ */
+export async function acquireChangelogSyncLock(): Promise<JobLock> {
+  const lock = await acquireJobLock(CHANGELOG_CACHE_KEYS.RELEASE_SYNC_LOCK, { ttlMs: 600_000 });
+
+  if (!lock) throw new ApiError(409, "Changelog release sync is already in progress");
+
+  return lock;
 }
 
 const reportedCollisions = new Set<string>();
@@ -81,31 +148,34 @@ function deriveTitle(release: GitHubReleasePayload, version: string): string {
 /**
  * Syncs GitHub releases into the changelog. New releases get a row. Every stored release has its
  * pull request list completed from GitHub, adding PRs and authors but never removing any. A
- * synced row no admin has edited is also parsed again, once, so parser fixes reach old entries;
- * hand-curated and admin-edited text is never modified. Safe to re-run.
+ * synced row no admin has edited (`editedAt` null) is also parsed again on every run, so parser
+ * fixes reach old entries; hand-curated and admin-edited text is never modified. Safe to re-run.
+ *
+ * `options.lock` is a lock the caller already took with `acquireChangelogSyncLock` (the admin
+ * trigger, which then runs this in the background); it is released here either way.
+ * `options.onlyIfStale` (the startup run) checks the freshness marker once the lock is held and
+ * resolves to null when the last sync is recent, so two booting workers cannot both pass it.
  */
-export async function syncChangelogFromGitHubReleases(): Promise<{
-  created: number;
-  refreshed: number;
-  skipped: number;
-  total: number;
-}> {
+export async function syncChangelogFromGitHubReleases(): Promise<ChangelogSyncResult>;
+export async function syncChangelogFromGitHubReleases(options: {
+  lock?: JobLock;
+  onlyIfStale?: boolean;
+}): Promise<ChangelogSyncResult | null>;
+export async function syncChangelogFromGitHubReleases(
+  options: { lock?: JobLock; onlyIfStale?: boolean } = {},
+): Promise<ChangelogSyncResult | null> {
   const { owner, repo, token } = config.github;
 
   if (!owner || !repo || !token) {
+    await options.lock?.release();
     logger.warn(
       "Changelog release sync skipped: GITHUB_OWNER/GITHUB_REPO/GITHUB_TOKEN not configured.",
     );
     return { created: 0, refreshed: 0, skipped: 0, total: 0 };
   }
 
-  const redis = getRedis();
   // Renewed while the sync runs (V-127): 20 PR pages plus the releases can outlast a fixed TTL.
-  const lock = await acquireJobLock(CHANGELOG_CACHE_KEYS.RELEASE_SYNC_LOCK, { ttlMs: 600_000 });
-
-  if (!lock) {
-    throw new ApiError(409, "Changelog release sync is already in progress");
-  }
+  const lock = options.lock ?? (await acquireChangelogSyncLock());
 
   // Checked after each fetch and before each write: a sync that lost its lock stops instead of
   // writing beside the runner that now holds it.
@@ -117,7 +187,14 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
       );
   };
 
+  let run: ChangelogSyncRun | null = null;
+
   try {
+    if (options.onlyIfStale && !(await shouldSyncChangelogReleases())) return null;
+
+    run = { status: "running", startedAt: new Date().toISOString() };
+    await recordSyncRun(run);
+
     const fetched = await fetchAllGitHubReleases(owner, repo, token);
     await ensureStillOwner();
 
@@ -148,8 +225,7 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
       select: {
         id: true,
         tags: true,
-        createdAt: true,
-        updatedAt: true,
+        editedAt: true,
         summary: true,
         added: true,
         improved: true,
@@ -202,12 +278,11 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
           ? (stored.prRefs as unknown as ReleasePrRef[])
           : [];
 
-        // A synced entry an admin never touched still holds whatever the parser produced when it
-        // was created, so its text is parsed again. updatedAt only moves on an update, which makes
-        // this a one-time repair that never overwrites an admin's edit.
-        const untouched = stored.updatedAt.getTime() - stored.createdAt.getTime() < 1000;
+        // A synced entry no admin has edited holds only what the parser produced, so its text is
+        // parsed again and parser fixes reach it. `editedAt` is set by admin writes alone; the
+        // updatedAt-createdAt test this replaced counted the sync's own prRefs write as an edit.
         const text =
-          stored.tags.includes("auto-synced") && untouched
+          stored.tags.includes("auto-synced") && !stored.editedAt
             ? reparseStoredRelease(release.body, { ...stored, prRefs: storedPrs }, repoUrl)
             : null;
 
@@ -288,7 +363,7 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
       await invalidateChangelogReadCaches();
     }
 
-    await redis
+    await getRedis()
       .set(CHANGELOG_CACHE_KEYS.SYNC_MARKER, new Date().toISOString(), {
         EX: Math.max(60, config.changelogSync.minIntervalSeconds),
       })
@@ -300,7 +375,20 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
 
     recordJobSuccess("changelog-sync");
 
-    return { created, refreshed, skipped, total: fetched.length };
+    const result = { created, refreshed, skipped, total: fetched.length };
+    await recordSyncRun({ ...run, status: "ok", finishedAt: new Date().toISOString(), result });
+
+    return result;
+  } catch (error) {
+    if (run) {
+      await recordSyncRun({
+        ...run,
+        status: "error",
+        finishedAt: new Date().toISOString(),
+        error: (error instanceof Error ? error.message : String(error)).slice(0, 500),
+      });
+    }
+    throw error;
   } finally {
     await lock.release();
   }

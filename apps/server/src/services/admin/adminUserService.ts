@@ -4,10 +4,16 @@ import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
 import { cacheDel } from "#lib/redis";
 import { isAdminUser } from "#lib/isAdminUser";
-import { userProfileCacheKey } from "#lib/cacheKeys";
+import { masterProfileCacheKey, userProfileCacheKey } from "#lib/cacheKeys";
 import { revokeAllSessionsForUser, revokeAllSessionsForUserSafely } from "#auth/sessions";
 import { ApiKeyService } from "#services/apiKeyService";
 import { PortfolioAssetService } from "#services/portfolioAssetService";
+import {
+  ADMIN_AUDIT_ACTIONS,
+  writeAdminAudit,
+  type AdminAuditInput,
+  getAuditHistory,
+} from "#services/admin/adminAuditService";
 import {
   deleteUserCascade,
   purgeDeletedUserCaches,
@@ -18,6 +24,8 @@ import type {
   AdminUserListQuery,
   AdminUserUpdateInput,
 } from "#validators/admin/adminUserValidator";
+import { listPage } from "#utils/pagination";
+import { invalidateLeaderboards } from "#services/affiliate/cache";
 
 const USER_LIST_SELECT = {
   id: true,
@@ -105,16 +113,15 @@ export async function listUsers(query: AdminUserListQuery) {
     prisma.user.count({ where }),
   ]);
 
-  return {
-    items: items.map(({ subscriptions, creditWallet, ...user }) => ({
+  return listPage(
+    items.map(({ subscriptions, creditWallet, ...user }) => ({
       ...user,
       subscription: subscriptions[0] ?? null,
       creditBalance: creditWallet?.balance ?? 0,
     })),
     total,
-    limit: query.limit,
-    offset: query.offset,
-  };
+    query,
+  );
 }
 
 /**
@@ -234,12 +241,7 @@ export async function getUserDetail(userId: string) {
       orderBy: { createdAt: "desc" },
       take: 10,
     }),
-    prisma.adminAuditEntry.findMany({
-      where: { targetType: "User", targetId: userId },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-      include: { actor: { select: { id: true, name: true, email: true } } },
-    }),
+    getAuditHistory("User", userId),
   ]);
 
   return {
@@ -282,7 +284,26 @@ async function assertNotProtectedAdmin(userId: string, operation: string) {
   return target;
 }
 
-export async function updateUser(userId: string, input: AdminUserUpdateInput) {
+/**
+ * The fields of a PATCH that would lock the `ADMIN_EMAIL` account out of the panel (V-073):
+ * `adminAuth` requires that account's row to be verified, and a demotion is the other
+ * privilege strip. Name, username and sync settings are harmless and stay editable.
+ */
+function lockoutOperation(input: AdminUserUpdateInput, currentRole: string) {
+  if (input.emailVerified === false) return "marked unverified";
+  if (input.role && input.role !== currentRole) return "have its role changed";
+  return null;
+}
+
+/**
+ * Profile and privilege edits. The audit entry is written in the same transaction as the
+ * update, so a role change can never commit without its record (V-074).
+ */
+export async function updateUser(
+  userId: string,
+  input: AdminUserUpdateInput,
+  audit: { actorId: string; reason?: string | null },
+) {
   const existing = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, email: true, role: true, username: true },
@@ -290,8 +311,9 @@ export async function updateUser(userId: string, input: AdminUserUpdateInput) {
 
   if (!existing) throw new ApiError(404, "User not found.");
 
-  if (input.role && input.role !== existing.role && isAdminUser(existing.email))
-    throw new ApiError(403, "The configured admin account cannot have its role changed.");
+  const lockout = lockoutOperation(input, existing.role);
+  if (lockout && isAdminUser(existing.email))
+    throw new ApiError(403, `The configured admin account cannot be ${lockout}.`);
 
   if (input.username && input.username !== existing.username) {
     const taken = await prisma.user.findFirst({
@@ -302,21 +324,46 @@ export async function updateUser(userId: string, input: AdminUserUpdateInput) {
     if (taken) throw new ApiError(409, "That username is already taken.");
   }
 
-  const updated = await prisma.user.update({
-    where: { id: userId },
-    data: {
-      ...(input.name !== undefined ? { name: input.name } : {}),
-      ...(input.username !== undefined ? { username: input.username } : {}),
-      ...(input.role !== undefined ? { role: input.role } : {}),
-      ...(input.emailVerified !== undefined ? { emailVerified: input.emailVerified } : {}),
-      ...(input.autoSyncEnabled !== undefined ? { autoSyncEnabled: input.autoSyncEnabled } : {}),
-    },
-    select: USER_LIST_SELECT,
+  const roleChanged = Boolean(input.role && input.role !== existing.role);
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.update({
+      where: { id: userId },
+      data: {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.username !== undefined ? { username: input.username } : {}),
+        ...(input.role !== undefined ? { role: input.role } : {}),
+        ...(input.emailVerified !== undefined ? { emailVerified: input.emailVerified } : {}),
+        ...(input.autoSyncEnabled !== undefined ? { autoSyncEnabled: input.autoSyncEnabled } : {}),
+      },
+      select: USER_LIST_SELECT,
+    });
+    await writeAdminAudit(tx, {
+      actorId: audit.actorId,
+      action: roleChanged ? ADMIN_AUDIT_ACTIONS.userRoleChange : ADMIN_AUDIT_ACTIONS.userUpdate,
+      targetType: "User",
+      targetId: userId,
+      reason: audit.reason,
+      metadata: {
+        ...(input.role ? { previousRole: existing.role, nextRole: input.role } : {}),
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.username !== undefined ? { username: input.username } : {}),
+        ...(input.emailVerified !== undefined ? { emailVerified: input.emailVerified } : {}),
+        ...(input.autoSyncEnabled !== undefined ? { autoSyncEnabled: input.autoSyncEnabled } : {}),
+      },
+    });
+    return user;
   });
 
-  await cacheDel(userProfileCacheKey(userId));
+  // As the user-side writes do (V-031): the master-profile summary repeats name and auto-sync,
+  // and the public affiliate leaderboards show name and username.
+  await Promise.all([
+    cacheDel(userProfileCacheKey(userId)),
+    cacheDel(masterProfileCacheKey(userId)),
+    ...(input.name !== undefined || input.username !== undefined ? [invalidateLeaderboards()] : []),
+  ]);
 
-  return { user: updated, previousRole: existing.role };
+  return { user: updated, previousRole: existing.role, roleChanged };
 }
 
 /**
@@ -330,7 +377,11 @@ export async function revokeUserSessions(userId: string) {
   return { revoked };
 }
 
-export async function deleteUser(userId: string, confirmEmail: string) {
+/**
+ * Permanent deletion. The audit entry commits in the cascade's transaction: a deletion that
+ * happened is always on record, and one that was refused never is (V-074).
+ */
+export async function deleteUser(userId: string, confirmEmail: string, audit: AdminAuditInput) {
   const target = await assertNotProtectedAdmin(userId, "deleted");
 
   if (target.email.trim().toLowerCase() !== confirmEmail.trim().toLowerCase())
@@ -365,8 +416,13 @@ export async function deleteUser(userId: string, confirmEmail: string) {
   await ApiKeyService.markAllRevokedForUser(userId);
   await revokeAllSessionsForUserSafely(userId);
 
-  // Same transaction body as self-service deletion (allocation pre-delete + user cascade).
-  await prisma.$transaction((tx) => deleteUserCascade(tx, userId));
+  // Same transaction body as self-service deletion (allocation pre-delete + user cascade),
+  // plus the audit row. `AdminAuditEntry.targetId` is not a foreign key, so it survives the
+  // row it names.
+  await prisma.$transaction(async (tx) => {
+    await writeAdminAudit(tx, audit);
+    await deleteUserCascade(tx, userId);
+  });
 
   // Best effort from here on: the account is gone, so neither may throw back to the admin.
   await Promise.allSettled([

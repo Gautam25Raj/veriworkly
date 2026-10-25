@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "#lib/prisma";
 import { getRedis } from "#lib/redis";
+import { acquireJobLock } from "#lib/jobLock";
 import { ApiError } from "#lib/errors";
 import { logger } from "#lib/logger";
 import { normalizeSlug, normalizeUsername, buildUniqueSlugHelper } from "#utils/slugs";
@@ -20,10 +21,6 @@ const SHARE_FLUSH_LOCK_SECONDS = 300;
 const SHARE_VIEW_RETENTION_DAYS = 30;
 const SHARE_VIEW_PRUNE_BATCH_SIZE = 5_000;
 const SHARE_VIEW_PRUNE_BUDGET_MS = 20_000;
-const RELEASE_SHARE_FLUSH_LOCK_SCRIPT = `
-  if redis.call("GET", KEYS[1]) == ARGV[1] then return redis.call("DEL", KEYS[1]) end
-  return 0
-`;
 
 export class ShareService {
   static async hashPassword(password: string) {
@@ -101,12 +98,11 @@ export class ShareService {
     // Serialize flush attempts so a manual admin retry overlapping the cron tick (or a rolling
     // deploy briefly running two worker processes) can't both compute a pre-transaction view
     // count and then have one of them silently discard data on a unique-constraint rollback.
-    // The TTL sits above the flush's budget and the release checks the token (V-029).
-    const lockToken = randomUUID();
-    const lockAcquired =
-      (await redis.set(lockKey, lockToken, { NX: true, EX: SHARE_FLUSH_LOCK_SECONDS })) === "OK";
+    // The TTL sits above the flush's budget, the lock is renewed while the flush runs, and the
+    // release checks the token (V-029, V-127).
+    const lock = await acquireJobLock(lockKey, { ttlMs: SHARE_FLUSH_LOCK_SECONDS * 1000 });
 
-    if (!lockAcquired) return { flushedViews: 0, flushedLinks: 0, skipped: true as const };
+    if (!lock) return { flushedViews: 0, flushedLinks: 0, skipped: true as const };
 
     try {
       if (hasViews && !(await redis.exists(viewsProcessingKey))) {
@@ -220,13 +216,21 @@ export class ShareService {
       const staleCount = shareLinkIds.length - survivingShareLinks.size;
       if (staleCount > 0) logger.warn("Discarded share views for deleted links", { staleCount });
 
+      // Committed. A runner that took the lock over meanwhile may be reading the processing
+      // keys; deleting them and the batch id under it would let it commit these views again
+      // under a fresh id. It finishes the cleanup (its retry hits the batch row and confirms it).
+      if (!(await lock.stillOwner())) {
+        logger.warn(
+          "Share views flush lost its lock after committing; leaving cleanup to the holder",
+        );
+        return { flushedViews, flushedLinks };
+      }
+
       await redis.del([viewsProcessingKey, countsProcessingKey, lastViewedProcessingKey, batchKey]);
 
       return { flushedViews, flushedLinks };
     } finally {
-      await redis
-        .eval(RELEASE_SHARE_FLUSH_LOCK_SCRIPT, { keys: [lockKey], arguments: [lockToken] })
-        .catch(() => {});
+      await lock.release();
     }
   }
 
@@ -352,42 +356,41 @@ export class ShareService {
     return [...new Set(links.map((link) => link.documentId))];
   }
 
+  /**
+   * One page of a document's share links, and how many there are in all (V-030). Links on a
+   * soft-deleted document are not listed. The username is asked for only when there is a link to
+   * show, so an account that never chose one can still open an empty list.
+   */
   static async listShareLinksPaginated(
     userId: string,
     documentId: string,
-    query?: { limit: number; offset: number },
+    query: { limit: number; offset: number },
   ) {
-    void query;
+    const where = { userId, documentId, document: { deletedAt: null } };
 
-    const item = await prisma.shareLink.findUnique({
-      where: { userId_documentId: { userId, documentId } },
-      include: {
-        document: {
-          select: {
-            slug: true,
-          },
-        },
-      },
-    });
+    const [links, total] = await Promise.all([
+      prisma.shareLink.findMany({
+        where,
+        include: { document: { select: { slug: true } } },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: query.offset,
+        take: query.limit,
+      }),
+      prisma.shareLink.count({ where }),
+    ]);
+
+    if (links.length === 0) return { items: [], total };
 
     const username = await UserService.requireUsernameForUser(userId);
 
-    if (!item) {
-      return { items: [], total: 0 };
-    }
+    const items = links.map(({ document, ...shareLinkData }) => ({
+      ...shareLinkData,
+      token: shareLinkData.slug,
+      username,
+      documentSlug: document.slug,
+    }));
 
-    const { document, ...shareLinkData } = item;
-
-    const items = [
-      {
-        ...shareLinkData,
-        token: item.slug,
-        username,
-        documentSlug: document.slug,
-      },
-    ];
-
-    return { items, total: items.length };
+    return { items, total };
   }
 
   static async revokeShareLink(userId: string, documentId: string, shareLinkId: string) {

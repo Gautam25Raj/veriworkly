@@ -8,31 +8,14 @@ import { Prisma } from "@prisma/client";
 
 import { logger } from "#lib/logger";
 import { prisma } from "#lib/prisma";
-import { initRedis, closeRedis, cacheDelByPrefix } from "#lib/redis";
+import { closeRedis } from "#lib/redis";
+import { invalidateRoadmapReadCaches } from "#services/roadmapService";
+import { roadmapAdminCreateSchema } from "#validators/roadmapValidator";
+
+import { assertSeedAllowed, invalidateReadCaches, parseAll, seedFlags } from "./seedSupport.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-type RoadmapStatus = "todo" | "in-progress" | "done";
-
-interface RoadmapSeedItem {
-  id: string;
-  title: string;
-  description: string;
-  status: RoadmapStatus;
-  eta?: string | null;
-  tags?: string[];
-  createdAt?: string;
-  startedAt?: string | null;
-  completedAt?: string | null;
-  completedQuarter?: string | null;
-  updatedAt?: string;
-  fullDescription?: string | null;
-  whyItMatters?: string | null;
-  timeline?: string | null;
-  details?: Record<string, unknown> | null;
-}
-
-const WIPE_EXISTING = process.argv.includes("--wipe");
 const DATA_FILE = path.join(__dirname, "seed-data", "roadmap-features.json");
 
 function toDate(value: string | null | undefined): Date | null {
@@ -40,69 +23,56 @@ function toDate(value: string | null | undefined): Date | null {
 }
 
 async function run() {
-  const raw = readFileSync(DATA_FILE, "utf8");
-  const items: RoadmapSeedItem[] = JSON.parse(raw);
+  assertSeedAllowed("seed:roadmap");
+
+  const raw: unknown[] = JSON.parse(readFileSync(DATA_FILE, "utf8"));
+  const items = parseAll(
+    raw,
+    (item, index) => String((item as { id?: unknown })?.id ?? `#${index}`),
+    (item) => roadmapAdminCreateSchema.safeParse(item),
+  );
 
   logger.info(`Loaded ${items.length} roadmap items from ${DATA_FILE}`);
 
-  await prisma.$queryRaw`SELECT 1`;
-
-  if (WIPE_EXISTING) {
-    const deleted = await prisma.roadmapFeature.deleteMany({});
-    logger.info(`Wiped ${deleted.count} existing roadmap feature rows (--wipe flag set)`);
+  if (items.some((item) => !item.id)) {
+    throw new Error("Every seeded roadmap item needs an id (it is the public slug).");
   }
 
-  let created = 0;
-  let updated = 0;
+  const { created, skipped } = await prisma.$transaction(async (tx) => {
+    if (seedFlags.wipe) {
+      const deleted = await tx.roadmapFeature.deleteMany({});
+      logger.info(`Wiped ${deleted.count} existing roadmap feature rows (--wipe flag set)`);
+    }
 
-  for (const item of items) {
-    const data = {
-      title: item.title,
-      description: item.description,
-      status: item.status,
-      eta: item.eta ?? null,
-      tags: item.tags ?? [],
-      createdAt: toDate(item.createdAt) ?? new Date(),
-      startedAt: toDate(item.startedAt),
-      completedAt: toDate(item.completedAt),
-      completedQuarter: item.completedQuarter ?? null,
-      updatedAt: toDate(item.updatedAt) ?? new Date(),
-      fullDescription: item.fullDescription ?? null,
-      whyItMatters: item.whyItMatters ?? null,
-      timeline: item.timeline ?? null,
-      details: (item.details as Prisma.InputJsonValue) ?? Prisma.JsonNull,
-    };
-
-    const existing = await prisma.roadmapFeature.findUnique({ where: { id: item.id } });
-
-    await prisma.roadmapFeature.upsert({
-      where: { id: item.id },
-      create: { id: item.id, ...data },
-      update: data,
+    const result = await tx.roadmapFeature.createMany({
+      data: items.map((item) => ({
+        id: item.id!,
+        title: item.title,
+        description: item.description,
+        status: item.status,
+        eta: item.eta ?? null,
+        tags: item.tags ?? [],
+        createdAt: toDate(item.createdAt) ?? new Date(),
+        startedAt: toDate(item.startedAt),
+        completedAt: toDate(item.completedAt),
+        completedQuarter: item.completedQuarter ?? null,
+        updatedAt: toDate(item.updatedAt) ?? new Date(),
+        fullDescription: item.fullDescription ?? null,
+        whyItMatters: item.whyItMatters ?? null,
+        timeline: item.timeline ?? null,
+        details: (item.details as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+      })),
+      // Existing rows keep whatever an admin wrote.
+      skipDuplicates: true,
     });
 
-    if (existing) updated++;
-    else created++;
-  }
+    return { created: result.count, skipped: items.length - result.count };
+  });
 
-  logger.info(`Roadmap seed complete: ${created} created, ${updated} updated`);
+  logger.info(`Roadmap seed complete: ${created} created, ${skipped} already present (unchanged)`);
 
-  try {
-    await Promise.race([
-      initRedis(),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Redis connect timeout")), 5000),
-      ),
-    ]);
-    await cacheDelByPrefix("roadmap:");
-    logger.info("Flushed roadmap:* Redis cache prefix");
-  } catch (error) {
-    logger.warn(
-      "Skipping Redis cache flush (Redis unreachable from this environment). " +
-        "If this points at the same Redis instance the running server uses, flush the " +
-        "'roadmap:' key prefix there manually so the public site doesn't serve stale cached data.",
-    );
-    logger.warn(String(error instanceof Error ? error.message : error));
+  if (created > 0 || seedFlags.wipe) {
+    await invalidateReadCaches("seed:roadmap", invalidateRoadmapReadCaches);
   }
 }
 

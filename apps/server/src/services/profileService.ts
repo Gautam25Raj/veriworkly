@@ -4,6 +4,7 @@ import { prisma } from "#lib/prisma";
 import { ApiError, handleValidationError } from "#lib/errors";
 
 import { cacheGet, cacheSet, cacheDel } from "#lib/redis";
+import { masterProfileCacheKey } from "#lib/cacheKeys";
 import { masterProfileContentSchema } from "#validators/masterProfileValidator";
 
 const MAX_PROFILE_PAYLOAD_BYTES = 1_000_000;
@@ -37,7 +38,7 @@ export class ProfileService {
    */
 
   static async getMasterProfile(userId: string) {
-    const cacheKey = `profile:${userId}`;
+    const cacheKey = masterProfileCacheKey(userId);
     const cached = await cacheGet(cacheKey);
 
     if (cached) return cached;
@@ -115,7 +116,7 @@ export class ProfileService {
       });
 
       if (updated) {
-        await cacheDel(`profile:${userId}`);
+        await cacheDel(masterProfileCacheKey(userId));
         return updated;
       }
     }
@@ -138,7 +139,7 @@ export class ProfileService {
     try {
       const created = await prisma.masterProfile.create({ data: { userId, content } });
 
-      await cacheDel(`profile:${userId}`);
+      await cacheDel(masterProfileCacheKey(userId));
 
       return created;
     } catch (error) {

@@ -225,7 +225,7 @@ Every admin API lives under a single Express router (`src/routes/admin/`), which
 - **Roadmap CMS** (`/admin/roadmap`) — create/edit/delete public roadmap items with rich detail: problem/solution narrative, timeline, impact metrics, before/after comparisons. Writes are at `POST|PUT|DELETE /api/v1/admin/roadmap`; the public `/roadmap` router serves reads only.
 - **Changelog CMS** — admin create/update/delete plus a manual GitHub-Releases sync trigger, at `POST|PUT|DELETE /api/v1/admin/changelog` and `POST /api/v1/admin/changelog/sync`. Still API-only — no dedicated Studio screen.
 
-`/api/v1/admin/monetization` is retained unchanged as a compatibility surface for the pre-split single-page console; new work should use `/admin/billing` and `/admin/affiliates`.
+The pre-split `/api/v1/admin/monetization` compatibility surface and the singular `/api/v1/admin/ambassador` alias are gone (no client called them); use `/admin/billing`, `/admin/affiliates` and `/admin/ambassadors`.
 
 ---
 

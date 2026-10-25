@@ -18,7 +18,7 @@ import { logger } from "./logger.js";
  * (called on SIGTERM/SIGINT) cancels any pending revive so shutdown does not fork new workers.
  */
 
-export const FAST_EXIT_MS = 30_000;
+const FAST_EXIT_MS = 30_000;
 const BASE_DELAY_MS = 1_000;
 const MAX_DELAY_MS = 30_000;
 

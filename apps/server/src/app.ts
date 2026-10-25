@@ -1,3 +1,6 @@
+// First: routes an async handler's rejection to the error handler (Express 4 drops it).
+import "#lib/asyncRouteErrors";
+
 import helmet from "helmet";
 import compression from "compression";
 import express, { raw, NextFunction, Request, Response, RequestHandler } from "express";
@@ -160,4 +163,3 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 export { app };
-export default app;

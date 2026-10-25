@@ -276,3 +276,63 @@ describe("OTP recipient cap through better-auth", () => {
     expect(sendMail).not.toHaveBeenCalled();
   });
 });
+
+describe("share link list (V-030)", () => {
+  const list = (cookie: string, documentId: string, query = "") =>
+    request(app)
+      .get(`/api/v1/shares/documents/${documentId}${query}`)
+      .set("Origin", STUDIO_ORIGIN)
+      .set("Cookie", cookie);
+
+  async function seedShared() {
+    const user = await createUserWithSession();
+    const document = await prisma.document.create({
+      data: { userId: user.id, title: "Resume", slug: "resume", content: {} },
+    });
+    await prisma.shareLink.create({
+      data: { userId: user.id, documentId: document.id, slug: "resume", snapshot: {} },
+    });
+    return { user, documentId: document.id };
+  }
+
+  it("pages for real: a page past the end is empty and the total is the real count", async () => {
+    const { user, documentId } = await seedShared();
+
+    const first = await list(user.cookie, documentId, "?page=1&pageSize=20");
+    expect(first.status).toBe(200);
+    expect(first.body.data.items).toHaveLength(1);
+    expect(first.body.data).toMatchObject({ total: 1, hasMore: false });
+
+    const second = await list(user.cookie, documentId, "?page=2&pageSize=20");
+    expect(second.status).toBe(200);
+    expect(second.body.data.items).toEqual([]);
+    expect(second.body.data.total).toBe(1);
+  });
+
+  it("an account without a username can open an empty list", async () => {
+    const user = await createUserWithSession();
+    await prisma.user.update({ where: { id: user.id }, data: { username: null } });
+    const document = await prisma.document.create({
+      data: { userId: user.id, title: "Resume", slug: "resume", content: {} },
+    });
+
+    const response = await list(user.cookie, document.id);
+    expect(response.status).toBe(200);
+    expect(response.body.data).toMatchObject({ items: [], total: 0 });
+  });
+
+  it("leaves out links on a soft-deleted document, even after the list was cached", async () => {
+    const { user, documentId } = await seedShared();
+
+    expect((await list(user.cookie, documentId)).body.data.total).toBe(1);
+
+    const deleted = await request(app)
+      .delete(`/api/v1/documents/${documentId}`)
+      .set("Origin", STUDIO_ORIGIN)
+      .set("Cookie", user.cookie);
+    expect(deleted.status).toBe(200);
+
+    const after = await list(user.cookie, documentId);
+    expect(after.body.data).toMatchObject({ items: [], total: 0 });
+  });
+});

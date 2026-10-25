@@ -128,7 +128,7 @@ function normalizeKeyForHash(key: string) {
   return key.trim();
 }
 
-function hashKey(key: string) {
+export function hashKey(key: string) {
   return crypto
     .createHmac("sha256", config.apiKeys.hashSecret)
     .update(normalizeKeyForHash(key))
@@ -245,10 +245,6 @@ async function getAuthCache(keyHash: string) {
 }
 
 export class ApiKeyService {
-  static hashKey(key: string) {
-    return hashKey(key);
-  }
-
   static async generateKey(userId: string, input: ApiKeyCreateInput) {
     const rawKey = generateRawKey();
 
@@ -384,10 +380,6 @@ export class ApiKeyService {
         data: { lastUsed: new Date() },
       })
       .catch((err) => logger.error("Failed to update API key lastUsed", err));
-  }
-
-  static async listKeys(userId: string) {
-    return this.listKeysPaginated(userId, { limit: 100, offset: 0 });
   }
 
   static async listKeysPaginated(userId: string, query: ApiKeyListQuery) {
@@ -583,13 +575,14 @@ export class ApiKeyService {
     // A validateKey() that read the row just before an admin reactivation committed can write
     // the negative marker after the delete above; drop it once more shortly afterwards.
     if (keys.length > 0) {
-      setTimeout(async () => {
+      const dropMarkers = async () => {
         try {
           await getRedis().unlink(keys.map((key) => invalidKeyMarkerKey(key.keyHash)));
         } catch (error) {
           logger.warn("Delayed API key negative-marker delete failed", error);
         }
-      }, 1000).unref();
+      };
+      setTimeout(() => void dropMarkers(), 1000).unref();
     }
   }
 

@@ -6,6 +6,7 @@ import { ApiError } from "#lib/errors";
 
 import { invalidateAffiliate } from "#services/affiliate/cache";
 import { AFFILIATE_WALLET_CURRENCY } from "#services/affiliate/constants";
+import { writeAdminAudit, type AdminAuditInput } from "#services/admin/adminAuditService";
 import { createCommission, updateCommission } from "#services/affiliate/commissions";
 import { updateWithdrawal } from "#services/affiliate/wallet";
 
@@ -15,6 +16,7 @@ import type {
   adminReferralListQuerySchema,
   adminWithdrawalListQuerySchema,
 } from "#validators/admin/adminAffiliateValidator";
+import { listPage } from "#utils/pagination";
 
 type AffiliateListQuery = z.infer<typeof adminAffiliateListQuerySchema>;
 type CommissionListQuery = z.infer<typeof adminCommissionListQuerySchema>;
@@ -143,7 +145,7 @@ export async function listAffiliates(query: AffiliateListQuery) {
     prisma.user.count({ where }),
   ]);
 
-  return { items, total, limit: query.limit, offset: query.offset };
+  return listPage(items, total, query);
 }
 
 export async function getAffiliateDetail(userId: string) {
@@ -198,9 +200,14 @@ export async function getAffiliateDetail(userId: string) {
   };
 }
 
+/**
+ * Status and tier both move money (the tier sets the commission rate, a suspension stops
+ * commissions), so the audit entry commits with the change (V-074).
+ */
 export async function updateAffiliateStanding(
   userId: string,
   input: { status?: "PENDING" | "ACTIVE" | "SUSPENDED"; tier?: "TIER_1" | "TIER_2" | "TIER_3" },
+  audit: AdminAuditInput,
 ) {
   const existing = await prisma.user.findUnique({
     where: { id: userId },
@@ -211,13 +218,24 @@ export async function updateAffiliateStanding(
   if (existing.affiliateStatus === "NOT_ENROLLED")
     throw new ApiError(400, "This user is not enrolled in the affiliate program.");
 
-  const updated = await prisma.user.update({
-    where: { id: userId },
-    data: {
-      ...(input.status ? { affiliateStatus: input.status } : {}),
-      ...(input.tier ? { affiliateTier: input.tier } : {}),
-    },
-    select: AFFILIATE_SELECT,
+  const updated = await prisma.$transaction(async (tx) => {
+    const affiliate = await tx.user.update({
+      where: { id: userId },
+      data: {
+        ...(input.status ? { affiliateStatus: input.status } : {}),
+        ...(input.tier ? { affiliateTier: input.tier } : {}),
+      },
+      select: AFFILIATE_SELECT,
+    });
+    await writeAdminAudit(tx, {
+      ...audit,
+      metadata: {
+        ...audit.metadata,
+        previousStatus: existing.affiliateStatus,
+        previousTier: existing.affiliateTier,
+      },
+    });
+    return affiliate;
   });
 
   await invalidateAffiliate(userId, true);
@@ -271,19 +289,19 @@ export async function listCommissions(query: CommissionListQuery) {
     }),
   ]);
 
-  return {
-    // A commission in any currency but the wallet's stays PENDING until an admin converts it and
-    // records the USD amount by hand; the flag is what the list surfaces for that queue (V-017).
-    items: items.map((item) => ({
+  // A commission in any currency but the wallet's stays PENDING until an admin converts it and
+  // records the USD amount by hand; the flag is what the list surfaces for that queue (V-017).
+  const page = listPage(
+    items.map((item) => ({
       ...item,
       requiresManualConversion: item.currency !== AFFILIATE_WALLET_CURRENCY,
     })),
     total,
-    // Sum of the wallet-currency rows only; cents in other currencies do not add up with them.
-    totalAmountCents: totals._sum.amountCents ?? 0,
-    limit: query.limit,
-    offset: query.offset,
-  };
+    query,
+  );
+
+  // Sum of the wallet-currency rows only; cents in other currencies do not add up with them.
+  return { ...page, totalAmountCents: totals._sum.amountCents ?? 0 };
 }
 
 export async function listWithdrawals(query: WithdrawalListQuery) {
@@ -314,13 +332,7 @@ export async function listWithdrawals(query: WithdrawalListQuery) {
     prisma.affiliateWithdrawal.aggregate({ where, _sum: { amountCents: true } }),
   ]);
 
-  return {
-    items,
-    total,
-    totalAmountCents: totals._sum.amountCents ?? 0,
-    limit: query.limit,
-    offset: query.offset,
-  };
+  return { ...listPage(items, total, query), totalAmountCents: totals._sum.amountCents ?? 0 };
 }
 
 export async function listReferrals(query: ReferralListQuery) {
@@ -351,7 +363,7 @@ export async function listReferrals(query: ReferralListQuery) {
     prisma.affiliateReferral.count({ where }),
   ]);
 
-  return { items, total, limit: query.limit, offset: query.offset };
+  return listPage(items, total, query);
 }
 
 export { createCommission, updateCommission, updateWithdrawal };

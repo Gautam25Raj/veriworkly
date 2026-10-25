@@ -22,7 +22,7 @@ const CLICK_DEDUPE_SECONDS = 30 * 60;
 const PAID_GRANT_SOURCES = ["credit_pack", "subscription_payment"];
 
 /** What a request tells us about who applied a code; hashed before it is stored or compared. */
-export type ReferralSignals = { ip?: string | null; userAgent?: string | null };
+type ReferralSignals = { ip?: string | null; userAgent?: string | null };
 
 function createAffiliateCode() {
   return randomBytes(5).toString("hex");

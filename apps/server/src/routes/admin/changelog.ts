@@ -5,6 +5,7 @@ import {
   updateChangelogEntryController,
   deleteChangelogEntryController,
   syncChangelogReleasesController,
+  changelogSyncStatusController,
 } from "#controllers/admin/adminChangelogController";
 
 /**
@@ -14,6 +15,7 @@ import {
 const router = Router();
 
 router.post("/", createChangelogEntryController);
+router.get("/sync", changelogSyncStatusController);
 router.post("/sync", syncChangelogReleasesController);
 router.put("/:id", updateChangelogEntryController);
 router.delete("/:id", deleteChangelogEntryController);

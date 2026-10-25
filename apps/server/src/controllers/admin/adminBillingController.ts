@@ -31,23 +31,20 @@ export const AdminBillingController = {
 
   /**
    * PATCH /admin/billing/subscriptions/:id — support override for an account whose webhook
-   * was lost. The provider stays authoritative: the next webhook will overwrite this.
+   * was lost. The provider stays authoritative: the next webhook will overwrite this. The audit
+   * entry is written in the service, in the same transaction as the edit (V-074).
    */
   updateSubscription: adminHandler(async ({ req, actorId }) => {
     const { id } = adminIdParamSchema.parse(req.params);
     const input = adminSubscriptionUpdateSchema.parse(req.body);
 
-    const { subscription, previous } = await AdminBillingService.updateSubscription(id, input);
-
-    await recordAdminAudit({
+    const { subscription } = await AdminBillingService.updateSubscription(id, input, {
       actorId,
       action: ADMIN_AUDIT_ACTIONS.subscriptionUpdate,
       targetType: "Subscription",
       targetId: id,
       reason: input.reason,
       metadata: {
-        userId: previous.userId,
-        previousStatus: previous.status,
         ...(input.status ? { status: input.status } : {}),
         ...(input.cancelAtPeriodEnd !== undefined
           ? { cancelAtPeriodEnd: input.cancelAtPeriodEnd }
@@ -65,30 +62,33 @@ export const AdminBillingController = {
   }, "Credit wallets fetched successfully"),
 
   /**
-   * POST /admin/billing/credits — grant (positive) or claw back (negative) credits. An optional
-   * `Idempotency-Key` header makes a retried submit a no-op instead of a second adjustment.
+   * POST /admin/billing/credits — grant (positive) or claw back (negative) credits. An
+   * `Idempotency-Key` header (or `idempotencyKey` in the body) makes a retried submit return the
+   * original adjustment instead of making a second one; without a key, an identical adjustment
+   * within about 10 seconds is treated as a double submit and replays too. The audit entry
+   * commits with the ledger rows and a replay writes none.
    */
   adjustCredits: adminHandler(async ({ req, actorId }) => {
     const input = adminCreditAdjustmentSchema.parse(req.body);
-    const idempotencyKey = req.get("Idempotency-Key")?.trim().slice(0, 128) || undefined;
+    const idempotencyKey =
+      req.get("Idempotency-Key")?.trim().slice(0, 128) || input.idempotencyKey || undefined;
 
-    const { transaction, replayed } = await AdminBillingService.adjustCredits(
+    const { transaction } = await AdminBillingService.adjustCredits(
       input.userId,
       input.amount,
       input.reason,
-      { actorId, idempotencyKey },
-    );
-
-    // A replayed key changed nothing, so it earns no second audit entry.
-    if (!replayed)
-      await recordAdminAudit({
+      {
         actorId,
-        action: ADMIN_AUDIT_ACTIONS.creditGrant,
-        targetType: "User",
-        targetId: input.userId,
-        reason: input.reason,
-        metadata: { amount: input.amount },
-      });
+        idempotencyKey,
+        audit: {
+          actorId,
+          action: ADMIN_AUDIT_ACTIONS.creditGrant,
+          targetType: "User",
+          targetId: input.userId,
+          reason: input.reason,
+        },
+      },
+    );
 
     return transaction;
   }, "Credits adjusted successfully"),
@@ -103,18 +103,18 @@ export const AdminBillingController = {
   grantEntitlement: adminHandler(async ({ req, actorId }) => {
     const input = adminEntitlementSchema.parse(req.body);
 
-    const grant = await AdminBillingService.grantEntitlement({ ...input, actorId });
-
-    await recordAdminAudit({
+    return AdminBillingService.grantEntitlement({
+      ...input,
       actorId,
-      action: ADMIN_AUDIT_ACTIONS.entitlementGrant,
-      targetType: "User",
-      targetId: input.userId,
-      reason: input.reason,
-      metadata: { key: input.key, endsAt: input.endsAt ?? null, grantId: grant.id },
+      audit: {
+        actorId,
+        action: ADMIN_AUDIT_ACTIONS.entitlementGrant,
+        targetType: "User",
+        targetId: input.userId,
+        reason: input.reason,
+        metadata: { key: input.key, endsAt: input.endsAt ?? null },
+      },
     });
-
-    return grant;
   }, "Entitlement granted successfully"),
 
   /** DELETE /admin/billing/entitlements/:id */
@@ -122,18 +122,13 @@ export const AdminBillingController = {
     const { id } = adminIdParamSchema.parse(req.params);
     const input = adminEntitlementRevokeSchema.parse(deleteRequestInput(req));
 
-    const grant = await AdminBillingService.revokeEntitlement(id, input.reason, actorId);
-
-    await recordAdminAudit({
+    return AdminBillingService.revokeEntitlement(id, input.reason, actorId, {
       actorId,
       action: ADMIN_AUDIT_ACTIONS.entitlementRevoke,
       targetType: "EntitlementGrant",
       targetId: id,
       reason: input.reason,
-      metadata: { key: grant.key, userId: grant.userId },
     });
-
-    return grant;
   }, "Entitlement revoked successfully"),
 
   /** GET /admin/billing/webhooks — the provider event log, newest first. */

@@ -28,6 +28,7 @@ vi.mock("#config", () => ({
     },
     allowedOrigins: ["https://trusted.example.com"],
   },
+  isProduction: true,
   isDevelopment: false,
 }));
 

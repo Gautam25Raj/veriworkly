@@ -1,16 +1,8 @@
 export type {
-  GitHubStatus,
-  GitHubItemKind,
-  GitHubIssuesQuery,
   GitHubDateRange,
-  GitHubIssuesResult,
-  GitHubIssuePayload,
-  GitHubItemSnapshot,
-  GitHubPullRequestPayload,
   GitHubPullRequestSummary,
   GitHubContributorItem,
   GitHubReleasePayload,
-  ParsedReleaseBody,
 } from "./types.js";
 
 export * from "./client.js";

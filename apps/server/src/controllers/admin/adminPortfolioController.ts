@@ -1,7 +1,7 @@
 import { adminHandler, deleteRequestInput } from "#controllers/admin/adminRequestHandler";
 
 import * as AdminPortfolioService from "#services/admin/adminPortfolioService";
-import { ADMIN_AUDIT_ACTIONS, recordAdminAudit } from "#services/admin/adminAuditService";
+import { ADMIN_AUDIT_ACTIONS } from "#services/admin/adminAuditService";
 
 import { adminIdParamSchema } from "#validators/admin/adminCommonValidator";
 import {
@@ -48,25 +48,19 @@ export const AdminPortfolioController = {
     const { id } = adminIdParamSchema.parse(req.params);
     const input = adminPortfolioStatusSchema.parse(req.body);
 
-    const { publication, previousStatus } = await AdminPortfolioService.updatePublicationStatus(
+    // The audit entry is written by the service, in the same transaction as the status change.
+    const { publication } = await AdminPortfolioService.updatePublicationStatus(
       id,
       input.status,
       input.reason,
-    );
-
-    await recordAdminAudit({
-      actorId,
-      action: ADMIN_AUDIT_ACTIONS.portfolioStatusChange,
-      targetType: "PortfolioPublication",
-      targetId: id,
-      reason: input.reason,
-      metadata: {
-        previousStatus,
-        status: input.status,
-        subdomain: publication.subdomain,
-        ownerId: publication.user.id,
+      {
+        actorId,
+        action: ADMIN_AUDIT_ACTIONS.portfolioStatusChange,
+        targetType: "PortfolioPublication",
+        targetId: id,
+        reason: input.reason,
       },
-    });
+    );
 
     return publication;
   }, "Portfolio status updated successfully"),
@@ -76,17 +70,12 @@ export const AdminPortfolioController = {
     const { id } = adminIdParamSchema.parse(req.params);
     const input = adminPortfolioUnpublishSchema.parse(deleteRequestInput(req));
 
-    const result = await AdminPortfolioService.forceUnpublish(id);
-
-    await recordAdminAudit({
+    return AdminPortfolioService.forceUnpublish(id, {
       actorId,
       action: ADMIN_AUDIT_ACTIONS.portfolioUnpublish,
       targetType: "PortfolioPublication",
       targetId: id,
       reason: input.reason,
-      metadata: { subdomain: result.subdomain },
     });
-
-    return result;
   }, "Portfolio unpublished successfully"),
 };

@@ -30,6 +30,8 @@ export function webText(token: TextToken): CSSProperties {
     lineHeight: `${token.lineHeight}px`,
     margin: 0,
     textTransform: token.textTransform,
+    // Line breaks the user typed (kept by `cleanResumeText`) break here too, as they do in react-pdf.
+    whiteSpace: "pre-line",
   };
 }
 

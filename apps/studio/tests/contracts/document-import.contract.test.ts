@@ -93,7 +93,7 @@ describe("document import contract", () => {
 
     expect(saved.ok).toBe(true);
     expect(document.type).toBe("COVER_LETTER");
-    expect((document.content as CoverLetterContent).companyName).toBe("Veriworkly");
+    expect((document.content as CoverLetterContent).companyName).toBe("Acme Corp");
     expect(loadDocumentById("COVER_LETTER", document.id)?.id).toBe(document.id);
   });
 
@@ -141,6 +141,7 @@ describe("document import contract", () => {
 
     // Schema coercion, not just shape rejection: a NaN page margin must never reach state.
     const draft = getDocumentDefinition("COVER_LETTER").importJson({
+      senderName: "Ada Lovelace",
       appearance: { pageMargin: "enormous", lineHeight: null },
       links: { items: [{ url: "https://example.com", type: "not-a-real-network" }] },
     });
@@ -162,6 +163,53 @@ describe("document import contract", () => {
     expect(fromEnvelope?.title).toBe(envelope.title);
     expect(fromContent?.content).toEqual(fromEnvelope?.content);
     // No envelope to read a title from, so it is derived from the target role and company.
-    expect(fromContent?.title).toBe("Product Engineer - Veriworkly");
+    expect(fromContent?.title).toBe("Product Engineer - Acme Corp");
+  });
+
+  it("S-118: refuses a file that does not say what it is", async () => {
+    for (const type of ["RESUME", "COVER_LETTER"] as const) {
+      await expect(importDocumentFromJsonFile(type, jsonFile({}))).rejects.toThrow(
+        "Invalid document JSON",
+      );
+    }
+  });
+
+  it("S-118: refuses another document type's export", async () => {
+    const resumeExport = structuredClone(defaultResume);
+    const coverLetterEnvelope = createDefaultCoverLetter("cover-letter-original");
+
+    await expect(
+      importDocumentFromJsonFile("RESUME", jsonFile(coverLetterEnvelope.content)),
+    ).rejects.toThrow("Invalid document JSON");
+    await expect(
+      importDocumentFromJsonFile("RESUME", jsonFile(coverLetterEnvelope)),
+    ).rejects.toThrow("Invalid document JSON");
+    await expect(
+      importDocumentFromJsonFile("COVER_LETTER", jsonFile(resumeExport)),
+    ).rejects.toThrow("Invalid document JSON");
+    await expect(
+      importDocumentFromJsonFile(
+        "COVER_LETTER",
+        jsonFile({ id: "r", type: "RESUME", templateId: "x", content: resumeExport }),
+      ),
+    ).rejects.toThrow("Invalid document JSON");
+  });
+
+  it("S-164: an import follows the workspace auto-sync setting, like any new document", async () => {
+    window.localStorage.setItem(
+      "veriworkly:workspace-settings",
+      JSON.stringify({ autoSyncEnabled: true }),
+    );
+
+    const { document, saved } = await importDocumentFromJsonFile(
+      "RESUME",
+      jsonFile({ ...structuredClone(defaultResume), sync: FOREIGN_SYNC }),
+    );
+
+    expect(saved.ok).toBe(true);
+    expect(document.sync.enabled).toBe(true);
+    expect(document.sync.status).toBe("pending");
+    expect(document.sync.cloudDocumentId).toBeNull();
+    expect((document.content as ResumeData).sync.enabled).toBe(true);
   });
 });

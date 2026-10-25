@@ -76,8 +76,14 @@ export function getOrderedResumeSections(resume: ResumeData): ResumeSection[] {
     .sort((a, b) => a.order - b.order);
 }
 
+/**
+ * Collapses runs of spaces and tabs but keeps line breaks: a summary typed as paragraphs
+ * must reach the preview and the PDF as paragraphs, the way DOCX already receives it.
+ */
 export function cleanResumeText(value: string | null | undefined): string {
-  return stripEmoji(safeText(value ?? "")).replace(/\s+/g, " ");
+  return stripEmoji(safeText(value ?? ""))
+    .replace(/[^\S\n]+/g, " ")
+    .replace(/ ?\n ?/g, "\n");
 }
 
 export function getResumeRenderStyle(resume: ResumeData): ResumeRenderStyle {

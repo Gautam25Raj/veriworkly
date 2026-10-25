@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
@@ -17,10 +17,38 @@ import { siteConfig } from "@/config/site";
 import { useUserStore } from "@/store/useUserStore";
 import { buyCreditPack, openBillingPortal, cancelCheckout } from "@/features/billing/billing-api";
 import type { BillingActivity, BillingSummary } from "@/features/billing/types";
+import {
+  purchaseFingerprint,
+  recordPurchaseBaseline,
+  takePurchaseBaseline,
+} from "@/features/billing/purchase-baseline";
 import { cn } from "@/lib/utils";
-import { ApiRequestError } from "@/utils/fetchApiData";
+import { ApiRequestError, fetchApiData } from "@/utils/fetchApiData";
 
 const CHECKOUT_LOCK_CONFLICT_STATUS = 409;
+// The plan changes only when the payment webhook lands, which can trail the redirect back
+// here by several seconds; past the last delay the user is told to refresh later instead.
+const PURCHASE_POLL_DELAYS_MS = [0, 1500, 2500, 4000, 6000];
+
+async function waitForPurchaseToApply(before: string): Promise<boolean> {
+  for (const delay of PURCHASE_POLL_DELAYS_MS) {
+    await new Promise((resolve) => window.setTimeout(resolve, delay));
+
+    const next = await fetchApiData<BillingSummary>("/billing/me", { method: "GET" });
+
+    if (purchaseFingerprint(next) !== before) return true;
+  }
+
+  return false;
+}
+
+function toBillingError(cause: unknown, fallbackMessage: string) {
+  return {
+    message: cause instanceof Error ? cause.message : fallbackMessage,
+    isCheckoutLockConflict:
+      cause instanceof ApiRequestError && cause.status === CHECKOUT_LOCK_CONFLICT_STATUS,
+  };
+}
 
 const planNames = {
   FREE: "Free",
@@ -70,50 +98,61 @@ export function BillingPage({
     (pack) => pack.key === "credit_pack_500",
   );
 
+  // `router.replace` below changes `searchParams`; the ref keeps that re-run from starting
+  // the return flow twice, and nothing here is cancelled by it.
+  const checkoutReturnHandled = useRef(false);
+
   useEffect(() => {
     const checkoutStatus = searchParams?.get("checkout");
+
+    if (!checkoutStatus || checkoutReturnHandled.current) return;
+    checkoutReturnHandled.current = true;
 
     if (checkoutStatus === "cancelled") {
       void cancelCheckout()
         .then(() => {
           router.replace("/billing");
         })
-        .catch((err) => {
-          console.error("Failed to cancel checkout lock", err);
+        .catch((cause) => {
+          setError(toBillingError(cause, "Could not release the cancelled checkout."));
         });
       return;
     }
 
-    if (checkoutStatus === "success") {
-      // Plan/credit updates are driven by an async webhook, so the freshly
-      // loaded server data may still be stale for a moment. Re-fetch a few
-      // times with backoff and surface a "finalizing" state instead of
-      // silently showing outdated numbers.
+    if (checkoutStatus === "complete" || checkoutStatus === "success") {
+      const baseline = takePurchaseBaseline();
+      router.replace("/billing");
+
+      // No record of the state before checkout (another tab, cleared storage): nothing to
+      // wait for, so one refresh shows the plan as it now is.
+      if (baseline === null) {
+        router.refresh();
+        return;
+      }
+
       // Deferred to a microtask so this setState call doesn't run synchronously
       // inside the effect body itself (cascading-render lint rule).
       queueMicrotask(() => setFinalizingPurchase(true));
-      router.replace("/billing");
 
-      const delays = [1500, 2500, 4000];
-      const timers = delays.map((delay) => window.setTimeout(() => router.refresh(), delay));
-      const finalTimer = window.setTimeout(
-        () => setFinalizingPurchase(false),
-        delays[delays.length - 1] + 500,
-      );
+      void waitForPurchaseToApply(baseline)
+        .then((applied) => {
+          if (applied) {
+            router.refresh();
+            return;
+          }
 
-      return () => {
-        timers.forEach((timer) => window.clearTimeout(timer));
-        window.clearTimeout(finalTimer);
-        setFinalizingPurchase(false);
-      };
+          setError({
+            message:
+              "Your payment is still being confirmed. Refresh this page in a minute to see your plan and credits.",
+            isCheckoutLockConflict: false,
+          });
+        })
+        .catch((cause) => {
+          setError(toBillingError(cause, "Could not check the status of your purchase."));
+        })
+        .finally(() => setFinalizingPurchase(false));
     }
   }, [searchParams, router]);
-
-  const toBillingError = (cause: unknown, fallbackMessage: string) => ({
-    message: cause instanceof Error ? cause.message : fallbackMessage,
-    isCheckoutLockConflict:
-      cause instanceof ApiRequestError && cause.status === CHECKOUT_LOCK_CONFLICT_STATUS,
-  });
 
   const handleClearLock = async () => {
     setClearingLock(true);
@@ -142,7 +181,11 @@ export function BillingPage({
     setLoading(packKey);
     setError(null);
     try {
-      window.location.assign((await buyCreditPack(packKey)).url);
+      const [{ url }] = await Promise.all([
+        buyCreditPack(packKey),
+        recordPurchaseBaseline(packKey),
+      ]);
+      window.location.assign(url);
     } catch (cause) {
       setError(toBillingError(cause, "Could not start credit checkout."));
       setLoading("");

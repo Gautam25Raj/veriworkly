@@ -8,6 +8,7 @@ import { Button } from "@veriworkly/ui";
 import { siteConfig } from "@/config/site";
 import { beginCheckout, cancelCheckout } from "@/features/billing/billing-api";
 import type { BillingCycle, ProductKey } from "@/features/billing/types";
+import { recordPurchaseBaseline } from "@/features/billing/purchase-baseline";
 
 type CheckoutInterval = BillingCycle | "one_day" | "seven_day";
 
@@ -25,8 +26,11 @@ export function CheckoutRedirect({
   useEffect(() => {
     let active = true;
 
-    beginCheckout(productKey as ProductKey, interval as CheckoutInterval)
-      .then(({ url }) => {
+    Promise.all([
+      beginCheckout(productKey as ProductKey, interval as CheckoutInterval),
+      recordPurchaseBaseline(productKey),
+    ])
+      .then(([{ url }]) => {
         if (active) window.location.assign(url);
       })
       .catch((cause) => {

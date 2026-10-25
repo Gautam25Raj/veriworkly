@@ -22,6 +22,7 @@ import { useDocumentJsonImport } from "@/features/documents/editor/toolbar/useDo
 import ToolbarSaveButton from "@/features/documents/editor/toolbar/ToolbarSaveButton";
 
 import { useResumeStore } from "@/features/resume/store/resume-store";
+import { getMasterProfileForNewDocument } from "@/features/resume/services/master-profile";
 
 import { getDocumentEditorPath, getDocumentPreviewPath } from "@/features/documents/core/routes";
 
@@ -76,7 +77,14 @@ const ResumeToolbar = memo(function ResumeToolbar({
     onSetMessage("Syncing with cloud...");
 
     try {
-      await syncDocumentNow("RESUME", resumeId);
+      const result = await syncDocumentNow("RESUME", resumeId);
+
+      if (!result.ok) {
+        onSetMessage(`Sync failed: ${result.message}`);
+        toast.error(result.message);
+        return;
+      }
+
       onSetMessage("Synced successfully");
       toast.success("Synced successfully");
     } catch (error) {
@@ -185,13 +193,16 @@ const ResumeToolbar = memo(function ResumeToolbar({
           onDelete={onOpenDelete}
           onImportJson={() => jsonInputRef.current?.click()}
           onImportMarkdown={() => markdownInputRef.current?.click()}
-          onReset={() => {
-            resetResume();
-            onSetMessage("Resume reset to defaults");
+          onReset={async () => {
+            // Same as a new resume: seeded from the profile, never the sample.
+            const result = resetResume(await getMasterProfileForNewDocument());
+            onSetMessage(
+              result.ok ? "Resume reset to defaults" : getSaveFailureMessage(result.reason),
+            );
           }}
           onEmptyFields={() => {
-            emptyResume();
-            onSetMessage("All fields cleared");
+            const result = emptyResume();
+            onSetMessage(result.ok ? "All fields cleared" : getSaveFailureMessage(result.reason));
           }}
           onSync={handleSync}
           onFullPreview={() => router.push(getDocumentPreviewPath("RESUME", resumeId))}

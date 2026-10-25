@@ -5,6 +5,7 @@ import type { ResumeData } from "@/types/resume";
 
 import { defaultResume } from "@/features/resume/constants/default-resume";
 import {
+  cleanResumeText,
   getResumeRenderModel,
   normalizeLinkHref,
 } from "@/features/documents/rendering/resume-rendering";
@@ -158,5 +159,14 @@ describe("export hygiene contract", () => {
     ]) {
       expect(normalizeLinkHref(url).toLowerCase()).not.toMatch(/^javascript:/);
     }
+  });
+});
+
+describe("cleanResumeText", () => {
+  it("S-127: keeps line breaks and collapses only spaces and tabs", () => {
+    expect(cleanResumeText("First  paragraph\t here. \r\n\nSecond line")).toBe(
+      "First paragraph here.\n\nSecond line",
+    );
+    expect(cleanResumeText("  Jane   Doe  ")).toBe("Jane Doe");
   });
 });

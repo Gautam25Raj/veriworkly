@@ -33,6 +33,8 @@ export type AtsRepairSummary = {
   /** Values the model returned that do not occur in the resume, and were dropped. */
   rejectedValues: number;
   creditsSpent: number;
+  /** The model answered but filled no field; nothing was charged. */
+  unusable?: boolean;
 };
 
 export type AtsResult = {

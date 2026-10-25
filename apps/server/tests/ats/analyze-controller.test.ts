@@ -382,6 +382,22 @@ describe("POST /ats/analyze — parse repair is offered, not imposed", () => {
     // Only the fields the parser left empty and the model filled — provenance, not a blanket flag.
     expect(json.mock.calls[0][0].data.repair.fields).toEqual(["name", "roles"]);
   });
+
+  it("says when the model found nothing to add, and charges nothing", async () => {
+    const { AtsAiError } = await import("@veriworkly/ats-engine/ai");
+    needsRepairMock.mockReturnValue(true);
+    repairMock.mockRejectedValue(new AtsAiError("unusable", "The reply filled no field."));
+    const { res, json } = responseSpy();
+
+    await AtsAiController.analyze(requestFor({ ...baseBody, repairParse: true }), res, vi.fn());
+
+    expect(json.mock.calls[0][0].data.repair).toMatchObject({
+      available: true,
+      applied: false,
+      creditsSpent: 0,
+      unusable: true,
+    });
+  });
 });
 
 /**

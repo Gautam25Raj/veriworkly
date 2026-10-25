@@ -5,6 +5,7 @@ import {
   type AtsParsedResume,
   type PreparedResume,
 } from "@veriworkly/ats-engine";
+import { AtsAiError } from "@veriworkly/ats-engine/ai";
 import type { NextFunction, Request, Response } from "express";
 import { z } from "zod";
 
@@ -155,6 +156,7 @@ export class AtsAiController {
     const repairAvailable = needsRepair(report);
     let repair: RepairOutcome | null = null;
     let repairedFieldList: AtsParsedField[] = [];
+    let repairUnusable = false;
 
     if (repairAvailable && input.repairParse) {
       try {
@@ -176,11 +178,14 @@ export class AtsAiController {
         // left to continue with.
         if (signal.aborted) throw error;
         // Repair is optional: its own failure releases its credits and must not cost the
-        // caller the analysis they also asked for. It is reported as not applied.
-        logger.warn("ATS parse repair failed; continuing without it", {
-          requestId: input.requestId,
-          error: error instanceof Error ? error.message : String(error),
-        });
+        // caller the analysis they also asked for. It is reported as not applied, and an
+        // "unusable" reply (the model filled no field) is reported as such.
+        repairUnusable = error instanceof AtsAiError && error.code === "unusable";
+        if (!repairUnusable)
+          logger.warn("ATS parse repair failed; continuing without it", {
+            requestId: input.requestId,
+            error: error instanceof Error ? error.message : String(error),
+          });
       }
     }
 
@@ -245,6 +250,7 @@ export class AtsAiController {
         fields: repairedFieldList,
         rejectedValues: repair?.rejectedValues ?? 0,
         creditsSpent: repairCreditsSpent,
+        unusable: repairUnusable,
       },
       quota: routed ? quota : await AtsQuotaService.refund(userId, ip(req)),
     };

@@ -16,7 +16,7 @@
     "format:write": "prettier --write ."
   },
   "dependencies": {
-    "@veriworkly/ats-engine": "0.17.0",
+    "@veriworkly/ats-engine": "0.21.0",
     "@veriworkly/ui": "*",
     "fumadocs-core": "16.17.8",
     "fumadocs-mdx": "15.4.10",

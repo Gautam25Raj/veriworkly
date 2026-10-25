@@ -131,8 +131,11 @@ describe("ATS AI wire format", () => {
   });
 
   it("sends parse repair exactly as before", async () => {
+    // A reply that fills no field is "unusable" since engine 0.21; the request body is what matters here.
     api.fetch.mockResolvedValue(chatResponse({ name: null }));
-    await AtsRepairService.repair("u", "r4", resumeText, report);
+    await expect(AtsRepairService.repair("u", "r4", resumeText, report)).rejects.toMatchObject({
+      code: "unusable",
+    });
     expect(api.body()).toEqual(recorded.bodies.repairParse);
   });
 

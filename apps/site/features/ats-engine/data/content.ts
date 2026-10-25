@@ -25,8 +25,8 @@ import {
 import { siteConfig } from "@/config/site";
 import { engineSize } from "@/features/ats-engine/data/sizes";
 
-/** Figures are for engine 0.17.0; update them with the engine bump (sizes from sizes.json, accuracy and timing from npm run bench). */
-export const ENGINE_VERSION_LABEL = "0.17.0";
+/** Figures are for engine 0.21.0; update them with the engine bump (sizes from sizes.json, accuracy from npm run bench). */
+export const ENGINE_VERSION_LABEL = "0.21.0";
 
 export const ENGINE_LINKS = {
   docs: `${siteConfig.links.docs}/ats-engine`,
@@ -198,7 +198,7 @@ export const RUNTIMES = [
     subpath: "/locales",
     size: engineSize("./locales"),
     where: "Browser, edge, Node",
-    what: "German, French, Hindi; US, UK, DE, FR, IN",
+    what: "German, French, Hindi, Spanish, Portuguese; 12 regions",
   },
   {
     subpath: "/job",
@@ -235,7 +235,7 @@ export const EXTRAS: EngineFeature[] = [
   {
     icon: Languages,
     title: "Reads more than English",
-    body: "German, French and Hindi packs, and region rules for the US, UK, Germany, France and India: day-first dates, national credentials, and whether a photo or a date of birth is expected.",
+    body: "German, French, Hindi, Spanish and Portuguese packs, and region rules for the US, UK, Germany, France, India, Spain, Brazil, Portugal, Mexico, Argentina, Colombia and Chile: day-first dates, national credentials, and whether a photo or a date of birth is expected. A resume in a language with no pack is named in the report instead of being misread.",
   },
   {
     icon: ShieldAlert,
@@ -245,10 +245,9 @@ export const EXTRAS: EngineFeature[] = [
 ];
 
 export const BENCHMARKS = [
-  { label: "Field accuracy, hand-written resumes", value: "99.7%" },
-  { label: "Field accuracy, generated text, PDF and DOCX", value: "100%" },
-  { label: "Field accuracy, two-column PDF", value: "99.9%" },
-  { label: "Median time to read and score a resume", value: "3.2 ms" },
+  { label: "Field accuracy, hand-written resumes", value: "100%" },
+  { label: "Field accuracy, generated text, PDF, two-column PDF and DOCX", value: "100%" },
+  { label: "Field accuracy, German, French, Hindi, Spanish and Portuguese", value: "100%" },
 ] as const;
 
 export const AUDIENCES: EngineFeature[] = [

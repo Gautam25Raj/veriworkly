@@ -37,8 +37,8 @@ export function getAtsEnginePolicy(): AtsEnginePolicy {
   if (cached) return cached;
 
   try {
-    // The built-in German and Hindi packs and the US, DE and IN regions, attached to whatever
-    // policy is configured: each resume is then read in the language it is written in.
+    // The engine's built-in language and region packs, attached to whatever policy is
+    // configured: each resume is then read in the language it is written in.
     cached = withLocales(getAtsEnginePolicyJson() as AtsEnginePolicyInput, BUILT_IN_LOCALES);
   } catch (error) {
     if (error instanceof ApiError) throw error;

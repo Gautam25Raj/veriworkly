@@ -17,7 +17,7 @@
     "check:brand-kit": "tsx scripts/build-brand-kit.mts --check"
   },
   "dependencies": {
-    "@veriworkly/ats-engine": "^0.17.0",
+    "@veriworkly/ats-engine": "^0.21.0",
     "@veriworkly/ui": "*",
     "framer-motion": "^12.43.0",
     "lucide-react": "^1.61.0",

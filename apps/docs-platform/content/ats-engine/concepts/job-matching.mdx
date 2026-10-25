@@ -21,7 +21,7 @@ The posting is read up to its first 20,000 characters. If you have a saved page 
 
 ## Requirements
 
-Each requirement under the posting's requirements or preferred headings is judged on its own. `report.requirements` holds at most 25.
+Each requirement under the posting's requirements or preferred headings is judged on its own. `report.requirements` holds at most 25. When a posting lists more, `parsingWarnings` says the rest were not judged.
 
 | Field        | Values                                                                                     |
 | ------------ | ------------------------------------------------------------------------------------------ |
@@ -65,7 +65,7 @@ The weights are the community policy's `keywordMatch` values, so a policy of you
 
 ## Keywords: hard and soft
 
-`matchedKeywords` and `missingKeywords` list terms from the posting, hard skills first, at most 12. `matchedKeywordGroups` and `missingKeywordGroups` split them as `{ hard, soft }`, at most 12 each.
+`matchedKeywords` and `missingKeywords` list terms from the posting, hard skills first, at most 12. `matchedKeywordGroups` and `missingKeywordGroups` split them as `{ hard, soft }`, at most 12 each. `keywordCounts` gives `{ matched, missing }`: how many terms each list holds before the cut at 12.
 
 Soft skills ("communication", "teamwork", "attention to detail") come from the policy's `keywordMatch.softSkills` and the language packs. A resume claims a soft skill more often than it shows one, so each weighs `softSkillWeight` (0.4) of an ordinary word, which is a tenth of a named skill.
 
@@ -76,6 +76,7 @@ const report = check(resumeText, DEFAULT_POLICY, { jobDescription: postingText }
 
 console.log(report.missingKeywordGroups.hard); // act on these first
 console.log(report.missingKeywordGroups.soft); // these weigh less
+console.log(report.keywordCounts?.missing); // the full count, past 12
 ```
 
 ## Hidden text and integrity

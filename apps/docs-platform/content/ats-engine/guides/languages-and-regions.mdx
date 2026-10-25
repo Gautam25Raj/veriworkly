@@ -3,9 +3,9 @@ title: Languages and regions
 description: Attach language and region packs with withLocales, learn how language and country are detected, override them, and write a pack of your own.
 ---
 
-English is the engine's base. Locale packs add a language's or a country's vocabulary to whatever policy you score with, so VeriWorkly ATS Engine reads a German resume's headings, a French CV's months and a Hindi resume's script, and applies a country's date order and rule adjustments. A pack is plain data.
+English is the engine's base. Locale packs add a language's or a country's vocabulary to whatever policy you score with, so VeriWorkly ATS Engine reads a German resume's headings, a French or Spanish CV's months and a Hindi resume's script, and applies a country's date order and rule adjustments. A pack is plain data.
 
-Built in: language packs `de`, `fr` and `hi`, and region packs `US` (verified), `GB`, `DE`, `FR` and `IN` (community). The [locales reference](/ats-engine/reference/locales) lists them with their status.
+Built in: language packs `de`, `fr`, `hi`, `es` and `pt`, and region packs `US` (verified), `GB`, `DE`, `FR`, `IN`, `ES`, `BR`, `PT`, `MX`, `AR`, `CO` and `CL` (community). The [locales reference](/ats-engine/reference/locales) lists them with their status.
 
 ## Attach the packs
 
@@ -30,7 +30,7 @@ import { de, DE, GB, withLocales } from "@veriworkly/ats-engine/locales";
 export const policy = withLocales(DEFAULT_POLICY, { languages: [de], regions: [DE, GB] });
 ```
 
-The pack exports are `de`, `fr`, `hi` for languages and `US`, `GB`, `DE`, `FR`, `IN` for regions. The policy's own vocabulary stays in effect for every resume; packs add to it and never replace it, because resumes everywhere carry English terms.
+The pack exports are `de`, `fr`, `hi`, `es`, `pt` for languages and `US`, `GB`, `DE`, `FR`, `IN`, `ES`, `BR`, `PT`, `MX`, `AR`, `CO`, `CL` for regions. The policy's own vocabulary stays in effect for every resume; packs add to it and never replace it, because resumes everywhere carry English terms.
 
 ## How the language is detected
 
@@ -40,7 +40,9 @@ The engine decides per resume and per posting, separately. A pack applies when e
 - A Latin-script pack applies when at least three different `detectionWords` appear and together make up 3% of the words. A German company name in an English resume does not make it German. Words inside email addresses and URLs do not count.
 - The resume's bullet lines decide which language its rules follow. A pack's words are attached whenever a resume holds three of them at 3%, but German bullets under English headings stay German, and English bullets under a French summary stay English with month-first dates and the English writing checks. Then `report.locale.languages` lists `fr` and `region` is `null`.
 
-A language without a pack is read in none, not as English. The policy knows common words of other languages and scripts, so a Spanish resume under a policy with no Spanish pack is told apart from an English one and the English-only rules drop out for it. The rubric's eight writing rules are English only: they are dropped for any resume read in another language, rather than judging it by English words.
+A language without a pack is read in none, not as English. The policy knows common words of other languages and scripts (`text.otherLanguages`), so an Italian resume is told apart from an English one and the English-only rules drop out for it. The rubric's eight writing rules are English only: they are dropped for any resume read in another language, rather than judging it by English words.
+
+Such a resume is named in `report.locale.unsupported`: an ISO 639 code such as `"it"`, a script the policy names no single language for such as `"Cyrillic"`, or `"und"` for a language known by its words alone. It is `null` otherwise. `parsingWarnings` gets a line that says section names, dates and degrees were read as English and the English writing checks were skipped. The same happens to a German, French, Hindi, Spanish or Portuguese resume when its pack is not attached. To score such a resume field by field, read it with a model first: see [AI features](/ats-engine/guides/ai).
 
 ## How the region is chosen
 
@@ -48,7 +50,8 @@ One region applies. It is chosen in this order:
 
 1. The `region` option, in any case. A region that is not attached throws `AtsPolicyError` naming the attached ones.
 2. The country of a phone number written with a country code.
-3. The `defaultRegion` of a language the resume is written in. A language only the posting is written in does not choose the region, so a US resume applying to a German posting keeps its month-first dates.
+3. For a resume a language pack reads, its header: an email's or site's country domain (`.com.ar`, `.cl`; never `.co` alone), else a country's name or one of its cities ("Buenos Aires, Argentina", "Lisboa"). The header ends after the contact line, so a role's city never chooses the region. An English resume is left to its phone number.
+4. The `defaultRegion` of a language the resume is written in. A language only the posting is written in does not choose the region, so a US resume applying to a German posting keeps its month-first dates.
 
 Without a region, a national phone number is still recovered if any attached region reads it, but the region is not inferred from it.
 
@@ -76,9 +79,9 @@ try {
 }
 ```
 
-`languages` takes ISO 639 codes of attached packs. `report.locale` tells you what was applied: `{ languages, region }`, with `region` `null` when none was.
+`languages` takes ISO 639 codes of attached packs, `en` for English only, or a language the policy recognises but no pack reads, such as `it`. That last reads the resume as detection would: no pack, and the English writing rules off. `report.locale` tells you what was applied: `{ languages, region, unsupported }`, with `region` `null` when none was.
 
-Regions change a few rules. The US and GB packs warn about a date of birth or a photo and adds age advice that never moves a score. The DE, FR and IN packs do not judge a date of birth or a photo, because their resumes customarily carry them. Details are in the [locales reference](/ats-engine/reference/locales).
+Regions change a few rules. The US and GB packs warn about a date of birth or a photo, and the US pack adds age advice that never moves a score. The DE, FR, IN, ES, BR, PT, MX, AR, CO and CL packs do not judge a date of birth or a photo, because their resumes customarily carry them. Details are in the [locales reference](/ats-engine/reference/locales).
 
 ## Write a pack
 

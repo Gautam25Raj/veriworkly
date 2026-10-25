@@ -165,14 +165,18 @@ and throttling a provider retry storm would silently diverge payment state from 
 ### Private AI policies
 
 There are **three independent private policies**, each with its own `_PATH` / `_JSON` pair. Point
-`_PATH` at a mounted, gitignored file, or inject the same JSON inline through `_JSON`; `_JSON` wins
-when both are set. None of them is safe to commit.
+`_PATH` at a mounted, gitignored file with the name below, or inject the same JSON inline through
+`_JSON`; `_JSON` wins when both are set. None of them is safe to commit.
 
-| Variable pair                                       | Governs                                                                                              |
-| :-------------------------------------------------- | :--------------------------------------------------------------------------------------------------- |
-| `AI_ACTIONS_POLICY_PATH` / `AI_ACTIONS_POLICY_JSON` | General AI writing actions (rewrite, generate, tailor) — model routing, prompts, and credit costs.   |
-| `ATS_AI_POLICY_PATH` / `ATS_AI_POLICY_JSON`         | The ATS AI-analysis layer (`/ats/analyze` insights and `/ats/convert-resume`) — prompts and pricing. |
-| `ATS_ENGINE_POLICY_PATH` / `ATS_ENGINE_POLICY_JSON` | The deterministic ATS scoring engine — rule weights, regex patterns, and the keyword dictionary.     |
+| Variable pair                                       | File                     | Governs                                                                                              |
+| :-------------------------------------------------- | :----------------------- | :--------------------------------------------------------------------------------------------------- |
+| `AI_ACTIONS_POLICY_PATH` / `AI_ACTIONS_POLICY_JSON` | `ai-actions-policy.json` | General AI writing actions (rewrite, generate, tailor) — model routing, prompts, and credit costs.   |
+| `ATS_AI_POLICY_PATH` / `ATS_AI_POLICY_JSON`         | `ats-ai-policy.json`     | The ATS AI-analysis layer (`/ats/analyze` insights and `/ats/convert-resume`) — prompts and pricing. |
+| `ATS_ENGINE_POLICY_PATH` / `ATS_ENGINE_POLICY_JSON` | `ats-engine-policy.json` | The deterministic ATS scoring engine — rule weights, regex patterns, and the keyword dictionary.     |
+
+The engine policy must be built for the version of `@veriworkly/ats-engine` the server runs. Each
+engine release can refuse fields or patterns an older one accepted, and the server refuses to start
+with a policy its engine rejects.
 
 <Callout type="info" title="Why these are private, and what happens when they are missing">
   Per-action prompts, model selection, token limits, and **credit costs** live in policy files

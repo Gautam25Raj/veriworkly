@@ -147,7 +147,33 @@ The options are in the [AI options reference](/ats-engine/reference/ai-options).
 
 A model's output is never trusted as it comes. It is validated against a schema, and every value that claims to come from the resume must occur in it. Names, employers, titles, schools, email addresses, URLs and skills that do not appear in the source are dropped and reported in `rejected`. Dates in `repairParse` must name a year the text contains.
 
-`convertResume` checks names, employers, titles, schools, degrees, email addresses, URLs and skill keywords against the resume, and its dates and `current` flags separately. It does not check the phone number, location, headline, label, summary, highlights or skill group names, which a model may tidy or reword. Read those as the model's words.
+`convertResume` checks names, employers, titles, schools, degrees, email addresses, URLs and skill keywords against the resume, and its dates and `current` flags separately. It drops an entry whose every identifying value was invented. It does not check the phone number, location, headline, label, summary, highlights or skill group names, which a model may tidy or reword. Read those as the model's words.
+
+`repairParse` must fill at least one field the parse left empty with a value from the resume. A reply that fills none throws `AtsAiError` with code `unusable`, which carries `usage`, `attempts` and the dropped values in `rejected`.
+
+### Score a converted resume
+
+A resume in a language no pack reads can be scored from a `convertResume` result. `groundedText(result, source)` blanks every summary and bullet that does not occur in the source, so a bullet the model wrote adds no keyword. `convertedToDocument(result)` turns the result into an `ats-resume@1` document for `check`; an entry whose identifying fields were all blanked is dropped. This is what the [CLI](/ats-engine/tools/cli) does with `--ai` for such a resume.
+
+```ts
+import { check, DEFAULT_POLICY } from "@veriworkly/ats-engine";
+import { convertedToDocument, createAtsAi, groundedText } from "@veriworkly/ats-engine/ai";
+import { anthropic } from "@veriworkly/ats-engine/ai/anthropic";
+import { BUILT_IN_LOCALES, withLocales } from "@veriworkly/ats-engine/locales";
+
+const policy = withLocales(DEFAULT_POLICY, BUILT_IN_LOCALES);
+const ai = createAtsAi({
+  provider: anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! }),
+  routes: { convertResume: { model: "claude-sonnet-5-5", maxTokens: 6000 } },
+});
+
+const converted = await ai.convertResume({ resumeText });
+const { resume, dropped } = groundedText(converted.result, resumeText);
+const report = check(convertedToDocument(resume), policy, { languages: ["it"] });
+console.log(report.readinessScore, dropped.length, converted.rejected.length);
+```
+
+Passing the language (`"it"` here) keeps the English writing rules off the model's text, as detection would for the original.
 
 Free text a model writes, such as an explanation or a recommendation, is advice and is not grounded. Show it as the model's words, not as facts about the candidate. Resume and posting text go to the model as JSON data with a system prompt that says so, which lowers the risk of prompt injection and does not remove it.
 
@@ -175,6 +201,7 @@ A failed call throws `AtsAiError` with a `code`, and `status`, `usage` and `atte
 | `refused`        | The model declined to answer                           | Do not retry the same input blindly                                                  |
 | `truncated`      | The reply hit `maxTokens`                              | Raise `maxTokens`, not `retries`. Models that think count thinking tokens against it |
 | `invalid_output` | The reply did not match the schema after retries       | Retry, or set `structuredOutputs: true` on a model that supports it                  |
+| `unusable`       | `repairParse` filled no empty field from the resume    | Keep the parser's reading. Not retried, since a model rarely finds more              |
 | `aborted`        | The call's `signal` aborted                            | No action: the caller cancelled                                                      |
 
 ```ts
@@ -243,7 +270,7 @@ const evaluation = await runAiEval(
 console.log(evaluation.schemaValidRate, evaluation.groundingViolationRate, evaluation.failures);
 ```
 
-`scriptedProvider(...replies)` answers one reply per call and repeats the last one. A reply is text, a partial response, an `Error` to throw, or a function of the request. `runAiEval` reports `schemaValidRate`, `groundingViolationRate`, `fabricatedNumberRate`, `consistency` and `forbiddenLeakRate`, plus the failures and rejected values. Case fields `source` and `forbidden` set what output may draw on and what must never appear.
+`scriptedProvider(...replies)` answers one reply per call and repeats the last one. A reply is text, a partial response, an `Error` to throw, or a function of the request. `runAiEval` reports `schemaValidRate`, `groundingViolationRate`, `fabricatedNumberRate`, `unusableRate`, `consistency` and `forbiddenLeakRate`, plus the failures and rejected values. Case fields `source` and `forbidden` set what output may draw on and what must never appear.
 
 <Callout type="info" title="The score does not depend on a model">
   `check` never calls `/ai`. Scripted or live, the same resume, policy and date produce the same

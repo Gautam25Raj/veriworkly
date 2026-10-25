@@ -362,7 +362,7 @@ export const faqs: FaqItem[] = [
     category: "developer",
     question: "Which languages can the ATS Engine read?",
     answer:
-      "English, German, French and Hindi, with region rules for the United States, the United Kingdom, Germany, France and India. A resume in a language without a pack drops the English-only writing rules instead of being judged on English words.",
+      "English, German, French, Hindi, Spanish and Portuguese, with region rules for the United States, the United Kingdom, Germany, France, India, Spain, Brazil, Portugal, Mexico, Argentina, Colombia and Chile. A resume in another language is named in the report (for example Italian), and the English-only writing rules are skipped instead of judging it on English words.",
   },
   {
     id: "report-bugs-suggest-features",

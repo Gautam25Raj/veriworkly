@@ -890,10 +890,25 @@ function ResultsPanel({ result }: { result: AtsResult }) {
       {result.report.parsed ? (
         <ParsedRecord parsed={result.report.parsed} repair={result.repair} />
       ) : null}
-      {result.repair?.available &&
-      !result.repair.applied &&
-      !result.repair.creditsSpent &&
-      typeof result.quota.pricing.parseRepairCredits === "number" ? (
+      {result.report.parsingWarnings?.length ? (
+        <ul className="space-y-1.5 px-1">
+          {result.report.parsingWarnings.map((warning) => (
+            <li key={warning} className="text-muted flex items-start gap-2 text-xs leading-5">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+              {warning}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {result.repair?.unusable ? (
+        <p className="text-muted flex items-start gap-2 px-1 text-xs leading-5">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+          The AI found nothing to add to what was read. Nothing was charged for the re-read.
+        </p>
+      ) : result.repair?.available &&
+        !result.repair.applied &&
+        !result.repair.creditsSpent &&
+        typeof result.quota.pricing.parseRepairCredits === "number" ? (
         <p className="text-muted flex items-start gap-2 px-1 text-xs leading-5">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
           The parser missed parts of this resume and nothing was recovered this time. AI re-reading,

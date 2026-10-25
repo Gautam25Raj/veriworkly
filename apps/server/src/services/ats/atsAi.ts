@@ -167,6 +167,12 @@ export async function runReserved<T>(options: BilledRun<T>): Promise<HeldResult<
     outcome = await options.run();
   } catch (error) {
     await releaseReservationQuietly(userId, requestId, { reason: options.reason });
+    // A reply that filled nothing is the model finding nothing, not a fault: released, and
+    // rethrown with its code so the caller can say so.
+    if (error instanceof AtsAiError && error.code === "unusable") {
+      logger.warn(`${options.reason} found nothing to add`, { requestId, ...aiFailure(error) });
+      throw error;
+    }
     logger.error(`${options.reason} failed`, { requestId, ...aiFailure(error) });
     if (error instanceof ApiError) throw error;
     if (error instanceof AtsAiError && error.code === "aborted") throw aiTimeoutError();

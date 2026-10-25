@@ -47,7 +47,7 @@ const ATS_AI_POLICY = {
 const ANALYSIS_CREDITS = 5;
 const REPAIR_CREDITS = 10;
 
-/** Enough prose for `needsRepair` (no dated roles, more than 160 words) with a groundable name. */
+/** Enough prose for `needsRepair` (no dated roles, more than 160 words) and no skills for a repair to fill. */
 const THIN_RESUME = [
   "Jane Doe",
   "Seasoned builder of resilient services and the teams that run them. Spent the better part of a",
@@ -270,9 +270,9 @@ describe("V-036 a repair whose analysis then fails is not charged", () => {
     const user = await createUserWithSession();
     await grantEntitlement(user.id);
     await grantCredits(user.id, 100);
-    // Repair answers with a grounded value, then the analysis call fails outright.
+    // Repair fills skills with a grounded value, then the analysis call fails outright.
     fetchMock
-      .mockResolvedValueOnce(chatResponse({ name: "Jane Doe" }))
+      .mockResolvedValueOnce(chatResponse({ skills: ["Postgres"] }))
       .mockResolvedValueOnce(providerError(500));
     const body = analyzeBody({ repairParse: true });
 
@@ -290,7 +290,7 @@ describe("V-036 a repair whose analysis then fails is not charged", () => {
     await grantEntitlement(user.id);
     await grantCredits(user.id, 100);
     fetchMock
-      .mockResolvedValueOnce(chatResponse({ name: "Jane Doe" }))
+      .mockResolvedValueOnce(chatResponse({ skills: ["Postgres"] }))
       .mockResolvedValueOnce(chatResponse(ANALYSIS_REPLY));
     const body = analyzeBody({ repairParse: true });
 

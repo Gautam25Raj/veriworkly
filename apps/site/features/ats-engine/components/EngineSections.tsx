@@ -228,9 +228,10 @@ export function EngineBenchmarks() {
       title="Measured on every release."
       lede={
         <>
-          Each release is checked against hand-written resumes and 30 generated ones rendered as
-          text, PDF, two-column PDF and DOCX. All of them are invented, so read these as regression
-          figures, not real-world accuracy. Engine {ENGINE_VERSION_LABEL}.{" "}
+          Each release is checked against hand-written and generated resumes, in English as text,
+          PDF, two-column PDF and DOCX, and in German, French, Hindi, Spanish and Portuguese as
+          text, DOCX and PDF. All of them are invented, so read these as regression figures, not
+          real-world accuracy. Engine {ENGINE_VERSION_LABEL}.{" "}
           <a href={ENGINE_LINKS.benchmarks} className={`text-accent ${inlineLink}`}>
             How they are measured
           </a>
@@ -238,7 +239,7 @@ export function EngineBenchmarks() {
         </>
       }
     >
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-12 lg:grid-cols-4 lg:gap-x-10">
+      <dl className="grid gap-x-6 gap-y-12 sm:grid-cols-3 lg:gap-x-10">
         {BENCHMARKS.map((benchmark) => (
           <div key={benchmark.label} className="reveal flex flex-col-reverse">
             <dt className="text-muted mt-4 max-w-56 text-base leading-6">{benchmark.label}</dt>

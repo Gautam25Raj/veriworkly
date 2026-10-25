@@ -35,7 +35,7 @@ console.log(restricted.restricted); // true
 | Checks        | `rules`, `categories`, counts                                | `checksPassed`, `checksTotal`                                                                                                                                                  |
 | Advice        | Each item with its `evidence`, `fix` and `source`            | Each item as `id`, `kind` and `message` only                                                                                                                                   |
 
-The counts are the point. "7 keywords missing" and "3 roles recovered" are true and specific, and not actionable without the lists behind them. Advice never moves the score, so stating it gives away nothing the restricted report withholds. The keyword counts are the lengths of the lists, so neither goes past 12. What advice quotes (the file name, a year) stays with the full report.
+The counts are the point. "7 keywords missing" and "3 roles recovered" are true and specific, and not actionable without the lists behind them. Advice never moves the score, so stating it gives away nothing the restricted report withholds. The keyword counts come from `report.keywordCounts`, so they go past the 12 the lists hold. What advice quotes (the file name, a year) stays with the full report.
 
 The verdict reads the job match score when there is a posting and the readiness score otherwise. See [scoring](/ats-engine/concepts/scoring).
 

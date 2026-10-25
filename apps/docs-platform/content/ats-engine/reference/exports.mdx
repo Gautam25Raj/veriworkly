@@ -111,16 +111,16 @@ Types: `AtsJobPosting`.
 
 ## `./locales`
 
-Language packs (German, French, Hindi) and region packs (US, GB, DE, FR, IN). See [Languages and regions](/ats-engine/guides/languages-and-regions) and [Locales](/ats-engine/reference/locales).
+Language packs (German, French, Hindi, Spanish, Portuguese) and region packs (US, GB, DE, FR, IN, ES, BR, PT, MX, AR, CO, CL). See [Languages and regions](/ats-engine/guides/languages-and-regions) and [Locales](/ats-engine/reference/locales).
 
-| Export                                                 | Purpose                                                        |
-| ------------------------------------------------------ | -------------------------------------------------------------- |
-| `withLocales`                                          | Returns a policy with locale packs attached.                   |
-| `localizePolicy`                                       | Applies the packs to a policy for a given language and region. |
-| `BUILT_IN_LOCALES`                                     | All bundled packs.                                             |
-| `de`, `fr`, `hi`                                       | Language packs.                                                |
-| `US`, `GB`, `DE`, `FR`, `IN`                           | Region packs.                                                  |
-| `atsLanguagePackJsonSchema`, `atsRegionPackJsonSchema` | JSON Schemas for contributing a pack.                          |
+| Export                                                                 | Purpose                                                        |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `withLocales`                                                          | Returns a policy with locale packs attached.                   |
+| `localizePolicy`                                                       | Applies the packs to a policy for a given language and region. |
+| `BUILT_IN_LOCALES`                                                     | All bundled packs.                                             |
+| `de`, `fr`, `hi`, `es`, `pt`                                           | Language packs.                                                |
+| `US`, `GB`, `DE`, `FR`, `IN`, `ES`, `BR`, `PT`, `MX`, `AR`, `CO`, `CL` | Region packs.                                                  |
+| `atsLanguagePackJsonSchema`, `atsRegionPackJsonSchema`                 | JSON Schemas for contributing a pack.                          |
 
 Types: `AtsLanguagePack`, `AtsLanguagePackInput`, `AtsRegionPack`, `AtsRegionPackInput`, `AtsLocale`, `AtsLocaleOptions`.
 
@@ -128,13 +128,15 @@ Types: `AtsLanguagePack`, `AtsLanguagePackInput`, `AtsRegionPack`, `AtsRegionPac
 
 Model-backed tasks with any provider. It needs `fetch` and a key kept server-side. See [AI features](/ats-engine/guides/ai) and [AI options](/ats-engine/reference/ai-options).
 
-| Export                                                                      | Purpose                                                                       |
-| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `createAtsAi`                                                               | Creates the `AtsAi` object with `analyze`, `repairParse` and `convertResume`. |
-| `AtsAiError`                                                                | Error for a task that produced no result, with a `code`.                      |
-| `LlmProviderError`                                                          | Error for a failed provider call.                                             |
-| `DEFAULT_ANALYZE_PROMPT`, `DEFAULT_REPAIR_PROMPT`, `DEFAULT_CONVERT_PROMPT` | The system prompts, for overriding.                                           |
-| `CONVERT_GROUNDING_SKIP`                                                    | Paths of a converted resume that grounding leaves unchecked.                  |
+| Export                                                                      | Purpose                                                                                                                      |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `createAtsAi`                                                               | Creates the `AtsAi` object with `analyze`, `repairParse` and `convertResume`.                                                |
+| `AtsAiError`                                                                | Error for a task that produced no result, with a `code`.                                                                     |
+| `LlmProviderError`                                                          | Error for a failed provider call.                                                                                            |
+| `DEFAULT_ANALYZE_PROMPT`, `DEFAULT_REPAIR_PROMPT`, `DEFAULT_CONVERT_PROMPT` | The system prompts, for overriding.                                                                                          |
+| `CONVERT_GROUNDING_SKIP`                                                    | Paths of a converted resume that grounding leaves unchecked.                                                                 |
+| `groundedText(result, source)`                                              | Blanks the summaries and bullets of a `convertResume` result that do not occur in the source. Returns `{ resume, dropped }`. |
+| `convertedToDocument(result)`                                               | Turns a `convertResume` result into an `ats-resume@1` document for `check`.                                                  |
 
 Types: `AtsAi`, `AtsAiOptions`, `AtsAiCallOptions`, `AtsAiResult`, `AtsAiErrorCode`, `AtsAiRetryEvent`, `AtsAiTask`, `TaskRoute`, `AtsAiInsights`, `AnalyzeInput`, `RepairParseInput`, `ConvertResumeInput`, `AtsConvertedResume`, `LlmProvider`, `LlmRequest`, `LlmResponse`, `LlmMessage`, `LlmOutputFormat`, `LlmUsage`, `FetchLike`, `FetchResponseLike`, `AbortSignalLike`, `HttpOptions`.
 
@@ -158,11 +160,11 @@ Types: `AnthropicOptions`.
 
 ## `./ai/testing`
 
-| Export              | Purpose                                                                                                            |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `scriptedProvider`  | A provider that replays canned replies and records every request.                                                  |
-| `runAiEval`         | Measures schema validity, grounding, fabricated numbers, consistency and injection leaks of a provider and prompt. |
-| `fabricatedNumbers` | Numbers in an output that the source never states.                                                                 |
+| Export              | Purpose                                                                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `scriptedProvider`  | A provider that replays canned replies and records every request.                                                                    |
+| `runAiEval`         | Measures schema validity, grounding, fabricated numbers, unusable replies, consistency and injection leaks of a provider and prompt. |
+| `fabricatedNumbers` | Numbers in an output that the source never states.                                                                                   |
 
 Types: `ScriptedProvider`, `ScriptedReply`, `AiEvalCase`, `AiEvalReport`.
 

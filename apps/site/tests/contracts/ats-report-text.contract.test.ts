@@ -77,7 +77,7 @@ function report(overrides: Partial<AtsFullReport> = {}): AtsFullReport {
     checksPassed: 9,
     checksTotal: 11,
     wordCount: 612,
-    locale: { languages: [], region: null },
+    locale: { languages: [], region: null, unsupported: null },
     engine: { version: "0.1.0", policy: "ats-v2+00000000" },
     requirements: [],
     ...overrides,

@@ -164,6 +164,16 @@ describe("AtsRepairService", () => {
     expect(commitReservation).toHaveBeenCalledOnce();
   });
 
+  it("charges nothing for a reply that fills no field, and keeps its unusable code", async () => {
+    respondWith({ name: null });
+
+    await expect(AtsRepairService.repair("u1", "r1", SOURCE, report)).rejects.toMatchObject({
+      code: "unusable",
+    });
+    expect(releaseReservation).toHaveBeenCalledWith("u1", "r1");
+    expect(commitReservation).not.toHaveBeenCalled();
+  });
+
   it("releases the reservation when the provider fails", async () => {
     api.fetch.mockRejectedValue(new TypeError("fetch failed"));
 

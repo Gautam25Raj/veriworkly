@@ -54,6 +54,17 @@ export function FullResults({ report, quota }: { report: AtsFullReport; quota: A
         <CopyReportButton report={report} />
       </div>
 
+      {report.parsingWarnings.length ? (
+        <ul className="bg-warning/10 space-y-2 rounded-2xl p-5">
+          {report.parsingWarnings.map((warning) => (
+            <li key={warning} className="flex items-start gap-3 text-base leading-7">
+              <TriangleAlert className="text-warning mt-1.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              {warning}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
       <div role="tablist" aria-label="Report views" className="bg-card flex gap-1 rounded-full p-1">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button

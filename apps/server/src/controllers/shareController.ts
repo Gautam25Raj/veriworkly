@@ -68,9 +68,16 @@ function toPublicShareLinkView(shareLink: PublicShareLink): PublicShareLinkView 
   return { ...rest, hasPassword: Boolean(passwordHash) };
 }
 
+/**
+ * Before a protected link's password is verified the response carries only what the password
+ * screen needs (V-150): no title, which can name the person or the job they are applying for.
+ */
 function buildPublicSharePayload(shareLink: PublicShareLinkView, includeSnapshot: boolean) {
+  if (!includeSnapshot && shareLink.hasPassword)
+    return { passwordRequired: true, expiresAt: shareLink.expiresAt };
+
   return {
-    passwordRequired: !includeSnapshot && shareLink.hasPassword,
+    passwordRequired: false,
     resumeTitle: shareLink.document.title,
     documentTitle: shareLink.document.title,
     expiresAt: shareLink.expiresAt,

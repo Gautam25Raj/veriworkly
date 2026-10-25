@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { config } from "#config";
 import { getAtsAiPolicyJson, resolvePrivateAiModel } from "#services/aiPrivateConfig";
+import { maxRetriesWithinDeadline } from "#services/ats/aiDeadline";
 import { ApiError } from "#lib/errors";
 
 const modelSchema = z.object({
@@ -95,19 +96,46 @@ function loadAtsAiPolicy() {
   return cached;
 }
 
+let retryCapLogged = false;
+
+/**
+ * V-034: `retries` capped so that every attempt running to `AI_TIMEOUT_MS`, plus the backoff
+ * between attempts, fits `AI_REQUEST_DEADLINE_MS` (`aiDeadline.ts`). With the 45 s default that
+ * is no retries; 30 s allows one, 20 s two. A route configured past the cap is clamped and
+ * logged once, rather than letting the deadline cut a billed attempt off midway.
+ */
+function withinDeadline<T extends { retries: number }>(route: T): T {
+  const cap = maxRetriesWithinDeadline(config.ai.timeoutMs);
+  if (route.retries <= cap) return route;
+  if (!retryCapLogged) {
+    retryCapLogged = true;
+    logger.warn("ATS AI retries capped to fit the request deadline", {
+      configured: route.retries,
+      cap,
+      timeoutMs: config.ai.timeoutMs,
+    });
+  }
+  return { ...route, retries: cap };
+}
+
 export function getAtsAiPolicy() {
   const policy = loadAtsAiPolicy();
   return {
     ...policy,
-    models: policy.models.map((item) => ({ ...item, model: resolvePrivateAiModel(item.model) })),
-    resumeConversion: {
+    models: policy.models.map((item) =>
+      withinDeadline({ ...item, model: resolvePrivateAiModel(item.model) }),
+    ),
+    resumeConversion: withinDeadline({
       ...policy.resumeConversion,
       model: resolvePrivateAiModel(policy.resumeConversion.model),
-    },
+    }),
     // Resolved like the other two routes. It was passed through verbatim, so a policy that named
     // its repair model as `env:SOME_VAR` sent the literal string "env:SOME_VAR" to the provider.
     parseRepair: policy.parseRepair
-      ? { ...policy.parseRepair, model: resolvePrivateAiModel(policy.parseRepair.model) }
+      ? withinDeadline({
+          ...policy.parseRepair,
+          model: resolvePrivateAiModel(policy.parseRepair.model),
+        })
       : undefined,
   };
 }

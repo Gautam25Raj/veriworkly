@@ -112,7 +112,38 @@ describe("AtsRepairService", () => {
     expect(result.repaired?.roles[0]!.employer).toBe("Acme Corporation");
     expect(result.rejectedValues).toBe(0);
     expect(result.creditsSpent).toBe(10);
+    // V-036: charged only when the caller says the repaired parse is being delivered.
+    expect(commitReservation).not.toHaveBeenCalled();
+    await result.commit();
     expect(commitReservation).toHaveBeenCalledOnce();
+    expect(commitReservation).toHaveBeenCalledWith(
+      "u1",
+      "r1",
+      expect.objectContaining({ reason: "AI parse repair" }),
+    );
+  });
+
+  it("hands the credits back when the caller releases instead, and never commits", async () => {
+    respondWith({ name: "Jane Doe" });
+
+    const result = await AtsRepairService.repair("u1", "r1", SOURCE, report);
+    await result.release();
+    await result.commit();
+
+    expect(releaseReservation).toHaveBeenCalledWith("u1", "r1");
+    expect(commitReservation).not.toHaveBeenCalled();
+  });
+
+  it("passes the request signal to the provider call", async () => {
+    respondWith({ name: "Jane Doe" });
+    const controller = new AbortController();
+
+    await AtsRepairService.repair("u1", "r1", SOURCE, report, controller.signal);
+
+    const init = api.fetch.mock.calls[0]![1] as { signal?: AbortSignal };
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    controller.abort();
+    expect(init.signal?.aborted).toBe(true);
   });
 
   it("drops hallucinated values but still commits, and reports the count", async () => {
@@ -126,6 +157,7 @@ describe("AtsRepairService", () => {
     });
 
     const result = await AtsRepairService.repair("u1", "r1", SOURCE, report);
+    await result.commit();
 
     expect(result.rejectedValues).toBe(1);
     expect(result.repaired?.roles[0]!.employer).toBe("");

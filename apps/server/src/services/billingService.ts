@@ -22,6 +22,7 @@ import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
 import { cacheDel, cacheGet, cacheSet, getRedis } from "#lib/redis";
 import { userProfileCacheKey } from "#lib/cacheKeys";
+import { PREMIUM_PORTFOLIO_TEMPLATE_IDS } from "#validators/portfolioValidator";
 import { EntitlementService } from "#services/entitlementService";
 import { AffiliateService } from "#services/affiliate/index";
 import { AFFILIATE_TIER_RATE_BPS } from "#services/affiliate/constants";
@@ -297,8 +298,10 @@ async function reconcilePortfolioPublication(
 
   if (!fallback) return;
 
+  // A lapse only reaches publications that needed the grant in the first place: free templates
+  // (Signal, Atelier) publish without one and stay LIVE whatever happens to the subscription.
   await tx.portfolioPublication.updateMany({
-    where: { userId, ...billingOwned },
+    where: { userId, templateId: { in: [...PREMIUM_PORTFOLIO_TEMPLATE_IDS] }, ...billingOwned },
     data:
       fallback.publicationStatus === "SUSPENDED"
         ? {
@@ -370,6 +373,31 @@ function describeAccess(grants: AccessGrant[], creditBalance: number) {
 export class BillingService {
   static async getLatestSubscription(userId: string) {
     return prisma.subscription.findFirst({ where: { userId }, orderBy: { updatedAt: "desc" } });
+  }
+
+  /**
+   * The follow-up every billing change owes the user, for callers that edit grants or
+   * subscription rows without a provider event (admin edits): the publication is recomputed
+   * from the grants in effect, falling back to what the latest portfolio subscription says
+   * (GRACE while its grace window runs, otherwise SUSPENDED), and every cache that reflects
+   * billing state is cleared. Same lock and same rules as the webhook path.
+   */
+  static async reconcileAccess(userId: string) {
+    const subscription = await prisma.subscription.findFirst({
+      where: { userId, productKey: { in: ["portfolio_pro", "bundle"] } },
+      orderBy: { updatedAt: "desc" },
+    });
+    const access = accessStatus(subscription);
+
+    await prisma.$transaction(async (tx) => {
+      await lockUserForBilling(tx, userId);
+      await reconcilePortfolioPublication(tx, userId, new Date(), {
+        publicationStatus: access.publicationStatus === "GRACE" ? "GRACE" : "SUSPENDED",
+        suspensionReason: subscription?.status ?? "INACTIVE",
+      });
+    }, BILLING_TRANSACTION_OPTIONS);
+
+    await this.invalidateAfterBillingChange(userId);
   }
 
   static async getSummary(userId: string) {

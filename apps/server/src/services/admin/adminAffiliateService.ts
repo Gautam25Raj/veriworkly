@@ -225,10 +225,30 @@ export async function updateAffiliateStanding(
   return { affiliate: updated, previous: existing };
 }
 
+/**
+ * The admin list search box (V-133): case-insensitive substring match (ILIKE) on the person's
+ * email and name, and on the affiliate code.
+ */
+function personSearch(search: string): Prisma.UserWhereInput[] {
+  return [
+    { email: { contains: search, mode: "insensitive" } },
+    { name: { contains: search, mode: "insensitive" } },
+    { affiliateCode: { contains: search, mode: "insensitive" } },
+  ];
+}
+
 export async function listCommissions(query: CommissionListQuery) {
   const where: Prisma.AffiliateCommissionWhereInput = {
     ...(query.status ? { status: query.status } : {}),
     ...(query.affiliateId ? { affiliateId: query.affiliateId } : {}),
+    ...(query.query
+      ? {
+          OR: [
+            { affiliate: { OR: personSearch(query.query) } },
+            { referral: { referredUser: { OR: personSearch(query.query) } } },
+          ],
+        }
+      : {}),
   };
 
   const [items, total, totals] = await Promise.all([
@@ -267,7 +287,10 @@ export async function listCommissions(query: CommissionListQuery) {
 }
 
 export async function listWithdrawals(query: WithdrawalListQuery) {
-  const where: Prisma.AffiliateWithdrawalWhereInput = query.status ? { status: query.status } : {};
+  const where: Prisma.AffiliateWithdrawalWhereInput = {
+    ...(query.status ? { status: query.status } : {}),
+    ...(query.query ? { user: { OR: personSearch(query.query) } } : {}),
+  };
 
   const [items, total, totals] = await Promise.all([
     prisma.affiliateWithdrawal.findMany({
@@ -304,6 +327,14 @@ export async function listReferrals(query: ReferralListQuery) {
   const where: Prisma.AffiliateReferralWhereInput = {
     ...(query.status ? { status: query.status } : {}),
     ...(query.affiliateId ? { affiliateId: query.affiliateId } : {}),
+    ...(query.query
+      ? {
+          OR: [
+            { affiliate: { OR: personSearch(query.query) } },
+            { referredUser: { OR: personSearch(query.query) } },
+          ],
+        }
+      : {}),
   };
 
   const [items, total] = await Promise.all([

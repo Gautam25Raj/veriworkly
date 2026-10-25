@@ -48,6 +48,20 @@ export const adminReasonSchema = z.string().trim().min(3).max(500);
 
 export const adminOptionalReasonSchema = z.string().trim().max(500).optional();
 
+/**
+ * A reason the studio does not send yet (V-081): optional, but when present it must meet the
+ * same 3-character minimum as `adminReasonSchema`. A blank value counts as absent.
+ */
+export const adminProvidedReasonSchema = z
+  .string()
+  .trim()
+  .max(500)
+  .optional()
+  .transform((value) => (value ? value : undefined))
+  .refine((value) => value === undefined || value.length >= 3, {
+    message: "Reason must be at least 3 characters",
+  });
+
 export const adminIdParamSchema = z.object({
   id: z.string().trim().min(1).max(64),
 });

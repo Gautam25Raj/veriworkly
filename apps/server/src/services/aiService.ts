@@ -2,6 +2,8 @@ import OpenAI from "openai";
 
 import { createAiClient } from "#services/aiClient";
 import { getAiActionPolicy, getAiModePolicy, publicAiActionPolicy } from "#services/aiPolicy";
+import { aiTimeoutError } from "#services/ats/aiDeadline";
+import { releaseReservationQuietly } from "#services/ats/atsAi";
 import { CreditService } from "#services/creditService";
 
 import { ApiError } from "#lib/errors";
@@ -49,7 +51,12 @@ export class AiService {
     return publicAiActionPolicy();
   }
 
-  static async generate(userId: string, input: AiGenerateInput) {
+  static async generate(
+    userId: string,
+    input: AiGenerateInput,
+    /** Ends the provider call when the client leaves or the request deadline passes (V-034). */
+    signal?: AbortSignal,
+  ) {
     const normalizedInput = validateAndNormalizeInput(input);
     const actionPolicy = getAiActionPolicy(input.action);
     const modePolicy = getAiModePolicy(input.action, input.mode);
@@ -61,21 +68,24 @@ export class AiService {
     );
 
     try {
-      const completion = await getAiClient().chat.completions.create({
-        ...(modePolicy.providerOptions ?? {}),
-        model: modePolicy.model,
-        messages: [
-          { role: "system", content: actionPolicy.systemPrompt },
-          {
-            role: "user",
-            content: renderTemplate(actionPolicy.userPromptTemplate, normalizedInput),
-          },
-        ],
-        temperature: modePolicy.temperature,
-        top_p: modePolicy.topP,
-        max_tokens: modePolicy.maxOutputTokens,
-        stream: false,
-      } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
+      const completion = await getAiClient().chat.completions.create(
+        {
+          ...(modePolicy.providerOptions ?? {}),
+          model: modePolicy.model,
+          messages: [
+            { role: "system", content: actionPolicy.systemPrompt },
+            {
+              role: "user",
+              content: renderTemplate(actionPolicy.userPromptTemplate, normalizedInput),
+            },
+          ],
+          temperature: modePolicy.temperature,
+          top_p: modePolicy.topP,
+          max_tokens: modePolicy.maxOutputTokens,
+          stream: false,
+        } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
+        { signal },
+      );
 
       const content = completion.choices[0]?.message?.content?.trim();
 
@@ -108,8 +118,19 @@ export class AiService {
         },
       };
     } catch (error) {
-      await CreditService.releaseReservation(userId, input.requestId);
+      await releaseReservationQuietly(userId, input.requestId, { action: input.action });
       if (error instanceof ApiError) throw error;
+
+      // The SDK raises its own abort error once `signal` fires; the signal says why we are here.
+      if (signal?.aborted) {
+        logger.warn("AI generation aborted before the provider answered", {
+          action: input.action,
+          mode: input.mode,
+          requestId: input.requestId,
+          reason: signal.reason instanceof Error ? signal.reason.message : String(signal.reason),
+        });
+        throw aiTimeoutError();
+      }
 
       logger.error("AI generation failed", {
         action: input.action,

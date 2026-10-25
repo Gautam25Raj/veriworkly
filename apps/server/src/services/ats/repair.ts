@@ -1,7 +1,7 @@
 import type { AtsParsedResume, AtsReport } from "@veriworkly/ats-engine";
 
 import { getAtsAiPolicy } from "#services/ats/aiPolicy";
-import { createServerAtsAi, runBilled, taskRoute } from "#services/ats/atsAi";
+import { createServerAtsAi, runReserved, taskRoute } from "#services/ats/atsAi";
 import { getAtsEnginePolicy } from "#services/ats/enginePolicy";
 import { EntitlementService } from "#services/entitlementService";
 import { logger } from "#lib/logger";
@@ -25,14 +25,25 @@ import { logger } from "#lib/logger";
 
 export type RepairOutcome = {
   repaired: AtsParsedResume | null;
+  /** What `commit` charges. Not yet spent when this is returned. */
   creditsSpent: number;
   /** Values the model returned that do not occur in the source. Dropped, and reported. */
   rejectedValues: number;
+  /**
+   * Charges the repair. The repaired parse is only worth paying for once the analysis it feeds
+   * is being delivered, so the caller commits after that analysis succeeds (V-036).
+   */
+  commit(): Promise<void>;
+  /** Hands the credits back: the repaired parse is not being delivered. Never throws. */
+  release(): Promise<void>;
 };
+
+const noop = async () => undefined;
 
 /**
  * Runs the repair pass and returns the deterministic parse with its gaps filled from grounded AI
- * values. `repaired` is `null` only when this deployment has no repair route.
+ * values, with the charge held open until the caller settles it. `repaired` is `null` only when
+ * this deployment has no repair route; `commit` and `release` are then no-ops.
  *
  * The merge is one-directional: AI values only ever fill a field the deterministic parser left
  * empty. A model does not get to overwrite something the regex parser was confident about, so
@@ -44,6 +55,8 @@ export class AtsRepairService {
     requestId: string,
     resumeText: string,
     report: AtsReport,
+    /** Ends the provider call when the client leaves or the request deadline passes (V-034). */
+    signal?: AbortSignal,
   ): Promise<RepairOutcome> {
     await EntitlementService.require(
       userId,
@@ -53,9 +66,10 @@ export class AtsRepairService {
 
     const policy = getAtsAiPolicy();
     const route = policy.parseRepair;
-    if (!route) return { repaired: null, creditsSpent: 0, rejectedValues: 0 };
+    if (!route)
+      return { repaired: null, creditsSpent: 0, rejectedValues: 0, commit: noop, release: noop };
 
-    const outcome = await runBilled({
+    const held = await runReserved({
       userId,
       requestId,
       credits: route.credits,
@@ -65,20 +79,26 @@ export class AtsRepairService {
       run: () =>
         createServerAtsAi(requestId, getAtsEnginePolicy()).repairParse(
           { resumeText, report },
-          taskRoute(route, policy.prompts.parseRepair),
+          { ...taskRoute(route, policy.prompts.parseRepair), signal },
         ),
     });
 
     // Dropped values are still billed: the user got a real repair attempt, and the grounding
     // check catching a fabricated value is the feature working.
-    const rejectedValues = outcome.rejected.length;
+    const rejectedValues = held.outcome.rejected.length;
     if (rejectedValues > 0) {
       logger.warn("AI parse repair returned ungrounded values", {
         requestId,
         rejectedValues,
-        paths: outcome.rejected.map((violation) => violation.path).slice(0, 20),
+        paths: held.outcome.rejected.map((violation) => violation.path).slice(0, 20),
       });
     }
-    return { repaired: outcome.result, creditsSpent: route.credits, rejectedValues };
+    return {
+      repaired: held.outcome.result,
+      creditsSpent: route.credits,
+      rejectedValues,
+      commit: held.commit,
+      release: held.release,
+    };
   }
 }

@@ -1,4 +1,4 @@
-import { adminHandler } from "#controllers/admin/adminRequestHandler";
+import { adminHandler, deleteRequestInput } from "#controllers/admin/adminRequestHandler";
 
 import * as AdminUserService from "#services/admin/adminUserService";
 import { ADMIN_AUDIT_ACTIONS, recordAdminAudit } from "#services/admin/adminAuditService";
@@ -78,7 +78,7 @@ export const AdminUserController = {
   /** DELETE /admin/users/:id — permanent, cascading account deletion. */
   remove: adminHandler(async ({ req, actorId }) => {
     const { id } = adminIdParamSchema.parse(req.params);
-    const input = adminUserDeleteSchema.parse(req.body);
+    const input = adminUserDeleteSchema.parse(deleteRequestInput(req));
 
     // Audited before the delete: `AdminAuditEntry.actorId` survives, but the target row will
     // not, so writing afterwards risks losing the record if the delete succeeds and the audit

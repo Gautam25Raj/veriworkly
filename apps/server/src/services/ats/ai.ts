@@ -95,6 +95,8 @@ export class AtsAiService {
     jobDescription: string | undefined,
     report: AtsReport,
     online: boolean,
+    /** Ends the provider call when the client leaves or the request deadline passes (V-034). */
+    signal?: AbortSignal,
   ): Promise<{ ai: AtsAiInsights | null; creditsSpent: number; routed: boolean }> {
     const jobText = jobDescription?.trim().slice(0, 20_000) ?? "";
     const tier = complexity(report, resumeText.length, jobText.length);
@@ -133,13 +135,18 @@ export class AtsAiService {
       run: () =>
         createServerAtsAi(requestId).analyze(
           { resumeText, report, jobDescription },
-          taskRoute(route.model, route.systemPrompt),
+          { ...taskRoute(route.model, route.systemPrompt), signal },
         ),
     });
     return { ai: outcome.result, creditsSpent: route.credits, routed: true };
   }
 
-  static async convertResume(userId: string, requestId: string, resumeText: string) {
+  static async convertResume(
+    userId: string,
+    requestId: string,
+    resumeText: string,
+    signal?: AbortSignal,
+  ) {
     await EntitlementService.require(
       userId,
       "ai_credits",
@@ -158,7 +165,7 @@ export class AtsAiService {
       run: () =>
         createServerAtsAi(requestId).convertResume(
           { resumeText },
-          taskRoute(route, policy.prompts.resumeConversion),
+          { ...taskRoute(route, policy.prompts.resumeConversion), signal },
         ),
     });
     return { resume: outcome.result, creditsSpent: route.credits };

@@ -199,28 +199,33 @@ export class PortfolioAssetService {
     await prisma.portfolioAsset.delete({ where: { id: asset.id } });
   }
 
-  static async deleteAllUserAssets(userId: string) {
-    const assets = await prisma.portfolioAsset.findMany({
-      where: { userId },
-      select: { id: true, key: true },
-    });
+  /**
+   * Best-effort R2 removal of keys whose rows are already gone. Account deletion reads the
+   * keys before its cascade and calls this after commit (V-018); a failure here is logged,
+   * never thrown, because the account no longer exists to report it to.
+   */
+  static async deleteAssetKeys(keys: string[]) {
+    if (keys.length === 0) return;
 
-    if (assets.length === 0) return;
-
+    let s3: S3Client;
     try {
-      const s3 = getClient();
-      for (const asset of assets) {
-        try {
-          await s3.send(new DeleteObjectCommand({ Bucket: config.r2.bucket, Key: asset.key }));
-        } catch (err) {
-          logger.warn("Failed to delete asset from R2 during user account deletion", {
-            assetId: asset.id,
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
+      s3 = getClient();
     } catch {
-      // Storage might not be configured in dev or test environments
+      logger.warn("Skipping R2 cleanup after account deletion: storage is not configured", {
+        keys: keys.length,
+      });
+      return;
+    }
+
+    for (const key of keys) {
+      try {
+        await s3.send(new DeleteObjectCommand({ Bucket: config.r2.bucket, Key: key }));
+      } catch (error) {
+        logger.warn("Failed to delete R2 object after account deletion", {
+          key,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 }

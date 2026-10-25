@@ -203,6 +203,7 @@ describe("Views tracking buffering and flushing", () => {
         updatedAt: new Date(),
         user: {
           subscriptions: [],
+          entitlementGrants: [],
         },
       });
 

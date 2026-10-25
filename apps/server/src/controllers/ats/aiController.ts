@@ -9,11 +9,15 @@ import type { NextFunction, Request, Response } from "express";
 import { z } from "zod";
 
 import { requireAuthUser } from "#middleware/auth";
+import { withAiSlot } from "#middleware/rateLimit";
 import { AtsAiService } from "#services/ats/ai";
+import { aiRequestSignal, aiTimeoutError } from "#services/ats/aiDeadline";
+import { publicAtsPolicy } from "#services/ats/aiPolicy";
 import { AtsJobFetchService } from "#services/ats/jobFetch";
 import { AtsQuotaService } from "#services/ats/quota";
 import { AtsScoringService } from "#services/ats/scoring";
-import { AtsRepairService } from "#services/ats/repair";
+import { AtsRepairService, type RepairOutcome } from "#services/ats/repair";
+import { CreditService } from "#services/creditService";
 import { createSuccessResponse, handleValidationError, ApiError } from "#lib/errors";
 import { getRequestIpDetails } from "#utils/requestIp";
 import {
@@ -39,6 +43,35 @@ function aiFilledFields(parsed: AtsParsedResume): AtsParsedField[] {
   );
 }
 
+/**
+ * V-035: the cheapest analysis this request could be billed for, checked against the wallet
+ * before a scan is spent or a job page fetched. An account with no credits was previously
+ * metered, made the server fetch its URL, and only then got the 402 from the reservation —
+ * which refunded the scan and left the fetch free to repeat.
+ */
+async function requireAnalysisCredits(userId: string, online: boolean, repair: boolean) {
+  const pricing = publicAtsPolicy();
+  // A requested repair is billed too; a wallet that covers only the analysis would otherwise
+  // pass here and lose the scan to the repair's own 402.
+  const minimum =
+    (online ? pricing.jobUrlAnalysisCredits.min : pricing.analysisCredits.min) +
+    (repair ? (pricing.parseRepairCredits ?? 0) : 0);
+  const { available } = await CreditService.getWallet(userId);
+  if (available < minimum) throw new ApiError(402, "Not enough AI credits.");
+}
+
+/** A refund from an error path must not replace the error it follows. */
+async function refundScanQuietly(userId: string, address: string, requestId: string) {
+  try {
+    await AtsQuotaService.refund(userId, address);
+  } catch (error) {
+    logger.error("ATS scan refund failed", {
+      requestId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 export class AtsAiController {
   static async analyze(req: Request, res: Response, next: NextFunction) {
     try {
@@ -51,31 +84,48 @@ export class AtsAiController {
       // the same prepared text feeds the report, the repair pass and the analysis.
       const resume = AtsScoringService.prepare(input.resume);
 
-      /**
-       * Metering happens before the outbound fetch, not after. Fetching first meant a caller
-       * who was already at their quota could still make the server issue an arbitrary
-       * (SSRF-filtered, but still attacker-chosen) HTTPS request per attempt, unmetered — the
-       * 429 only landed once the page had already been downloaded. Consuming first makes the
-       * quota an actual budget on egress.
-       */
-      const quota = await AtsQuotaService.consume(user.id, ip(req));
-      const jobDescription =
-        input.fetchJobUrl && input.jobUrl
-          ? await AtsJobFetchService.fetch(input.jobUrl)
-          : input.jobDescription;
+      // One signal for the whole request, built before the quota, the job fetch and every
+      // provider call: the client leaving or the deadline ends whichever step is running, and
+      // no reservation made after that is ever committed (V-034).
+      const signal = aiRequestSignal(res);
+      const fetchesJobPage = Boolean(input.fetchJobUrl && input.jobUrl);
 
-      // From here on a failure is ours, not the caller's, so the scan goes back. The job fetch
-      // above is deliberately outside this: refunding a failed fetch would make fetching free.
-      try {
-        res.json(
-          createSuccessResponse(
-            await AtsAiController.run(user.id, req, input, resume, jobDescription, quota),
-          ),
-        );
-      } catch (error) {
-        await AtsQuotaService.refund(user.id, ip(req));
-        throw error;
-      }
+      await requireAnalysisCredits(user.id, input.fetchJobUrl, input.repairParse);
+
+      // V-038: at most two provider calls in flight per user, held for the whole request.
+      await withAiSlot(user.id, async () => {
+        /**
+         * Metering happens before the outbound fetch, not after. Fetching first meant a caller
+         * who was already at their quota could still make the server issue an arbitrary
+         * (SSRF-filtered, but still attacker-chosen) HTTPS request per attempt, unmetered — the
+         * 429 only landed once the page had already been downloaded. Consuming first makes the
+         * quota an actual budget on egress.
+         */
+        const quota = await AtsQuotaService.consume(user.id, ip(req));
+        const jobDescription =
+          fetchesJobPage && input.jobUrl
+            ? await AtsJobFetchService.fetch(input.jobUrl)
+            : input.jobDescription;
+
+        // From here on a failure is ours, not the caller's, so the scan goes back. The job
+        // fetch above is deliberately outside this: refunding a failed fetch would make
+        // fetching free. So is a 402 after a page was fetched — the wallet changed under the
+        // check above and the fetch was already made on the strength of it (V-035); a 402 with
+        // no fetch behind it cost the server nothing, and the scan is returned.
+        try {
+          // Gone during the fetch: nothing is reserved for a client that is not there.
+          if (signal.aborted) throw aiTimeoutError();
+          res.json(
+            createSuccessResponse(
+              await AtsAiController.run(user.id, req, input, resume, jobDescription, quota, signal),
+            ),
+          );
+        } catch (error) {
+          if (!(fetchesJobPage && error instanceof ApiError && error.statusCode === 402))
+            await refundScanQuietly(user.id, ip(req), input.requestId);
+          throw error;
+        }
+      });
     } catch (error) {
       next(error instanceof z.ZodError ? handleValidationError(error) : error);
     }
@@ -88,6 +138,8 @@ export class AtsAiController {
     resume: PreparedResume,
     jobDescription: string | undefined,
     quota: Awaited<ReturnType<typeof AtsQuotaService.consume>>,
+    /** The request's signal (see `analyze`), shared by the repair and the analysis call. */
+    signal: AbortSignal,
   ) {
     const resumeText = resume.text;
     const report = AtsScoringService.check(resume, { jobDescription, layout: input.layout });
@@ -101,27 +153,28 @@ export class AtsAiController {
      * still learns that the option exists.
      */
     const repairAvailable = needsRepair(report);
+    let repair: RepairOutcome | null = null;
     let repairedFieldList: AtsParsedField[] = [];
-    let repairCreditsSpent = 0;
-    let rejectedValues = 0;
 
     if (repairAvailable && input.repairParse) {
       try {
         // Its own reservation id: credit reservations are unique per request id, so sharing
         // the analysis id made the analysis reservation fail with a 409 after repair was paid.
-        const outcome = await AtsRepairService.repair(
+        repair = await AtsRepairService.repair(
           userId,
           `${input.requestId}:repair`,
           resumeText,
           report,
+          signal,
         );
-        repairCreditsSpent = outcome.creditsSpent;
-        rejectedValues = outcome.rejectedValues;
-        if (outcome.repaired) {
-          report.parsed = outcome.repaired;
-          repairedFieldList = aiFilledFields(outcome.repaired);
+        if (repair.repaired) {
+          report.parsed = repair.repaired;
+          repairedFieldList = aiFilledFields(repair.repaired);
         }
       } catch (error) {
+        // The request itself is over — client gone or deadline passed — so there is nothing
+        // left to continue with.
+        if (signal.aborted) throw error;
         // Repair is optional: its own failure releases its credits and must not cost the
         // caller the analysis they also asked for. It is reported as not applied.
         logger.warn("ATS parse repair failed; continuing without it", {
@@ -131,14 +184,42 @@ export class AtsAiController {
       }
     }
 
-    const { routed, ...result } = await AtsAiService.analyze(
-      userId,
-      input.requestId,
-      resumeText,
-      jobDescription,
-      report,
-      input.fetchJobUrl,
-    );
+    let analysis: Awaited<ReturnType<typeof AtsAiService.analyze>>;
+    try {
+      analysis = await AtsAiService.analyze(
+        userId,
+        input.requestId,
+        resumeText,
+        jobDescription,
+        report,
+        input.fetchJobUrl,
+        signal,
+      );
+    } catch (error) {
+      // V-036: the repaired parse goes nowhere with the analysis, so it is not paid for.
+      await repair?.release();
+      throw error;
+    }
+    const { routed, ...result } = analysis;
+
+    /**
+     * The response that carries the repaired parse is going out, so the repair is charged now
+     * and never before the analysis it was done for (V-036). A commit the ledger refuses at
+     * this point (the reservation expired under a very slow analysis) leaves the user with an
+     * unbilled repair; it is logged and reported as unspent rather than failing the response.
+     */
+    let repairCreditsSpent = 0;
+    if (repair) {
+      try {
+        await repair.commit();
+        repairCreditsSpent = repair.creditsSpent;
+      } catch (error) {
+        logger.error("ATS parse repair delivered but could not be charged", {
+          requestId: input.requestId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
 
     /**
      * No model could be routed. That is our configuration failing, not the caller's request,
@@ -162,7 +243,7 @@ export class AtsAiController {
         available: repairAvailable,
         applied: repairedFieldList.length > 0,
         fields: repairedFieldList,
-        rejectedValues,
+        rejectedValues: repair?.rejectedValues ?? 0,
         creditsSpent: repairCreditsSpent,
       },
       quota: routed ? quota : await AtsQuotaService.refund(userId, ip(req)),
@@ -173,7 +254,9 @@ export class AtsAiController {
     try {
       const user = requireAuthUser(req);
       const input = atsConvertResumeSchema.parse(req.body);
-      const result = await AtsAiService.convertResume(user.id, input.requestId, input.resume);
+      const result = await withAiSlot(user.id, () =>
+        AtsAiService.convertResume(user.id, input.requestId, input.resume, aiRequestSignal(res)),
+      );
 
       res.json(createSuccessResponse(result));
     } catch (error) {

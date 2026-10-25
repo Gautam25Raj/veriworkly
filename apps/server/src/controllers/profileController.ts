@@ -12,8 +12,6 @@ import { createSuccessResponse, handleValidationError } from "#lib/errors";
 import { masterProfilePayloadSchema } from "#validators/masterProfileValidator";
 import { importGithubSchema, importLinkedinSchema } from "#validators/profileImportValidator";
 
-export const hasMasterProfileConflict = ProfileService.hasConflict;
-
 export class ProfileController {
   /**
    * Get the authenticated user's master profile and summary.

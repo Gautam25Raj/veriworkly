@@ -8,12 +8,46 @@ import type {
   AtsResumeFormat,
 } from "@veriworkly/ats-engine/node";
 
+import { parseIntegerEnv } from "#config/parseEnv";
 import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
 
 export type AtsExtractOutcome = { text: string; layout?: AtsLayoutSignals };
 
 const EXTRACTION_TIMEOUT_MS = 20_000;
+
+/**
+ * V-033: the resident memory the extraction child may reach before it is killed.
+ *
+ * `--max-old-space-size` caps V8's heap only; the pixels pdf.js decodes for its image pass are
+ * ArrayBuffers outside it, and six 48 MP pages held 1.4 GB. The child polls its own RSS and
+ * exits with `RSS_EXIT_CODE` past the cap; the job it was on fails with 422 and keeps its
+ * upload charge, like any other file the server could not read. `ATS_EXTRACT_MAX_RSS_MB`
+ * (megabytes, default 512) is read at each fork so it needs no restart to change. A child busy
+ * in one long synchronous decode cannot poll; the extraction timeout above remains the backstop.
+ * The real fix is `maxImageSize` upstream in `@veriworkly/ats-engine`'s `readPdf`.
+ */
+const DEFAULT_MAX_RSS_MB = 512;
+const RSS_EXIT_CODE = 97;
+const RSS_POLL_MS = 250;
+
+function maxRssBytes() {
+  const megabytes = parseIntegerEnv(process.env.ATS_EXTRACT_MAX_RSS_MB, DEFAULT_MAX_RSS_MB);
+  return Math.max(1, megabytes) * 1024 * 1024;
+}
+
+/**
+ * The watchdog as a `data:` module for `--import`: nothing to resolve on disk, so it works the
+ * same under `tsx`, the compiled build and the tests. It checks once at startup and then on an
+ * unreferenced interval, so it never keeps the child alive on its own.
+ */
+function rssWatchdogModule(capBytes: number) {
+  const source =
+    `const cap=${capBytes},code=${RSS_EXIT_CODE};` +
+    `const check=()=>{if(process.memoryUsage.rss()>cap)process.exit(code)};` +
+    `check();setInterval(check,${RSS_POLL_MS}).unref();`;
+  return `data:text/javascript,${encodeURIComponent(source)}`;
+}
 // Three waiting behind the one in progress: the last waits at most 4 × 20 s = 80 s, inside
 // Cloudflare's 100 s, where eight could wait 160 s and be answered 524 while still charged.
 const MAX_QUEUE_DEPTH = 3;
@@ -115,8 +149,9 @@ function ensureChild(): ChildProcess {
   child = fork(resolveChildEntrypoint(), {
     // No stdio from the child; it communicates over the IPC channel only.
     stdio: ["ignore", "ignore", "ignore", "ipc"],
-    // Caps a decompression bomb rather than letting it consume host memory.
-    execArgv: ["--max-old-space-size=256"],
+    // Caps a decompression bomb rather than letting it consume host memory; the watchdog caps
+    // what lives outside the V8 heap.
+    execArgv: ["--max-old-space-size=256", `--import=${rssWatchdogModule(maxRssBytes())}`],
   });
 
   child.on("message", handleMessage as (message: unknown) => void);
@@ -127,7 +162,9 @@ function ensureChild(): ChildProcess {
     if (current || queue.length)
       recycleChild(
         `child exited (code=${code}, signal=${signal})`,
-        new ApiError(400, "Resume file could not be read."),
+        code === RSS_EXIT_CODE
+          ? new ApiError(422, "This file is too complex to read.")
+          : new ApiError(400, "Resume file could not be read."),
       );
     else child = null;
   });

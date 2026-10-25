@@ -45,6 +45,39 @@ export async function shouldSyncChangelogReleases(): Promise<boolean> {
   }
 }
 
+const reportedCollisions = new Set<string>();
+
+/** A skipped tag is said at warn once per process; every later sync repeats it at debug. */
+function reportCollision(key: string, message: string) {
+  if (reportedCollisions.has(key)) {
+    logger.debug(message);
+    return;
+  }
+
+  reportedCollisions.add(key);
+  logger.warn(message);
+}
+
+/**
+ * Whether a P2002 came from ChangelogEntry's id or version unique. The classic engine names the
+ * columns in `meta.target`; the pg driver adapter usually names only the constraint.
+ */
+function isIdOrVersionConflict(error: Prisma.PrismaClientKnownRequestError): boolean {
+  const meta = error.meta as
+    | {
+        target?: unknown;
+        driverAdapterError?: { cause?: { constraint?: { fields?: unknown; index?: unknown } } };
+      }
+    | undefined;
+  const constraint = meta?.driverAdapterError?.cause?.constraint;
+  const fields = Array.isArray(meta?.target) ? meta.target : constraint?.fields;
+
+  if (Array.isArray(fields)) return fields.some((field) => field === "id" || field === "version");
+
+  const name = typeof meta?.target === "string" ? meta.target : constraint?.index;
+  return name === "ChangelogEntry_pkey" || name === "ChangelogEntry_version_key";
+}
+
 function deriveTitle(release: GitHubReleasePayload, version: string): string {
   if (!release.name) return `Release v${version}`;
 
@@ -84,7 +117,28 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
   }
 
   try {
-    const releases = await fetchAllGitHubReleases(owner, repo, token);
+    const fetched = await fetchAllGitHubReleases(owner, repo, token);
+
+    // Two tags can slugify to one id (3.0.0-1 and 3.0.0.1 are both v3-0-0-1). The first, oldest,
+    // keeps the id; the later one is skipped and named, rather than its create hitting P2002 and
+    // failing the whole sync on every run (V-158).
+    const tagById = new Map<string, string>();
+    const releases = fetched.filter((release) => {
+      const id = slugifyVersion(parseReleaseTag(release.tag_name));
+      const firstTag = tagById.get(id);
+
+      if (firstTag !== undefined) {
+        reportCollision(
+          `${firstTag}\u0000${release.tag_name}`,
+          `Changelog release sync: tag ${release.tag_name} skipped, its id ${id} is already used by tag ${firstTag}`,
+        );
+        return false;
+      }
+
+      tagById.set(id, release.tag_name);
+      return true;
+    });
+    const duplicates = fetched.length - releases.length;
 
     const releaseIds = releases.map((release) => slugifyVersion(parseReleaseTag(release.tag_name)));
     const storedRows = await prisma.changelogEntry.findMany({
@@ -125,7 +179,7 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
 
     let created = 0;
     let refreshed = 0;
-    let skipped = 0;
+    let skipped = duplicates;
 
     for (let index = 0; index < releases.length; index++) {
       const release = releases[index];
@@ -178,26 +232,47 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
         version,
       );
 
-      await prisma.changelogEntry.create({
-        data: {
-          id,
-          version,
-          title: deriveTitle(release, version),
-          summary: parsedBody.summary,
-          type,
-          publishedAt: release.published_at ? new Date(release.published_at) : new Date(),
-          githubUrl: release.html_url,
-          added: parsedBody.added,
-          improved: parsedBody.improved,
-          fixed: parsedBody.fixed,
-          breaking: parsedBody.breaking,
-          security: parsedBody.security,
-          tags: ["auto-synced"],
-          prRefs: (shippedPrs.length > 0
-            ? shippedPrs
-            : Prisma.JsonNull) as unknown as Prisma.InputJsonValue,
-        },
-      });
+      const createdRow = await prisma.changelogEntry
+        .create({
+          data: {
+            id,
+            version,
+            title: deriveTitle(release, version),
+            summary: parsedBody.summary,
+            type,
+            publishedAt: release.published_at ? new Date(release.published_at) : new Date(),
+            githubUrl: release.html_url,
+            added: parsedBody.added,
+            improved: parsedBody.improved,
+            fixed: parsedBody.fixed,
+            breaking: parsedBody.breaking,
+            security: parsedBody.security,
+            tags: ["auto-synced"],
+            prRefs: (shippedPrs.length > 0
+              ? shippedPrs
+              : Prisma.JsonNull) as unknown as Prisma.InputJsonValue,
+          },
+        })
+        .catch((error: unknown) => {
+          // A hand-made entry can already hold this version under another id.
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === "P2002" &&
+            isIdOrVersionConflict(error)
+          ) {
+            reportCollision(
+              `${release.tag_name}\u0000stored`,
+              `Changelog release sync: tag ${release.tag_name} skipped, version ${version} or id ${id} already exists`,
+            );
+            return null;
+          }
+          throw error;
+        });
+
+      if (!createdRow) {
+        skipped++;
+        continue;
+      }
 
       created++;
       logger.info(`Changelog release sync: created entry for ${id} (v${version})`);
@@ -217,7 +292,7 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
       `Changelog release sync complete: ${created} created, ${refreshed} re-parsed, ${skipped} already present`,
     );
 
-    return { created, refreshed, skipped, total: releases.length };
+    return { created, refreshed, skipped, total: fetched.length };
   } finally {
     try {
       await redis.eval(RELEASE_LOCK_LUA_SCRIPT, {

@@ -4,7 +4,7 @@ import express, { raw, NextFunction, Request, Response, RequestHandler } from "e
 
 import { config } from "#config";
 
-import { ApiError } from "#lib/errors";
+import { ApiError, createSuccessResponse } from "#lib/errors";
 
 import { corsMiddleware } from "#middleware/cors";
 import { loggingMiddleware } from "#middleware/logging";
@@ -130,10 +130,7 @@ app.all(["/api/v1/auth", "/api/v1/auth/*"], [
 
 // Root GET route
 app.get("/", (req, res) => {
-  res.json({
-    status: "ok",
-    message: "VeriWorkly API Server",
-  });
+  res.json(createSuccessResponse({ status: "ok" }, "VeriWorkly API Server"));
 });
 
 // 404 handler

@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from "express";
 
 import { config } from "#config";
 import { createSuccessResponse, createErrorResponse } from "#lib/errors";
+import { matchesSharedSecret } from "#utils/requestIp";
 
 import {
   KNOWN_EVENTS,
@@ -31,10 +32,22 @@ const usageMetricEventSchema = z.object({
  */
 const SERVER_ONLY_EVENTS = new Set(["auth_login_success"]);
 
+/**
+ * An internal `/stats/events` caller is identified only by `x-internal-key` equal to
+ * `STATS_INTERNAL_KEY`, compared in constant time (V-024, V-151). An API key of any scope is a
+ * public caller here: holding one says nothing about being trusted to write metrics.
+ */
+export function isInternalStatsRequest(req: Request): boolean {
+  return matchesSharedSecret(req.headers["x-internal-key"], config.metrics.statsInternalKey);
+}
+
 export class StatsController {
   /**
    * Record a single usage metric (e.g., resume_created) into Redis.
    * In development mode, metric recording is skipped.
+   *
+   * Public callers: allow-listed events only, and every call counts as 1 whatever `value` says.
+   * Internal callers: may send a `value` and `custom_*` events, within the daily custom-name cap.
    *
    * @param req Express request
    * @param res Express response
@@ -44,15 +57,18 @@ export class StatsController {
   static async recordUsageMetric(req: Request, res: Response, next: NextFunction) {
     try {
       if (process.env.NODE_ENV === "development")
-        return res.status(202).json("Skipping metric recording in development mode");
+        return res
+          .status(202)
+          .json(
+            createSuccessResponse(
+              { accepted: false },
+              "Skipping metric recording in development mode",
+            ),
+          );
 
       const payload = usageMetricEventSchema.parse(req.body);
 
-      const isInternal = !!(
-        req.apiKey ||
-        (req.headers["x-internal-key"] &&
-          req.headers["x-internal-key"] === config.github.syncApiKey)
-      );
+      const isInternal = isInternalStatsRequest(req);
 
       const normalizedEvent = payload.event.trim().toLowerCase().replace(/\s+/g, "_");
 
@@ -77,7 +93,10 @@ export class StatsController {
         }
       }
 
-      await incrementUsageMetric(payload);
+      await incrementUsageMetric(
+        { event: payload.event, value: isInternal ? payload.value : 1 },
+        { allowCustom: isInternal },
+      );
 
       res.status(202).json(createSuccessResponse({ accepted: true }, "Metric accepted"));
     } catch (error) {

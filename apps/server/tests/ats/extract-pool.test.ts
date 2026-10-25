@@ -58,4 +58,26 @@ describe("extractPool", () => {
     const after = await extractInChildProcess("text", Buffer.from("still alive"));
     expect(after.text).toBe("still alive");
   }, 60_000);
+
+  /**
+   * V-033: `--max-old-space-size` caps the V8 heap only; the pixels pdf.js decodes live outside
+   * it. The child watches its own resident memory and exits past the cap, and the job it was on
+   * fails as a file too complex to read. A 1 MB cap is crossed by any Node process at startup,
+   * so the real watchdog fires on a real child here without a 500 MB fixture.
+   */
+  it("kills a child past the memory cap and fails that job with 422, then keeps serving", async () => {
+    process.env.ATS_EXTRACT_MAX_RSS_MB = "1";
+    stopExtractPool();
+    try {
+      await expect(
+        extractInChildProcess("text", Buffer.from("a file the child never finishes")),
+      ).rejects.toMatchObject({ statusCode: 422, message: "This file is too complex to read." });
+    } finally {
+      delete process.env.ATS_EXTRACT_MAX_RSS_MB;
+      stopExtractPool();
+    }
+
+    const after = await extractInChildProcess("text", Buffer.from("still alive"));
+    expect(after.text).toBe("still alive");
+  }, 60_000);
 });

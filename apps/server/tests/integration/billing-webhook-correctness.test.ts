@@ -124,7 +124,11 @@ async function billingMe(user: TestUser) {
   return response.body.data;
 }
 
-async function createPublication(userId: string) {
+/**
+ * Defaults to a premium template: since V-042 only Nimbus/Cipher publications follow the
+ * subscription into GRACE/SUSPENDED. Tests about free templates pass "signal" explicitly.
+ */
+async function createPublication(userId: string, templateId: "signal" | "nimbus" = "nimbus") {
   const suffix = randomUUID().slice(0, 8);
   const document = await prisma.document.create({
     data: {
@@ -140,7 +144,7 @@ async function createPublication(userId: string) {
       userId,
       documentId: document.id,
       subdomain: `pub-${suffix}`,
-      templateId: "signal",
+      templateId,
       snapshot: {},
       status: "LIVE",
     },
@@ -933,7 +937,7 @@ describe("free-template publications are not governed by non-portfolio or unpaid
 
   it("keeps a free-template portfolio LIVE through an ai_credits activation", async () => {
     const user = await createUserWithSession();
-    await createPublication(user.id);
+    await createPublication(user.id, "signal");
     const { response } = await deliver(
       subscriptionEvent({
         userId: user.id,
@@ -954,7 +958,7 @@ describe("free-template publications are not governed by non-portfolio or unpaid
 
   it("keeps a free-template portfolio LIVE through a pending portfolio_pro checkout", async () => {
     const user = await createUserWithSession();
-    await createPublication(user.id);
+    await createPublication(user.id, "signal");
     const { response } = await deliver(
       subscriptionEvent({
         userId: user.id,
@@ -973,9 +977,9 @@ describe("free-template publications are not governed by non-portfolio or unpaid
     expect(await activePublishGrants(user.id)).toHaveLength(0);
   });
 
-  it("still suspends when a portfolio_pro subscription is cancelled with its period over", async () => {
+  it("still suspends a premium-template publication when its portfolio_pro subscription is cancelled with the period over", async () => {
     const user = await createUserWithSession();
-    await createPublication(user.id);
+    await createPublication(user.id, "nimbus");
     const base = {
       userId: user.id,
       subscriptionId: "sub_free_then_pro",

@@ -10,6 +10,9 @@ import {
 
 import { sendMail } from "./transporter.js";
 
+/** The support address the site publishes; mails that say "reply to this email" reply here. */
+export const SUPPORT_REPLY_TO = "info@veriworkly.com";
+
 interface AuthOtpEmailPayload {
   email: string;
   otp: string;
@@ -50,8 +53,8 @@ export async function sendWelcomeEmail(email: string, name: string): Promise<voi
   const displayName = !name || name === "Veriworkly User" ? "there" : name;
   const text = `Welcome to VeriWorkly, ${displayName}! Start building your professional documents and portfolio today.`;
 
-  // Resolve dashboard URL
-  const dashboardUrl = `${config.auth.baseUrl.replace(/\/api\/v1\/auth\/?$/, "")}/dashboard`;
+  // The dashboard is the studio's root. AUTH_BASE_URL is the API host, which has no /dashboard.
+  const dashboardUrl = `${config.auth.studioUrl.replace(/\/+$/, "")}/`;
   const html = renderWelcomeEmail(displayName, dashboardUrl);
 
   await sendMail({ to: email, subject, text, html });
@@ -65,7 +68,7 @@ export async function sendLoginAlertEmail(email: string, meta: LoginAlertMeta): 
   const text = `A new login was detected on your VeriWorkly account. IP: ${meta.ip}, Device: ${meta.device}, Time: ${meta.timestamp}`;
   const html = renderLoginAlertEmail(email, meta);
 
-  await sendMail({ to: email, subject, text, html });
+  await sendMail({ to: email, subject, text, html, replyTo: SUPPORT_REPLY_TO });
 }
 
 /**
@@ -73,8 +76,8 @@ export async function sendLoginAlertEmail(email: string, meta: LoginAlertMeta): 
  */
 export async function sendAccountDeletedEmail(email: string, name: string): Promise<void> {
   const subject = "Your VeriWorkly Account Has Been Deleted";
-  const text = `Hello ${name || "there"},\n\nThis email confirms that your VeriWorkly account has been deleted and all associated data has been permanently removed.`;
+  const text = `Hello ${name || "there"},\n\nThis email confirms that your VeriWorkly account has been deleted. Your profile, documents, share links and portfolio have been removed. Records of payments are kept, by us and our payment provider, for as long as the law requires, and copies may remain in backups until those backups expire.`;
   const html = renderAccountDeletedEmail(name);
 
-  await sendMail({ to: email, subject, text, html });
+  await sendMail({ to: email, subject, text, html, replyTo: SUPPORT_REPLY_TO });
 }

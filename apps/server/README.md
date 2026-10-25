@@ -63,6 +63,22 @@ Beyond auth and core document CRUD (soft-delete only — hard-delete/restore exi
 - **Developer API keys** (`/api-keys`) — HMAC-SHA256-hashed, scoped (including `ai:write`), auto-expiring, force-invalidated within 5 minutes of a subscription lapsing.
 - **Admin tools** (`/admin/*`) — one router covering users, ambassadors, affiliates, portfolios, documents, share links, billing, API keys, the audit log, system/ops, and the roadmap + changelog CMS. `adminAuthMiddleware` is applied once at the router root, so every sub-route is gated by construction, and each mutating endpoint requires an audit reason and writes an `AdminAuditEntry`.
 
+## 🔐 Internal server-to-server contract
+
+Server-side callers (studio and portfolio SSR / route handlers, internal jobs) authenticate to the API with one header, `x-internal-key`, compared in constant time against one of two optional secrets. Neither is ever sent to a browser. Each is unset by default (feature off); in production each must be at least 32 characters when set (`openssl rand -hex 32`). They are separate from `INTERNAL_SYNC_API_KEY` (GitHub sync).
+
+| Env var              | Send it when                                                                                                                                  | What it does                                                                                                                                                                                                                                                                                         |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INTERNAL_API_KEY`   | Every server-side fetch made on behalf of a browser request (e.g. `lib/server-fetch.ts`), together with `x-forwarded-client-ip: <browser IP>` | The API uses `x-forwarded-client-ip` as the client IP for rate limiting, quotas, request logs and audit, instead of the SSR host's IP. Without a matching key the header is ignored, so a browser cannot spoof its IP with it. The value must be a bare IPv4/IPv6 address; anything else is ignored. |
+| `STATS_INTERNAL_KEY` | `POST /api/v1/stats/events` from a trusted server                                                                                             | Marks the call as internal: no `Origin`/API key needed, `custom_*` event names and `value` (1-1000) are accepted. At most 50 distinct custom names per UTC day; a new name past that gets `429`.                                                                                                     |
+
+Rules the callers can rely on:
+
+- A request matches one key per `x-internal-key` header. A stats call sent with `INTERNAL_API_KEY` is treated as public, and an IP-forwarding call sent with `STATS_INTERNAL_KEY` has its `x-forwarded-client-ip` ignored.
+- Public `/stats/events` callers (browser origin or any developer API key, whatever its scopes) may only send the allow-listed event names (`KNOWN_EVENTS` in `src/services/analyticsService.ts`); `value` is ignored and every call counts as 1. An unknown name is `400`.
+- The two secrets must differ (production refuses to boot when they are equal), and `AUTH_IP_ADDRESS_HEADERS` may never list `x-forwarded-client-ip` (boot error; the parser also drops it), because better-auth would trust it without the key.
+- The forwarded IP wins over `TRUST_PROXY` handling, so only send it with the browser's real address (from the incoming request's trusted proxy headers).
+
 ## ⏰ Cron jobs
 
 Five scheduled jobs (`src/jobs/`), each guarded by a Redis distributed lock: GitHub sync (twice daily), portfolio/share view flush (every 10 minutes), usage-metrics flush (daily), portfolio access job (hourly — grace-period suspension plus abandoned-upload cleanup), and changelog release sync (`CHANGELOG_RELEASE_SYNC_CRON`, default daily at 06:00 UTC).

@@ -3,6 +3,7 @@ import { config } from "#config";
 import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
 import { cacheGet, cacheSet } from "#lib/redis";
+import { MAX_CACHED_OFFSET } from "#utils/pagination";
 
 export type RoadmapStatus = "todo" | "in-progress" | "done";
 export type RoadmapSort = "newest" | "oldest" | "recently-completed";
@@ -41,16 +42,19 @@ export type RoadmapListResult = {
   };
 };
 
+// Every order ends on id: many items share a createdAt, and without a unique tiebreaker offset
+// pages repeat or skip them (V-062).
 function getRoadmapOrderBy(sort: RoadmapSort) {
-  if (sort === "oldest") return [{ createdAt: "asc" as const }];
+  if (sort === "oldest") return [{ createdAt: "asc" as const }, { id: "asc" as const }];
 
   if (sort === "recently-completed")
     return [
       { completedAt: { sort: "desc" as const, nulls: "last" as const } },
       { updatedAt: "desc" as const },
+      { id: "asc" as const },
     ];
 
-  return [{ createdAt: "desc" as const }];
+  return [{ createdAt: "desc" as const }, { id: "asc" as const }];
 }
 
 /**
@@ -61,8 +65,13 @@ function getRoadmapOrderBy(sort: RoadmapSort) {
 const getRoadmapFeatures = async (query: RoadmapQuery = {}): Promise<RoadmapListResult> => {
   const { status, sort = "newest", limit = 20, offset = 0, excludeId } = query;
 
-  const cacheKey = `roadmap:list:${status || "all"}:${sort}:${limit}:${offset}:${excludeId || "-"}`;
-  const cached = await cacheGet<RoadmapListResult>(cacheKey);
+  // An excludeId query ("more like this" under a detail page) is not cached: each distinct id
+  // would otherwise hold its own 30-day copy of the list, a key space any caller can grow (V-061).
+  const cacheKey =
+    excludeId || offset > MAX_CACHED_OFFSET
+      ? null
+      : `roadmap:list:${status || "all"}:${sort}:${limit}:${offset}`;
+  const cached = cacheKey ? await cacheGet<RoadmapListResult>(cacheKey) : null;
 
   if (cached) return cached;
 
@@ -117,7 +126,7 @@ const getRoadmapFeatures = async (query: RoadmapQuery = {}): Promise<RoadmapList
     },
   };
 
-  await cacheSet(cacheKey, response, config.cache.roadmapTtlSeconds);
+  if (cacheKey) await cacheSet(cacheKey, response, config.cache.roadmapTtlSeconds);
 
   return response;
 };
@@ -151,20 +160,6 @@ const getRoadmapFeatureById = async (id: string) => {
       whyItMatters: true,
       timeline: true,
       details: true,
-      interactions: {
-        select: {
-          type: true,
-          value: true,
-          comment: true,
-          createdAt: true,
-          user: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-        },
-      },
     },
   });
 

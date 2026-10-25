@@ -37,6 +37,61 @@ export const RESERVED_USERNAMES = new Set([
   "portal",
 ]);
 
+/**
+ * Names a portfolio may not take as its subdomain: every reserved username plus the hostnames
+ * operations will want (`mail`, `status`, `cdn`, ...) and `list`, which shares the
+ * `/portfolios/public/:subdomain` path space with the public list endpoint. Punycode (`xn--`)
+ * is refused in `normalizePortfolioSubdomain` so a homograph of a real brand cannot be served
+ * from a veriworkly.com host.
+ */
+export const RESERVED_SUBDOMAINS = new Set([
+  ...RESERVED_USERNAMES,
+  "list",
+  "mail",
+  "status",
+  "cdn",
+  "assets",
+  "media",
+  "static",
+  "staging",
+  "dev",
+  "help",
+  "email",
+]);
+
+/**
+ * The stored form of a portfolio subdomain: what every existing row was written with (no
+ * reserved check, no trailing-dash strip). The public read looks rows up by this key, so a
+ * site that was published before its name became reserved keeps serving.
+ */
+export function portfolioSubdomainLookupKey(value: string): string {
+  return normalizeSlug(value, "").replace(/_/g, "-").slice(0, 63);
+}
+
+/**
+ * The canonical form of a subdomain the user is claiming, or `null` when it cannot be one.
+ * A name in `keep` (the user's current publication subdomain and draft slug) is returned as
+ * stored, so an existing site survives the rules tightening under it. A NEW name gets the
+ * strict rules: trailing dash stripped after the 63-character cut, reserved list, punycode.
+ */
+export function normalizePortfolioSubdomain(
+  value: string,
+  keep: Iterable<string> = [],
+): string | null {
+  const stored = portfolioSubdomainLookupKey(value);
+
+  if (stored && new Set(keep).has(stored)) return stored;
+
+  // Checked on the raw input: normalisation folds `xn--` into `xn-` and would hide it.
+  if (/^\s*xn--/i.test(value)) return null;
+
+  const subdomain = stored.replace(/-+$/, "");
+
+  if (!subdomain || RESERVED_SUBDOMAINS.has(subdomain)) return null;
+
+  return subdomain;
+}
+
 export function normalizeSlug(value: string, fallback = "document") {
   const normalized = value
     .normalize("NFD")

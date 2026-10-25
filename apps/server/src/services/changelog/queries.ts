@@ -2,6 +2,7 @@ import { config } from "#config";
 import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
 import { cacheGet, cacheSet } from "#lib/redis";
+import { MAX_CACHED_OFFSET } from "#utils/pagination";
 
 import {
   CHANGELOG_CACHE_KEYS,
@@ -25,8 +26,13 @@ export async function getChangelogEntries(
 ): Promise<ChangelogListResult> {
   const { type, tag, search, limit = 20, offset = 0 } = query;
 
-  const cacheKey = buildChangelogListCacheKey(type, tag, search, limit, offset);
-  const cached = await cacheGet<ChangelogListResult>(cacheKey);
+  // Free-text filters are not cached: each distinct value would hold its own 30-day copy of the
+  // list, a key space any caller can grow (V-061). The table is small; these hit Postgres.
+  const cacheKey =
+    search || tag || offset > MAX_CACHED_OFFSET
+      ? null
+      : buildChangelogListCacheKey(type, tag, search, limit, offset);
+  const cached = cacheKey ? await cacheGet<ChangelogListResult>(cacheKey) : null;
 
   if (cached) return cached;
 
@@ -74,7 +80,8 @@ export async function getChangelogEntries(
         tags: true,
         prRefs: true,
       },
-      orderBy: [{ publishedAt: "desc" }],
+      // id breaks publishedAt ties so offset pages neither repeat nor skip an entry (V-062).
+      orderBy: [{ publishedAt: "desc" }, { id: "asc" }],
       take: limit,
       skip: offset,
     }),
@@ -100,7 +107,7 @@ export async function getChangelogEntries(
     },
   };
 
-  await cacheSet(cacheKey, response, config.cache.changelogTtlSeconds);
+  if (cacheKey) await cacheSet(cacheKey, response, config.cache.changelogTtlSeconds);
 
   return response;
 }
@@ -140,7 +147,7 @@ export async function getChangelogStats(): Promise<ChangelogStatsResult> {
     }),
     prisma.changelogEntry.count(),
     prisma.changelogEntry.findFirst({
-      orderBy: { publishedAt: "desc" },
+      orderBy: [{ publishedAt: "desc" }, { id: "asc" }],
       select: { version: true, publishedAt: true, title: true },
     }),
     computeContributorStats(),

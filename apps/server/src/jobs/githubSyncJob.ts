@@ -8,6 +8,7 @@ import { getRedis } from "#lib/redis";
 import { shouldSyncGitHubStats, syncGitHubStatsFromGitHub } from "#services/github/index";
 
 let job: ScheduledTask | null = null;
+let warnedNotConfigured = false;
 
 /** Never rejects; a Redis blip is a skipped tick logged at warn, not an error (V-101). */
 export async function runGitHubSync(reason: "startup" | "cron"): Promise<void> {
@@ -21,9 +22,9 @@ export async function runGitHubSync(reason: "startup" | "cron"): Promise<void> {
   }
 
   try {
-    const needsSync = await shouldSyncGitHubStats();
-
-    if (!needsSync) {
+    // The cron is the schedule, so it always runs; only the boot path checks freshness. syncedAt
+    // lands seconds after the previous tick, so a 12 h check skipped every second cron run (V-055).
+    if (reason === "startup" && !(await shouldSyncGitHubStats())) {
       logger.debug(`GitHub sync (${reason}) skipped: Data is fresh.`);
       return;
     }
@@ -39,6 +40,13 @@ export async function runGitHubSync(reason: "startup" | "cron"): Promise<void> {
   } catch (error) {
     if (error instanceof ApiError && error.statusCode === 409) {
       logger.debug(`GitHub sync (${reason}) locked by another instance. Skipping.`);
+      return;
+    }
+
+    // GITHUB_OWNER/GITHUB_REPO unset: said once, not on every tick (V-058).
+    if (error instanceof ApiError && error.statusCode === 503) {
+      if (!warnedNotConfigured) logger.warn(`GitHub sync skipped: ${error.message}`);
+      warnedNotConfigured = true;
       return;
     }
 

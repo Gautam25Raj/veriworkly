@@ -348,3 +348,92 @@ describe("ATS AI service", () => {
     });
   });
 });
+
+/**
+ * V-034: the request's abort signal reaches the provider call. A client that leaves, or a
+ * request past its deadline, ends the call and its reservation is released; it is never
+ * committed for an answer nobody received.
+ */
+describe("ATS AI service — the request signal", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api = stubChatApi();
+    reserve.mockResolvedValue({ cost: 5 });
+    commitReservation.mockResolvedValue({ balanceAfter: 20 });
+    releaseReservation.mockResolvedValue(true);
+    requireEntitlement.mockResolvedValue(undefined);
+  });
+
+  it("passes the signal to the analysis call", async () => {
+    api.fetch.mockResolvedValue(chatResponse(insights, { id: "analysis_1" }));
+    const { AtsAiService } = await import("../../src/services/ats/ai");
+    const controller = new AbortController();
+
+    await AtsAiService.analyze(
+      "u1",
+      "r1",
+      "resume text",
+      "job text",
+      report,
+      false,
+      controller.signal,
+    );
+
+    for (const call of api.fetch.mock.calls) {
+      const init = call[1] as { signal?: AbortSignal };
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+      expect(init.signal?.aborted).toBe(false);
+    }
+    controller.abort();
+    for (const call of api.fetch.mock.calls)
+      expect((call[1] as { signal?: AbortSignal }).signal?.aborted).toBe(true);
+  });
+
+  it("releases the reservation and answers 504 when the signal aborts mid-call", async () => {
+    // The provider never answers; the engine stops waiting on it the moment the signal fires.
+    api.fetch.mockImplementation(() => new Promise(() => undefined));
+    const { AtsAiService } = await import("../../src/services/ats/ai");
+    const controller = new AbortController();
+
+    const pending = AtsAiService.analyze(
+      "u1",
+      "r1",
+      "resume text",
+      "job text",
+      report,
+      false,
+      controller.signal,
+    );
+    await vi.waitFor(() => expect(api.fetch).toHaveBeenCalledTimes(1));
+    controller.abort(new Error("Client disconnected."));
+
+    await expect(pending).rejects.toMatchObject({ statusCode: 504 });
+    expect(releaseReservation).toHaveBeenCalledWith("u1", "r1");
+    expect(commitReservation).not.toHaveBeenCalled();
+  });
+
+  it("does not retry an aborted call, whatever the route's retries say", async () => {
+    api.fetch.mockImplementation(() => new Promise(() => undefined));
+    const { AtsAiService } = await import("../../src/services/ats/ai");
+    const controller = new AbortController();
+
+    const pending = AtsAiService.convertResume("u1", "r3", "resume text", controller.signal);
+    await vi.waitFor(() => expect(api.fetch).toHaveBeenCalledTimes(1));
+    controller.abort();
+
+    await expect(pending).rejects.toMatchObject({ statusCode: 504 });
+    expect(api.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  /** A release that fails (database down) must not replace the provider error being reported. */
+  it("still reports the provider failure when releasing the reservation fails", async () => {
+    api.fetch.mockRejectedValue(new TypeError("fetch failed"));
+    releaseReservation.mockRejectedValue(new Error("connection refused"));
+    const { AtsAiService } = await import("../../src/services/ats/ai");
+
+    await expect(AtsAiService.convertResume("u1", "r4", "resume text")).rejects.toMatchObject({
+      statusCode: 502,
+      message: "AI resume conversion could not be completed.",
+    });
+  });
+});

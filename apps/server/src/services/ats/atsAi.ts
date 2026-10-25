@@ -9,6 +9,7 @@ import {
 import { openAiCompatible } from "@veriworkly/ats-engine/ai/openai-compatible";
 
 import { config } from "#config";
+import { aiTimeoutError } from "#services/ats/aiDeadline";
 import { CreditService } from "#services/creditService";
 import { ApiError } from "#lib/errors";
 import { logger } from "#lib/logger";
@@ -106,14 +107,27 @@ export function aiFailure(error: unknown) {
 }
 
 /**
- * Runs a task on one credit reservation: reserve, run, commit with the call's metadata — or,
- * on any failure, release the reservation and report it.
- *
- * Every billed AI path goes through here, so the reservation is released on every failure path
- * there is, including a commit that fails. A failure the caller should see as-is is an
- * `ApiError`; anything else is the provider's, and becomes a 502 with `failure` as its message.
+ * Releases a reservation from an error path without letting that release mask the error being
+ * handled. With the database or Redis down the release itself fails; the caller still returns
+ * the original failure, and the expiry sweep returns the credits when the TTL lapses.
  */
-export async function runBilled<T>(options: {
+export async function releaseReservationQuietly(
+  userId: string,
+  requestId: string,
+  context: Record<string, unknown> = {},
+) {
+  try {
+    await CreditService.releaseReservation(userId, requestId);
+  } catch (error) {
+    logger.error("Credit reservation release failed; the expiry sweep will return it", {
+      requestId,
+      ...context,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+type BilledRun<T> = {
   userId: string;
   requestId: string;
   credits: number;
@@ -123,21 +137,78 @@ export async function runBilled<T>(options: {
   failure: string;
   metadata?: Record<string, unknown>;
   run: () => Promise<AtsAiResult<T>>;
-}): Promise<AtsAiResult<T>> {
+};
+
+/** A completed task whose reservation is still open: the caller decides when it is paid for. */
+export type HeldResult<T> = {
+  outcome: AtsAiResult<T>;
+  /** Charges the reservation. Throws (after releasing) when the ledger refuses the commit. */
+  commit(): Promise<void>;
+  /** Hands the credits back. Never throws. */
+  release(): Promise<void>;
+};
+
+/**
+ * Reserves, runs, and hands back the result with its reservation still pending.
+ *
+ * Parse repair uses this (V-036): its result is only worth paying for when the analysis it was
+ * done for is delivered, so the controller commits it after the analysis and releases it when
+ * the analysis fails. A task that failed, including one the request's signal aborted, has its
+ * reservation released here before the error goes up. A failure the caller should see as-is is
+ * an `ApiError`; an abort is a 504; anything else is the provider's and becomes a 502 with
+ * `failure` as its message.
+ */
+export async function runReserved<T>(options: BilledRun<T>): Promise<HeldResult<T>> {
   const { userId, requestId } = options;
   await CreditService.reserve(userId, options.credits, options.action, requestId);
+
+  let outcome: AtsAiResult<T>;
   try {
-    const outcome = await options.run();
-    await CreditService.commitReservation(userId, requestId, {
-      referenceId: outcome.responseId,
-      reason: options.reason,
-      metadata: { ...options.metadata, ...aiMetadata(outcome) },
-    });
-    return outcome;
+    outcome = await options.run();
   } catch (error) {
-    await CreditService.releaseReservation(userId, requestId);
+    await releaseReservationQuietly(userId, requestId, { reason: options.reason });
     logger.error(`${options.reason} failed`, { requestId, ...aiFailure(error) });
     if (error instanceof ApiError) throw error;
+    if (error instanceof AtsAiError && error.code === "aborted") throw aiTimeoutError();
     throw new ApiError(502, options.failure);
   }
+
+  let settled = false;
+  return {
+    outcome,
+    commit: async () => {
+      if (settled) return;
+      settled = true;
+      try {
+        await CreditService.commitReservation(userId, requestId, {
+          referenceId: outcome.responseId,
+          reason: options.reason,
+          metadata: { ...options.metadata, ...aiMetadata(outcome) },
+        });
+      } catch (error) {
+        await releaseReservationQuietly(userId, requestId, { reason: options.reason });
+        logger.error(`${options.reason} could not be charged`, { requestId, ...aiFailure(error) });
+        if (error instanceof ApiError) throw error;
+        throw new ApiError(502, options.failure);
+      }
+    },
+    release: async () => {
+      if (settled) return;
+      settled = true;
+      await releaseReservationQuietly(userId, requestId, { reason: options.reason });
+    },
+  };
+}
+
+/**
+ * Runs a task on one credit reservation: reserve, run, commit with the call's metadata — or,
+ * on any failure, release the reservation and report it.
+ *
+ * Every billed AI path goes through here or `runReserved`, so the reservation is released on
+ * every failure path there is, including a commit that fails.
+ */
+export async function runBilled<T>(options: BilledRun<T>): Promise<AtsAiResult<T>> {
+  const held = await runReserved(options);
+  await held.commit();
+  return held.outcome;
 }

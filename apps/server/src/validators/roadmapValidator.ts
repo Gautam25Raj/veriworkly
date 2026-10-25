@@ -1,14 +1,27 @@
 import { z } from "zod";
 
-export const roadmapQuerySchema = z.object({
-  status: z.enum(["todo", "in-progress", "done"]).optional(),
-  sort: z.enum(["newest", "oldest", "recently-completed"]).optional(),
-  page: z.coerce.number().int().min(1).optional(),
-  pageSize: z.coerce.number().int().min(1).max(50).optional(),
-  limit: z.coerce.number().int().min(1).max(50).optional(),
-  offset: z.coerce.number().int().min(0).optional(),
-  excludeId: z.string().min(1).optional(),
-});
+import {
+  notBothPageAndOffset,
+  notBothPageAndOffsetError,
+  publicOffsetParam,
+  publicPageParam,
+} from "#utils/pagination";
+
+// Strict: an unknown key (a typo, a filter this route does not have) is a 400, not ignored.
+export const roadmapQuerySchema = z
+  .object({
+    status: z.enum(["todo", "in-progress", "done"]).optional(),
+    sort: z.enum(["newest", "oldest", "recently-completed"]).optional(),
+    page: publicPageParam,
+    pageSize: z.coerce.number().int().min(1).max(50).optional(),
+    limit: z.coerce.number().int().min(1).max(50).optional(),
+    offset: publicOffsetParam,
+    excludeId: z.string().min(1).max(100).optional(),
+  })
+  .strict()
+  .refine(notBothPageAndOffset, notBothPageAndOffsetError);
+
+const isoDateTime = z.string().datetime({ offset: true });
 
 const roadmapDetailsSchema = z
   .object({
@@ -71,7 +84,7 @@ const roadmapDetailsSchema = z
   .optional();
 
 export const roadmapAdminCreateSchema = z.object({
-  id: z.string().min(1).optional(),
+  id: z.string().min(1).max(64).optional(),
   title: z.string().min(1),
   description: z.string().min(1),
   status: z.enum(["todo", "in-progress", "done"]).default("todo"),
@@ -80,11 +93,12 @@ export const roadmapAdminCreateSchema = z.object({
   fullDescription: z.string().nullable().optional(),
   whyItMatters: z.string().nullable().optional(),
   timeline: z.string().nullable().optional(),
-  createdAt: z.string().datetime().optional(),
-  startedAt: z.string().datetime().optional(),
-  completedAt: z.string().datetime().optional(),
-  updatedAt: z.string().datetime().optional(),
-  completedQuarter: z.string().optional(),
+  createdAt: isoDateTime.optional(),
+  // The studio form always sends these, as null when unset.
+  startedAt: isoDateTime.nullable().optional(),
+  completedAt: isoDateTime.nullable().optional(),
+  updatedAt: isoDateTime.optional(),
+  completedQuarter: z.string().nullable().optional(),
   details: roadmapDetailsSchema,
 });
 
@@ -100,8 +114,8 @@ export const roadmapAdminUpdateSchema = z
     whyItMatters: z.string().nullable().optional(),
     timeline: z.string().nullable().optional(),
 
-    startedAt: z.string().datetime().nullable().optional(),
-    completedAt: z.string().datetime().nullable().optional(),
+    startedAt: isoDateTime.nullable().optional(),
+    completedAt: isoDateTime.nullable().optional(),
     completedQuarter: z.string().nullable().optional(),
 
     details: roadmapDetailsSchema,

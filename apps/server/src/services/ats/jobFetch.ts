@@ -1,6 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { request } from "node:https";
-import { isIP } from "node:net";
+import { BlockList, isIP } from "node:net";
 
 import { jobTextFromHtml, normalizeJobText } from "@veriworkly/ats-engine/job";
 
@@ -11,6 +11,32 @@ const MAX_REDIRECTS = 3;
 const TIMEOUT_MS = 8_000;
 /** The whole request, however slowly the page sends: `TIMEOUT_MS` only bounds a silent gap. */
 const TOTAL_TIMEOUT_MS = 15_000;
+/**
+ * `getaddrinfo` runs on libuv's threadpool, shared with crypto and file I/O, and has no timeout
+ * of its own: one slow resolver for an attacker's hostname held a thread for as long as the OS
+ * allowed, once per redirect hop. The request gives up on the name after this long instead.
+ */
+const LOOKUP_TIMEOUT_MS = 5_000;
+
+/**
+ * IPv6 ranges no job page lives in, matched as prefixes rather than by spelling: `fe80::/10`
+ * covers `fe80`–`febf` (the old `fe80` literal let `fe90::` through), and a literal written
+ * uncompressed or upper-case still matches. IPv4-mapped and -translated addresses are blocked
+ * outright here as well as checked by their embedded IPv4 below.
+ */
+const BLOCKED_IPV6 = new BlockList();
+for (const [subnet, prefix] of [
+  ["fe80::", 10], // link-local
+  ["fec0::", 10], // site-local (deprecated, still routed by some stacks)
+  ["fc00::", 7], // unique local
+  ["ff00::", 8], // multicast
+  ["2002::", 16], // 6to4: carries an IPv4 destination
+  ["64:ff9b:1::", 48], // local-use NAT64
+  ["::ffff:0:0", 96], // IPv4-mapped
+  ["::ffff:0:0:0", 96], // IPv4-translated (SIIT)
+  ["2001:db8::", 32], // documentation
+] as const)
+  BLOCKED_IPV6.addSubnet(subnet, prefix, "ipv6");
 
 /**
  * The IPv4 address an IPv6 one carries in its last 32 bits: IPv4-mapped (`::ffff:7f00:1`, which
@@ -48,9 +74,27 @@ function isPrivateIp(address: string) {
     /^203\.0\.113\./.test(normalized) || // TEST-NET-3
     /^(22[4-9]|23\d)\./.test(normalized) || // multicast 224/4
     /^(24\d|25[0-5])\./.test(normalized) || // reserved 240/4 + broadcast
-    /^(fc|fd|fe80|fe[c-f])/i.test(normalized) || // ULA + link-local + site-local
-    /^ff/i.test(normalized) // IPv6 multicast
+    (isIP(address) === 6 && BLOCKED_IPV6.check(address, "ipv6"))
   );
+}
+
+/** `lookup` bounded by `LOOKUP_TIMEOUT_MS`; a name that cannot be resolved is the caller's 400. */
+async function resolveHost(hostname: string) {
+  let timer: NodeJS.Timeout | undefined;
+  const expired = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () => reject(new ApiError(400, "Job URL could not be resolved in time.")),
+      LOOKUP_TIMEOUT_MS,
+    );
+  });
+  try {
+    return await Promise.race([lookup(hostname, { all: true, verbatim: true }), expired]);
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(400, "Job URL could not be resolved.");
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function validateUrl(value: string) {
@@ -65,9 +109,7 @@ async function validateUrl(value: string) {
   )
     throw new ApiError(400, "Job URL host is not allowed.");
   const rawHost = url.hostname.replace(/^\[|\]$/g, "");
-  const addresses = isIP(rawHost)
-    ? [{ address: rawHost }]
-    : await lookup(url.hostname, { all: true, verbatim: true });
+  const addresses = isIP(rawHost) ? [{ address: rawHost }] : await resolveHost(url.hostname);
   if (!addresses.length || addresses.some(({ address }) => isPrivateIp(address)))
     throw new ApiError(400, "Job URL resolves to a blocked network.");
   return { url, address: addresses[0].address, family: isIP(addresses[0].address) };

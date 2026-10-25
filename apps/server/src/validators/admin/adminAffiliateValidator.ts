@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 import {
-  adminOptionalReasonSchema,
   adminPaginationSchema,
+  adminProvidedReasonSchema,
   adminSearchSchema,
 } from "#validators/admin/adminCommonValidator";
 
@@ -16,14 +16,17 @@ export const adminAffiliateSchema = z
   .object({
     status: z.enum(["PENDING", "ACTIVE", "SUSPENDED"]).optional(),
     tier: z.enum(["TIER_1", "TIER_2", "TIER_3"]).optional(),
-    reason: adminOptionalReasonSchema,
+    // TODO(V-081): make required once the studio sends it
+    reason: adminProvidedReasonSchema,
   })
   .refine((value) => value.status || value.tier, "Status or tier is required");
 
-export const adminCommissionListQuerySchema = adminPaginationSchema.extend({
-  status: z.enum(["PENDING", "AVAILABLE", "REVERSED", "PAID"]).optional(),
-  affiliateId: z.string().trim().min(1).optional(),
-});
+export const adminCommissionListQuerySchema = adminPaginationSchema
+  .merge(adminSearchSchema)
+  .extend({
+    status: z.enum(["PENDING", "AVAILABLE", "REVERSED", "PAID"]).optional(),
+    affiliateId: z.string().trim().min(1).optional(),
+  });
 
 export const adminCommissionSchema = z.object({
   referredUserId: z.string().trim().min(1),
@@ -31,7 +34,8 @@ export const adminCommissionSchema = z.object({
   providerPaymentId: z.string().trim().min(1),
   purchaseAmountCents: z.number().int().min(1),
   status: z.enum(["PENDING", "AVAILABLE"]).default("PENDING"),
-  reason: adminOptionalReasonSchema,
+  // TODO(V-081): make required once the studio sends it
+  reason: adminProvidedReasonSchema,
   /** ISO 4217 code of `purchaseAmountCents`; defaults to USD, the wallet currency. */
   currency: z
     .string()
@@ -45,19 +49,24 @@ export const adminCommissionSchema = z.object({
 
 export const adminCommissionStatusSchema = z.object({
   status: z.enum(["AVAILABLE", "REVERSED"]),
-  reason: adminOptionalReasonSchema,
+  // TODO(V-081): make required once the studio sends it
+  reason: adminProvidedReasonSchema,
 });
 
-export const adminWithdrawalListQuerySchema = adminPaginationSchema.extend({
-  status: z.enum(["REQUESTED", "APPROVED", "REJECTED", "PAID"]).optional(),
-});
+export const adminWithdrawalListQuerySchema = adminPaginationSchema
+  .merge(adminSearchSchema)
+  .extend({
+    status: z.enum(["REQUESTED", "APPROVED", "REJECTED", "PAID"]).optional(),
+  });
 
 export const adminWithdrawalStatusSchema = z.object({
   status: z.enum(["APPROVED", "REJECTED", "PAID"]),
-  payoutNote: z.string().trim().max(500).optional(),
+  /** The audit reason for the transition (V-081); shown to the affiliate as the payout note. */
+  // TODO(V-081): make required once the studio sends it
+  payoutNote: adminProvidedReasonSchema,
 });
 
-export const adminReferralListQuerySchema = adminPaginationSchema.extend({
+export const adminReferralListQuerySchema = adminPaginationSchema.merge(adminSearchSchema).extend({
   status: z.enum(["SIGNED_UP", "CONVERTED", "REJECTED"]).optional(),
   affiliateId: z.string().trim().min(1).optional(),
 });

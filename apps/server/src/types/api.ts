@@ -42,12 +42,14 @@ export interface RoadmapStatsResponse {
   completionRate: string;
 }
 
+/** `GET /github/stats`, as `getGitHubStats` returns it (dates serialise to ISO strings). */
 export interface GitHubStatsResponse {
   projectName: string;
   projectUrl: string;
   stats: {
     totalItems: number;
-    totalIssues: number;
+    /** @deprecated Same value as `totalItems`; kept until the site reads `totalItems` only. */
+    total: number;
     issues: number;
     pullRequests: number;
     todo: number;
@@ -55,9 +57,8 @@ export interface GitHubStatsResponse {
     done: number;
     completionRate: string;
   };
-  syncedAt: string;
-  nextSyncAt?: string | null;
-  data?: Record<string, unknown>;
+  syncedAt: Date | string;
+  nextSyncAt: Date | string | null;
 }
 
 export interface PublicShareLink {

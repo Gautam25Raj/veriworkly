@@ -1,0 +1,455 @@
+import http from "node:http";
+import type { AddressInfo } from "node:net";
+import { randomUUID } from "node:crypto";
+
+import { DEFAULT_POLICY } from "@veriworkly/ats-engine";
+import request from "supertest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { app } from "#app";
+import { config } from "#config";
+import { prisma } from "#lib/prisma";
+import { getRedis } from "#lib/redis";
+import { AtsJobFetchService } from "#services/ats/jobFetch";
+import { AtsQuotaService } from "#services/ats/quota";
+import { CreditService } from "#services/creditService";
+
+import { STUDIO_ORIGIN } from "./env.js";
+import { createUserWithSession, type TestUser } from "./helpers/auth.js";
+
+/**
+ * The paid AI paths against the real database, Redis and Express stack, with only the provider
+ * replaced: the global `fetch` the engine's OpenAI-compatible adapter posts with is stubbed, so
+ * the request body, the abort signal and the retry loop are exactly production's.
+ *
+ * Every case ends on the ledger: a reservation the user never received an answer for must be
+ * RELEASED and the wallet back where it started.
+ */
+
+const ATS_AI_POLICY = {
+  prompts: { standardAnalysis: "analyse", onlineAnalysis: "analyse online", resumeConversion: "c" },
+  pricing: { creditRevenueUsd: 1, analysisBuckets: [5], onlineMultiplier: 2 },
+  models: [
+    {
+      model: "analysis-model",
+      tiers: ["standard", "detailed", "advanced", "expert"],
+      inputUsdPerMillion: 0,
+      outputUsdPerMillion: 0,
+      maxOutputTokens: 1000,
+      retries: 0,
+      feeMultiplier: 1,
+    },
+  ],
+  resumeConversion: { credits: 25, model: "conversion-model", maxOutputTokens: 4000 },
+  parseRepair: { credits: 10, model: "repair-model", maxOutputTokens: 2000 },
+};
+
+const ANALYSIS_CREDITS = 5;
+const REPAIR_CREDITS = 10;
+
+/** Enough prose for `needsRepair` (no dated roles, more than 160 words) with a groundable name. */
+const THIN_RESUME = [
+  "Jane Doe",
+  "Seasoned builder of resilient services and the teams that run them. Spent the better part of a",
+  "decade on platform work: queues, schedulers, deployment tooling, the unglamorous pieces that",
+  "make product teams fast. Known for calm incident command and for writing the runbook before",
+  "the outage rather than after it. Comfortable across the stack from Postgres query plans to the",
+  "React component that renders their output, and happiest when deleting code that no longer",
+  "earns its keep. Mentors generously, reviews thoroughly, ships often. Previously led migration",
+  "of a monolith to services without a single customer-visible incident, cut infrastructure spend",
+  "by a third through right-sizing and reserved capacity, and built the internal developer portal",
+  "that every team now starts from. Believes observability is a product feature. Strong written",
+  "communicator who has presented at internal engineering summits and external meetups alike.",
+  "Looking for a staff role on a team that values craft and measured ambition in equal parts and",
+  "keeps its promises to users. References available on request from former managers and peers",
+  "across three companies and two continents, covering both technical depth and leadership range.",
+  "Fluent in English and German, conversational in Hindi. Open to relocation and remote work.",
+].join("\n");
+
+const ANALYSIS_REPLY = {
+  explanation: "Targeted review",
+  missingEvidence: [],
+  keywordOpportunities: [],
+  recommendedImprovements: [],
+  priorityOrder: [],
+};
+
+function chatResponse(content: unknown, id = `cmpl-${randomUUID()}`) {
+  const body = {
+    id,
+    choices: [{ finish_reason: "stop", message: { content: JSON.stringify(content) } }],
+    usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+  };
+  return { ok: true, status: 200, text: async () => JSON.stringify(body) };
+}
+
+function providerError(status: number) {
+  return { ok: false, status, text: async () => JSON.stringify({ error: { message: "boom" } }) };
+}
+
+type FetchInit = { body: string; signal?: AbortSignal };
+type PendingCall = { init: FetchInit; resolve: (value: unknown) => void };
+
+/** A provider that never answers until the test lets it, and honours the request's abort. */
+function pendingProvider(calls: PendingCall[]) {
+  return (_url: string, init: FetchInit) =>
+    new Promise((resolve, reject) => {
+      calls.push({ init, resolve });
+      init.signal?.addEventListener("abort", () =>
+        reject(new DOMException("The operation was aborted.", "AbortError")),
+      );
+    });
+}
+
+async function waitFor<T>(read: () => Promise<T>, ok: (value: T) => boolean, timeoutMs = 5_000) {
+  const until = Date.now() + timeoutMs;
+  let last = await read();
+  while (!ok(last) && Date.now() < until) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    last = await read();
+  }
+  return last;
+}
+
+async function grantCredits(userId: string, amount: number) {
+  const id = randomUUID();
+  await CreditService.grant(userId, amount, {
+    requestId: `grant:${id}`,
+    source: "integration",
+    sourceId: id,
+  });
+}
+
+async function grantEntitlement(userId: string, startsAt = new Date()) {
+  await prisma.entitlementGrant.create({
+    // `createdAt` is the period anchor; `startsAt` is what the webhooks rewrite.
+    data: {
+      userId,
+      key: "ai_credits",
+      source: "MANUAL",
+      sourceId: randomUUID(),
+      startsAt,
+      createdAt: startsAt,
+    },
+  });
+}
+
+async function wallet(userId: string) {
+  return prisma.creditWallet.findUniqueOrThrow({
+    where: { userId },
+    select: { balance: true, reserved: true },
+  });
+}
+
+async function reservationStatus(requestId: string) {
+  const row = await prisma.creditReservation.findUnique({
+    where: { requestId },
+    select: { status: true },
+  });
+  return row?.status ?? null;
+}
+
+function analyzeBody(overrides: Record<string, unknown> = {}) {
+  return {
+    resume: THIN_RESUME,
+    requestId: `req-${randomUUID()}`,
+    jobDescription: "We need a staff engineer who has run platform teams and shipped migrations.",
+    fetchJobUrl: false,
+    ...overrides,
+  };
+}
+
+function analyze(user: TestUser, body: Record<string, unknown>) {
+  return request(app)
+    .post("/api/v1/ats/analyze")
+    .set("Origin", STUDIO_ORIGIN)
+    .set("Cookie", user.cookie)
+    .send(body);
+}
+
+const fetchMock = vi.fn();
+const originalAiConfig = { ...config.ai };
+
+beforeAll(() => {
+  config.ai.apiKey = "integration-test-key";
+  config.ai.baseUrl = "https://provider.invalid/v1";
+  config.ai.atsAiPolicyJson = JSON.stringify(ATS_AI_POLICY);
+  config.ai.atsEnginePolicyJson = JSON.stringify(DEFAULT_POLICY);
+  vi.stubGlobal("fetch", fetchMock);
+});
+
+afterAll(() => {
+  vi.unstubAllGlobals();
+  Object.assign(config.ai, originalAiConfig);
+});
+
+beforeEach(() => {
+  fetchMock.mockReset();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe("V-034 a client that disconnects before the provider answers is not charged", () => {
+  it("releases the reservation and leaves the wallet untouched", async () => {
+    const user = await createUserWithSession();
+    await grantCredits(user.id, 50);
+    const calls: PendingCall[] = [];
+    fetchMock.mockImplementation(pendingProvider(calls));
+
+    const server = http.createServer(app);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as AddressInfo;
+    const body = analyzeBody();
+
+    try {
+      const clientRequest = http.request({
+        host: "127.0.0.1",
+        port,
+        method: "POST",
+        path: "/api/v1/ats/analyze",
+        headers: {
+          "content-type": "application/json",
+          origin: STUDIO_ORIGIN,
+          cookie: user.cookie,
+        },
+      });
+      clientRequest.on("error", () => undefined);
+      clientRequest.end(JSON.stringify(body));
+
+      // The provider call is in flight, so the credits are reserved and nothing has answered.
+      await waitFor(
+        async () => calls.length,
+        (count) => count >= 1,
+      );
+      expect(await reservationStatus(body.requestId)).toBe("PENDING");
+      expect(await wallet(user.id)).toEqual({ balance: 50 - ANALYSIS_CREDITS, reserved: 5 });
+
+      clientRequest.destroy();
+
+      const status = await waitFor(
+        () => reservationStatus(body.requestId),
+        (value) => value === "RELEASED",
+      );
+      expect(status).toBe("RELEASED");
+      expect(await wallet(user.id)).toEqual({ balance: 50, reserved: 0 });
+      // The abort reached the provider call: nothing waits on a dead client.
+      expect(calls[0]!.init.signal?.aborted).toBe(true);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+});
+
+describe("V-035 a zero-credit account cannot make the server fetch a job page", () => {
+  it("answers 402 before any outbound request and without spending a scan", async () => {
+    const user = await createUserWithSession();
+    const outbound = vi
+      .spyOn(AtsJobFetchService, "fetch")
+      .mockResolvedValue("A job description long enough to count as a posting for scoring.");
+
+    const response = await analyze(
+      user,
+      analyzeBody({
+        jobDescription: undefined,
+        jobUrl: "https://jobs.example.invalid/role",
+        fetchJobUrl: true,
+      }),
+    );
+
+    expect(response.status).toBe(402);
+    expect(outbound).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect((await AtsQuotaService.summary(user.id, "127.0.0.1")).used).toBe(0);
+  });
+});
+
+describe("V-036 a repair whose analysis then fails is not charged", () => {
+  it("releases the repair reservation when the analysis errors", async () => {
+    const user = await createUserWithSession();
+    await grantEntitlement(user.id);
+    await grantCredits(user.id, 100);
+    // Repair answers with a grounded value, then the analysis call fails outright.
+    fetchMock
+      .mockResolvedValueOnce(chatResponse({ name: "Jane Doe" }))
+      .mockResolvedValueOnce(providerError(500));
+    const body = analyzeBody({ repairParse: true });
+
+    const response = await analyze(user, body);
+
+    expect(response.status).toBe(502);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(await reservationStatus(`${body.requestId}:repair`)).toBe("RELEASED");
+    expect(await reservationStatus(body.requestId)).toBe("RELEASED");
+    expect(await wallet(user.id)).toEqual({ balance: 100, reserved: 0 });
+  });
+
+  it("commits the repair when the analysis succeeds", async () => {
+    const user = await createUserWithSession();
+    await grantEntitlement(user.id);
+    await grantCredits(user.id, 100);
+    fetchMock
+      .mockResolvedValueOnce(chatResponse({ name: "Jane Doe" }))
+      .mockResolvedValueOnce(chatResponse(ANALYSIS_REPLY));
+    const body = analyzeBody({ repairParse: true });
+
+    const response = await analyze(user, body);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.repair).toMatchObject({ creditsSpent: REPAIR_CREDITS });
+    expect(await reservationStatus(`${body.requestId}:repair`)).toBe("COMMITTED");
+    expect(await reservationStatus(body.requestId)).toBe("COMMITTED");
+    expect(await wallet(user.id)).toEqual({
+      balance: 100 - REPAIR_CREDITS - ANALYSIS_CREDITS,
+      reserved: 0,
+    });
+  });
+});
+
+describe("V-037 the paid scan period is anchored on the grant, not on today", () => {
+  it("counts a MANUAL ai_credits grant's scans in one period across two days", async () => {
+    const user = await createUserWithSession();
+    await grantEntitlement(user.id, new Date("2026-10-10T00:00:00Z"));
+    const keysFor = () => getRedis().keys(`ats:quota:subscriber:${user.id}:*`);
+
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-25T12:00:00Z") });
+    const dayOne = await AtsQuotaService.consume(user.id, "127.0.0.1");
+    expect(dayOne.tier).toBe("subscriber");
+    expect(dayOne.used).toBe(1);
+
+    vi.setSystemTime(new Date("2026-10-26T12:00:00Z"));
+    const dayTwo = await AtsQuotaService.consume(user.id, "127.0.0.1");
+
+    expect(dayTwo.used).toBe(2);
+    expect(await keysFor()).toHaveLength(1);
+    // The period closes on the grant's day of the month, not 30 days after each request.
+    expect(dayTwo.resetsAt).toBe("2026-11-10T00:00:00.000Z");
+  });
+});
+
+describe("V-038 the AI limiter class and the per-user in-flight cap", () => {
+  it("limits /api/v1/ats/analyze with the AI class, not the generic one", async () => {
+    const previous = config.ai.rateLimitMaxRequests;
+    config.ai.rateLimitMaxRequests = 2;
+    // The cases above already spent this IP's buckets; the class is judged from a clean window.
+    await getRedis().del([
+      "rate-limit:POST:/api/v1/ats/analyze:127.0.0.1",
+      "rate-limit:global:127.0.0.1",
+    ]);
+    try {
+      const statuses: number[] = [];
+      for (let i = 0; i < 3; i += 1) {
+        // An invalid body: the limiter answers before validation does, so the class shows
+        // through regardless of what the handler would have said.
+        const res = await request(app)
+          .post("/api/v1/ats/analyze")
+          .set("Origin", STUDIO_ORIGIN)
+          .send({});
+        statuses.push(res.status);
+      }
+      expect(statuses[2]).toBe(429);
+      expect(statuses.slice(0, 2)).not.toContain(429);
+    } finally {
+      config.ai.rateLimitMaxRequests = previous;
+    }
+  });
+
+  it("refuses a third concurrent AI call for one user with 429", async () => {
+    const user = await createUserWithSession();
+    await grantEntitlement(user.id);
+    await grantCredits(user.id, 100);
+    const calls: PendingCall[] = [];
+    fetchMock.mockImplementation(pendingProvider(calls));
+
+    // `.then` sends the request: a superagent request is lazy until it is awaited.
+    const first = analyze(user, analyzeBody()).then((res) => res);
+    const second = analyze(user, analyzeBody()).then((res) => res);
+    let third: Promise<request.Response> | undefined;
+    try {
+      await waitFor(
+        async () => calls.length,
+        (count) => count >= 2,
+      );
+
+      third = analyze(user, analyzeBody()).then((res) => res);
+      // Either the cap answers at once, or the third call reaches the provider: that is the bug.
+      const outcome = await Promise.race([
+        third.then((res) => ({ status: res.status, message: String(res.body.message) })),
+        waitFor(
+          async () => calls.length,
+          (count) => count >= 3,
+          3_000,
+        ).then(() => ({
+          status: "provider called",
+          message: "",
+        })),
+      ]);
+
+      expect(outcome.status).toBe(429);
+      expect(outcome.message).toMatch(/in progress/i);
+      expect(calls).toHaveLength(2);
+    } finally {
+      for (const call of calls) call.resolve(chatResponse(ANALYSIS_REPLY));
+      const settled = await Promise.all([first, second]);
+      expect(settled.map((res) => res.status)).toEqual([200, 200]);
+      await third;
+    }
+  });
+});
+
+describe("V-034 a client that disconnects during the job fetch", () => {
+  it("never reserves or commits anything once the page arrives", async () => {
+    const user = await createUserWithSession();
+    await grantCredits(user.id, 50);
+    let releasePage: (text: string) => void = () => undefined;
+    const pageRequested = new Promise<void>((resolve) => {
+      vi.spyOn(AtsJobFetchService, "fetch").mockImplementation(
+        () =>
+          new Promise<string>((resolvePage) => {
+            releasePage = resolvePage;
+            resolve();
+          }),
+      );
+    });
+    fetchMock.mockResolvedValue(chatResponse(ANALYSIS_REPLY));
+
+    const server = http.createServer(app);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as AddressInfo;
+    const body = analyzeBody({
+      jobDescription: undefined,
+      jobUrl: "https://jobs.example.invalid/role",
+      fetchJobUrl: true,
+    });
+
+    try {
+      const clientRequest = http.request({
+        host: "127.0.0.1",
+        port,
+        method: "POST",
+        path: "/api/v1/ats/analyze",
+        headers: {
+          "content-type": "application/json",
+          origin: STUDIO_ORIGIN,
+          cookie: user.cookie,
+        },
+      });
+      clientRequest.on("error", () => undefined);
+      clientRequest.end(JSON.stringify(body));
+
+      await pageRequested;
+      clientRequest.destroy();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      releasePage("A job description long enough to count as a posting for scoring.");
+
+      // Whatever the server does next, it never charges: no provider call, no committed row.
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(await reservationStatus(body.requestId)).not.toBe("COMMITTED");
+      expect(await wallet(user.id)).toEqual({ balance: 50, reserved: 0 });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+});

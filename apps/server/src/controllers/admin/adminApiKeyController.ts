@@ -1,4 +1,4 @@
-import { adminHandler } from "#controllers/admin/adminRequestHandler";
+import { adminHandler, deleteRequestInput } from "#controllers/admin/adminRequestHandler";
 
 import * as AdminApiKeyService from "#services/admin/adminApiKeyService";
 import { ADMIN_AUDIT_ACTIONS, recordAdminAudit } from "#services/admin/adminAuditService";
@@ -51,7 +51,7 @@ export const AdminApiKeyController = {
   /** DELETE /admin/api-keys/:id — permanent revocation (the row is kept for the audit trail). */
   revoke: adminHandler(async ({ req, actorId }) => {
     const { id } = adminIdParamSchema.parse(req.params);
-    const input = adminApiKeyRevokeSchema.parse(req.body);
+    const input = adminApiKeyRevokeSchema.parse(deleteRequestInput(req));
 
     const apiKey = await AdminApiKeyService.revokeApiKey(id);
 

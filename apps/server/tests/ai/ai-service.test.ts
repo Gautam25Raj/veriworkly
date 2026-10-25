@@ -78,7 +78,7 @@ describe("AI service", () => {
     });
     expect(result).not.toHaveProperty("reasoning");
     expect(result).not.toHaveProperty("model");
-    expect(completionCreate).toHaveBeenCalledWith(
+    expect(completionCreate.mock.calls[0][0]).toEqual(
       expect.objectContaining({
         messages: [
           { role: "system", content: "test-policy-token" },
@@ -123,5 +123,48 @@ describe("AI service", () => {
       "AI provider could not complete",
     );
     expect(releaseReservation).toHaveBeenCalledWith("user_1", "request_1");
+  });
+
+  /** V-034: the request's signal reaches the SDK call, so a client leaving ends the call. */
+  it("passes the request signal to the provider call", async () => {
+    const { AiService } = await import("../../src/services/aiService");
+    const controller = new AbortController();
+
+    await AiService.generate("user_1", input, controller.signal);
+
+    expect(completionCreate.mock.calls[0][1]).toEqual({ signal: controller.signal });
+  });
+
+  it("releases the reservation and answers 504 when the call is aborted", async () => {
+    const { AiService } = await import("../../src/services/aiService");
+    const controller = new AbortController();
+    // The SDK rejects with its own abort error once the signal fires; the shape does not matter.
+    completionCreate.mockImplementation(
+      (_body: unknown, options: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          const abort = () => reject(new Error("Request was aborted."));
+          if (options.signal.aborted) abort();
+          else options.signal.addEventListener("abort", abort);
+        }),
+    );
+
+    const pending = AiService.generate("user_1", input, controller.signal);
+    controller.abort(new Error("Client disconnected."));
+
+    await expect(pending).rejects.toMatchObject({ statusCode: 504 });
+    expect(releaseReservation).toHaveBeenCalledWith("user_1", "request_1");
+    expect(commitReservation).not.toHaveBeenCalled();
+  });
+
+  /** A release that fails (database down) must not replace the provider error being reported. */
+  it("still reports the provider failure when releasing the reservation fails", async () => {
+    const { AiService } = await import("../../src/services/aiService");
+    completionCreate.mockRejectedValue(new Error("provider unavailable"));
+    releaseReservation.mockRejectedValue(new Error("connection refused"));
+
+    await expect(AiService.generate("user_1", input)).rejects.toMatchObject({
+      statusCode: 502,
+      message: "The AI provider could not complete the request.",
+    });
   });
 });

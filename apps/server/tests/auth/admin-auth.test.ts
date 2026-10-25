@@ -164,4 +164,31 @@ describe("adminAuthMiddleware", () => {
     expect(next).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(401);
   });
+
+  /** V-093: a store outage is retryable, not a sign-out. */
+  it("answers 503 when the session store throws", async () => {
+    getSessionFromRequestHeaders.mockRejectedValue(new Error("connect ECONNREFUSED"));
+
+    const next = vi.fn();
+    const res = buildResponse();
+
+    await adminAuthMiddleware(buildRequest(), res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "Authentication is temporarily unavailable" }),
+    );
+  });
+
+  it("answers 503 when the account read fails", async () => {
+    findUnique.mockRejectedValue(new Error("pool timeout"));
+
+    const next = vi.fn();
+    const res = buildResponse();
+
+    await adminAuthMiddleware(buildRequest(), res, next);
+
+    expect(res.status).toHaveBeenCalledWith(503);
+  });
 });

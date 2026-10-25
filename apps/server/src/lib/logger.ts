@@ -21,12 +21,73 @@ function formatTimestamp(): string {
   return new Date().toISOString();
 }
 
-function safeSerialize(data: unknown): string {
+const MAX_STRING_LENGTH = 4096;
+const MAX_CAUSE_DEPTH = 5;
+
+/**
+ * Error properties that carry request data or user input: a pg unique violation's `detail` names
+ * the conflicting email, HTTP client errors carry headers and bodies.
+ */
+const DROPPED_ERROR_KEYS = new Set(["detail", "headers", "config", "request", "response"]);
+
+function truncate(value: string): string {
+  return value.length > MAX_STRING_LENGTH
+    ? `${value.slice(0, MAX_STRING_LENGTH)}…[truncated ${value.length - MAX_STRING_LENGTH} chars]`
+    : value;
+}
+
+/**
+ * Copies log data into something `JSON.stringify` can write (V-159): an `Error` anywhere becomes
+ * name, message, stack, own properties and cause (`JSON.stringify` alone writes `{}`), a reference
+ * back to an ancestor becomes "[Circular]", the cause chain stops at MAX_CAUSE_DEPTH, and strings
+ * are cut at MAX_STRING_LENGTH.
+ */
+function toLoggable(value: unknown, ancestors: WeakSet<object>, causeDepth: number): unknown {
+  if (typeof value === "string") return truncate(value);
+  if (value === null || typeof value !== "object") return value;
+  if (ancestors.has(value)) return "[Circular]";
+  if (!(value instanceof Error) && typeof (value as { toJSON?: unknown }).toJSON === "function")
+    return value;
+
+  ancestors.add(value);
   try {
-    return JSON.stringify(data);
-  } catch {
-    return "[Unserializable Data]";
+    if (value instanceof Error) return serializeError(value, ancestors, causeDepth);
+    if (Array.isArray(value)) return value.map((item) => toLoggable(item, ancestors, causeDepth));
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, toLoggable(item, ancestors, causeDepth)]),
+    );
+  } finally {
+    ancestors.delete(value);
   }
+}
+
+function serializeError(
+  error: Error,
+  ancestors: WeakSet<object>,
+  causeDepth: number,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+
+  for (const [key, item] of Object.entries(error)) {
+    if (DROPPED_ERROR_KEYS.has(key) || key === "cause") continue;
+    out[key] = toLoggable(item, ancestors, causeDepth);
+  }
+
+  out.name = truncate(String(error.name));
+  out.message = truncate(String(error.message));
+  if (error.stack) out.stack = truncate(error.stack);
+
+  if (error.cause !== undefined)
+    out.cause =
+      causeDepth >= MAX_CAUSE_DEPTH
+        ? "[Cause chain truncated]"
+        : toLoggable(error.cause, ancestors, causeDepth + 1);
+
+  return out;
+}
+
+function serialize(data: unknown, space?: number): string {
+  return JSON.stringify(toLoggable(data, new WeakSet(), 0), null, space);
 }
 
 function writeLog(level: LogLevel, message: string, data?: unknown) {
@@ -40,16 +101,18 @@ function writeLog(level: LogLevel, message: string, data?: unknown) {
     };
 
     if (data !== undefined && data !== null) {
-      if (data instanceof Error)
-        logObject.error = {
-          name: data.name,
-          message: data.message,
-          stack: data.stack,
-        };
+      if (data instanceof Error) logObject.error = data;
       else logObject.data = data;
     }
 
-    const output = safeSerialize(logObject) + "\n";
+    let output: string;
+    try {
+      output = serialize(logObject) + "\n";
+    } catch {
+      // Still one parseable line carrying the message when the data cannot be written.
+      const { timestamp } = logObject;
+      output = JSON.stringify({ timestamp, level, message, data: "[Unserializable Data]" }) + "\n";
+    }
 
     if (level === LogLevel.ERROR) process.stderr.write(output);
     else process.stdout.write(output);
@@ -63,7 +126,7 @@ function writeLog(level: LogLevel, message: string, data?: unknown) {
       if (data instanceof Error) formattedData = data.stack || data.message;
       else if (typeof data === "object") {
         try {
-          formattedData = JSON.stringify(data, null, 2);
+          formattedData = serialize(data, 2);
         } catch {
           formattedData = String(data);
         }

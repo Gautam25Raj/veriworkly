@@ -6,6 +6,12 @@ import { ApiError } from "#lib/errors";
 import { cacheDel, cacheDelByPrefix } from "#lib/redis";
 import { documentListCachePrefix } from "#lib/cacheKeys";
 
+import { isModerationLocked, MODERATION_SUSPENSION_PREFIX } from "#services/portfolioService";
+import {
+  invalidatePublicPortfolioCaches,
+  revalidatePublicPortfolios,
+} from "#utils/portfolioPublicationCache";
+
 import type {
   AdminDocumentListQuery,
   adminShareLinkListQuerySchema,
@@ -163,6 +169,34 @@ async function invalidateOwnerDocumentCaches(
   ]);
 }
 
+/**
+ * A PORTFOLIO document is the source of a public site, which `getPublicPortfolio` serves from
+ * `portfolioPublication` alone — hiding or deleting the document does nothing to the subdomain
+ * by itself. Moderating the document therefore also takes the publication down, as a sticky
+ * moderation suspension (same rules as `adminPortfolioService.updatePublicationStatus`). A row
+ * already under a moderation lock keeps its original reason.
+ */
+async function takeDownPortfolioPublication(documentId: string, reason: string) {
+  const publication = await prisma.portfolioPublication.findUnique({
+    where: { documentId },
+    select: { id: true, subdomain: true, status: true, suspensionReason: true },
+  });
+
+  if (!publication || isModerationLocked(publication)) return;
+
+  await prisma.portfolioPublication.update({
+    where: { id: publication.id },
+    data: {
+      status: "SUSPENDED",
+      suspensionReason: `${MODERATION_SUSPENSION_PREFIX}${reason}`,
+      suspendedAt: new Date(),
+    },
+  });
+
+  await invalidatePublicPortfolioCaches([publication.subdomain]);
+  void revalidatePublicPortfolios([publication.subdomain]);
+}
+
 async function loadDocumentForMutation(documentId: string) {
   const document = await prisma.document.findUnique({
     where: { id: documentId },
@@ -195,6 +229,9 @@ export async function updateDocumentVisibility(
     select: DOCUMENT_LIST_SELECT,
   });
 
+  if (document.type === "PORTFOLIO")
+    await takeDownPortfolioPublication(documentId, "document_hidden");
+
   await invalidateOwnerDocumentCaches(
     document.userId,
     documentId,
@@ -216,6 +253,9 @@ export async function softDeleteDocument(documentId: string) {
     data: { deletedAt: new Date() },
     select: DOCUMENT_LIST_SELECT,
   });
+
+  if (document.type === "PORTFOLIO")
+    await takeDownPortfolioPublication(documentId, "document_deleted");
 
   await invalidateOwnerDocumentCaches(
     document.userId,

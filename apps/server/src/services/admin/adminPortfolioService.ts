@@ -10,6 +10,8 @@ import {
   invalidatePublicPortfolioCaches,
   revalidatePublicPortfolios,
 } from "#utils/portfolioPublicationCache";
+import { MODERATION_SUSPENSION_PREFIX } from "#services/portfolioService";
+import { isPremiumPortfolioTemplate } from "#validators/portfolioValidator";
 
 import type {
   AdminPortfolioListQuery,
@@ -204,6 +206,12 @@ async function propagatePublicationChange(subdomain: string, userId: string, doc
   void revalidatePublicPortfolios([subdomain]);
 }
 
+/**
+ * A suspension from here is a moderation takedown and sticks: the reason is stored with the
+ * `moderation:` prefix (see `isModerationLocked` in portfolioService), which the user's
+ * Publish/Unpublish and every billing reconciliation leave alone. Setting the status back to
+ * LIVE (or GRACE) clears the reason and is the lift path.
+ */
 export async function updatePublicationStatus(
   publicationId: string,
   status: "LIVE" | "GRACE" | "SUSPENDED",
@@ -211,16 +219,30 @@ export async function updatePublicationStatus(
 ) {
   const publication = await prisma.portfolioPublication.findUnique({
     where: { id: publicationId },
-    select: { id: true, userId: true, documentId: true, subdomain: true, status: true },
+    select: {
+      id: true,
+      userId: true,
+      documentId: true,
+      subdomain: true,
+      status: true,
+      templateId: true,
+    },
   });
 
   if (!publication) throw new ApiError(404, "Portfolio publication not found.");
+
+  // GRACE is the courtesy window after a premium lapse; a free template has nothing to lapse.
+  if (status === "GRACE" && !isPremiumPortfolioTemplate(publication.templateId))
+    throw new ApiError(
+      400,
+      "A free-template portfolio has no grace period; use LIVE or SUSPENDED.",
+    );
 
   const updated = await prisma.portfolioPublication.update({
     where: { id: publicationId },
     data: {
       status,
-      suspensionReason: status === "SUSPENDED" ? reason : null,
+      suspensionReason: status === "SUSPENDED" ? `${MODERATION_SUSPENSION_PREFIX}${reason}` : null,
       suspendedAt: status === "SUSPENDED" ? new Date() : null,
     },
     select: PUBLICATION_LIST_SELECT,

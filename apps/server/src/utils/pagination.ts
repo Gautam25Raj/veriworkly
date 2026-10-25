@@ -1,3 +1,39 @@
+import { z } from "zod";
+
+/**
+ * `page`/`offset` for the public list schemas. A blank value (`?offset=`) counts as absent, so it
+ * neither coerces to 0 nor trips the both-sent rule below.
+ */
+const blankAsAbsent = (value: unknown) => (value === "" ? undefined : value);
+
+export const publicPageParam = z.preprocess(
+  blankAsAbsent,
+  z.coerce.number().int().min(1).optional(),
+);
+export const publicOffsetParam = z.preprocess(
+  blankAsAbsent,
+  z.coerce.number().int().min(0).optional(),
+);
+
+/**
+ * Both name a position; when both were sent, offset's rows went out under page's meta (V-064).
+ * Applied with `.refine` on the public query schemas only.
+ */
+export const notBothPageAndOffset = (query: { page?: number; offset?: number }) =>
+  query.page === undefined || query.offset === undefined;
+
+export const notBothPageAndOffsetError = {
+  message: "Send either page or offset, not both",
+  path: ["offset"],
+};
+
+/**
+ * Public list responses past this offset are served from Postgres, not cached: any offset is
+ * allowed (the site and studio walk whole lists), but each one would otherwise be its own
+ * long-lived Redis key (V-061).
+ */
+export const MAX_CACHED_OFFSET = 200;
+
 type PaginationInput = {
   page?: unknown;
   pageSize?: unknown;

@@ -1,6 +1,6 @@
-import { z } from "zod";
 import { Request, Response, NextFunction } from "express";
 
+import { adminHandler } from "#controllers/admin/adminRequestHandler";
 import {
   createRoadmapFeature,
   deleteRoadmapFeature,
@@ -9,11 +9,15 @@ import {
 import { type RoadmapStatus } from "#services/roadmapService";
 
 import { roadmapAdminCreateSchema, roadmapAdminUpdateSchema } from "#validators/roadmapValidator";
+import { adminIdParamSchema } from "#validators/admin/adminCommonValidator";
 
 import { ADMIN_AUDIT_ACTIONS, recordAdminAudit } from "#services/admin/adminAuditService";
 import { requireAuthUser } from "#middleware/auth";
 
-import { createSuccessResponse, handleValidationError } from "#lib/errors";
+import { createSuccessResponse } from "#lib/errors";
+
+const parseDateInput = (val?: string | null) =>
+  val === undefined ? undefined : val === null ? null : new Date(val);
 
 /**
  * Create a new roadmap feature (admin only).
@@ -22,55 +26,41 @@ import { createSuccessResponse, handleValidationError } from "#lib/errors";
  * - title, description, status and optional roadmap metadata
  *
  * res:
- * - 200 with created feature payload
- *
- * next:
- * - forwards validation/runtime errors to global error handler
+ * - 201 with created feature payload; 409 for an id already in use (P2002, central mapper)
  */
 
-export async function createRoadmapFeatureController(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) {
-  try {
-    const payload = roadmapAdminCreateSchema.parse(req.body);
+export const createRoadmapFeatureController = adminHandler(async ({ req, res, actorId }) => {
+  const payload = roadmapAdminCreateSchema.parse(req.body);
 
-    const created = await createRoadmapFeature({
-      id: payload.id,
-      title: payload.title,
-      description: payload.description,
-      status: payload.status as RoadmapStatus,
-      eta: payload.eta ?? undefined,
-      tags: payload.tags,
-      fullDescription: payload.fullDescription,
-      whyItMatters: payload.whyItMatters,
-      timeline: payload.timeline,
-      createdAt: payload.createdAt ? new Date(payload.createdAt) : undefined,
-      updatedAt: payload.updatedAt ? new Date(payload.updatedAt) : undefined,
-      startedAt: payload.startedAt ? new Date(payload.startedAt) : undefined,
-      completedAt: payload.completedAt ? new Date(payload.completedAt) : undefined,
-      completedQuarter: payload.completedQuarter,
-      details: payload.details,
-    });
+  const created = await createRoadmapFeature({
+    id: payload.id,
+    title: payload.title,
+    description: payload.description,
+    status: payload.status as RoadmapStatus,
+    eta: payload.eta,
+    tags: payload.tags,
+    fullDescription: payload.fullDescription,
+    whyItMatters: payload.whyItMatters,
+    timeline: payload.timeline,
+    createdAt: payload.createdAt ? new Date(payload.createdAt) : undefined,
+    updatedAt: payload.updatedAt ? new Date(payload.updatedAt) : undefined,
+    startedAt: parseDateInput(payload.startedAt),
+    completedAt: parseDateInput(payload.completedAt),
+    completedQuarter: payload.completedQuarter,
+    details: payload.details,
+  });
 
-    await recordAdminAudit({
-      actorId: requireAuthUser(req).id,
-      action: ADMIN_AUDIT_ACTIONS.roadmapCreate,
-      targetType: "RoadmapFeature",
-      targetId: created.id,
-      metadata: { title: created.title, status: created.status },
-    });
+  await recordAdminAudit({
+    actorId,
+    action: ADMIN_AUDIT_ACTIONS.roadmapCreate,
+    targetType: "RoadmapFeature",
+    targetId: created.id,
+    metadata: { title: created.title, status: created.status },
+  });
 
-    res.json(createSuccessResponse(created, "Roadmap feature created successfully"));
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return next(handleValidationError(error));
-    }
-
-    next(error);
-  }
-}
+  res.status(201);
+  return created;
+}, "Roadmap feature created successfully");
 
 /**
  * Update an existing roadmap feature by id (admin only).
@@ -82,59 +72,40 @@ export async function createRoadmapFeatureController(
  * - partial roadmap feature fields to update
  *
  * res:
- * - 200 with updated feature payload
- *
- * next:
- * - forwards validation/runtime errors to global error handler
+ * - 200 with updated feature payload; `eta: null` clears the ETA
  */
 
-export async function updateRoadmapFeatureController(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) {
-  try {
-    const { id } = req.params;
+export const updateRoadmapFeatureController = adminHandler(async ({ req, actorId }) => {
+  const { id } = adminIdParamSchema.parse(req.params);
+  const payload = roadmapAdminUpdateSchema.parse(req.body);
 
-    const payload = roadmapAdminUpdateSchema.parse(req.body);
+  const updated = await updateRoadmapFeature(id, {
+    title: payload.title,
+    description: payload.description,
+    status: payload.status as RoadmapStatus | undefined,
+    eta: payload.eta,
+    tags: payload.tags,
+    fullDescription: payload.fullDescription,
+    whyItMatters: payload.whyItMatters,
+    timeline: payload.timeline,
+    startedAt: parseDateInput(payload.startedAt),
+    completedAt: parseDateInput(payload.completedAt),
+    completedQuarter: payload.completedQuarter,
+    details: payload.details,
+  });
 
-    const parseDateInput = (val?: string | null) =>
-      val === undefined ? undefined : val === null ? null : new Date(val);
+  await recordAdminAudit({
+    actorId,
+    action: ADMIN_AUDIT_ACTIONS.roadmapUpdate,
+    targetType: "RoadmapFeature",
+    targetId: id,
+    // Records which fields were touched, not their values: a roadmap body can be several
+    // kilobytes of prose and the audit table is not a revision history.
+    metadata: { fields: Object.keys(payload) },
+  });
 
-    const updated = await updateRoadmapFeature(id, {
-      title: payload.title,
-      description: payload.description,
-      status: payload.status as RoadmapStatus | undefined,
-      eta: payload.eta ?? undefined,
-      tags: payload.tags,
-      fullDescription: payload.fullDescription,
-      whyItMatters: payload.whyItMatters,
-      timeline: payload.timeline,
-      startedAt: parseDateInput(payload.startedAt),
-      completedAt: parseDateInput(payload.completedAt),
-      completedQuarter: payload.completedQuarter,
-      details: payload.details,
-    });
-
-    await recordAdminAudit({
-      actorId: requireAuthUser(req).id,
-      action: ADMIN_AUDIT_ACTIONS.roadmapUpdate,
-      targetType: "RoadmapFeature",
-      targetId: id,
-      // Records which fields were touched, not their values: a roadmap body can be several
-      // kilobytes of prose and the audit table is not a revision history.
-      metadata: { fields: Object.keys(payload) },
-    });
-
-    res.json(createSuccessResponse(updated, "Roadmap feature updated successfully"));
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return next(handleValidationError(error));
-    }
-
-    next(error);
-  }
-}
+  return updated;
+}, "Roadmap feature updated successfully");
 
 /**
  * Delete a roadmap feature by id (admin only).
@@ -155,7 +126,7 @@ export async function deleteRoadmapFeatureController(
   next: NextFunction,
 ) {
   try {
-    const { id } = req.params;
+    const { id } = adminIdParamSchema.parse(req.params);
 
     const deleted = await deleteRoadmapFeature(id);
 

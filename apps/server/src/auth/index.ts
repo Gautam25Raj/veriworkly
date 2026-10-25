@@ -102,6 +102,17 @@ export function otpPrecheckRecipient(path: string, body: unknown): string | unde
   return undefined;
 }
 
+/**
+ * V-047 / V-099: welcome and login-alert mails go out after the hook returns, so a slow or failing
+ * SMTP/Resend call never holds up OTP verify or the OAuth callback. The OTP mail itself stays
+ * synchronous (the user is waiting for it). Failures are logged, never thrown.
+ */
+function sendInBackground(label: string, send: () => Promise<void>, meta: Record<string, unknown>) {
+  void Promise.resolve()
+    .then(send)
+    .catch((error: unknown) => logger.warn(`Failed to send ${label} email`, { ...meta, error }));
+}
+
 export async function assertOtpRecipientQuotaAvailable(email: string): Promise<void> {
   let used: number;
   try {
@@ -123,7 +134,7 @@ export const auth = betterAuth({
         const redis = getRedis();
         return (await redis.get(key)) || null;
       } catch (error) {
-        console.error("better-auth secondaryStorage get error:", error);
+        logger.error("better-auth secondaryStorage get failed", { error });
         return null;
       }
     },
@@ -135,7 +146,7 @@ export const auth = betterAuth({
         if (ttl) await redis.set(key, value, { EX: ttl });
         else await redis.set(key, value);
       } catch (error) {
-        console.error("better-auth secondaryStorage set error:", error);
+        logger.error("better-auth secondaryStorage set failed", { error });
       }
     },
 
@@ -144,7 +155,7 @@ export const auth = betterAuth({
         const redis = getRedis();
         await redis.del(key);
       } catch (error) {
-        console.error("better-auth secondaryStorage delete error:", error);
+        logger.error("better-auth secondaryStorage delete failed", { error });
       }
     },
 
@@ -284,14 +295,9 @@ export const auth = betterAuth({
       const recipient = otpPrecheckRecipient(ctx.path, ctx.body);
       if (recipient) await assertOtpRecipientQuotaAvailable(recipient);
 
-      const pathsToInvalidate = [
-        "/sign-out",
-        "/revoke-session",
-        "/revoke-sessions",
-        "/change-email",
-        "/change-password",
-        "/delete-user",
-      ];
+      // Only endpoints that exist in this config: change-email and delete-user are disabled, and
+      // change-password needs a credential account, which OTP/OAuth sign-in never creates.
+      const pathsToInvalidate = ["/sign-out", "/revoke-session", "/revoke-sessions"];
 
       const shouldInvalidate = pathsToInvalidate.some(
         (p) => ctx.path === p || ctx.path.startsWith(p + "/"),
@@ -309,11 +315,9 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (user) => {
-          try {
-            await sendWelcomeEmail(user.email, user.name || "there");
-          } catch (error) {
-            console.error("Failed to send welcome email for user:", user.email, error);
-          }
+          sendInBackground("welcome", () => sendWelcomeEmail(user.email, user.name || "there"), {
+            userId: user.id,
+          });
         },
       },
 
@@ -338,7 +342,7 @@ export const auth = betterAuth({
           try {
             await sendAccountDeletedEmail(user.email, user.name || "there");
           } catch (error) {
-            console.error("Failed to send account deleted email for user:", user.email, error);
+            logger.warn("Failed to send account deleted email", { userId: user.id, error });
           }
 
           try {
@@ -362,36 +366,38 @@ export const auth = betterAuth({
           try {
             await incrementUsageMetric({ event: "auth_login_success" });
           } catch (error) {
-            console.error("Failed to record auth_login_success metric:", session.id, error);
+            logger.warn("Failed to record auth_login_success metric", {
+              sessionId: session.id,
+              error,
+            });
           }
 
-          try {
-            const context = authRequestContext.getStore();
-            const provider = context?.provider || "unknown";
-            const ip = context?.ip || session.ipAddress || "Unknown";
-            const device = context?.userAgent || session.userAgent || "Unknown";
+          // Read while still inside the request's async context.
+          const context = authRequestContext.getStore();
+          const provider = context?.provider || "unknown";
+          const ip = context?.ip || session.ipAddress || "Unknown";
+          const device = context?.userAgent || session.userAgent || "Unknown";
 
-            const user = await prisma.user.findUnique({
-              where: { id: session.userId },
-              select: { email: true, createdAt: true },
-            });
-
-            if (user?.email) {
-              const timeSinceCreated = Date.now() - user.createdAt.getTime();
+          sendInBackground(
+            "login alert",
+            async () => {
+              const user = await prisma.user.findUnique({
+                where: { id: session.userId },
+                select: { email: true, createdAt: true },
+              });
 
               // Skip alert on fresh signup (first 15 seconds) to avoid spamming
-              if (timeSinceCreated > 15000) {
-                await sendLoginAlertEmail(user.email, {
-                  ip,
-                  device,
-                  timestamp: session.createdAt.toISOString(),
-                  provider,
-                });
-              }
-            }
-          } catch (error) {
-            console.error("Failed to send login alert email for session:", session.id, error);
-          }
+              if (!user?.email || Date.now() - user.createdAt.getTime() <= 15000) return;
+
+              await sendLoginAlertEmail(user.email, {
+                ip,
+                device,
+                timestamp: session.createdAt.toISOString(),
+                provider,
+              });
+            },
+            { sessionId: session.id },
+          );
         },
       },
 

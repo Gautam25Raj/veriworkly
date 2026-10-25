@@ -1,6 +1,6 @@
-import { z } from "zod";
 import { Request, Response, NextFunction } from "express";
 
+import { adminHandler } from "#controllers/admin/adminRequestHandler";
 import {
   createChangelogEntry,
   deleteChangelogEntry,
@@ -12,11 +12,12 @@ import {
   changelogAdminCreateSchema,
   changelogAdminUpdateSchema,
 } from "#validators/changelogValidator";
+import { adminIdParamSchema } from "#validators/admin/adminCommonValidator";
 
 import { ADMIN_AUDIT_ACTIONS, recordAdminAudit } from "#services/admin/adminAuditService";
 import { requireAuthUser } from "#middleware/auth";
 
-import { createSuccessResponse, handleValidationError } from "#lib/errors";
+import { createSuccessResponse } from "#lib/errors";
 
 /**
  * Create a new changelog entry (admin only).
@@ -25,54 +26,40 @@ import { createSuccessResponse, handleValidationError } from "#lib/errors";
  * - version, title, type and optional release metadata
  *
  * res:
- * - 200 with created entry payload
- *
- * next:
- * - forwards validation/runtime errors to global error handler
+ * - 201 with created entry payload; 409 for a version or id already in use (P2002, central mapper)
  */
 
-export async function createChangelogEntryController(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) {
-  try {
-    const payload = changelogAdminCreateSchema.parse(req.body);
+export const createChangelogEntryController = adminHandler(async ({ req, res, actorId }) => {
+  const payload = changelogAdminCreateSchema.parse(req.body);
 
-    const created = await createChangelogEntry({
-      id: payload.id,
-      version: payload.version,
-      title: payload.title,
-      summary: payload.summary,
-      type: payload.type as ChangelogType,
-      publishedAt: payload.publishedAt ? new Date(payload.publishedAt) : undefined,
-      githubUrl: payload.githubUrl,
-      added: payload.added,
-      improved: payload.improved,
-      fixed: payload.fixed,
-      breaking: payload.breaking,
-      security: payload.security,
-      tags: payload.tags,
-      prRefs: payload.prRefs,
-    });
+  const created = await createChangelogEntry({
+    id: payload.id,
+    version: payload.version,
+    title: payload.title,
+    summary: payload.summary,
+    type: payload.type as ChangelogType,
+    publishedAt: payload.publishedAt ? new Date(payload.publishedAt) : undefined,
+    githubUrl: payload.githubUrl,
+    added: payload.added,
+    improved: payload.improved,
+    fixed: payload.fixed,
+    breaking: payload.breaking,
+    security: payload.security,
+    tags: payload.tags,
+    prRefs: payload.prRefs,
+  });
 
-    await recordAdminAudit({
-      actorId: requireAuthUser(req).id,
-      action: ADMIN_AUDIT_ACTIONS.changelogCreate,
-      targetType: "ChangelogEntry",
-      targetId: created.id,
-      metadata: { version: created.version, title: created.title },
-    });
+  await recordAdminAudit({
+    actorId,
+    action: ADMIN_AUDIT_ACTIONS.changelogCreate,
+    targetType: "ChangelogEntry",
+    targetId: created.id,
+    metadata: { version: created.version, title: created.title },
+  });
 
-    res.json(createSuccessResponse(created, "Changelog entry created successfully"));
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return next(handleValidationError(error));
-    }
-
-    next(error);
-  }
-}
+  res.status(201);
+  return created;
+}, "Changelog entry created successfully");
 
 /**
  * Update an existing changelog entry by id (admin only).
@@ -84,55 +71,39 @@ export async function createChangelogEntryController(
  * - partial changelog entry fields to update
  *
  * res:
- * - 200 with updated entry payload
- *
- * next:
- * - forwards validation/runtime errors to global error handler
+ * - 200 with updated entry payload; 409 when the new version is already taken
  */
 
-export async function updateChangelogEntryController(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) {
-  try {
-    const { id } = req.params;
+export const updateChangelogEntryController = adminHandler(async ({ req, actorId }) => {
+  const { id } = adminIdParamSchema.parse(req.params);
+  const payload = changelogAdminUpdateSchema.parse(req.body);
 
-    const payload = changelogAdminUpdateSchema.parse(req.body);
+  const updated = await updateChangelogEntry(id, {
+    version: payload.version,
+    title: payload.title,
+    summary: payload.summary,
+    type: payload.type as ChangelogType | undefined,
+    publishedAt: payload.publishedAt ? new Date(payload.publishedAt) : undefined,
+    githubUrl: payload.githubUrl,
+    added: payload.added,
+    improved: payload.improved,
+    fixed: payload.fixed,
+    breaking: payload.breaking,
+    security: payload.security,
+    tags: payload.tags,
+    prRefs: payload.prRefs,
+  });
 
-    const updated = await updateChangelogEntry(id, {
-      version: payload.version,
-      title: payload.title,
-      summary: payload.summary,
-      type: payload.type as ChangelogType | undefined,
-      publishedAt: payload.publishedAt ? new Date(payload.publishedAt) : undefined,
-      githubUrl: payload.githubUrl,
-      added: payload.added,
-      improved: payload.improved,
-      fixed: payload.fixed,
-      breaking: payload.breaking,
-      security: payload.security,
-      tags: payload.tags,
-      prRefs: payload.prRefs,
-    });
+  await recordAdminAudit({
+    actorId,
+    action: ADMIN_AUDIT_ACTIONS.changelogUpdate,
+    targetType: "ChangelogEntry",
+    targetId: id,
+    metadata: { fields: Object.keys(payload) },
+  });
 
-    await recordAdminAudit({
-      actorId: requireAuthUser(req).id,
-      action: ADMIN_AUDIT_ACTIONS.changelogUpdate,
-      targetType: "ChangelogEntry",
-      targetId: id,
-      metadata: { fields: Object.keys(payload) },
-    });
-
-    res.json(createSuccessResponse(updated, "Changelog entry updated successfully"));
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return next(handleValidationError(error));
-    }
-
-    next(error);
-  }
-}
+  return updated;
+}, "Changelog entry updated successfully");
 
 /**
  * Delete a changelog entry by id (admin only).
@@ -153,7 +124,7 @@ export async function deleteChangelogEntryController(
   next: NextFunction,
 ) {
   try {
-    const { id } = req.params;
+    const { id } = adminIdParamSchema.parse(req.params);
 
     const deleted = await deleteChangelogEntry(id);
 

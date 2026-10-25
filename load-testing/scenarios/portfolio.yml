@@ -1,0 +1,97 @@
+# Load test for @veriworkly/portfolio (product app: marketing + published
+# portfolio pages, default local port 3004).
+#
+# `PORTFOLIO_TEST_USERNAME` (see ../.env.example) should point at a real
+# published portfolio for the "Public portfolio page" scenario to reflect
+# real SSR/data-fetch cost - otherwise it'll just repeatedly hit the 404 path.
+#
+# IMPORTANT: `next dev` is unoptimized. For prod-like numbers:
+#   npm run build:portfolio && npm run start -w @veriworkly/portfolio -- -p 3004
+config:
+  target: "{{ $processEnvironment.LOCAL_PORTFOLIO_URL }}"
+  processor: "../processors/helpers.cjs"
+
+  environments:
+    local:
+      target: "{{ $processEnvironment.LOCAL_PORTFOLIO_URL }}"
+    staging:
+      target: "{{ $processEnvironment.STAGING_PORTFOLIO_URL }}"
+    production:
+      target: "{{ $processEnvironment.PRODUCTION_PORTFOLIO_URL }}"
+
+  http:
+    timeout: 15
+
+  defaults:
+    headers:
+      user-agent: "veriworkly-load-test/1.0"
+
+  phases:
+    - duration: 30
+      arrivalRate: 1
+      name: "Warm up"
+    - duration: 60
+      arrivalRate: 1
+      rampTo: 10
+      name: "Ramp to typical load"
+    - duration: 120
+      arrivalRate: 10
+      name: "Sustained typical load"
+    - duration: 60
+      arrivalRate: 10
+      rampTo: 40
+      name: "Ramp to peak load"
+    - duration: 120
+      arrivalRate: 40
+      name: "Sustained peak load"
+    - duration: 30
+      arrivalRate: 40
+      rampTo: 80
+      name: "Spike"
+    - duration: 30
+      arrivalRate: 80
+      name: "Spike hold"
+    - duration: 60
+      arrivalRate: 80
+      rampTo: 1
+      name: "Cool down"
+
+scenarios:
+  - name: "Homepage"
+    weight: 25
+    flow:
+      - get:
+          url: "/"
+          afterResponse: "logUnexpectedStatus"
+
+  - name: "Pricing page"
+    weight: 20
+    flow:
+      - get:
+          url: "/pricing"
+          afterResponse: "logUnexpectedStatus"
+
+  - name: "Templates gallery + detail"
+    weight: 20
+    flow:
+      - get:
+          url: "/templates"
+          afterResponse: "logUnexpectedStatus"
+      - get:
+          url: "/templates/atelier"
+          afterResponse: "logUnexpectedStatus"
+
+  - name: "FAQ page"
+    weight: 10
+    flow:
+      - get:
+          url: "/faq"
+          afterResponse: "logUnexpectedStatus"
+
+  - name: "Public portfolio page"
+    weight: 25
+    flow:
+      - function: "setPortfolioUsername"
+      - get:
+          url: "/portfolios/{{ portfolioUsername }}"
+          afterResponse: "logUnexpectedStatus"

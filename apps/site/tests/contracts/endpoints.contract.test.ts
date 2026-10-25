@@ -4,17 +4,23 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 process.env.NEXT_PUBLIC_BACKEND_URL ??= "http://127.0.0.1:1/api/v1";
 
-/** Server zod schemas strip unknown keys, so every key a site fetcher sends is checked against the server schema source. */
+/** Server query schemas are strict (an unknown key is a 400), so every key a site fetcher sends is checked against the server schema source. */
 
 const serverSrc = join(__dirname, "..", "..", "..", "server", "src");
 
 function schemaKeys(file: string, schema: string) {
   const source = readFileSync(join(serverSrc, file), "utf8");
-  const body = new RegExp(`${schema} = z\\.object\\(\\{([\\s\\S]*?)\\n\\}\\)`).exec(source)?.[1];
+  // Matches both `name = z.object({` and the chained `name = z\n  .object({` that Prettier writes
+  // once `.strict()`/`.refine()` follow. Top-level keys sit one indent level inside the object.
+  const match = new RegExp(`${schema} = z\\s*\\.object\\(\\{([\\s\\S]*?)\\n( *)\\}\\)`).exec(
+    source,
+  );
+  const body = match?.[1];
 
   expect(body, `${schema} not found in ${file}`).toBeTruthy();
 
-  return new Set([...body!.matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1]!));
+  const keyIndent = `${match![2]}  `;
+  return new Set([...body!.matchAll(new RegExp(`^${keyIndent}(\\w+):`, "gm"))].map((m) => m[1]!));
 }
 
 function captureQueries() {

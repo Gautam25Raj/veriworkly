@@ -6,6 +6,9 @@ import { AffiliateService } from "#services/affiliate/index";
 import { createSuccessResponse, handleValidationError } from "#lib/errors";
 import { clickSchema, referralCodeSchema, withdrawalSchema } from "#validators/affiliateValidator";
 
+// Request signals the attribution checks hash and store (V-016); `req.ip` honours TRUST_PROXY.
+const signalsOf = (req: Request) => ({ ip: req.ip, userAgent: req.headers["user-agent"] });
+
 export class AffiliateController {
   static async dashboard(req: Request, res: Response, next: NextFunction) {
     try {
@@ -25,7 +28,9 @@ export class AffiliateController {
     try {
       const { code } = referralCodeSchema.parse(req.body);
       res.json(
-        createSuccessResponse(await AffiliateService.applyReferral(requireAuthUser(req).id, code)),
+        createSuccessResponse(
+          await AffiliateService.applyReferral(requireAuthUser(req).id, code, signalsOf(req)),
+        ),
       );
     } catch (error) {
       next(error instanceof z.ZodError ? handleValidationError(error) : error);
@@ -35,7 +40,9 @@ export class AffiliateController {
     try {
       const input = clickSchema.parse(req.body);
       res.json(
-        createSuccessResponse(await AffiliateService.trackClick(input.code, input.referrerHost)),
+        createSuccessResponse(
+          await AffiliateService.trackClick(input.code, input.referrerHost, signalsOf(req)),
+        ),
       );
     } catch (error) {
       next(error instanceof z.ZodError ? handleValidationError(error) : error);

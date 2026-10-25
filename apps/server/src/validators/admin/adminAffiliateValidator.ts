@@ -32,6 +32,15 @@ export const adminCommissionSchema = z.object({
   purchaseAmountCents: z.number().int().min(1),
   status: z.enum(["PENDING", "AVAILABLE"]).default("PENDING"),
   reason: adminOptionalReasonSchema,
+  /** ISO 4217 code of `purchaseAmountCents`; defaults to USD, the wallet currency. */
+  currency: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z]{3}$/, "Currency must be a three-letter ISO 4217 code")
+    .transform((value) => value.toUpperCase())
+    .optional(),
+  /** Manual conversion: the pending non-USD commission this USD commission replaces. */
+  convertedFromId: z.string().trim().min(1).optional(),
 });
 
 export const adminCommissionStatusSchema = z.object({

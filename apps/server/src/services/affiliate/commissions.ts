@@ -1,8 +1,17 @@
 import { ApiError } from "#lib/errors";
 import { prisma } from "#lib/prisma";
 
-import { AFFILIATE_TIER_RATE_BPS } from "#services/affiliate/constants";
+import { AFFILIATE_TIER_RATE_BPS, AFFILIATE_WALLET_CURRENCY } from "#services/affiliate/constants";
 import { invalidateAffiliate } from "#services/affiliate/cache";
+
+export const SHARED_ADDRESS_REASON = "Shared address with affiliate; review before release";
+
+function normalizeCurrency(value: string | undefined) {
+  const currency = (value ?? AFFILIATE_WALLET_CURRENCY).trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency))
+    throw new ApiError(400, "Currency must be a three-letter ISO 4217 code.");
+  return currency;
+}
 
 export async function createCommission(input: {
   referredUserId: string;
@@ -11,6 +20,13 @@ export async function createCommission(input: {
   purchaseAmountCents: number;
   status: "PENDING" | "AVAILABLE";
   reason?: string;
+  /** ISO 4217 code of `purchaseAmountCents`; defaults to the wallet currency (USD). */
+  currency?: string;
+  /**
+   * Manual conversion (admin only): the pending non-USD commission this USD commission replaces.
+   * The original is marked REVERSED in the same transaction so it cannot be converted twice.
+   */
+  convertedFromId?: string;
 }) {
   const referral = await prisma.affiliateReferral.findUnique({
     where: { referredUserId: input.referredUserId },
@@ -23,6 +39,23 @@ export async function createCommission(input: {
   const amountCents = Math.floor((input.purchaseAmountCents * rateBps) / 10_000);
   if (amountCents < 1) throw new ApiError(400, "Commission amount is too small.");
 
+  const currency = normalizeCurrency(input.currency);
+  const inWalletCurrency = currency === AFFILIATE_WALLET_CURRENCY;
+  if (input.convertedFromId && !inWalletCurrency)
+    throw new ApiError(400, `A converted commission must be in ${AFFILIATE_WALLET_CURRENCY}.`);
+
+  // The wallet is a USD balance. A commission in any other currency is recorded with its own
+  // currency, kept PENDING whatever the caller asked for, and never added to the wallet; an admin
+  // converts it and records the USD amount by hand (it shows as `requiresManualConversion`).
+  let status = inWalletCurrency ? input.status : "PENDING";
+  let reason = input.reason;
+  // A referral applied from one of the affiliate's own addresses is recorded, not refused (V-016);
+  // its money waits for a human instead of maturing on its own.
+  if (referral.sharedAddressWithAffiliate) {
+    status = "PENDING";
+    reason = SHARED_ADDRESS_REASON;
+  }
+
   const result = await prisma.$transaction(async (tx) => {
     const commission = await tx.affiliateCommission.create({
       data: {
@@ -31,34 +64,64 @@ export async function createCommission(input: {
         subscriptionId: input.subscriptionId,
         providerPaymentId: input.providerPaymentId,
         amountCents,
+        currency,
         rateBps,
-        status: input.status,
-        availableAt: input.status === "AVAILABLE" ? new Date() : null,
-        reason: input.reason,
+        status,
+        availableAt: status === "AVAILABLE" ? new Date() : null,
+        reason,
       },
     });
+    if (input.convertedFromId) {
+      // Conditional on the original still being a pending non-USD row of this affiliate, so two
+      // admins converting the same commission cannot both succeed.
+      const converted = await tx.affiliateCommission.updateMany({
+        where: {
+          id: input.convertedFromId,
+          affiliateId: referral.affiliateId,
+          status: "PENDING",
+          currency: { not: AFFILIATE_WALLET_CURRENCY },
+        },
+        data: {
+          status: "REVERSED",
+          reversedAt: new Date(),
+          reason: `Converted to ${AFFILIATE_WALLET_CURRENCY} as ${commission.id}`,
+        },
+      });
+      if (converted.count !== 1)
+        throw new ApiError(
+          409,
+          "convertedFromId must be a pending non-USD commission of the same affiliate.",
+        );
+    }
     await tx.affiliateReferral.update({
       where: { id: referral.id },
       data: { status: "CONVERTED", convertedAt: referral.convertedAt ?? new Date() },
     });
-    await tx.affiliateWallet.upsert({
-      where: { userId: referral.affiliateId },
-      create: {
-        userId: referral.affiliateId,
-        pendingCents: input.status === "PENDING" ? amountCents : 0,
-        availableCents: input.status === "AVAILABLE" ? amountCents : 0,
-      },
-      update:
-        input.status === "PENDING"
-          ? { pendingCents: { increment: amountCents } }
-          : { availableCents: { increment: amountCents } },
-    });
+    if (inWalletCurrency)
+      await tx.affiliateWallet.upsert({
+        where: { userId: referral.affiliateId },
+        create: {
+          userId: referral.affiliateId,
+          pendingCents: status === "PENDING" ? amountCents : 0,
+          availableCents: status === "AVAILABLE" ? amountCents : 0,
+        },
+        update:
+          status === "PENDING"
+            ? { pendingCents: { increment: amountCents } }
+            : { availableCents: { increment: amountCents } },
+      });
     return commission;
   });
   await invalidateAffiliate(referral.affiliateId, true);
   return result;
 }
 
+/**
+ * The one PENDING -> AVAILABLE | REVERSED transition. Maturation is still an admin action this
+ * round, but it goes through here so it is a single conditional write: the status flips only if
+ * the row is still PENDING at commit time, and the wallet moves only when that flip happened
+ * (V-007). Two concurrent releases therefore credit the wallet once; the loser gets 409.
+ */
 export async function updateCommission(
   id: string,
   status: "AVAILABLE" | "REVERSED",
@@ -67,19 +130,16 @@ export async function updateCommission(
   const result = await prisma.$transaction(async (tx) => {
     const commission = await tx.affiliateCommission.findUnique({ where: { id } });
     if (!commission) throw new ApiError(404, "Commission not found.");
-    if (commission.status !== "PENDING")
-      throw new ApiError(409, "Only pending commissions can be updated.");
-    await tx.affiliateWallet.update({
-      where: { userId: commission.affiliateId },
-      data: {
-        pendingCents: { decrement: commission.amountCents },
-        ...(status === "AVAILABLE"
-          ? { availableCents: { increment: commission.amountCents } }
-          : {}),
-      },
-    });
-    return tx.affiliateCommission.update({
-      where: { id },
+
+    const inWalletCurrency = commission.currency === AFFILIATE_WALLET_CURRENCY;
+    if (status === "AVAILABLE" && !inWalletCurrency)
+      throw new ApiError(
+        409,
+        `This commission is in ${commission.currency}; convert it to ${AFFILIATE_WALLET_CURRENCY} and record it manually before releasing it.`,
+      );
+
+    const transitioned = await tx.affiliateCommission.updateMany({
+      where: { id, status: "PENDING" },
       data: {
         status,
         reason,
@@ -87,6 +147,27 @@ export async function updateCommission(
         reversedAt: status === "REVERSED" ? new Date() : null,
       },
     });
+    if (transitioned.count !== 1)
+      throw new ApiError(409, "Only pending commissions can be updated.");
+
+    // Non-USD commissions were never added to the wallet, so there is nothing to move.
+    if (inWalletCurrency) {
+      const moved = await tx.affiliateWallet.updateMany({
+        where: { userId: commission.affiliateId, pendingCents: { gte: commission.amountCents } },
+        data: {
+          pendingCents: { decrement: commission.amountCents },
+          ...(status === "AVAILABLE"
+            ? { availableCents: { increment: commission.amountCents } }
+            : {}),
+        },
+      });
+      // Rolls the status change back: the wallet no longer holds what this commission says it
+      // reserved, which is a ledger problem to look at, not something to paper over.
+      if (moved.count !== 1)
+        throw new ApiError(409, "Wallet pending balance does not cover this commission.");
+    }
+
+    return tx.affiliateCommission.findUniqueOrThrow({ where: { id } });
   });
   await invalidateAffiliate(result.affiliateId, true);
   return result;

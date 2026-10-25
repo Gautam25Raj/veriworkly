@@ -5,6 +5,7 @@ import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
 
 import { invalidateAffiliate } from "#services/affiliate/cache";
+import { AFFILIATE_WALLET_CURRENCY } from "#services/affiliate/constants";
 import { createCommission, updateCommission } from "#services/affiliate/commissions";
 import { updateWithdrawal } from "#services/affiliate/wallet";
 
@@ -38,29 +39,42 @@ const AFFILIATE_SELECT = {
  * real program total, not the total of the 25 rows in front of them.
  */
 export async function getAffiliateSummary() {
-  const [byStatus, commissionTotals, walletTotals, pendingWithdrawals, referralTotals, clicks] =
-    await Promise.all([
-      prisma.user.groupBy({
-        by: ["affiliateStatus"],
-        _count: { _all: true },
-        where: { affiliateStatus: { not: "NOT_ENROLLED" } },
-      }),
-      prisma.affiliateCommission.groupBy({
-        by: ["status"],
-        _sum: { amountCents: true },
-        _count: { _all: true },
-      }),
-      prisma.affiliateWallet.aggregate({
-        _sum: { pendingCents: true, availableCents: true, paidCents: true },
-      }),
-      prisma.affiliateWithdrawal.aggregate({
-        where: { status: "REQUESTED" },
-        _sum: { amountCents: true },
-        _count: { _all: true },
-      }),
-      prisma.affiliateReferral.groupBy({ by: ["status"], _count: { _all: true } }),
-      prisma.affiliateClick.count(),
-    ]);
+  const [
+    byStatus,
+    commissionTotals,
+    walletTotals,
+    pendingWithdrawals,
+    referralTotals,
+    clicks,
+    awaitingConversion,
+  ] = await Promise.all([
+    prisma.user.groupBy({
+      by: ["affiliateStatus"],
+      _count: { _all: true },
+      where: { affiliateStatus: { not: "NOT_ENROLLED" } },
+    }),
+    // Cents only add up within one currency; the header sums the wallet currency and counts
+    // the rest separately as the manual-conversion queue (V-017).
+    prisma.affiliateCommission.groupBy({
+      by: ["status"],
+      where: { currency: AFFILIATE_WALLET_CURRENCY },
+      _sum: { amountCents: true },
+      _count: { _all: true },
+    }),
+    prisma.affiliateWallet.aggregate({
+      _sum: { pendingCents: true, availableCents: true, paidCents: true },
+    }),
+    prisma.affiliateWithdrawal.aggregate({
+      where: { status: "REQUESTED" },
+      _sum: { amountCents: true },
+      _count: { _all: true },
+    }),
+    prisma.affiliateReferral.groupBy({ by: ["status"], _count: { _all: true } }),
+    prisma.affiliateClick.count(),
+    prisma.affiliateCommission.count({
+      where: { status: "PENDING", currency: { not: AFFILIATE_WALLET_CURRENCY } },
+    }),
+  ]);
 
   return {
     affiliatesByStatus: Object.fromEntries(
@@ -85,6 +99,7 @@ export async function getAffiliateSummary() {
       referralTotals.map((row) => [row.status, row._count._all]),
     ),
     totalClicks: clicks,
+    commissionsAwaitingConversion: awaitingConversion,
   };
 }
 
@@ -230,12 +245,21 @@ export async function listCommissions(query: CommissionListQuery) {
       skip: query.offset,
     }),
     prisma.affiliateCommission.count({ where }),
-    prisma.affiliateCommission.aggregate({ where, _sum: { amountCents: true } }),
+    prisma.affiliateCommission.aggregate({
+      where: { ...where, currency: AFFILIATE_WALLET_CURRENCY },
+      _sum: { amountCents: true },
+    }),
   ]);
 
   return {
-    items,
+    // A commission in any currency but the wallet's stays PENDING until an admin converts it and
+    // records the USD amount by hand; the flag is what the list surfaces for that queue (V-017).
+    items: items.map((item) => ({
+      ...item,
+      requiresManualConversion: item.currency !== AFFILIATE_WALLET_CURRENCY,
+    })),
     total,
+    // Sum of the wallet-currency rows only; cents in other currencies do not add up with them.
     totalAmountCents: totals._sum.amountCents ?? 0,
     limit: query.limit,
     offset: query.offset,

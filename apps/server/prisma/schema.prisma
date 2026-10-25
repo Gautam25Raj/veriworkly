@@ -358,6 +358,16 @@ model AffiliateReferral {
   referredUserId String                  @unique
   referredUser   User                    @relation("ReferredUser", fields: [referredUserId], references: [id], onDelete: Cascade)
   code           String
+  // sha256(value + ANALYTICS_HASH_PEPPER) of the referred user's request IP and User-Agent when
+  // the code was applied (V-016). The IP hash is compared with the affiliate's own session
+  // addresses to flag a possible alt account (`sharedAddressWithAffiliate`), never to refuse the
+  // referral; nothing is stored in clear.
+  ipHash         String?
+  userAgentHash  String?
+  // True when `ipHash` matched one of the affiliate's own session addresses at apply time. The
+  // referral is still recorded (campus NATs are legitimate); its commissions are forced PENDING
+  // for review instead.
+  sharedAddressWithAffiliate Boolean @default(false)
   status         AffiliateReferralStatus @default(SIGNED_UP)
   convertedAt    DateTime?
   createdAt      DateTime                @default(now())
@@ -369,12 +379,14 @@ model AffiliateReferral {
 }
 
 model AffiliateClick {
-  id           String   @id @default(cuid())
-  affiliateId  String
-  affiliate    User     @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
-  code         String
-  referrerHost String?
-  createdAt    DateTime @default(now())
+  id            String   @id @default(cuid())
+  affiliateId   String
+  affiliate     User     @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  code          String
+  referrerHost  String?
+  ipHash        String?
+  userAgentHash String?
+  createdAt     DateTime @default(now())
 
   @@index([affiliateId, createdAt])
   @@index([code, createdAt])
@@ -396,6 +408,10 @@ model AffiliateCommission {
   subscriptionId    String?
   providerPaymentId String?                   @unique
   amountCents       Int
+  // ISO 4217 code of `amountCents`. Dodo settles the account in USD and `AffiliateWallet` is a USD
+  // balance, so only USD commissions move wallet cents; any other currency is stored PENDING with
+  // its currency and must be converted and recorded by an admin before it can be released (V-017).
+  currency          String                    @default("USD")
   rateBps           Int
   status            AffiliateCommissionStatus @default(PENDING)
   availableAt       DateTime?
@@ -433,6 +449,8 @@ model AffiliateWithdrawal {
   userId      String
   user        User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
   amountCents Int
+  // ISO 4217 code of `amountCents`; always USD today because the wallet it draws from is USD.
+  currency    String                    @default("USD")
   status      AffiliateWithdrawalStatus @default(REQUESTED)
   payoutNote  String?
   reviewedBy  String?
@@ -443,6 +461,9 @@ model AffiliateWithdrawal {
 
   @@index([userId, status, createdAt])
   @@index([status, createdAt])
+  // Partial unique index `AffiliateWithdrawal_one_active_per_user` on (userId) WHERE status IN
+  // (REQUESTED, APPROVED), created by raw SQL in the affiliate_currency_and_payout_guards migration
+  // because Prisma cannot express a predicate. `requestWithdrawal` maps its P2002 to 409.
 }
 
 enum AmbassadorApplicationStatus {

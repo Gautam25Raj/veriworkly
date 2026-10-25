@@ -54,12 +54,9 @@ next-env.d.ts
 /app/test
 /api-index
 
-# Load testing rig - standalone package (own dependencies, not a workspace). Scenarios are
-# tracked; its dependencies, secrets and generated reports are not.
-/load-testing/node_modules
-/load-testing/.env
-/load-testing/reports/*
-!/load-testing/reports/.gitkeep
+# Load testing rig - standalone package with its own dependencies,
+# intentionally kept out of the main app's repo/workspaces entirely
+/load-testing
 
 # Agents
 .agents

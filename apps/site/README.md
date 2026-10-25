@@ -98,7 +98,7 @@ Target is **WCAG 2.2 Level AA**:
 - `scripts/`:
   - `check-design-tokens.mts` - Validates token consistency across `themes.css`, `brand.ts`, and `DESIGN.md`.
   - `build-brand-kit.mts` - Generates the downloadable `veriworkly-brand-kit.zip` bundle (`--check` compares instead of writing).
-  - `measure-js.mts` - gzipped initial JS per prerendered route.
+  - `measure-js.mts` - gzipped initial JS per prerendered route; `--check` fails when a route is over its budget (CI runs it on every site PR).
   - `lighthouse-mobile.mts` - Lighthouse mobile on the six audited pages; the Site Lighthouse workflow posts both tables on pull requests.
 - `tests/`:
   - `tests/contracts/` - Automated contract tests ensuring pricing claims, ATS quotas, changelog markdown parsing, and competitor data remain synchronized.

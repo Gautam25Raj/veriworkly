@@ -1,10 +1,22 @@
-/** Initial gzipped JS per prerendered route from a finished `next build`, plus framer layout-projection flags. Run: npx tsx scripts/measure-js.mts [route ...] */
+/** Initial gzipped JS per prerendered route after `next build`. `--check` exits 1 when a route is over its budget. Run: npx tsx scripts/measure-js.mts [--check] [route ...] */
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 
-const ROUTES = process.argv.slice(2).length
-  ? process.argv.slice(2)
+// KB gzip. Set a few KB above the measured size so a regression fails CI; lower them as pages shrink.
+const BUDGETS: Record<string, number> = {
+  "/": 240,
+  "/ats-checker": 210,
+  "/affiliate": 232,
+  "/ambassador": 228,
+};
+const DEFAULT_BUDGET = 188;
+
+const args = process.argv.slice(2);
+const check = args.includes("--check");
+const requested = args.filter((arg) => arg !== "--check");
+const ROUTES = requested.length
+  ? requested
   : [
       "/",
       "/privacy",
@@ -19,20 +31,22 @@ const ROUTES = process.argv.slice(2).length
 
 const appDir = join(".next", "server", "app");
 const rows: string[] = [
-  "| route | initial JS (gz) | chunks | framer projection |",
-  "| --- | ---: | ---: | --- |",
+  "| route | initial JS (gz) | budget | chunks |",
+  "| --- | ---: | ---: | ---: |",
 ];
+const over: string[] = [];
 
 for (const route of ROUTES) {
   const file = join(appDir, route === "/" ? "index.html" : `${route.slice(1)}.html`);
+  const budget = BUDGETS[route] ?? DEFAULT_BUDGET;
 
   if (!existsSync(file)) {
-    rows.push(`| ${route} | not prerendered | | |`);
+    rows.push(`| ${route} | not prerendered | ${budget} KB | |`);
     continue;
   }
 
   const html = readFileSync(file, "utf8");
-  // noModule scripts are the legacy polyfills; browsers that run modules never fetch them.
+  // noModule scripts are polyfills that browsers running modules never fetch.
   const srcs = [
     ...new Set(
       [...html.matchAll(/<script([^>]*)src="\/_next\/([^"]+)"([^>]*)>/g)]
@@ -42,20 +56,21 @@ for (const route of ROUTES) {
   ];
 
   let bytes = 0;
-  let projection = false;
-
   for (const src of srcs) {
     const path = join(".next", decodeURIComponent(src.split("?")[0]!));
-    if (!existsSync(path)) continue;
-
-    const body = readFileSync(path);
-    bytes += gzipSync(body, { level: 9 }).length;
-    if (body.includes("layoutId")) projection = true;
+    if (existsSync(path)) bytes += gzipSync(readFileSync(path), { level: 9 }).length;
   }
 
+  const kb = bytes / 1024;
+  if (kb > budget) over.push(`${route} ${kb.toFixed(1)} KB > ${budget} KB`);
   rows.push(
-    `| ${route} | ${(bytes / 1024).toFixed(1)} KB | ${srcs.length} | ${projection ? "yes" : "no"} |`,
+    `| ${route} | ${kb.toFixed(1)} KB${kb > budget ? " ❌" : ""} | ${budget} KB | ${srcs.length} |`,
   );
 }
 
 console.log(rows.join("\n"));
+
+if (check && over.length) {
+  console.error(`\nOver budget:\n${over.join("\n")}`);
+  process.exit(1);
+}

@@ -62,9 +62,9 @@ jobs:
         run: |
           {
             echo ""
-            echo "Initial JS per route (module scripts, gzip -9). Budget: 200 KB."
+            echo "Initial JS per route (module scripts, gzip -9). The job fails when a route is over its budget."
             echo ""
-            npx tsx scripts/measure-js.mts
+            npx tsx scripts/measure-js.mts --check
           } >> .lighthouse/summary.md
 
       - name: Upload Reports

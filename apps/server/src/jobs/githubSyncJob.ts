@@ -35,7 +35,9 @@ export async function runGitHubSync(reason: "startup" | "cron"): Promise<void> {
       return;
     }
 
-    const result = await syncGitHubStatsFromGitHub(reason === "cron");
+    // The cron's first run of each UTC day is a full sync (the only kind that drops issues deleted
+    // or transferred on GitHub); its other runs, and the startup run, are incremental.
+    const result = await syncGitHubStatsFromGitHub(reason === "cron" ? "daily" : false);
 
     logger.info(`GitHub sync (${reason}) success`, {
       itemsSynced:

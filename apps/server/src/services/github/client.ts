@@ -1,6 +1,8 @@
 import { ApiError } from "#lib/errors";
 
 const MAX_GITHUB_FETCH_RETRIES = 3;
+/** A network error or timeout says nothing about GitHub's state, so it gets fewer attempts. */
+const MAX_NETWORK_RETRIES = 2;
 const RETRYABLE_GITHUB_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
 /** A rate limit that resets later than this fails now; waiting would only time the job out. */
 const MAX_RETRY_WAIT_MS = 30_000;
@@ -67,6 +69,7 @@ export async function fetchGitHubApi(
   options: RequestInit = {},
 ): Promise<Response> {
   let attempt = 0;
+  let networkRetries = 0;
 
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
@@ -89,7 +92,14 @@ export async function fetchGitHubApi(
       });
     } catch (error) {
       // A timeout or network failure throws a bare DOMException/TypeError ("This operation was
-      // aborted") that names no request; the URL is what makes a job log actionable.
+      // aborted") that names no request; the URL is what makes a job log actionable. A caller's
+      // own abort is not retried.
+      if (networkRetries < MAX_NETWORK_RETRIES && !options.signal?.aborted) {
+        await sleep(Math.min(1000 * 2 ** networkRetries, 10_000));
+        networkRetries += 1;
+        continue;
+      }
+
       throw new ApiError(502, "GitHub API request failed", {
         url,
         cause: error instanceof Error ? error.message : String(error),

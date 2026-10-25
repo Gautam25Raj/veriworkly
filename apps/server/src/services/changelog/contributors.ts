@@ -1,7 +1,14 @@
 import { config } from "#config";
+import { logger } from "#lib/logger";
 import { prisma } from "#lib/prisma";
-import { fetchGitHubContributors } from "#services/github/index";
+import { cacheGet, cacheSet } from "#lib/redis";
+import { fetchGitHubContributors, type GitHubContributorItem } from "#services/github/index";
 import type { ChangelogContributor } from "./types.js";
+
+type ContributorStats = { contributorCount: number; topContributors: ChangelogContributor[] };
+
+/** Written by the release sync, read by /changelog/stats; the request path never calls GitHub. */
+const CONTRIBUTORS_CACHE_KEY = "changelog:contributors";
 
 const MAX_TOP_CONTRIBUTORS = 30;
 
@@ -47,14 +54,13 @@ const KNOWN_CORE_CONTRIBUTORS: ChangelogContributor[] = [
 /**
  * Aggregates all contributors from:
  * 1. Known core repository contributors
- * 2. Live GitHub contributors API
+ * 2. Live GitHub contributors (passed in; fetched by the sync job, never by a request)
  * 3. DB prRefs authors
  * 4. In-text @username mentions
  */
-export async function computeContributorStats(): Promise<{
-  contributorCount: number;
-  topContributors: ChangelogContributor[];
-}> {
+export async function computeContributorStats(
+  live: GitHubContributorItem[] = [],
+): Promise<ContributorStats> {
   const seen = new Map<string, ChangelogContributor>();
 
   // 1. Seed known contributors
@@ -62,21 +68,9 @@ export async function computeContributorStats(): Promise<{
     seen.set(c.login.toLowerCase(), c);
   }
 
-  // 2. Fetch live contributors from GitHub if configured
-  const { owner, repo, token } = config.github;
-  if (owner && repo) {
-    try {
-      const apiContributors = await fetchGitHubContributors(owner, repo, token);
-      for (const c of apiContributors) {
-        seen.set(c.login.toLowerCase(), {
-          login: c.login,
-          avatarUrl: c.avatarUrl,
-          htmlUrl: c.htmlUrl,
-        });
-      }
-    } catch {
-      // Non-fatal, fallback to DB and known contributors
-    }
+  // 2. Live contributors from GitHub, when the sync job has them
+  for (const c of live) {
+    seen.set(c.login.toLowerCase(), { login: c.login, avatarUrl: c.avatarUrl, htmlUrl: c.htmlUrl });
   }
 
   // 3. Scan changelog DB entries for prRefs authors and @mentions
@@ -151,4 +145,36 @@ export async function computeContributorStats(): Promise<{
     contributorCount: all.length,
     topContributors: all.slice(0, MAX_TOP_CONTRIBUTORS),
   };
+}
+
+/**
+ * Called by the changelog sync: fetch the live contributors, merge, and store the result for the
+ * changelog TTL. A failed fetch stores nothing, so the previous list keeps being served rather
+ * than a degraded one for 30 days. Returns whether a list was stored.
+ */
+export async function refreshContributorStats(): Promise<boolean> {
+  const { owner, repo, token } = config.github;
+  if (!owner || !repo) return false;
+
+  try {
+    const live = await fetchGitHubContributors(owner, repo, token, { fresh: true });
+    const stats = await computeContributorStats(live);
+
+    await cacheSet(CONTRIBUTORS_CACHE_KEY, stats, config.cache.changelogTtlSeconds);
+    return true;
+  } catch (error) {
+    logger.warn("Changelog sync: could not refresh contributors; keeping the previous list", error);
+    return false;
+  }
+}
+
+/**
+ * What /changelog/stats serves: the list the sync stored, else known and in-database contributors
+ * only. `complete` is false for the fallback so the caller does not cache it for long.
+ */
+export async function getContributorStats(): Promise<ContributorStats & { complete: boolean }> {
+  const stored = await cacheGet<ContributorStats>(CONTRIBUTORS_CACHE_KEY);
+  if (stored) return { ...stored, complete: true };
+
+  return { ...(await computeContributorStats()), complete: false };
 }

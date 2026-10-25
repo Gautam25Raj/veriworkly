@@ -1,10 +1,11 @@
-import { v4 as uuidv4 } from "uuid";
 import { Prisma } from "@prisma/client";
 
 import { config } from "#config";
 import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
 import { getRedis } from "#lib/redis";
+import { acquireJobLock } from "#lib/jobLock";
+import { recordJobSuccess } from "#lib/metrics";
 import { logger } from "#lib/logger";
 
 import {
@@ -22,14 +23,7 @@ import {
 import { slugifyVersion, parseReleaseTag, deriveReleaseType } from "#utils/changelogVersion";
 
 import { CHANGELOG_CACHE_KEYS, invalidateChangelogReadCaches } from "./cache.js";
-
-const RELEASE_LOCK_LUA_SCRIPT = `
-  if redis.call("get", KEYS[1]) == ARGV[1] then
-      return redis.call("del", KEYS[1])
-  else
-      return 0
-  end
-`;
+import { refreshContributorStats } from "./contributors.js";
 
 /**
  * Whether a startup sync is worth running. Cron runs deliberately bypass this — the schedule is
@@ -106,18 +100,26 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
   }
 
   const redis = getRedis();
-  const lockKey = CHANGELOG_CACHE_KEYS.RELEASE_SYNC_LOCK;
-  const lockValue = uuidv4();
-  const lockTTL = 600;
+  // Renewed while the sync runs (V-127): 20 PR pages plus the releases can outlast a fixed TTL.
+  const lock = await acquireJobLock(CHANGELOG_CACHE_KEYS.RELEASE_SYNC_LOCK, { ttlMs: 600_000 });
 
-  const lockResult = await redis.set(lockKey, lockValue, { NX: true, EX: lockTTL });
-
-  if (lockResult !== "OK") {
+  if (!lock) {
     throw new ApiError(409, "Changelog release sync is already in progress");
   }
 
+  // Checked after each fetch and before each write: a sync that lost its lock stops instead of
+  // writing beside the runner that now holds it.
+  const ensureStillOwner = async () => {
+    if (!(await lock.stillOwner()))
+      throw new ApiError(
+        409,
+        "Changelog release sync stopped: its lock was taken by another runner",
+      );
+  };
+
   try {
     const fetched = await fetchAllGitHubReleases(owner, repo, token);
+    await ensureStillOwner();
 
     // Two tags can slugify to one id (3.0.0-1 and 3.0.0.1 are both v3-0-0-1). The first, oldest,
     // keeps the id; the later one is skipped and named, rather than its create hitting P2002 and
@@ -182,6 +184,8 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
     let skipped = duplicates;
 
     for (let index = 0; index < releases.length; index++) {
+      await ensureStillOwner();
+
       const release = releases[index];
       const version = parseReleaseTag(release.tag_name);
       const id = releaseIds[index];
@@ -278,7 +282,9 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
       logger.info(`Changelog release sync: created entry for ${id} (v${version})`);
     }
 
-    if (created > 0 || refreshed > 0) {
+    const contributorsStored = await refreshContributorStats();
+
+    if (created > 0 || refreshed > 0 || contributorsStored) {
       await invalidateChangelogReadCaches();
     }
 
@@ -292,15 +298,10 @@ export async function syncChangelogFromGitHubReleases(): Promise<{
       `Changelog release sync complete: ${created} created, ${refreshed} re-parsed, ${skipped} already present`,
     );
 
+    recordJobSuccess("changelog-sync");
+
     return { created, refreshed, skipped, total: fetched.length };
   } finally {
-    try {
-      await redis.eval(RELEASE_LOCK_LUA_SCRIPT, {
-        keys: [lockKey],
-        arguments: [lockValue],
-      });
-    } catch (err) {
-      logger.error("Failed to release changelog sync lock", err);
-    }
+    await lock.release();
   }
 }

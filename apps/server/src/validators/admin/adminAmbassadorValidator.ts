@@ -27,6 +27,4 @@ export const adminAmbassadorReviewSchema = z.object({
   reviewNote: adminProvidedReasonSchema,
 });
 
-export type AdminAmbassadorReviewInput = z.infer<typeof adminAmbassadorReviewSchema>;
-
 export const adminAmbassadorRosterQuerySchema = adminPaginationSchema.merge(adminSearchSchema);

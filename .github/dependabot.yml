@@ -1,0 +1,25 @@
+# Weekly dependency updates (V-161). Minor and patch bumps arrive as one grouped pull request per
+# ecosystem; a major bump gets its own pull request, since it usually needs code changes (zod 3 to
+# 4, for one). The npm entry covers every workspace through the root lockfile.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      npm-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      actions-minor-and-patch:
+        update-types:
+          - minor
+          - patch

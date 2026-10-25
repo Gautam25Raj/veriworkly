@@ -88,23 +88,9 @@ export async function getChangelogEntries(
     prisma.changelogEntry.count({ where }),
   ]);
 
-  const hasMore = offset + limit < total;
-  const normalizedItems = items.map((item) => ({
-    ...item,
-    type: item.type as ChangelogType,
-  }));
-
   const response: ChangelogListResult = {
-    items: normalizedItems,
+    items: items.map((item) => ({ ...item, type: item.type as ChangelogType })),
     total,
-    limit,
-    offset,
-    hasMore,
-    pagination: {
-      mode: "offset" as const,
-      nextOffset: hasMore ? offset + limit : null,
-      nextCursor: null as string | null,
-    },
   };
 
   if (cacheKey) await cacheSet(cacheKey, response, config.cache.changelogTtlSeconds);

@@ -11,7 +11,7 @@
  * Case and surrounding whitespace are ignored. Any other value throws, so the boot fails rather
  * than silently enabling or disabling billing enforcement.
  */
-export type CronRole = "all" | "none";
+type CronRole = "all" | "none";
 
 export function parseCronRole(raw: string | undefined): CronRole {
   const value = (raw ?? "").trim().toLowerCase();

@@ -58,7 +58,7 @@ const KNOWN_CORE_CONTRIBUTORS: ChangelogContributor[] = [
  * 3. DB prRefs authors
  * 4. In-text @username mentions
  */
-export async function computeContributorStats(
+async function computeContributorStats(
   live: GitHubContributorItem[] = [],
 ): Promise<ContributorStats> {
   const seen = new Map<string, ChangelogContributor>();

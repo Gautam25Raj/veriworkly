@@ -2,8 +2,8 @@ import { z } from "zod";
 
 import { portfolioSectionTypes, type PortfolioSectionType } from "@veriworkly/profile-core";
 
-export const PORTFOLIO_TEMPLATE_IDS = ["signal", "atelier", "nimbus", "cipher"] as const;
-export type PortfolioTemplateId = (typeof PORTFOLIO_TEMPLATE_IDS)[number];
+const PORTFOLIO_TEMPLATE_IDS = ["signal", "atelier", "nimbus", "cipher"] as const;
+type PortfolioTemplateId = (typeof PORTFOLIO_TEMPLATE_IDS)[number];
 
 /**
  * Templates that need an active `portfolio_publish` grant to publish and whose publications
@@ -49,8 +49,8 @@ const baseSectionSchema = z.object({
   title: z.string().trim().min(1).max(120),
   subtitle: z.string().trim().max(240).optional(),
   visible: z.boolean(),
-  items: z.array(z.record(z.unknown())).max(24),
-  settings: z.record(z.unknown()).optional(),
+  items: z.array(z.record(z.string(), z.unknown())).max(24),
+  settings: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const portfolioContentSchema = z.object({
@@ -155,3 +155,18 @@ export const portfolioSubdomainParamsSchema = z.object({
 });
 
 export type PortfolioContentInput = z.infer<typeof portfolioDraftContentSchema>;
+
+export const publicPortfolioListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  offset: z.coerce.number().int().min(0).max(5000).optional(),
+});
+
+/** Only the referrer's host is kept; a longer referrer is cut, never a reason to lose the view. */
+const REFERRER_MAX_LENGTH = 2048;
+
+export const portfolioViewBeaconSchema = z.object({
+  referrer: z
+    .string()
+    .overwrite((value) => value.slice(0, REFERRER_MAX_LENGTH))
+    .optional(),
+});

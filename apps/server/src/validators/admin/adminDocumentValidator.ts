@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  adminFlagParam,
   adminPaginationSchema,
   adminReasonSchema,
   adminSearchSchema,
@@ -10,10 +11,7 @@ export const adminDocumentListQuerySchema = adminPaginationSchema.merge(adminSea
   type: z.enum(["RESUME", "COVER_LETTER", "PORTFOLIO", "LINK_IN_BIO"]).optional(),
   visibility: z.enum(["PRIVATE", "UNLISTED", "PUBLIC"]).optional(),
   userId: z.string().trim().min(1).optional(),
-  includeDeleted: z
-    .union([z.string(), z.boolean()])
-    .optional()
-    .transform((value) => value === true || value === "true"),
+  includeDeleted: adminFlagParam,
   sort: z.enum(["newest", "updated"]).default("updated"),
 });
 

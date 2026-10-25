@@ -7,6 +7,7 @@ vi.mock("#config", () => ({
     admin: { email: "admin@veriworkly.com" },
     auth: { sessionCacheMaxAgeSeconds: 300 },
   },
+  isProduction: true,
   isDevelopment: false,
 }));
 

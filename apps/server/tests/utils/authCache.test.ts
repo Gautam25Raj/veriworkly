@@ -5,7 +5,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const AUTH_SECRET = "unit-test-auth-secret";
 
 vi.mock("#lib/redis", () => ({ cacheDel: vi.fn() }));
-vi.mock("#config", () => ({ config: { nodeEnv: "test", auth: { secret: AUTH_SECRET } } }));
+vi.mock("#config", () => ({
+  config: { nodeEnv: "test", auth: { secret: AUTH_SECRET } },
+  isProduction: false,
+}));
 
 const { extractSessionTokenFromCookieHeader, getSessionCacheKey, sessionCacheKeyForToken } =
   await import("#utils/authCache");
@@ -79,6 +82,7 @@ describe("in production", () => {
     vi.resetModules();
     vi.doMock("#config", () => ({
       config: { nodeEnv: "production", auth: { secret: AUTH_SECRET } },
+      isProduction: true,
     }));
 
     const prod = await import("#utils/authCache");

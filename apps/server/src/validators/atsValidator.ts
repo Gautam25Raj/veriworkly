@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-const resumeSchema = z.union([z.string().trim().min(1).max(50_000), z.record(z.unknown())]);
+const resumeSchema = z.union([
+  z.string().trim().min(1).max(50_000),
+  z.record(z.string(), z.unknown()),
+]);
 
 /**
  * Geometry measured during extraction and echoed back by the client alongside the text it
@@ -74,6 +77,4 @@ export const atsConvertResumeSchema = z.object({
   requestId: z.string().trim().min(8).max(128),
 });
 
-export type AtsCheckInput = z.infer<typeof atsCheckSchema>;
 export type AtsAnalyzeInput = z.infer<typeof atsAnalyzeSchema>;
-export type AtsConvertResumeInput = z.infer<typeof atsConvertResumeSchema>;

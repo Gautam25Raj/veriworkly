@@ -8,7 +8,7 @@ import { emailOTP } from "better-auth/plugins/email-otp";
 import { prismaAdapter } from "@better-auth/prisma-adapter";
 import { toNodeHandler, fromNodeHeaders } from "better-auth/node";
 
-import { config } from "#config";
+import { config, isProduction } from "#config";
 
 import { logger } from "#lib/logger";
 import { prisma } from "#lib/prisma";
@@ -19,12 +19,7 @@ import { incrementFixedWindow } from "#middleware/rateLimit";
 import { invalidateSessionCache, invalidateCacheByToken } from "#utils/authCache";
 import { incrementUsageMetric } from "#services/analyticsService";
 
-import {
-  sendAuthOtpEmail,
-  sendWelcomeEmail,
-  sendLoginAlertEmail,
-  sendAccountDeletedEmail,
-} from "#services/mail/index";
+import { sendAuthOtpEmail, sendWelcomeEmail, sendLoginAlertEmail } from "#services/mail/index";
 
 export const authRequestContext = new AsyncLocalStorage<{
   ip: string;
@@ -215,7 +210,7 @@ export const auth = betterAuth({
   advanced: {
     trustedProxyHeaders: true,
     cookiePrefix: "veriworkly-auth",
-    useSecureCookies: config.nodeEnv === "production",
+    useSecureCookies: isProduction,
     ipAddress: {
       ipAddressHeaders: config.auth.ipAddressHeaders,
     },
@@ -333,28 +328,6 @@ export const auth = betterAuth({
           } catch (error) {
             // Never block the update, but a stale session cache must be visible (V-165).
             logger.warn("Session cache invalidation failed in user.update.after", { error });
-          }
-        },
-      },
-
-      delete: {
-        before: async (user) => {
-          try {
-            await sendAccountDeletedEmail(user.email, user.name || "there");
-          } catch (error) {
-            logger.warn("Failed to send account deleted email", { userId: user.id, error });
-          }
-
-          try {
-            const sessions = await prisma.session.findMany({
-              where: { userId: user.id },
-              select: { token: true },
-            });
-
-            await Promise.all(sessions.map((session) => invalidateCacheByToken(session.token)));
-          } catch (error) {
-            // Never block the delete, but a stale session cache must be visible (V-165).
-            logger.warn("Session cache invalidation failed in user.delete.before", { error });
           }
         },
       },

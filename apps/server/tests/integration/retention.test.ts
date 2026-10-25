@@ -9,7 +9,6 @@ import {
   type RetentionSettings,
 } from "#jobs/retentionJob";
 import { pool, prisma } from "#lib/prisma";
-import { DocumentService } from "#services/documentService";
 import { restoreDocument as adminRestoreDocument } from "#services/admin/adminDocumentService";
 
 import { createUserWithSession } from "./helpers/auth.js";
@@ -382,14 +381,15 @@ describe("restoring a purged document", () => {
     await make("r-fresh", at(30, "fresh"));
     await applyRetention({ settings: only("deletedDocuments"), now });
 
-    await expect(DocumentService.restoreDocument(user.id, "r-old")).rejects.toMatchObject({
+    await expect(adminRestoreDocument("r-old")).rejects.toMatchObject({
       statusCode: 410,
       message: expect.stringMatching(/permanently removed/),
     });
     const stillDeleted = await prisma.document.findUniqueOrThrow({ where: { id: "r-old" } });
     expect(stillDeleted.deletedAt).not.toBeNull();
 
-    const restored = await DocumentService.restoreDocument(user.id, "r-fresh");
+    await adminRestoreDocument("r-fresh");
+    const restored = await prisma.document.findUniqueOrThrow({ where: { id: "r-fresh" } });
     expect(restored.deletedAt).toBeNull();
     expect(restored.content).toEqual(content);
   });
@@ -407,7 +407,8 @@ describe("restoring a purged document", () => {
       },
     });
 
-    const restored = await DocumentService.restoreDocument(user.id, "empty");
+    await adminRestoreDocument("empty");
+    const restored = await prisma.document.findUniqueOrThrow({ where: { id: "empty" } });
 
     expect(restored.deletedAt).toBeNull();
     expect(restored.content).toEqual({});
@@ -421,32 +422,26 @@ describe("restoring a purged document", () => {
       else process.env.RETENTION_DELETED_DOCUMENT_DAYS = previous;
     });
 
-    it.each(["0", "3650"])(
-      "still refuses a purged document (setting %s), for the owner and the admin",
-      async (setting) => {
-        const user = await createUserWithSession();
-        await prisma.document.create({
-          data: {
-            id: "purged",
-            userId: user.id,
-            title: "p",
-            slug: "p",
-            content: { a: 1 },
-            deletedAt: at(30, "old"),
-          },
-        });
-        await applyRetention({ settings: only("deletedDocuments"), now });
+    it.each(["0", "3650"])("still refuses a purged document (setting %s)", async (setting) => {
+      const user = await createUserWithSession();
+      await prisma.document.create({
+        data: {
+          id: "purged",
+          userId: user.id,
+          title: "p",
+          slug: "p",
+          content: { a: 1 },
+          deletedAt: at(30, "old"),
+        },
+      });
+      await applyRetention({ settings: only("deletedDocuments"), now });
 
-        process.env.RETENTION_DELETED_DOCUMENT_DAYS = setting;
+      process.env.RETENTION_DELETED_DOCUMENT_DAYS = setting;
 
-        await expect(DocumentService.restoreDocument(user.id, "purged")).rejects.toMatchObject({
-          statusCode: 410,
-        });
-        await expect(adminRestoreDocument("purged")).rejects.toMatchObject({ statusCode: 410 });
-        const row = await prisma.document.findUniqueOrThrow({ where: { id: "purged" } });
-        expect(row.deletedAt).not.toBeNull();
-      },
-    );
+      await expect(adminRestoreDocument("purged")).rejects.toMatchObject({ statusCode: 410 });
+      const row = await prisma.document.findUniqueOrThrow({ where: { id: "purged" } });
+      expect(row.deletedAt).not.toBeNull();
+    });
   });
 });
 
@@ -497,22 +492,6 @@ describe("purge and restore racing each other", () => {
     const row = await prisma.document.findUniqueOrThrow({ where: { id: "raced" } });
     expect(row.deletedAt).toBeNull();
     expect(row.content).toEqual({ basics: { name: "Ada" } });
-  });
-
-  it("an owner restore refuses (410) a document purged after it was read", async () => {
-    const user = await makeDeleted("late-purge");
-    const findFirst = prisma.document.findFirst.bind(prisma.document);
-    vi.spyOn(prisma.document, "findFirst").mockImplementationOnce((async (args: never) => {
-      const read = await findFirst(args);
-      await applyRetention({ settings: only("deletedDocuments"), now });
-      return read;
-    }) as never);
-
-    await expect(DocumentService.restoreDocument(user.id, "late-purge")).rejects.toMatchObject({
-      statusCode: 410,
-    });
-    const row = await prisma.document.findUniqueOrThrow({ where: { id: "late-purge" } });
-    expect(row.deletedAt).not.toBeNull();
   });
 
   it("an admin restore refuses (410) a document purged after it was read", async () => {

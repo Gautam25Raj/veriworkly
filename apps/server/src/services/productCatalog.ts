@@ -7,7 +7,6 @@ export type ProductKey = (typeof PRODUCT_KEYS)[number];
 export const ENTITLEMENT_KEYS = {
   AI_CREDITS: "ai_credits",
   PORTFOLIO_PUBLISH: "portfolio_publish",
-  CUSTOM_SUBDOMAIN: "custom_subdomain",
   SEO_CONTROLS: "seo_controls",
   ANALYTICS: "analytics",
   WATERMARK_REMOVAL: "watermark_removal",
@@ -39,12 +38,12 @@ export const creditPackCatalog = {
 export type CreditPackKey = keyof typeof creditPackCatalog;
 
 export function isCreditPackKey(value: string): value is CreditPackKey {
-  return value in creditPackCatalog;
+  // Own keys only: `in` would also accept prototype names such as "constructor" (V-152).
+  return Object.hasOwn(creditPackCatalog, value);
 }
 
 const portfolioEntitlements: EntitlementKey[] = [
   ENTITLEMENT_KEYS.PORTFOLIO_PUBLISH,
-  ENTITLEMENT_KEYS.CUSTOM_SUBDOMAIN,
   ENTITLEMENT_KEYS.SEO_CONTROLS,
   ENTITLEMENT_KEYS.ANALYTICS,
   ENTITLEMENT_KEYS.WATERMARK_REMOVAL,

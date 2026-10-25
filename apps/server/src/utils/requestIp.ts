@@ -61,7 +61,25 @@ function readTrustedForwardedClientIp(req: Request): string | undefined {
   return normalizeIpValue(forwarded);
 }
 
-export function getRequestIpDetails(req: Request) {
+type RequestIpDetails = ReturnType<typeof computeRequestIpDetails>;
+
+/**
+ * Computed once per request: the rate limiter, the request logger, auth and the controllers all
+ * ask, and the answer cannot change mid-request (`trust proxy` is set at boot). Later header
+ * rewrites (`authRequestDiagnostics` sets `x-client-ip`) therefore do not move it.
+ */
+const detailsByRequest = new WeakMap<Request, RequestIpDetails>();
+
+export function getRequestIpDetails(req: Request): RequestIpDetails {
+  let details = detailsByRequest.get(req);
+  if (!details) {
+    details = computeRequestIpDetails(req);
+    detailsByRequest.set(req, details);
+  }
+  return details;
+}
+
+function computeRequestIpDetails(req: Request) {
   try {
     const trustedForwardedIp = readTrustedForwardedClientIp(req);
     const realIp = readHeaderValue(req.headers, "x-real-ip");

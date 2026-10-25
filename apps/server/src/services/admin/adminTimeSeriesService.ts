@@ -9,8 +9,9 @@ import { ADMIN_TIME_SERIES_TTL_SECONDS, adminTimeSeriesCacheKey } from "#service
  * Prisma's `groupBy` cannot bucket a `DateTime` column by day, so each metric is a raw
  * `date_trunc` query. The gap filling is deliberately done in TypeScript rather than with a
  * SQL `generate_series` join: a day with no rows must still render as a zero point, and doing
- * that in JS keeps every query a plain single-table range scan on the window column (each one
- * has a leading index on it: `createdAt`, `publishedAt`, `date`, `[type, createdAt]`).
+ * that in JS keeps every query a plain single-table range scan on the window column (indexed for
+ * all but one: `createdAt`, `publishedAt`, `date`, `[type, createdAt]`; `AffiliateCommission`
+ * has only `[status, createdAt]`, so its series scans that small table).
  *
  * Day boundaries are UTC regardless of the session `TimeZone` (V-071). Prisma `DateTime` columns
  * are `timestamp without time zone` holding UTC wall-clock time, so the 2-argument
@@ -170,5 +171,3 @@ export async function getAdminTimeSeries(days: number) {
 
   return series;
 }
-
-export type AdminTimeSeries = Awaited<ReturnType<typeof getAdminTimeSeries>>;

@@ -61,9 +61,9 @@ async function handleFlexibleAuth(
     typeof authorizationHeader === "string" && /^Bearer\s+\S+/i.test(authorizationHeader);
 
   if (apiKeyHeader || bearerApiKey) {
-    apiKeyAuth(req, res, (err) => {
+    await apiKeyAuth(req, res, (err) => {
       if (err) return next(err);
-      apiKeyRateLimit(req, res, next);
+      apiKeyRateLimit(req, res, next).catch(next);
     });
     return;
   }

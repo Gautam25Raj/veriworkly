@@ -2,16 +2,13 @@ import { z } from "zod";
 
 import { isValidUsername, normalizeUsername, usernameInvalidReason } from "#utils/slugs";
 
-export const usernameSchema = z
+const usernameSchema = z
   .string()
   .trim()
   .transform((value) => normalizeUsername(value))
-  .refine(
-    (value) => isValidUsername(value),
-    (value) => ({
-      message: usernameInvalidReason(value) || "invalid_username",
-    }),
-  );
+  .refine((value) => isValidUsername(value), {
+    error: (issue) => usernameInvalidReason(issue.input as string) || "invalid_username",
+  });
 
 export const updateUserNameSchema = z.object({
   name: z.string().trim().min(1, "Name cannot be empty").max(255, "Name is too long"),
@@ -27,3 +24,5 @@ export const usernameAvailabilityParamsSchema = z.object({
     .trim()
     .transform((value) => normalizeUsername(value)),
 });
+
+export const updateAutoSyncSchema = z.object({ enabled: z.boolean() });

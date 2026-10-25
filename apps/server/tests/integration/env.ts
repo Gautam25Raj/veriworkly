@@ -13,7 +13,7 @@
 const DEFAULT_DATABASE_URL = "postgresql://veriworkly:veriworkly@localhost:5433/veriworkly_test";
 const DEFAULT_REDIS_URL = "redis://localhost:6379/15";
 
-export type IntegrationEnv = {
+type IntegrationEnv = {
   databaseUrl: string;
   redisUrl: string;
   redisDbIndex: number;
@@ -35,7 +35,7 @@ function isLoopbackHost(host: string): boolean {
   return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
 }
 
-export function resolveIntegrationEnv(env: NodeJS.ProcessEnv = process.env): IntegrationEnv {
+function resolveIntegrationEnv(env: NodeJS.ProcessEnv = process.env): IntegrationEnv {
   const databaseUrl = env.INTEGRATION_DATABASE_URL || env.DATABASE_URL || DEFAULT_DATABASE_URL;
   const redisUrl = env.INTEGRATION_REDIS_URL || env.REDIS_URL || DEFAULT_REDIS_URL;
   const allowRemote = env.INTEGRATION_ALLOW_REMOTE === "1";

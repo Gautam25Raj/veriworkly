@@ -3,19 +3,19 @@ import { DocumentType, Visibility } from "@prisma/client";
 
 import { normalizeSlug, normalizeTags } from "#utils/slugs";
 
-export const documentTypeSchema = z.nativeEnum(DocumentType);
-export const visibilitySchema = z.nativeEnum(Visibility);
+const documentTypeSchema = z.nativeEnum(DocumentType);
+const visibilitySchema = z.nativeEnum(Visibility);
 
-export const documentTitleSchema = z.string().trim().min(1).max(255);
+const documentTitleSchema = z.string().trim().min(1).max(255);
 
-export const documentSlugSchema = z
+const documentSlugSchema = z
   .string()
   .trim()
   .min(1)
   .max(255)
   .transform((value) => normalizeSlug(value));
 
-export const documentTagsSchema = z
+const documentTagsSchema = z
   .array(z.string().trim().min(1).max(40))
   .max(20)
   .transform((tags) => normalizeTags(tags));
@@ -26,8 +26,8 @@ export const documentCreateSchema = z.object({
   title: documentTitleSchema.optional(),
   slug: documentSlugSchema.optional(),
   tags: documentTagsSchema.optional(),
-  content: z.record(z.any()).optional(),
-  metadata: z.record(z.any()).optional(),
+  content: z.record(z.string(), z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
   templateId: z.string().min(1).max(64).optional(),
   visibility: visibilitySchema.optional(),
 });
@@ -37,12 +37,30 @@ export const documentUpdateSchema = z.object({
   slug: documentSlugSchema.optional(),
   updateShareSlug: z.boolean().optional(),
   tags: documentTagsSchema.optional(),
-  content: z.record(z.any()).optional(),
-  metadata: z.record(z.any()).optional(),
+  content: z.record(z.string(), z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
   templateId: z.string().min(1).max(64).optional(),
   visibility: visibilitySchema.optional(),
   revision: z.number().int().min(1),
 });
 
-export type DocumentCreateRequest = z.infer<typeof documentCreateSchema>;
-export type DocumentUpdateRequest = z.infer<typeof documentUpdateSchema>;
+export const documentListQuerySchema = z.object({
+  type: z.nativeEnum(DocumentType).optional(),
+  /**
+   * Incremental hydrate cursor. The client has always sent this; it used to be
+   * dropped silently here, so every hydrate re-downloaded the whole library.
+   */
+  updatedSince: z
+    .string()
+    .datetime()
+    .optional()
+    .transform((value) => (value ? new Date(value) : undefined)),
+  /**
+   * Document bodies are omitted by default — the client library renders from
+   * metadata. Only sync, which needs to merge content, asks for them.
+   */
+  includeContent: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
+});

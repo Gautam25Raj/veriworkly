@@ -31,13 +31,13 @@ const RELEASE_LUA = `
 
 export type StillOwner = () => Promise<boolean>;
 
-export interface JobLockOptions {
+interface JobLockOptions {
   ttlMs: number;
   /** How often the TTL is pushed back out to `ttlMs`; defaults to a third of it. */
   renewEveryMs?: number;
 }
 
-export interface WithJobLockOptions extends JobLockOptions {
+interface WithJobLockOptions extends JobLockOptions {
   /** Records a success for `/health/jobs` when the run finishes without throwing, lock still held. */
   job?: JobName;
 }

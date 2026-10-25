@@ -45,7 +45,7 @@ vi.mock("#lib/redis", () => ({
 }));
 
 vi.mock("#services/entitlementService", () => ({
-  EntitlementService: { has: entitlementHas },
+  EntitlementService: { has: entitlementHas, isPaid: entitlementHas },
 }));
 
 vi.mock("#utils/slugs", () => ({

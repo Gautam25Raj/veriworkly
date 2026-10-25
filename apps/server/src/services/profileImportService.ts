@@ -11,7 +11,7 @@ import { ApiError } from "#lib/errors";
 import { logger } from "#lib/logger";
 import { cacheDel } from "#lib/redis";
 import { bumpGeneration } from "#lib/cacheGeneration";
-import { cacheNamespaces } from "#lib/cacheKeys";
+import { cacheNamespaces, masterProfileCacheKey } from "#lib/cacheKeys";
 import { masterProfileContentSchema } from "#validators/masterProfileValidator";
 import { getAtsAiPolicy } from "#services/ats/aiPolicy";
 import { aiFailure, createServerAtsAi, taskRoute } from "#services/ats/atsAi";
@@ -305,7 +305,7 @@ export class ProfileImportService {
     // After commit: the list cache was cleared inside createDocument, but a reader between
     // that clear and the commit could have re-cached the pre-import state.
     await Promise.all([
-      cacheDel(`profile:${userId}`),
+      cacheDel(masterProfileCacheKey(userId)),
       bumpGeneration(cacheNamespaces.documentList(userId)),
     ]);
 
@@ -322,9 +322,7 @@ export class ProfileImportService {
       throw new ApiError(400, "Enter a valid GitHub username or profile URL.");
     }
 
-    const isPaid =
-      (await EntitlementService.has(userId, "ai_credits")) ||
-      (await EntitlementService.has(userId, "portfolio_publish"));
+    const isPaid = await EntitlementService.isPaid(userId);
 
     // Limits first: nothing below runs for a user who could not keep the result.
     await ProfileImportQuotaService.assertQuotaAvailable(userId, "github");
@@ -415,9 +413,7 @@ export class ProfileImportService {
    * Import LinkedIn profile from raw copy-pasted text/PDF content (still needs AI).
    */
   static async importFromLinkedin(userId: string, profileText: string, replaceMaster: boolean) {
-    const isPaid =
-      (await EntitlementService.has(userId, "ai_credits")) ||
-      (await EntitlementService.has(userId, "portfolio_publish"));
+    const isPaid = await EntitlementService.isPaid(userId);
 
     // Limits first: the AI call costs money and the quota must not be spent on a 402.
     await ProfileImportQuotaService.assertQuotaAvailable(userId, "linkedin");

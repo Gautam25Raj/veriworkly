@@ -1,6 +1,8 @@
 name: Lint & Format
 
 on:
+  push:
+    branches: [master]
   pull_request:
     branches: [main, master, develop]
   workflow_dispatch:
@@ -33,3 +35,22 @@ jobs:
 
       - name: Brand Kit Matches Its Sources
         run: npm run check:brand-kit -w @veriworkly/site
+
+  # Known high or critical advisories in what production installs (V-161). Dev dependencies are
+  # left out: they never run on the server. A failure names the advisory; upgrade the package (or
+  # its parent) rather than lowering the level.
+  dependency-audit:
+    name: Dependency Audit (production)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Reads package-lock.json; no install needed.
+      - name: npm audit
+        run: npm audit --omit=dev --audit-level=high

@@ -17,6 +17,7 @@ vi.mock("#config", () => ({
       sessionCacheMaxAgeSeconds: 123,
     },
   },
+  isProduction: false,
 }));
 
 vi.mock("#lib/redis", () => ({

@@ -24,7 +24,7 @@ export async function invalidateRoadmapReadCaches(): Promise<void> {
 export type RoadmapStatus = "todo" | "in-progress" | "done";
 export type RoadmapSort = "newest" | "oldest" | "recently-completed";
 
-export interface RoadmapQuery {
+interface RoadmapQuery {
   status?: RoadmapStatus;
   sort?: RoadmapSort;
   limit?: number;
@@ -32,7 +32,7 @@ export interface RoadmapQuery {
   excludeId?: string;
 }
 
-export type RoadmapListResult = {
+type RoadmapListResult = {
   items: Array<{
     id: string;
     title: string;
@@ -47,15 +47,8 @@ export type RoadmapListResult = {
     updatedAt: Date;
     timeline: string | null;
   }>;
+  /** Page metadata is built by the controller (`createOffsetPaginationMeta`). */
   total: number;
-  limit: number;
-  offset: number;
-  hasMore: boolean;
-  pagination: {
-    mode: "offset";
-    nextOffset: number | null;
-    nextCursor: string | null;
-  };
 };
 
 // Every order ends on id: many items share a createdAt, and without a unique tiebreaker offset
@@ -129,23 +122,9 @@ const getRoadmapFeatures = async (query: RoadmapQuery = {}): Promise<RoadmapList
     prisma.roadmapFeature.count({ where }),
   ]);
 
-  const hasMore = offset + limit < total;
-  const normalizedItems = items.map((item) => ({
-    ...item,
-    status: item.status as RoadmapStatus,
-  }));
-
-  const response = {
-    items: normalizedItems,
+  const response: RoadmapListResult = {
+    items: items.map((item) => ({ ...item, status: item.status as RoadmapStatus })),
     total,
-    limit,
-    offset,
-    hasMore,
-    pagination: {
-      mode: "offset" as const,
-      nextOffset: hasMore ? offset + limit : null,
-      nextCursor: null as string | null,
-    },
   };
 
   if (cacheKey) await cacheSet(cacheKey, response, config.cache.roadmapTtlSeconds);

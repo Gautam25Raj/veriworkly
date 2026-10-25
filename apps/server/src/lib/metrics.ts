@@ -167,7 +167,7 @@ export async function getJobsBaseline(): Promise<number> {
   return processStartedAt;
 }
 
-export type JobStatus = {
+type JobStatus = {
   name: string;
   intervalSeconds: number;
   lastSuccessAt: string | null;
@@ -197,7 +197,7 @@ export function jobStatuses(
   });
 }
 
-export type Gauge = { name: string; help: string; samples: Array<[string, number]> };
+type Gauge = { name: string; help: string; samples: Array<[string, number]> };
 
 function escapeLabel(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");

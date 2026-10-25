@@ -16,7 +16,6 @@ import apiKeyRoutes from "#routes/admin/apiKeys";
 import systemRoutes from "#routes/admin/system";
 import roadmapRoutes from "#routes/admin/roadmap";
 import changelogRoutes from "#routes/admin/changelog";
-import monetizationRoutes from "#routes/admin/monetization";
 
 /**
  * Every admin API lives under this one router, and the admin gate is applied once here rather
@@ -51,12 +50,5 @@ router.use("/api-keys", apiKeyRoutes);
 router.use("/system", systemRoutes);
 router.use("/roadmap", roadmapRoutes);
 router.use("/changelog", changelogRoutes);
-
-// Pre-split path, response shape unchanged. See the note in the monetization router.
-router.use("/monetization", monetizationRoutes);
-
-// Singular alias for the old `/admin/ambassador` mount. The list response is now paginated
-// (`{ items, total, ... }` rather than a bare array), so this is a path alias, not a shape one.
-router.use("/ambassador", ambassadorRoutes);
 
 export default router;

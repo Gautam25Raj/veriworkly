@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { app } from "#app";
 import { prisma } from "#lib/prisma";
 import { cacheGet, cacheSet } from "#lib/redis";
-import { ApiKeyService } from "#services/apiKeyService";
+import { ApiKeyService, hashKey } from "#services/apiKeyService";
 import { revokeApiKey, updateApiKey } from "#services/admin/adminApiKeyService";
 
 import { STUDIO_ORIGIN } from "./env.js";
@@ -105,7 +105,7 @@ async function whileRowRetired<T>(
       if (replacementRaw) {
         await tx.apiKey.create({
           data: {
-            keyHash: ApiKeyService.hashKey(replacementRaw),
+            keyHash: hashKey(replacementRaw),
             keyPrefix: replacementRaw.slice(0, 8),
             keySuffix: replacementRaw.slice(-8),
             name: "winner",
@@ -414,7 +414,7 @@ describe("API keys through the real stack", () => {
 
     expect((await requestWithKey(created.key)).status).toBe(200);
 
-    const keyHash = ApiKeyService.hashKey(created.key);
+    const keyHash = hashKey(created.key);
     const cachedBefore = await waitForAuthCache(keyHash);
     expect(await revokedMarker(keyHash)).toBeNull();
 
@@ -440,7 +440,7 @@ describe("API keys through the real stack", () => {
     const created = await createKey(user);
     expect((await requestWithKey(created.key)).status).toBe(200);
 
-    const keyHash = ApiKeyService.hashKey(created.key);
+    const keyHash = hashKey(created.key);
     const cachedBefore = await waitForAuthCache(keyHash);
 
     const rotated = await asUser(user).post(`/api/v1/api-keys/${created.id}/rotate`).send({});
@@ -463,9 +463,9 @@ describe("API keys through the real stack", () => {
       expect((await requestWithKey(key.key)).status).toBe(200);
     }
 
-    const revokedHash = ApiKeyService.hashKey(revokedKey.key);
-    const disabledHash = ApiKeyService.hashKey(disabledKey.key);
-    const limitedHash = ApiKeyService.hashKey(limitedKey.key);
+    const revokedHash = hashKey(revokedKey.key);
+    const disabledHash = hashKey(disabledKey.key);
+    const limitedHash = hashKey(limitedKey.key);
 
     const revokedCached = await waitForAuthCache(revokedHash);
     const disabledCached = await waitForAuthCache(disabledHash);
@@ -502,7 +502,7 @@ describe("API keys through the real stack", () => {
     const created = await createKey(user);
     expect((await requestWithKey(created.key)).status).toBe(200);
 
-    const keyHash = ApiKeyService.hashKey(created.key);
+    const keyHash = hashKey(created.key);
     const cachedBefore = await waitForAuthCache(keyHash);
 
     const deleted = await request(app)

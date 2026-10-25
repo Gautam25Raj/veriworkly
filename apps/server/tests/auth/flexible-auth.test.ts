@@ -13,7 +13,8 @@ vi.mock("#config", () => ({
 }));
 
 vi.mock("#middleware/apiKeyAuth", () => ({
-  apiKeyAuth: vi.fn((req, res, next) => next()),
+  // Async like the real middleware: flexibleAuth awaits it and catches its promise.
+  apiKeyAuth: vi.fn(async (req, res, next) => next()),
 }));
 
 vi.mock("#middleware/auth", () => ({
@@ -21,7 +22,8 @@ vi.mock("#middleware/auth", () => ({
 }));
 
 vi.mock("#middleware/apiKeyRateLimit", () => ({
-  apiKeyRateLimit: vi.fn((req, res, next) => next()),
+  // Async like the real middleware: flexibleAuth awaits it and catches its promise.
+  apiKeyRateLimit: vi.fn(async (req, res, next) => next()),
 }));
 
 describe("flexibleAuth middleware", () => {

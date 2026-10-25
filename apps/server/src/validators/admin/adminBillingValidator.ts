@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  adminOptionalFlagParam,
   adminPaginationSchema,
   adminReasonSchema,
   adminSearchSchema,
@@ -9,7 +10,6 @@ import {
 export const ENTITLEMENT_KEYS = [
   "ai_credits",
   "portfolio_publish",
-  "custom_subdomain",
   "seo_controls",
   "analytics",
   "watermark_removal",
@@ -55,6 +55,8 @@ export const adminCreditAdjustmentSchema = z.object({
     .max(1_000_000)
     .refine((value) => value !== 0, "Amount must be non-zero"),
   reason: adminReasonSchema,
+  /** Body alternative to the `Idempotency-Key` header; the header wins when both are sent. */
+  idempotencyKey: z.string().trim().min(1).max(128).optional(),
 });
 
 export const adminCreditWalletListQuerySchema = adminPaginationSchema
@@ -75,10 +77,7 @@ export const adminEntitlementListQuerySchema = adminPaginationSchema
   .extend({
     userId: z.string().trim().min(1).optional(),
     key: z.enum(ENTITLEMENT_KEYS).optional(),
-    active: z
-      .union([z.string(), z.boolean()])
-      .optional()
-      .transform((value) => (value === undefined ? undefined : value === true || value === "true")),
+    active: adminOptionalFlagParam,
   });
 
 export const adminEntitlementRevokeSchema = z.object({

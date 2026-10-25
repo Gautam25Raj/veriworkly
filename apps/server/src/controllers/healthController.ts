@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from "express";
 
 import { config } from "#config";
 
-import prisma, { pool } from "#lib/prisma";
+import { prisma, pool } from "#lib/prisma";
 import { logger } from "#lib/logger";
 import { getRedis } from "#lib/redis";
 import { getJobLastSuccess, getJobsBaseline, jobStatuses, renderMetrics } from "#lib/metrics";
@@ -54,6 +54,42 @@ async function checkDependency(
   }
 }
 
+/**
+ * The `SELECT 1` still in flight, if any. The timeout above answers the probe but cannot take the
+ * query back out of the pool's queue, so on a saturated pool every probe used to leave one more
+ * queued query behind. While one is outstanding, later probes wait on that same query instead.
+ *
+ * The shared wait is bounded as well: a connection that hangs for good never settles its query,
+ * and every later probe would wait on it and report the database down long after it recovered.
+ * After READY_CHECK_TIMEOUT_MS the slot is cleared and the probe fails as a timeout, so the next
+ * one starts fresh: at most one abandoned query per timeout window, not one per probe.
+ */
+let databaseProbe: Promise<unknown> | null = null;
+
+function probeDatabase(): Promise<unknown> {
+  if (databaseProbe) return databaseProbe;
+
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new DependencyTimeoutError("database check timed out")),
+      READY_CHECK_TIMEOUT_MS,
+    );
+    timer.unref();
+  });
+
+  const probe: Promise<unknown> = Promise.race([
+    Promise.resolve().then(() => prisma.$queryRaw`SELECT 1`),
+    timeout,
+  ]).finally(() => {
+    clearTimeout(timer);
+    if (databaseProbe === probe) databaseProbe = null;
+  });
+  databaseProbe = probe;
+
+  return probe;
+}
+
 export class HealthController {
   /**
    * Lightweight liveness endpoint.
@@ -84,7 +120,7 @@ export class HealthController {
   static async ready(_req: Request, res: Response) {
     // Checked in parallel, each bounded at READY_CHECK_TIMEOUT_MS, so the probe answers in ~2 s worst case.
     const [database, redis] = await Promise.all([
-      checkDependency("database", () => prisma.$queryRaw`SELECT 1`),
+      checkDependency("database", probeDatabase),
       checkDependency("redis", () => getRedis().ping()),
     ]);
 

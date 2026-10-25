@@ -85,7 +85,3 @@ export function resolvePrivateAiModel(model: string) {
 
   return resolved;
 }
-
-export function resetPrivateAiConfigForTests() {
-  cache.clear();
-}

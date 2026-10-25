@@ -2,34 +2,16 @@ import { config, isProduction } from "#config";
 
 import { logger } from "#lib/logger";
 import { prisma } from "#lib/prisma";
+import { ensure } from "#config/validateRuntimeConfig";
 
-function ensure(condition: boolean, message: string): asserts condition {
-  if (!condition) {
-    throw new Error(message);
-  }
-}
-
-function ensurePositiveInteger(value: number, name: string): void {
-  ensure(Number.isInteger(value) && value > 0, `${name} must be a positive integer`);
-}
-
+/**
+ * Auth checks the environment schema (`config/environmentSchema.ts`) cannot make, because they
+ * depend on another variable or on the configured provider. The schema already covers the
+ * integer TTLs, AUTH_SECRET, AUTH_BASE_URL (https in production), TRUST_PROXY and
+ * API_KEY_HASH_SECRET, and runs first.
+ */
 export function validateAuthRuntimeConfig(): void {
   ensure(Boolean(config.admin.email), "ADMIN_EMAIL must be configured for admin auth");
-  ensure(Boolean(config.auth.secret), "AUTH_SECRET must be configured");
-  ensure(Boolean(config.auth.baseUrl), "AUTH_BASE_URL must be configured");
-  ensurePositiveInteger(config.auth.sessionTtlSeconds, "AUTH_SESSION_TTL_SECONDS");
-  ensurePositiveInteger(config.auth.sessionResetTtlOnUse, "AUTH_SESSION_RESET_TTL_ON_USE");
-  ensurePositiveInteger(
-    config.auth.sessionCacheMaxAgeSeconds,
-    "AUTH_SESSION_CACHE_MAX_AGE_SECONDS",
-  );
-  ensurePositiveInteger(config.auth.otpTtlSeconds, "AUTH_OTP_TTL_SECONDS");
-  ensurePositiveInteger(config.auth.otpAllowedAttempts, "AUTH_OTP_ALLOWED_ATTEMPTS");
-  ensurePositiveInteger(config.apiKeys.authCacheTtlSeconds, "API_KEY_AUTH_CACHE_TTL_SECONDS");
-  ensurePositiveInteger(
-    config.apiKeys.lastUsedTouchIntervalSeconds,
-    "API_KEY_LAST_USED_TOUCH_INTERVAL_SECONDS",
-  );
 
   if (config.auth.emailProvider === "smtp") {
     ensure(Boolean(config.auth.smtpHost), "AUTH_SMTP_HOST must be configured when using SMTP");
@@ -46,19 +28,6 @@ export function validateAuthRuntimeConfig(): void {
     ensure(
       config.auth.emailProvider === "smtp" || config.auth.emailProvider === "resend",
       "AUTH_EMAIL_PROVIDER must be smtp or resend in production",
-    );
-    ensure(
-      config.auth.secret !== "dev-auth-secret",
-      "AUTH_SECRET must be a strong non-default value in production",
-    );
-    ensure(
-      config.auth.baseUrl.startsWith("https://"),
-      "AUTH_BASE_URL must use https in production",
-    );
-    ensure(config.server.trustProxy !== true, "TRUST_PROXY must use an explicit hop count or CIDR");
-    ensure(
-      Boolean(process.env.API_KEY_HASH_SECRET) && config.apiKeys.hashSecret !== config.auth.secret,
-      "API_KEY_HASH_SECRET must be a dedicated non-empty value in production",
     );
   }
 }

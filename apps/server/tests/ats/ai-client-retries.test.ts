@@ -22,11 +22,9 @@ vi.mock("#config", () => ({
 }));
 
 /**
- * The OpenAI SDK retries twice unless told otherwise, and `AtsAiService.analyze` wraps its own
- * retry loop around the call. Left at the default the two multiply — a model configured for 2
- * retries makes up to 9 billed provider calls instead of 3 — and the extra six never surface,
- * because the SDK retries beneath the call site where nothing logs or counts them. The pricing
- * gates in `routeForTier` budget `retries + 1` calls, so the overspend is silent margin loss.
+ * The OpenAI SDK retries twice unless told otherwise. This client serves `AiService.generate`,
+ * which makes one provider call per credit reservation, so SDK retries would be extra provider
+ * calls nobody is charged for and nothing logs.
  */
 describe("AI client retry configuration", () => {
   beforeEach(() => {
@@ -34,7 +32,7 @@ describe("AI client retry configuration", () => {
     vi.resetModules();
   });
 
-  it("disables SDK-level retries so caller retry loops are not multiplied", async () => {
+  it("disables SDK-level retries", async () => {
     const { createAiClient } = await import("#services/aiClient");
     createAiClient();
 

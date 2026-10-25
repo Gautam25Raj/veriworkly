@@ -17,6 +17,8 @@ import type {
   AdminDocumentListQuery,
   adminShareLinkListQuerySchema,
 } from "#validators/admin/adminDocumentValidator";
+import { listPage } from "#utils/pagination";
+import { getAuditHistory } from "#services/admin/adminAuditService";
 
 type ShareLinkListQuery = z.infer<typeof adminShareLinkListQuerySchema>;
 
@@ -98,7 +100,7 @@ export async function listDocuments(query: AdminDocumentListQuery) {
     prisma.document.count({ where }),
   ]);
 
-  return { items, total, limit: query.limit, offset: query.offset };
+  return listPage(items, total, query);
 }
 
 export async function getDocumentDetail(documentId: string) {
@@ -128,12 +130,7 @@ export async function getDocumentDetail(documentId: string) {
 
   if (!document) throw new ApiError(404, "Document not found.");
 
-  const auditEntries = await prisma.adminAuditEntry.findMany({
-    where: { targetType: "Document", targetId: documentId },
-    orderBy: { createdAt: "desc" },
-    include: { actor: { select: { id: true, name: true, email: true } } },
-    take: 20,
-  });
+  const auditEntries = await getAuditHistory("Document", documentId);
 
   return {
     document: {
@@ -163,6 +160,8 @@ async function invalidateOwnerDocumentCaches(
   await bumpGeneration(
     ...documentCacheNamespaces(userId, documentId),
     cacheNamespaces.sharedDocumentIds(userId),
+    // The share list leaves out links on soft-deleted documents (V-030).
+    cacheNamespaces.shareList(userId),
     ...(username && shareSlugs.length > 0 ? [cacheNamespaces.publicShare(username)] : []),
   );
 }
@@ -347,15 +346,14 @@ export async function listShareLinks(query: ShareLinkListQuery) {
     prisma.shareLink.count({ where }),
   ]);
 
-  return {
-    items: items.map(({ passwordHash, ...share }) => ({
+  return listPage(
+    items.map(({ passwordHash, ...share }) => ({
       ...share,
       passwordProtected: Boolean(passwordHash),
     })),
     total,
-    limit: query.limit,
-    offset: query.offset,
-  };
+    query,
+  );
 }
 
 export async function revokeShareLink(shareLinkId: string) {

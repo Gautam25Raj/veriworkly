@@ -73,6 +73,8 @@ export async function createChangelogEntry(input: ChangelogAdminCreateInput) {
       security: input.security ?? [],
       tags: input.tags ?? [],
       prRefs: (enrichedPrRefs as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+      // Admin-written text: the release sync never re-parses it (V-066).
+      editedAt: new Date(),
     },
   });
 
@@ -108,6 +110,8 @@ export async function updateChangelogEntry(id: string, input: ChangelogAdminUpda
         enrichedPrRefs === null
           ? Prisma.JsonNull
           : (enrichedPrRefs as Prisma.InputJsonValue | undefined),
+      // From now on the release sync leaves this entry's text alone (V-066).
+      editedAt: new Date(),
     },
   });
 

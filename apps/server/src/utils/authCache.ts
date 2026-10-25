@@ -1,17 +1,15 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
-import { config } from "#config";
+import { config, isProduction } from "#config";
 import { cacheDel } from "#lib/redis";
 
 /**
  * better-auth prefixes the cookie with `__Secure-` when `useSecureCookies` is on, which
- * `auth/index.ts` ties to `config.nodeEnv === "production"`. Only that one name is read: in
+ * `auth/index.ts` ties to `isProduction`. Only that one name is read: in
  * production an injected plain-name cookie must not be able to pick the cache entry.
  */
 function sessionCookieName(): string {
-  return config.nodeEnv === "production"
-    ? "__Secure-veriworkly-auth.session_token"
-    : "veriworkly-auth.session_token";
+  return isProduction ? "__Secure-veriworkly-auth.session_token" : "veriworkly-auth.session_token";
 }
 
 /**

@@ -4,6 +4,7 @@ import { ApiError } from "#lib/errors";
 import { prisma } from "#lib/prisma";
 
 import { invalidateAffiliate } from "#services/affiliate/cache";
+import { writeAdminAudit, type AdminAuditInput } from "#services/admin/adminAuditService";
 
 const WITHDRAWAL_IN_PROGRESS = "A withdrawal is already in progress";
 
@@ -53,15 +54,20 @@ const TRANSITION_FROM: Record<"APPROVED" | "REJECTED" | "PAID", AffiliateWithdra
 // The transition is one conditional write (V-007): the row changes only if it is still in a state
 // the transition is allowed from at commit time, and the wallet moves only when it did. Concurrent
 // PAID and REJECTED on one withdrawal therefore cannot both pay and refund; the loser gets 409.
+// The admin's audit entry, when given, commits in the same transaction (V-074).
 export async function updateWithdrawal(
   id: string,
   status: "APPROVED" | "REJECTED" | "PAID",
   note?: string,
   reviewerId?: string,
+  audit?: AdminAuditInput,
 ) {
   const result = await prisma.$transaction(async (tx) => {
     const withdrawal = await tx.affiliateWithdrawal.findUnique({ where: { id } });
     if (!withdrawal) throw new ApiError(404, "Withdrawal not found.");
+    // Detached by an account deletion (only PAID or REJECTED rows can be): nothing to move.
+    if (!withdrawal.userId)
+      throw new ApiError(409, "This withdrawal belongs to a deleted account.");
 
     const transitioned = await tx.affiliateWithdrawal.updateMany({
       where: { id, status: { in: TRANSITION_FROM[status] } },
@@ -102,7 +108,16 @@ export async function updateWithdrawal(
       if (credited.count !== 1) throw new ApiError(409, "Affiliate wallet not found.");
     }
 
-    return tx.affiliateWithdrawal.findUniqueOrThrow({ where: { id } });
+    if (audit)
+      await writeAdminAudit(tx, {
+        ...audit,
+        metadata: { ...audit.metadata, status, amountCents: withdrawal.amountCents },
+      });
+
+    return {
+      ...(await tx.affiliateWithdrawal.findUniqueOrThrow({ where: { id } })),
+      userId: withdrawal.userId,
+    };
   });
   await invalidateAffiliate(result.userId);
   return result;

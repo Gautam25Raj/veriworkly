@@ -1,9 +1,10 @@
 import { z } from "zod";
 
-import { config } from "#config";
+import { config, isProduction } from "#config";
 import { getAiActionsPolicyJson, resolvePrivateAiModel } from "#services/aiPrivateConfig";
 import { AI_ACTION_KEYS, type AiActionKey, type AiMode } from "#services/aiTypes";
 import { ApiError } from "#lib/errors";
+import { logger } from "#lib/logger";
 
 const modePolicySchema = z.object({
   credits: z.number().int().positive(),
@@ -11,7 +12,7 @@ const modePolicySchema = z.object({
   maxOutputTokens: z.number().int().positive().max(32_768),
   temperature: z.number().min(0).max(2).optional(),
   topP: z.number().min(0).max(1).optional(),
-  providerOptions: z.record(z.unknown()).optional(),
+  providerOptions: z.record(z.string(), z.unknown()).optional(),
 });
 
 const actionPolicySchema = z.object({
@@ -24,11 +25,7 @@ const actionPolicySchema = z.object({
   expert: modePolicySchema,
 });
 
-const policySchema = z.record(z.enum(AI_ACTION_KEYS), actionPolicySchema);
-
-export type AiActionPolicy = z.infer<typeof actionPolicySchema>;
-
-import { logger } from "#lib/logger";
+const policySchema = z.partialRecord(z.enum(AI_ACTION_KEYS), actionPolicySchema);
 
 let cachedPolicy: z.infer<typeof policySchema> | null = null;
 
@@ -81,7 +78,7 @@ export function publicAiActionPolicy() {
 }
 
 export function validateAiRuntimeConfig() {
-  if (config.nodeEnv !== "production") return;
+  if (!isProduction) return;
   if (!config.ai.apiKey)
     throw new Error("AI provider credentials must be configured in production.");
   loadPolicy();

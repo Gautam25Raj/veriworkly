@@ -14,6 +14,8 @@ async function buildLeaderboard(period: "monthly" | "all_time") {
     by: ["affiliateId"],
     where: {
       status: { in: ["AVAILABLE", "PAID"] },
+      // Commissions of deleted affiliates stay as history with no owner; they rank nobody.
+      affiliateId: { not: null },
       ...(period === "monthly" ? { createdAt: { gte: monthStart() } } : {}),
     },
     _sum: { amountCents: true },
@@ -21,8 +23,9 @@ async function buildLeaderboard(period: "monthly" | "all_time") {
     orderBy: { _sum: { amountCents: "desc" } },
     take: 50,
   });
+  const affiliateIds = grouped.flatMap((item) => (item.affiliateId ? [item.affiliateId] : []));
   const users = await prisma.user.findMany({
-    where: { id: { in: grouped.map((item) => item.affiliateId) } },
+    where: { id: { in: affiliateIds } },
     select: { id: true, name: true, username: true, image: true, affiliateTier: true },
   });
   const byId = new Map(users.map((user) => [user.id, user]));
@@ -31,7 +34,7 @@ async function buildLeaderboard(period: "monthly" | "all_time") {
     rank: index + 1,
     earningsCents: item._sum.amountCents ?? 0,
     commissions: item._count.id,
-    user: byId.get(item.affiliateId) ?? null,
+    user: (item.affiliateId && byId.get(item.affiliateId)) ?? null,
   }));
 }
 

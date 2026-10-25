@@ -12,7 +12,7 @@ import { parseIntegerEnv } from "#config/parseEnv";
 import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
 
-export type AtsExtractOutcome = { text: string; layout?: AtsLayoutSignals };
+type AtsExtractOutcome = { text: string; layout?: AtsLayoutSignals };
 
 const EXTRACTION_TIMEOUT_MS = 20_000;
 
@@ -73,7 +73,7 @@ const queue: PendingJob[] = [];
  * It used to be a sibling of this file, forked by extension: compiled `.js` in a production
  * build, the `.ts` source everywhere else. The source never started. `fork` with an explicit
  * `execArgv` replaces the parent's, so `tsx`'s loader was dropped in development, and Node
- * before 23.6 (CI runs 22, the image 20) cannot run `.ts` on its own — PDF and DOCX extraction
+ * before 23.6 (CI and the image both run 22) cannot run `.ts` on its own — PDF and DOCX extraction
  * failed under `npm run dev`, and the tests that cover it failed in CI. Compiled JavaScript
  * needs no loader.
  *

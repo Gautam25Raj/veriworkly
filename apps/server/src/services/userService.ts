@@ -5,7 +5,7 @@ import { ApiError } from "#lib/errors";
 
 import { cacheGet, cacheSet, cacheDel } from "#lib/redis";
 import { bumpGeneration } from "#lib/cacheGeneration";
-import { cacheNamespaces, userProfileCacheKey } from "#lib/cacheKeys";
+import { cacheNamespaces, masterProfileCacheKey, userProfileCacheKey } from "#lib/cacheKeys";
 import { logger } from "#lib/logger";
 import { usernameInvalidReason } from "#utils/slugs";
 import { revokeAllSessionsForUserSafely } from "#auth/sessions";
@@ -13,7 +13,7 @@ import {
   invalidatePublicPortfolioCaches,
   revalidatePublicPortfolios,
 } from "#utils/portfolioPublicationCache";
-import { invalidateAffiliate } from "#services/affiliate/cache";
+import { invalidateAffiliate, invalidateLeaderboards } from "#services/affiliate/cache";
 import { ApiKeyService } from "#services/apiKeyService";
 import { CreditService } from "#services/creditService";
 import { EntitlementService } from "#services/entitlementService";
@@ -58,7 +58,7 @@ export async function deleteUserCascade(tx: Prisma.TransactionClient, userId: st
   await tx.user.delete({ where: { id: userId } });
 }
 
-export type DeletedUserCacheTargets = {
+type DeletedUserCacheTargets = {
   userId: string;
   username: string | null;
   documentIds: string[];
@@ -110,7 +110,7 @@ export async function purgeDeletedUserCaches(targets: DeletedUserCacheTargets): 
 
   await Promise.allSettled([
     cacheDel(userProfileCacheKey(userId)),
-    cacheDel(`profile:${userId}`),
+    cacheDel(masterProfileCacheKey(userId)),
     // One round trip of INCRs: every document, list and public share variant goes dark at once.
     bumpGeneration(
       ...targets.documentIds.map((documentId) => cacheNamespaces.document(userId, documentId)),
@@ -123,8 +123,26 @@ export async function purgeDeletedUserCaches(targets: DeletedUserCacheTargets): 
     CreditService.invalidate(userId),
     EntitlementService.invalidateEntitlements(userId),
     cacheDel(`billing:history:${userId}`),
-    invalidateAffiliate(userId),
+    invalidateAffiliate(userId, true),
     ...(targets.subdomain ? [invalidatePublicPortfolioCaches([targets.subdomain])] : []),
+  ]);
+}
+
+/**
+ * After a write to the user row: the account read (`user:profile:v2`) is replaced with the new
+ * row, and the master-profile read (`profile:{userId}`, an hour) is dropped, because its summary
+ * repeats `name` and `autoSyncEnabled` (V-031). A name or username change also drops the public
+ * affiliate leaderboards, which show both for five minutes.
+ */
+async function refreshUserCaches(
+  userId: string,
+  updated: unknown,
+  { identityChanged = false }: { identityChanged?: boolean } = {},
+) {
+  await Promise.all([
+    cacheSet(userProfileCacheKey(userId), updated, 1800),
+    cacheDel(masterProfileCacheKey(userId)),
+    ...(identityChanged ? [invalidateLeaderboards()] : []),
   ]);
 }
 
@@ -179,7 +197,7 @@ export class UserService {
       select: userProfileSelect,
     });
 
-    await cacheSet(userProfileCacheKey(userId), updated, 1800);
+    await refreshUserCaches(userId, updated, { identityChanged: true });
 
     return updated;
   }
@@ -222,7 +240,7 @@ export class UserService {
         select: userProfileSelect,
       });
 
-      await cacheSet(userProfileCacheKey(userId), updated, 1800);
+      await refreshUserCaches(userId, updated, { identityChanged: true });
       return updated;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -240,7 +258,7 @@ export class UserService {
       select: userProfileSelect,
     });
 
-    await cacheSet(userProfileCacheKey(userId), updated, 1800);
+    await refreshUserCaches(userId, updated);
     return updated;
   }
 

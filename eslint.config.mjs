@@ -37,6 +37,23 @@ const eslintConfig = defineConfig([
       "@next/next/no-html-link-for-pages": "off",
     },
   },
+
+  // The API server only: a floating promise there becomes an `unhandledRejection`, which shuts
+  // the worker down. Type-aware, so it is scoped to the server's sources and the other
+  // workspaces lint as before (apps/server/eslint.config.mjs carries the same rules).
+  {
+    files: ["apps/server/src/**/*.ts"],
+    languageOptions: {
+      parserOptions: {
+        project: ["./apps/server/tsconfig.json"],
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-misused-promises": "error",
+    },
+  },
 ]);
 
 export default eslintConfig;

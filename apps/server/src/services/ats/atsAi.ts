@@ -81,7 +81,7 @@ export function createServerAtsAi(requestId: string, enginePolicy?: AtsEnginePol
  * when the provider reported none: unknown, which a ledger must not record as free. Not the
  * model id: those resolve from private configuration and the ledger is user-facing data.
  */
-export function aiMetadata(outcome: AtsAiResult<unknown>) {
+function aiMetadata(outcome: AtsAiResult<unknown>) {
   const usage = outcome.usage;
   return {
     promptVersion: outcome.promptVersion,
@@ -140,7 +140,7 @@ type BilledRun<T> = {
 };
 
 /** A completed task whose reservation is still open: the caller decides when it is paid for. */
-export type HeldResult<T> = {
+type HeldResult<T> = {
   outcome: AtsAiResult<T>;
   /** Charges the reservation. Throws (after releasing) when the ledger refuses the commit. */
   commit(): Promise<void>;

@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { DocumentType } from "@prisma/client";
 import { NextFunction, Request, Response } from "express";
 
 import { requireAuthUser } from "#middleware/auth";
@@ -8,28 +7,11 @@ import { DocumentService } from "#services/documentService";
 
 import { createSuccessResponse, handleValidationError, ApiError } from "#lib/errors";
 
-import { documentCreateSchema, documentUpdateSchema } from "#validators/documentValidator";
-
-const listQuerySchema = z.object({
-  type: z.nativeEnum(DocumentType).optional(),
-  /**
-   * Incremental hydrate cursor. The client has always sent this; it used to be
-   * dropped silently here, so every hydrate re-downloaded the whole library.
-   */
-  updatedSince: z
-    .string()
-    .datetime()
-    .optional()
-    .transform((value) => (value ? new Date(value) : undefined)),
-  /**
-   * Document bodies are omitted by default — the client library renders from
-   * metadata. Only sync, which needs to merge content, asks for them.
-   */
-  includeContent: z
-    .enum(["true", "false"])
-    .optional()
-    .transform((value) => value === "true"),
-});
+import {
+  documentCreateSchema,
+  documentListQuerySchema,
+  documentUpdateSchema,
+} from "#validators/documentValidator";
 
 export class DocumentController {
   /**
@@ -45,7 +27,7 @@ export class DocumentController {
     try {
       const user = requireAuthUser(req);
 
-      const { type, updatedSince, includeContent } = listQuerySchema.parse(req.query);
+      const { type, updatedSince, includeContent } = documentListQuerySchema.parse(req.query);
 
       const { documents, deleted, serverTime } = await DocumentService.listDocuments(
         user.id,

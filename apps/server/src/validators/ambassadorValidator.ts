@@ -5,7 +5,7 @@ import { z } from "zod";
  * They used to drift (the client capped `superpower` at 160 while the server allowed 300),
  * which silently truncated answers rather than failing loudly.
  */
-export const AMBASSADOR_FIELD_LIMITS = {
+const AMBASSADOR_FIELD_LIMITS = {
   collegeName: 120,
   whyJoin: 1000,
   superpower: 160,
@@ -30,12 +30,12 @@ const graduationYearSchema = z
 
       return year >= currentYear - 1 && year <= currentYear + GRADUATION_YEARS_AHEAD;
     },
-    () => {
-      const currentYear = new Date().getFullYear();
+    {
+      error: () => {
+        const currentYear = new Date().getFullYear();
 
-      return {
-        message: `Graduation year should be between ${currentYear - 1} and ${currentYear + GRADUATION_YEARS_AHEAD}`,
-      };
+        return `Graduation year should be between ${currentYear - 1} and ${currentYear + GRADUATION_YEARS_AHEAD}`;
+      },
     },
   );
 

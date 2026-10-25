@@ -25,15 +25,8 @@ export type ChangelogListResult = {
     tags: string[];
     prRefs: unknown;
   }>;
+  /** Page metadata is built by the controller (`createOffsetPaginationMeta`). */
   total: number;
-  limit: number;
-  offset: number;
-  hasMore: boolean;
-  pagination: {
-    mode: "offset";
-    nextOffset: number | null;
-    nextCursor: string | null;
-  };
 };
 
 export interface ChangelogContributor {

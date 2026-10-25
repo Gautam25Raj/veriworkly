@@ -11,12 +11,18 @@ import {
   revalidatePublicPortfolios,
 } from "#utils/portfolioPublicationCache";
 import { MODERATION_SUSPENSION_PREFIX } from "#services/portfolioService";
+import {
+  writeAdminAudit,
+  type AdminAuditInput,
+  getAuditHistory,
+} from "#services/admin/adminAuditService";
 import { isPremiumPortfolioTemplate } from "#validators/portfolioValidator";
 
 import type {
   AdminPortfolioListQuery,
   adminPortfolioAssetListQuerySchema,
 } from "#validators/admin/adminPortfolioValidator";
+import { listPage } from "#utils/pagination";
 
 type AssetListQuery = z.infer<typeof adminPortfolioAssetListQuerySchema>;
 
@@ -127,7 +133,7 @@ export async function listPublications(query: AdminPortfolioListQuery) {
 
   if (query.sort === "views") withViews.sort((a, b) => b.totalViews - a.totalViews);
 
-  return { items: withViews, total, limit: query.limit, offset: query.offset };
+  return listPage(withViews, total, query);
 }
 
 export async function getPublicationDetail(publicationId: string, days = 30) {
@@ -168,12 +174,7 @@ export async function getPublicationDetail(publicationId: string, days = 30) {
       take: 10,
     }),
     prisma.portfolioViewDaily.aggregate({ where: { publicationId }, _sum: { count: true } }),
-    prisma.adminAuditEntry.findMany({
-      where: { targetType: "PortfolioPublication", targetId: publicationId },
-      orderBy: { createdAt: "desc" },
-      include: { actor: { select: { id: true, name: true, email: true } } },
-      take: 20,
-    }),
+    getAuditHistory("PortfolioPublication", publicationId),
   ]);
 
   return {
@@ -209,12 +210,14 @@ async function propagatePublicationChange(subdomain: string, userId: string, doc
  * A suspension from here is a moderation takedown and sticks: the reason is stored with the
  * `moderation:` prefix (see `isModerationLocked` in portfolioService), which the user's
  * Publish/Unpublish and every billing reconciliation leave alone. Setting the status back to
- * LIVE (or GRACE) clears the reason and is the lift path.
+ * LIVE (or GRACE) clears the reason and is the lift path. Either way the site moves on or off the
+ * public internet, so the admin audit entry commits in the same transaction (V-074).
  */
 export async function updatePublicationStatus(
   publicationId: string,
   status: "LIVE" | "GRACE" | "SUSPENDED",
   reason: string,
+  audit?: AdminAuditInput,
 ) {
   const publication = await prisma.portfolioPublication.findUnique({
     where: { id: publicationId },
@@ -237,14 +240,29 @@ export async function updatePublicationStatus(
       "A free-template portfolio has no grace period; use LIVE or SUSPENDED.",
     );
 
-  const updated = await prisma.portfolioPublication.update({
-    where: { id: publicationId },
-    data: {
-      status,
-      suspensionReason: status === "SUSPENDED" ? `${MODERATION_SUSPENSION_PREFIX}${reason}` : null,
-      suspendedAt: status === "SUSPENDED" ? new Date() : null,
-    },
-    select: PUBLICATION_LIST_SELECT,
+  const updated = await prisma.$transaction(async (tx) => {
+    const row = await tx.portfolioPublication.update({
+      where: { id: publicationId },
+      data: {
+        status,
+        suspensionReason:
+          status === "SUSPENDED" ? `${MODERATION_SUSPENSION_PREFIX}${reason}` : null,
+        suspendedAt: status === "SUSPENDED" ? new Date() : null,
+      },
+      select: PUBLICATION_LIST_SELECT,
+    });
+    if (audit)
+      await writeAdminAudit(tx, {
+        ...audit,
+        metadata: {
+          ...audit.metadata,
+          previousStatus: publication.status,
+          status,
+          subdomain: publication.subdomain,
+          ownerId: publication.userId,
+        },
+      });
+    return row;
   });
 
   await propagatePublicationChange(
@@ -260,7 +278,7 @@ export async function updatePublicationStatus(
  * Hard takedown: removes the publication row entirely and forces the source document back to
  * private, so the subdomain is released and nothing can re-serve the old snapshot.
  */
-export async function forceUnpublish(publicationId: string) {
+export async function forceUnpublish(publicationId: string, audit?: AdminAuditInput) {
   const publication = await prisma.portfolioPublication.findUnique({
     where: { id: publicationId },
     select: { id: true, userId: true, documentId: true, subdomain: true },
@@ -275,6 +293,12 @@ export async function forceUnpublish(publicationId: string) {
     });
 
     await tx.portfolioPublication.delete({ where: { id: publicationId } });
+
+    if (audit)
+      await writeAdminAudit(tx, {
+        ...audit,
+        metadata: { ...audit.metadata, subdomain: publication.subdomain },
+      });
   });
 
   await propagatePublicationChange(
@@ -305,11 +329,5 @@ export async function listAssets(query: AssetListQuery) {
     prisma.portfolioAsset.aggregate({ where, _sum: { sizeBytes: true } }),
   ]);
 
-  return {
-    items,
-    total,
-    totalSizeBytes: sizeTotal._sum.sizeBytes ?? 0,
-    limit: query.limit,
-    offset: query.offset,
-  };
+  return { ...listPage(items, total, query), totalSizeBytes: sizeTotal._sum.sizeBytes ?? 0 };
 }

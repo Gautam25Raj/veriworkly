@@ -1,12 +1,12 @@
 import cron from "node-cron";
-import type { Prisma } from "@prisma/client";
+import type { GitHubSync, Prisma } from "@prisma/client";
 import { config } from "#config";
 import type { GitHubStatsResponse } from "#types/api";
 
 import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
 import { cacheDel, cacheGet, cacheSet } from "#lib/redis";
-import { acquireJobLock } from "#lib/jobLock";
+import { acquireJobLock, type JobLock } from "#lib/jobLock";
 import { recordJobSuccess } from "#lib/metrics";
 import { bumpGeneration, resolveGenerationalKey } from "#lib/cacheGeneration";
 import { logger } from "#lib/logger";
@@ -26,7 +26,6 @@ const PROJECT_URL = config.github.projectUrl;
 const REDIS_STATS_KEY = `github:stats:${PROJECT_URL}`;
 /** Generation namespace: a sync invalidates every query variant with one INCR, not a SCAN. */
 const ISSUES_CACHE_NAMESPACE = `github:issues:${encodeURIComponent(PROJECT_URL)}`;
-const STATS_CACHE_TTL = 43200; // 12 hours
 const ISSUES_CACHE_TTL = 300; // 5 minutes
 
 /**
@@ -52,7 +51,7 @@ function nextScheduledSyncAt(): Date {
 /**
  * Map GitHub issue to internal status.
  */
-export function classifyIssue(issue: GitHubIssuePayload): GitHubStatus {
+function classifyIssue(issue: GitHubIssuePayload): GitHubStatus {
   if (issue.state === "closed") return "done";
 
   const labels = issue.labels.map((label) => label.name.toLowerCase());
@@ -69,7 +68,7 @@ export function classifyIssue(issue: GitHubIssuePayload): GitHubStatus {
 /**
  * Convert raw GitHub issues into normalized snapshot format.
  */
-export function buildGitHubIssuesSnapshot(issues: GitHubIssuePayload[]) {
+function buildGitHubIssuesSnapshot(issues: GitHubIssuePayload[]) {
   const snapshots = issues.map<GitHubItemSnapshot>((issue) => ({
     id: `gh-${issue.id}`,
     number: issue.number,
@@ -93,7 +92,7 @@ export function buildGitHubIssuesSnapshot(issues: GitHubIssuePayload[]) {
 /**
  * Fetch all GitHub issues with pagination support.
  */
-export async function fetchAllGitHubIssues(
+async function fetchAllGitHubIssues(
   owner: string,
   repo: string,
   token: string,
@@ -170,7 +169,7 @@ export async function getGitHubStats(): Promise<GitHubStatsResponse | null> {
     nextSyncAt: latest.nextSyncAt,
   };
 
-  await cacheSet(REDIS_STATS_KEY, response, STATS_CACHE_TTL);
+  await cacheSet(REDIS_STATS_KEY, response, config.cache.githubStatsTtlSeconds);
 
   return response;
 }
@@ -269,7 +268,7 @@ export async function getGitHubIssues(query: GitHubIssuesQuery): Promise<GitHubI
 /**
  * Determine whether GitHub stats need syncing (12h interval).
  */
-export async function shouldSyncGitHubStats(): Promise<boolean> {
+async function shouldSyncGitHubStats(): Promise<boolean> {
   const latest = await prisma.gitHubSync.findUnique({
     where: { projectUrl: PROJECT_URL },
     select: { syncedAt: true },
@@ -316,6 +315,21 @@ async function recordSyncFailure(error: unknown) {
   }
 }
 
+export const GITHUB_SYNC_LOCK = "github:sync:lock";
+
+/**
+ * The issue sync's lock: renewed while the sync runs (V-127); the CLI, the admin button and the
+ * cron share it. 409 when another runner holds it. Throws as `acquireJobLock` does when Redis is
+ * not ready.
+ */
+export async function acquireGitHubSyncLock(): Promise<JobLock> {
+  const lock = await acquireJobLock(GITHUB_SYNC_LOCK, { ttlMs: 600_000 });
+
+  if (!lock) throw new ApiError(409, "GitHub sync is already in progress");
+
+  return lock;
+}
+
 /** Subtracted from the stored `since` cursor: covers clock skew with GitHub; upserts are idempotent. */
 const SINCE_OVERLAP_MS = 5 * 60 * 1000;
 
@@ -341,19 +355,32 @@ function lastFullSyncAt(data: Prisma.JsonValue | undefined): Date | null {
  * - `"daily"`: full when no full sync has started yet in the current UTC day, else incremental.
  *   The cron uses this, so the first run of each day reconciles deletions and the rest are cheap.
  * - `false`: incremental whenever a cursor exists.
+ *
+ * `options.lock` is a lock the caller already took with `acquireGitHubSyncLock` (the admin
+ * trigger takes it inside the request, then runs the sync in the background); the sync releases
+ * it either way. `options.onlyIfStale` (the startup run) checks freshness once the lock is held,
+ * so a worker that waited on another's sync sees its result and resolves to null instead of
+ * syncing a second time. Checked before the lock, that run passed the check on stale data.
  */
-export async function syncGitHubStatsFromGitHub(fullSync: boolean | "daily" = false) {
+export async function syncGitHubStatsFromGitHub(
+  fullSync?: boolean | "daily",
+  options?: { lock?: JobLock },
+): Promise<GitHubSync>;
+export async function syncGitHubStatsFromGitHub(
+  fullSync: boolean | "daily",
+  options: { lock?: JobLock; onlyIfStale?: boolean },
+): Promise<GitHubSync | null>;
+export async function syncGitHubStatsFromGitHub(
+  fullSync: boolean | "daily" = false,
+  options: { lock?: JobLock; onlyIfStale?: boolean } = {},
+): Promise<GitHubSync | null> {
   // Without these the request is repos///issues, a 404 on every run.
   if (!isGitHubIssueSyncConfigured()) {
+    await options.lock?.release();
     throw new ApiError(503, "GitHub sync is not configured (GITHUB_OWNER/GITHUB_REPO)");
   }
 
-  // Renewed while the sync runs (V-127); the CLI, the admin button and the cron share it.
-  const lock = await acquireJobLock("github:sync:lock", { ttlMs: 600_000 });
-
-  if (!lock) {
-    throw new ApiError(409, "GitHub sync is already in progress");
-  }
+  const lock = options.lock ?? (await acquireGitHubSyncLock());
 
   // Checked between pages and before the write: a sync that lost its lock stops instead of
   // writing beside the runner that now holds it.
@@ -371,6 +398,8 @@ export async function syncGitHubStatsFromGitHub(fullSync: boolean | "daily" = fa
   };
 
   try {
+    if (options.onlyIfStale && !(await shouldSyncGitHubStats())) return null;
+
     const { owner, repo, token } = config.github;
 
     const existingSync = await prisma.gitHubSync.findUnique({

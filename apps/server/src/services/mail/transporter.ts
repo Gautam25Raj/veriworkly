@@ -33,7 +33,7 @@ function getSmtpTransporter() {
 }
 
 /** Per-request ceiling for a Resend send; an abort comes back as a normal Resend `error`. */
-export const RESEND_TIMEOUT_MS = 10_000;
+const RESEND_TIMEOUT_MS = 10_000;
 
 let resendClient: Resend | null = null;
 

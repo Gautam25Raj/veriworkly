@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 
-import { config } from "#config";
+import { isProduction } from "#config";
 
 import { prisma } from "#lib/prisma";
 import { logger } from "#lib/logger";
@@ -41,7 +41,7 @@ export function setAuditLogPersistence(enabled: boolean | null) {
 }
 
 function persistenceEnabled() {
-  return persistOverride ?? config.nodeEnv === "production";
+  return persistOverride ?? isProduction;
 }
 
 /** Writes everything buffered so far in one `createMany`. Never rejects. */

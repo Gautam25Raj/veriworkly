@@ -91,4 +91,19 @@ describe("addressBucket", () => {
     expect(addressBucket("2001:db8::1")).toBe("2001:db8:0:0::/64");
     expect(addressBucket("fe80::1")).toBe("fe80:0:0:0::/64");
   });
+
+  it("computes the details once per request", () => {
+    const req = {
+      ip: "203.0.113.7",
+      headers: {},
+      socket: { remoteAddress: "10.0.0.1" },
+      app: { get: () => 1 },
+    } as unknown as Request;
+
+    const first = getRequestIpDetails(req);
+    (req as unknown as { ip: string }).ip = "198.51.100.9";
+
+    expect(getRequestIpDetails(req)).toBe(first);
+    expect(first.resolvedIp).toBe("203.0.113.7");
+  });
 });

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import type { z } from "zod";
 
@@ -7,6 +7,7 @@ import { ApiError } from "#lib/errors";
 
 import { BillingService } from "#services/billingService";
 import { CreditService } from "#services/creditService";
+import { writeAdminAudit, type AdminAuditInput } from "#services/admin/adminAuditService";
 
 import type {
   adminCreditWalletListQuerySchema,
@@ -16,6 +17,7 @@ import type {
   adminWebhookListQuerySchema,
   ENTITLEMENT_KEYS,
 } from "#validators/admin/adminBillingValidator";
+import { listPage } from "#utils/pagination";
 
 type SubscriptionListQuery = z.infer<typeof adminSubscriptionListQuerySchema>;
 type SubscriptionUpdateInput = z.infer<typeof adminSubscriptionUpdateSchema>;
@@ -145,7 +147,7 @@ export async function listSubscriptions(query: SubscriptionListQuery) {
     prisma.subscription.count({ where }),
   ]);
 
-  return { items, total, limit: query.limit, offset: query.offset };
+  return listPage(items, total, query);
 }
 
 /**
@@ -155,7 +157,11 @@ export async function listSubscriptions(query: SubscriptionListQuery) {
  * `reconcileAccess` runs afterwards only so the publication and caches reflect the grace/period
  * fields that were edited.
  */
-export async function updateSubscription(subscriptionId: string, input: SubscriptionUpdateInput) {
+export async function updateSubscription(
+  subscriptionId: string,
+  input: SubscriptionUpdateInput,
+  audit: AdminAuditInput,
+) {
   const existing = await prisma.subscription.findUnique({
     where: { id: subscriptionId },
     select: { id: true, userId: true, status: true, cancelAtPeriodEnd: true },
@@ -163,21 +169,28 @@ export async function updateSubscription(subscriptionId: string, input: Subscrip
 
   if (!existing) throw new ApiError(404, "Subscription not found.");
 
-  const updated = await prisma.subscription.update({
-    where: { id: subscriptionId },
-    data: {
-      ...(input.status !== undefined ? { status: input.status } : {}),
-      ...(input.cancelAtPeriodEnd !== undefined
-        ? { cancelAtPeriodEnd: input.cancelAtPeriodEnd }
-        : {}),
-      ...(input.currentPeriodEnd !== undefined
-        ? { currentPeriodEnd: input.currentPeriodEnd ? new Date(input.currentPeriodEnd) : null }
-        : {}),
-      ...(input.graceEndsAt !== undefined
-        ? { graceEndsAt: input.graceEndsAt ? new Date(input.graceEndsAt) : null }
-        : {}),
-    },
-    include: { user: { select: SUBSCRIBER_SELECT } },
+  const updated = await prisma.$transaction(async (tx) => {
+    const subscription = await tx.subscription.update({
+      where: { id: subscriptionId },
+      data: {
+        ...(input.status !== undefined ? { status: input.status } : {}),
+        ...(input.cancelAtPeriodEnd !== undefined
+          ? { cancelAtPeriodEnd: input.cancelAtPeriodEnd }
+          : {}),
+        ...(input.currentPeriodEnd !== undefined
+          ? { currentPeriodEnd: input.currentPeriodEnd ? new Date(input.currentPeriodEnd) : null }
+          : {}),
+        ...(input.graceEndsAt !== undefined
+          ? { graceEndsAt: input.graceEndsAt ? new Date(input.graceEndsAt) : null }
+          : {}),
+      },
+      include: { user: { select: SUBSCRIBER_SELECT } },
+    });
+    await writeAdminAudit(tx, {
+      ...audit,
+      metadata: { ...audit.metadata, userId: existing.userId, previousStatus: existing.status },
+    });
+    return subscription;
   });
 
   await BillingService.reconcileAccess(existing.userId);
@@ -214,46 +227,81 @@ export async function listCreditWallets(query: WalletListQuery) {
     prisma.creditWallet.count({ where }),
   ]);
 
-  return { items, total, limit: query.limit, offset: query.offset };
+  return listPage(items, total, query);
 }
+
+/** Without a client key, identical adjustments this close together are one double submit. */
+const ADMIN_CREDIT_DEDUPE_WINDOW_MS = 10_000;
 
 export async function adjustCredits(
   userId: string,
   amount: number,
   reason: string,
-  options: { actorId: string; idempotencyKey?: string },
+  options: { actorId: string; idempotencyKey?: string; audit: AdminAuditInput },
 ) {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
   if (!user) throw new ApiError(404, "User not found.");
 
-  // CreditService dedupes on the request id. With a client-supplied Idempotency-Key a retried
-  // submit returns the original transaction; without one every adjustment is fresh, because
-  // reusing an id would silently swallow a second, legitimate adjustment with the same amount.
-  // The key is scoped to the admin, not the target user: a key reused for someone else must
-  // surface as a conflict below, not quietly credit a second account.
-  const requestId = options.idempotencyKey
-    ? `admin-credit:${options.actorId}:${options.idempotencyKey}`
-    : `admin-credit:${randomUUID()}`;
+  // CreditService dedupes on the request id, per user. With a client-supplied Idempotency-Key a
+  // retried submit returns the original transaction. The key carries the admin's id so two
+  // operators cannot share one by accident; the same key against a different user is a different
+  // request and credits that user.
+  if (options.idempotencyKey) {
+    const requestId = `admin-credit:${options.actorId}:${options.idempotencyKey}`;
+    const replayed = Boolean(
+      await prisma.creditTransaction.findUnique({
+        where: { userId_requestId: { userId, requestId } },
+        select: { id: true },
+      }),
+    );
+    return applyCreditAdjustment(userId, amount, reason, requestId, replayed, options);
+  }
 
-  const replayed = options.idempotencyKey
-    ? Boolean(
-        await prisma.creditTransaction.findUnique({
-          where: { requestId },
-          select: { id: true },
-        }),
-      )
-    : false;
+  // V-126: the studio sends no key, so a double submit would grant twice. Without one the key is
+  // derived from the request itself and a 10-second bucket; the previous bucket is checked too,
+  // so a double click across the boundary still replays. The same adjustment made deliberately
+  // later lands in a fresh bucket and is a new grant.
+  const bucket = Math.floor(Date.now() / ADMIN_CREDIT_DEDUPE_WINDOW_MS);
+  const fingerprint = createHash("sha256")
+    .update(JSON.stringify([options.actorId, userId, amount, reason]))
+    .digest("base64url");
+  const derivedRequestId = (at: number) => `admin-credit:auto:${fingerprint}:${at}`;
 
+  for (const candidate of [bucket - 1, bucket]) {
+    const existing = await prisma.creditTransaction.findUnique({
+      where: { userId_requestId: { userId, requestId: derivedRequestId(candidate) } },
+    });
+    if (existing) return { transaction: existing, replayed: true };
+  }
+
+  return applyCreditAdjustment(userId, amount, reason, derivedRequestId(bucket), false, options);
+}
+
+async function applyCreditAdjustment(
+  userId: string,
+  amount: number,
+  reason: string,
+  requestId: string,
+  replayed: boolean,
+  options: { actorId: string; audit: AdminAuditInput },
+) {
   const transaction = await CreditService.adjust(userId, amount, {
     requestId,
     reason,
     action: "admin_adjustment",
     actorId: options.actorId,
+    // Committed with the ledger rows, and only when a row is written: a replay audits nothing.
+    onWrite: async (tx, written) => {
+      await writeAdminAudit(tx, {
+        ...options.audit,
+        metadata: { ...options.audit.metadata, amount, transactionId: written.id },
+      });
+    },
   });
 
   // `CreditService.grant` returns the stored row for a reused request id without checking
   // that it matches (`consume` does); the comparison belongs here either way.
-  if (transaction.userId !== userId || transaction.amount !== amount)
+  if (transaction.amount !== amount)
     throw new ApiError(409, "Idempotency key was already used for a different request.");
 
   return { transaction, replayed };
@@ -305,7 +353,7 @@ export async function listEntitlements(query: EntitlementListQuery) {
     prisma.entitlementGrant.count({ where }),
   ]);
 
-  return { items, total, limit: query.limit, offset: query.offset };
+  return listPage(items, total, query);
 }
 
 export async function grantEntitlement(input: {
@@ -314,6 +362,7 @@ export async function grantEntitlement(input: {
   endsAt?: string | null;
   reason: string;
   actorId: string;
+  audit: AdminAuditInput;
 }) {
   const user = await prisma.user.findUnique({
     where: { id: input.userId },
@@ -322,18 +371,25 @@ export async function grantEntitlement(input: {
 
   if (!user) throw new ApiError(404, "User not found.");
 
-  const grant = await prisma.entitlementGrant.create({
-    data: {
-      userId: input.userId,
-      key: input.key,
-      source: "MANUAL",
-      // A unique sourceId per grant keeps the [userId, key, source, sourceId] unique index from
-      // rejecting a second manual grant of the same entitlement (e.g. an extension).
-      sourceId: randomUUID(),
-      endsAt: input.endsAt ? new Date(input.endsAt) : null,
-      metadata: { reason: input.reason, actorId: input.actorId },
-    },
-    include: { user: { select: SUBSCRIBER_SELECT } },
+  const grant = await prisma.$transaction(async (tx) => {
+    const created = await tx.entitlementGrant.create({
+      data: {
+        userId: input.userId,
+        key: input.key,
+        source: "MANUAL",
+        // A unique sourceId per grant keeps the [userId, key, source, sourceId] unique index from
+        // rejecting a second manual grant of the same entitlement (e.g. an extension).
+        sourceId: randomUUID(),
+        endsAt: input.endsAt ? new Date(input.endsAt) : null,
+        metadata: { reason: input.reason, actorId: input.actorId },
+      },
+      include: { user: { select: SUBSCRIBER_SELECT } },
+    });
+    await writeAdminAudit(tx, {
+      ...input.audit,
+      metadata: { ...input.audit.metadata, grantId: created.id },
+    });
+    return created;
   });
 
   await BillingService.reconcileAccess(input.userId);
@@ -341,23 +397,35 @@ export async function grantEntitlement(input: {
   return grant;
 }
 
-export async function revokeEntitlement(grantId: string, reason: string, actorId: string) {
+export async function revokeEntitlement(
+  grantId: string,
+  reason: string,
+  actorId: string,
+  audit: AdminAuditInput,
+) {
   const grant = await prisma.entitlementGrant.findUnique({ where: { id: grantId } });
 
   if (!grant) throw new ApiError(404, "Entitlement grant not found.");
   if (grant.revokedAt) throw new ApiError(409, "This entitlement is already revoked.");
 
-  const revoked = await prisma.entitlementGrant.update({
-    where: { id: grantId },
-    data: {
-      revokedAt: new Date(),
-      metadata: {
-        ...((grant.metadata as Record<string, unknown> | null) ?? {}),
-        revokeReason: reason,
-        revokedByActorId: actorId,
+  const revoked = await prisma.$transaction(async (tx) => {
+    const updated = await tx.entitlementGrant.update({
+      where: { id: grantId },
+      data: {
+        revokedAt: new Date(),
+        metadata: {
+          ...((grant.metadata as Record<string, unknown> | null) ?? {}),
+          revokeReason: reason,
+          revokedByActorId: actorId,
+        },
       },
-    },
-    include: { user: { select: SUBSCRIBER_SELECT } },
+      include: { user: { select: SUBSCRIBER_SELECT } },
+    });
+    await writeAdminAudit(tx, {
+      ...audit,
+      metadata: { ...audit.metadata, key: grant.key, userId: grant.userId },
+    });
+    return updated;
   });
 
   await BillingService.reconcileAccess(grant.userId);
@@ -403,7 +471,7 @@ export async function listWebhookEvents(query: WebhookListQuery) {
     prisma.billingWebhookEvent.count({ where }),
   ]);
 
-  return { items, total, limit: query.limit, offset: query.offset };
+  return listPage(items, total, query);
 }
 
 export async function getWebhookEvent(eventId: string) {

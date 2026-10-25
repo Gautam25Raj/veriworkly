@@ -9,6 +9,8 @@ import type {
   adminAmbassadorRosterQuerySchema,
 } from "#validators/admin/adminAmbassadorValidator";
 import type { z } from "zod";
+import { listPage } from "#utils/pagination";
+import { getAuditHistory } from "#services/admin/adminAuditService";
 
 type RosterQuery = z.infer<typeof adminAmbassadorRosterQuerySchema>;
 
@@ -71,7 +73,7 @@ export async function listApplications(query: AdminAmbassadorListQuery) {
     prisma.ambassadorApplication.count({ where }),
   ]);
 
-  return { items, total, limit: query.limit, offset: query.offset };
+  return listPage(items, total, query);
 }
 
 export async function getApplicationDetail(applicationId: string) {
@@ -99,12 +101,7 @@ export async function getApplicationDetail(applicationId: string) {
           select: { id: true, name: true, email: true },
         })
       : Promise.resolve(null),
-    prisma.adminAuditEntry.findMany({
-      where: { targetType: "AmbassadorApplication", targetId: applicationId },
-      orderBy: { createdAt: "desc" },
-      include: { actor: { select: { id: true, name: true, email: true } } },
-      take: 20,
-    }),
+    getAuditHistory("AmbassadorApplication", applicationId),
   ]);
 
   return { application, reviewer, auditEntries };
@@ -157,7 +154,7 @@ export async function listRoster(query: RosterQuery) {
     prisma.user.count({ where }),
   ]);
 
-  return { items, total, limit: query.limit, offset: query.offset };
+  return listPage(items, total, query);
 }
 
 export async function reviewApplication(

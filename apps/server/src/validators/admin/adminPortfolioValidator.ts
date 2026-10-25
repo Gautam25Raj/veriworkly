@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  adminDaysParam,
   adminPaginationSchema,
   adminReasonSchema,
   adminSearchSchema,
@@ -34,15 +35,7 @@ export const adminPortfolioUnpublishSchema = z.object({
 });
 
 export const adminPortfolioViewsQuerySchema = z.object({
-  days: z
-    .union([z.string(), z.number()])
-    .optional()
-    .transform((value) => {
-      const parsed = value === undefined ? 30 : Number(value);
-      if (!Number.isFinite(parsed)) return 30;
-
-      return Math.min(Math.max(Math.trunc(parsed), 1), 365);
-    }),
+  days: adminDaysParam(1, 365),
 });
 
 export const adminPortfolioAssetListQuerySchema = adminPaginationSchema.extend({

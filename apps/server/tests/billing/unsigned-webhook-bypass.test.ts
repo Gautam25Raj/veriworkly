@@ -20,7 +20,12 @@ const { configMock } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("#config", () => ({ config: configMock }));
+vi.mock("#config", () => ({
+  config: configMock,
+  get isProduction() {
+    return configMock.nodeEnv === "production";
+  },
+}));
 vi.mock("#lib/prisma", () => ({ prisma: {}, default: {} }));
 vi.mock("#lib/redis", () => ({
   cacheDel: vi.fn(),

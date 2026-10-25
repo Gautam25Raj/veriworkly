@@ -16,6 +16,9 @@ vi.mock("#config", () => ({
       return nodeEnv.value;
     },
   },
+  get isProduction() {
+    return nodeEnv.value === "production";
+  },
 }));
 
 const MINIMAL = {

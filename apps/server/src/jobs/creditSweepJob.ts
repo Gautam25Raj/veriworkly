@@ -39,9 +39,9 @@ export function startCreditSweepJob() {
 }
 
 /** Stops scheduling and resolves once the sweep in progress, if any, has finished. */
-export function stopCreditSweepJob(): Promise<void> {
+export async function stopCreditSweepJob(): Promise<void> {
   if (job) {
-    job.stop();
+    await job.stop();
     job = null;
     logger.info("Credit expiry sweep job stopped");
   }

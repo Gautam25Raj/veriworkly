@@ -10,6 +10,7 @@ const AUTH_SECRET = "unit-test-auth-secret";
 
 vi.mock("#config", () => ({
   config: { nodeEnv: "test", auth: { secret: AUTH_SECRET } },
+  isProduction: false,
 }));
 
 vi.mock("#lib/prisma", () => ({

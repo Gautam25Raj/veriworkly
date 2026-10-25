@@ -4,22 +4,24 @@ import { config } from "#config";
 import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
 import { getRedis } from "#lib/redis";
-import { createRunTracker } from "#lib/jobLock";
+import { createRunTracker, type JobLock } from "#lib/jobLock";
 
-import {
-  isGitHubIssueSyncConfigured,
-  shouldSyncGitHubStats,
-  syncGitHubStatsFromGitHub,
-} from "#services/github/index";
+import { isGitHubIssueSyncConfigured, syncGitHubStatsFromGitHub } from "#services/github/index";
 
 let job: ScheduledTask | null = null;
 const runs = createRunTracker();
 let warnedNotConfigured = false;
 
-/** Never rejects; a Redis blip is a skipped tick logged at warn, not an error (V-101). */
-export async function runGitHubSync(reason: "startup" | "cron"): Promise<void> {
+/**
+ * Never rejects; a Redis blip is a skipped tick logged at warn, not an error (V-101). An "admin"
+ * run arrives holding the lock its request took (V-080) and is full when `force` is set.
+ */
+export async function runGitHubSync(
+  reason: "startup" | "cron" | "admin",
+  admin?: { lock: JobLock; force: boolean },
+): Promise<void> {
   try {
-    getRedis();
+    if (!admin) getRedis();
   } catch (error) {
     logger.warn(`Skipping GitHub sync (${reason}): Redis not ready`, {
       error: error instanceof Error ? error.message : error,
@@ -30,14 +32,18 @@ export async function runGitHubSync(reason: "startup" | "cron"): Promise<void> {
   try {
     // The cron is the schedule, so it always runs; only the boot path checks freshness. syncedAt
     // lands seconds after the previous tick, so a 12 h check skipped every second cron run (V-055).
-    if (reason === "startup" && !(await shouldSyncGitHubStats())) {
+    // The check runs inside the sync, under its lock, so two booting workers cannot both pass it.
+    // The cron's first run of each UTC day is a full sync (the only kind that drops issues deleted
+    // or transferred on GitHub); its other runs, and the startup run, are incremental.
+    const result = await syncGitHubStatsFromGitHub(
+      admin ? admin.force : reason === "cron" ? "daily" : false,
+      { lock: admin?.lock, onlyIfStale: reason === "startup" },
+    );
+
+    if (!result) {
       logger.debug(`GitHub sync (${reason}) skipped: Data is fresh.`);
       return;
     }
-
-    // The cron's first run of each UTC day is a full sync (the only kind that drops issues deleted
-    // or transferred on GitHub); its other runs, and the startup run, are incremental.
-    const result = await syncGitHubStatsFromGitHub(reason === "cron" ? "daily" : false);
 
     logger.info(`GitHub sync (${reason}) success`, {
       itemsSynced:
@@ -62,6 +68,15 @@ export async function runGitHubSync(reason: "startup" | "cron"): Promise<void> {
       message: error instanceof Error ? error.message : "Unknown error",
     });
   }
+}
+
+/**
+ * Runs an admin-triggered sync after its request has answered 202, holding the lock the request
+ * took. Tracked like the scheduled runs, so shutdown waits for it. The outcome lands on the sync
+ * row (`lastSyncStatus`, `lastError`), which `GET /admin/system/github` reports.
+ */
+export function runGitHubSyncInBackground(lock: JobLock, force: boolean): void {
+  runs.track(runGitHubSync("admin", { lock, force }));
 }
 
 /** Whether startGitHubSyncJob schedules anything; `/health/jobs` reports the job disabled otherwise. */
@@ -95,9 +110,9 @@ export function startGitHubSyncJob() {
 }
 
 /** Stops scheduling and resolves once the sync in progress, if any, has finished. */
-export function stopGitHubSyncJob(): Promise<void> {
+export async function stopGitHubSyncJob(): Promise<void> {
   if (job) {
-    job.stop();
+    await job.stop();
     job = null;
 
     logger.info("GitHub sync cron stopped.");

@@ -101,7 +101,7 @@ describe("credit ledger invariants against the real database", () => {
     expect((await prisma.creditGrant.findUniqueOrThrow({ where: { id: g.id } })).remaining).toBe(
       100,
     );
-    const stillExpired = await prisma.creditReservation.findUniqueOrThrow({
+    const stillExpired = await prisma.creditReservation.findFirstOrThrow({
       where: { requestId },
     });
     expect(stillExpired.status).toBe("EXPIRED");

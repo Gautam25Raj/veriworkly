@@ -43,7 +43,7 @@ The API will be available at `http://localhost:8080`.
 - **Express.js**: Core API framework, clustered across CPU cores in production via `throng`, with graceful shutdown handling per worker.
 - **Prisma ORM**: Type-safe PostgreSQL access. See `prisma/schema.prisma` for the full data model — documents, Master Profile, billing/entitlements/credits, portfolios, affiliate/ambassador, roadmap, usage metrics.
 - **Redis**: Session cache, rate-limiting, view-count buffering, and distributed locks for scheduled jobs.
-- **Better-Auth**: Passwordless email OTP plus Google/GitHub/LinkedIn OAuth, with account linking and Postgres-backed sessions shared across subdomains.
+- **Better-Auth**: Passwordless email OTP plus Google/GitHub/LinkedIn OAuth, with account linking and sessions shared across subdomains. Sessions are read from Redis (better-auth `secondaryStorage`) and also written to Postgres (`storeSessionInDatabase`), which is the fallback when the Redis copy is missing.
 - **Dodo Payments**: Subscriptions, one-off credit-pack purchases, and a customer billing portal, driven by idempotent webhook processing.
 - **Cloudflare R2**: Presigned-URL uploads for portfolio images, with a verify-on-complete step and abandoned-upload garbage collection.
 

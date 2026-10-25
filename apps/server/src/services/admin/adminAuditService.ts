@@ -5,6 +5,7 @@ import { logger } from "#lib/logger";
 import { toCreatedAtFilter } from "#validators/admin/adminCommonValidator";
 
 import type { AdminAuditListQuery } from "#validators/admin/adminAuditValidator";
+import { listPage } from "#utils/pagination";
 
 /**
  * Canonical action names. Every mutating admin endpoint writes one of these, so the audit
@@ -66,11 +67,33 @@ export interface AdminAuditInput {
   targetType: string;
   targetId?: string | null;
   reason?: string | null;
-  metadata?: Prisma.InputJsonValue;
+  metadata?: Prisma.InputJsonObject;
+}
+
+function auditData(input: AdminAuditInput) {
+  return {
+    actorId: input.actorId,
+    action: input.action,
+    targetType: input.targetType,
+    targetId: input.targetId ?? null,
+    reason: input.reason ?? null,
+    metadata: input.metadata,
+  };
 }
 
 /**
- * Records an admin action.
+ * Writes the entry on the caller's transaction, so it commits with the mutation it describes or
+ * not at all (V-074). Every action that moves money, access or privileges (credit adjustments,
+ * commissions, withdrawals, subscription and entitlement edits, moderation, role changes,
+ * deletion) goes through here; a failed audit write fails the action, which is the point.
+ */
+export function writeAdminAudit(tx: Prisma.TransactionClient, input: AdminAuditInput) {
+  return tx.adminAuditEntry.create({ data: auditData(input) });
+}
+
+/**
+ * Records an admin action after the fact, for the mutations that are not transactional (cache
+ * flushes, sync triggers, API-key edits, content pages).
  *
  * Deliberately never throws: an audit-write failure (Postgres hiccup, unique-index surprise)
  * must not roll back an operator action that already succeeded, or the caller would retry a
@@ -78,16 +101,7 @@ export interface AdminAuditInput {
  */
 export async function recordAdminAudit(input: AdminAuditInput) {
   try {
-    return await prisma.adminAuditEntry.create({
-      data: {
-        actorId: input.actorId,
-        action: input.action,
-        targetType: input.targetType,
-        targetId: input.targetId ?? null,
-        reason: input.reason ?? null,
-        metadata: input.metadata,
-      },
-    });
+    return await prisma.adminAuditEntry.create({ data: auditData(input) });
   } catch (error) {
     logger.error("Failed to write admin audit entry", { action: input.action, error });
     return null;
@@ -124,7 +138,7 @@ export async function listAuditEntries(query: AdminAuditListQuery) {
     prisma.adminAuditEntry.count({ where }),
   ]);
 
-  return { items, total, limit: query.limit, offset: query.offset };
+  return listPage(items, total, query);
 }
 
 /**
@@ -161,6 +175,16 @@ export async function getAuditFilters() {
 }
 
 /** Recent activity strip shown on the admin overview. */
+/** The admin actions taken on one record, newest first: the history panel on every detail page. */
+export function getAuditHistory(targetType: string, targetId: string, take = 20) {
+  return prisma.adminAuditEntry.findMany({
+    where: { targetType, targetId },
+    orderBy: { createdAt: "desc" },
+    include: { actor: { select: { id: true, name: true, email: true } } },
+    take,
+  });
+}
+
 export async function getRecentAuditEntries(take = 15) {
   return prisma.adminAuditEntry.findMany({
     orderBy: { createdAt: "desc" },

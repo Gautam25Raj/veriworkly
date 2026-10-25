@@ -23,5 +23,3 @@ export const masterProfilePayloadSchema = z
     expectedUpdatedAt: z.string().datetime().optional(),
   })
   .strip();
-
-export type MasterProfilePayload = z.infer<typeof masterProfilePayloadSchema>;

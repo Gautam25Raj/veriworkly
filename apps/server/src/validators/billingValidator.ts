@@ -32,6 +32,9 @@ export const dodoSubscriptionSchema = z.object({
   status: z.string().trim().min(1, "Status is required"),
   cancel_at_next_billing_date: z.boolean(),
   next_billing_date: z.string().trim().nullable().optional(),
+  // When the provider created the subscription: tells a late event about an older subscription
+  // apart from one about the checkout that is open now.
+  created_at: z.string().trim().nullable().optional(),
   metadata: z
     .object({
       veriworkly_user_id: z.string().trim().optional(),
@@ -70,6 +73,9 @@ export const dodoPaymentSchema = z
     tax: z.number().int().nonnegative().nullable().optional(),
     currency: z.string().trim().min(1).optional(),
     is_update_payment_method: z.boolean().optional().default(false),
+    // Set when the payment was made through a checkout session; matches the open checkout record.
+    checkout_session_id: z.string().trim().nullable().optional(),
+    created_at: z.string().trim().nullable().optional(),
     service_periods: z
       .array(
         z
@@ -82,6 +88,6 @@ export const dodoPaymentSchema = z
       )
       .nullable()
       .optional(),
-    metadata: z.record(z.string()).default({}),
+    metadata: z.record(z.string(), z.string()).default({}),
   })
   .passthrough();

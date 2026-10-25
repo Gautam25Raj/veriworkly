@@ -21,7 +21,8 @@ vi.mock("#lib/prisma", () => {
 vi.mock("#lib/redis", () => ({ getRedis: mocks.getRedis }));
 vi.mock("#lib/logger", () => ({ logger: mocks.logger }));
 
-import { HealthController } from "#controllers/healthController";
+// Re-imported per test: the controller keeps the in-flight database probe in module state.
+let HealthController: typeof import("#controllers/healthController").HealthController;
 
 function makeRes() {
   const res = {
@@ -40,7 +41,9 @@ function makeRes() {
 }
 
 describe("HealthController.ready timeouts (V-096)", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    vi.resetModules();
+    ({ HealthController } = await import("#controllers/healthController"));
     vi.useFakeTimers();
     mocks.getRedis.mockReturnValue({ ping: mocks.ping });
     mocks.ping.mockResolvedValue("PONG");
@@ -109,5 +112,55 @@ describe("HealthController.ready timeouts (V-096)", () => {
     expect(res.body).toMatchObject({ details: { database: "error", redis: "error" } });
     expect(JSON.stringify(res.body)).not.toContain("secret");
     expect(JSON.stringify(res.body)).not.toContain("postgres://");
+  });
+
+  /**
+   * The timeout answers the probe but cannot cancel the query: `SELECT 1` stays queued in the pool
+   * until a connection frees. A balancer probing every few seconds against a saturated pool used
+   * to queue one more query per probe, adding to the very backlog it was reporting. Probes that
+   * arrive while one is in flight share it.
+   */
+  it("shares one database query between probes that overlap", async () => {
+    mocks.queryRaw.mockReturnValue(new Promise(() => {}));
+
+    const first = makeRes();
+    const firstPending = HealthController.ready({} as Request, first as unknown as Response);
+    await vi.advanceTimersByTimeAsync(1_000);
+    const second = makeRes();
+    const secondPending = HealthController.ready({} as Request, second as unknown as Response);
+
+    // The shared query is bounded too: the later probe answers when it times out, not 2 s after
+    // it arrived.
+    await vi.advanceTimersByTimeAsync(1_100);
+    await Promise.all([firstPending, secondPending]);
+
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
+    expect(first.body).toMatchObject({ details: { database: "timeout" } });
+    expect(second.json).toHaveBeenCalled();
+    expect(second.body).toMatchObject({ details: { database: "timeout" } });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  /**
+   * A connection that hangs for good never settles its query. Waiting on it would hold every later
+   * probe on a dead query and report the database down long after it recovered.
+   */
+  it("starts a fresh probe once the shared one has timed out, even if its query never settles", async () => {
+    mocks.queryRaw.mockReturnValueOnce(new Promise(() => {}));
+
+    const stuck = makeRes();
+    const stuckPending = HealthController.ready({} as Request, stuck as unknown as Response);
+    await vi.advanceTimersByTimeAsync(2_100);
+    await stuckPending;
+    expect(stuck.body).toMatchObject({ details: { database: "timeout" } });
+
+    // The database recovered; the hung query from the first probe is still pending.
+    const res = makeRes();
+    const pending = HealthController.ready({} as Request, res as unknown as Response);
+    await vi.advanceTimersByTimeAsync(2_100);
+    await pending;
+
+    expect(res.statusCode).toBe(200);
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(2);
   });
 });

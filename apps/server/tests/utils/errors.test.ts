@@ -2,18 +2,15 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
   ApiError,
-  NotFoundError,
-  BadRequestError,
   handleValidationError,
   createSuccessResponse,
   createErrorResponse,
 } from "../../src/lib/errors.js";
 
 describe("errors utility", () => {
-  describe("ApiError and Subclasses", () => {
+  describe("ApiError", () => {
     it("preserves prototype chain and class inheritance", () => {
-      const error = new NotFoundError("Not Found Msg");
-      expect(error).toBeInstanceOf(NotFoundError);
+      const error = new ApiError(404, "Not Found Msg");
       expect(error).toBeInstanceOf(ApiError);
       expect(error).toBeInstanceOf(Error);
       expect(error.statusCode).toBe(404);
@@ -21,14 +18,14 @@ describe("errors utility", () => {
     });
 
     it("captures stack traces correctly", () => {
-      const error = new BadRequestError("Bad Request Msg");
+      const error = new ApiError(400, "Bad Request Msg");
       expect(error.stack).toBeDefined();
       expect(error.stack).toContain("errors.test");
     });
   });
 
   describe("handleValidationError", () => {
-    it("converts a ZodError to a formatted BadRequestError", () => {
+    it("converts a ZodError to a formatted 400 ApiError", () => {
       const schema = z.object({
         email: z.string().email(),
         age: z.number().min(18),

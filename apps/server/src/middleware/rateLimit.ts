@@ -129,6 +129,63 @@ function getSanitizedPath(path: string): string {
     .join("/");
 }
 
+/**
+ * The parts of Express 4's router `Layer` this reads. A mounted router's layer matches a path
+ * prefix and carries the sub-router's stack; a route's layer matches the whole path.
+ */
+type RouterLayer = {
+  regexp: RegExp & { fast_slash?: boolean; fast_star?: boolean };
+  route?: { _handles_method(method: string): boolean };
+  handle?: { stack?: RouterLayer[] };
+};
+
+/** Express's own `Layer.match`, without its side effects: the matched part of `path`, or null. */
+function layerPrefix(layer: RouterLayer, path: string): string | null {
+  if (layer.regexp.fast_slash) return "";
+  if (layer.regexp.fast_star) return path;
+  layer.regexp.lastIndex = 0;
+  return layer.regexp.exec(path)?.[0] ?? null;
+}
+
+function routeExists(stack: RouterLayer[], path: string, method: string): boolean {
+  for (const layer of stack) {
+    if (layer.route) {
+      if (
+        layerPrefix(layer, path) !== null &&
+        // Express answers OPTIONS itself for any path a route matches.
+        (method === "OPTIONS" || layer.route._handles_method(method))
+      )
+        return true;
+      continue;
+    }
+
+    const subStack = layer.handle?.stack;
+    if (!subStack) continue;
+
+    const prefix = layerPrefix(layer, path);
+    if (prefix === null) continue;
+
+    const rest = path.slice(prefix.length);
+    if (routeExists(subStack, rest.startsWith("/") ? rest : `/${rest}`, method)) return true;
+  }
+
+  return false;
+}
+
+/**
+ * V-162: whether any route would answer this request. The limiter runs before routing, so it
+ * walks the application's router the way Express will; a request that only the 404 handler
+ * would see is counted under one `unmatched` key per client instead of a key per raw path.
+ * Without a router to ask (a bare request object), the path is treated as matched.
+ */
+function isMatchedRoute(req: Request): boolean {
+  const stack = (req.app as unknown as { _router?: { stack?: RouterLayer[] } } | undefined)?._router
+    ?.stack;
+  if (!stack) return true;
+
+  return routeExists(stack, req.path, req.method.toUpperCase());
+}
+
 type RouteLimit = {
   windowMs: number;
   maxRequests: number;
@@ -494,15 +551,21 @@ export const rateLimitMiddleware = async (req: Request, res: Response, next: Nex
   if (isRateLimitExempt(req)) return next();
 
   const path = normalizePath(req.path);
-  const { windowMs, maxRequests, failClosed } = getRouteLimitConfig(
-    path,
-    isInternalStatsRequest(req, path),
-  );
+  const matched = isMatchedRoute(req);
+  // An unmatched path takes the generic class: no handler behind it sends mail or spends credits.
+  const { windowMs, maxRequests, failClosed } = matched
+    ? getRouteLimitConfig(path, isInternalStatsRequest(req, path))
+    : {
+        windowMs: config.rateLimit.windowMs,
+        maxRequests: config.rateLimit.maxRequests,
+        failClosed: false,
+      };
   const { globalWindowMs, globalMaxRequests } = config.rateLimit;
   const key = getClientKey(req);
 
-  const sanitizedPath = getSanitizedPath(path);
-  const routeKey = `rate-limit:${req.method}:${sanitizedPath}:${key}`;
+  const routeKey = matched
+    ? `rate-limit:${req.method}:${getSanitizedPath(path)}:${key}`
+    : `rate-limit:unmatched:${key}`;
   const globalKey = `rate-limit:global:${key}`;
   // The autosave class is counted per user after auth (`autosaveRateLimit`); here only globally.
   const autosave = isAutosaveRequest(req.method, path);

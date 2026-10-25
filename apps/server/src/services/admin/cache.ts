@@ -4,14 +4,15 @@ import { bumpGeneration, resolveGenerationalKey } from "#lib/cacheGeneration";
  * Redis caching for the admin overview surface.
  *
  * These four readers are the only admin endpoints worth caching: they are read-only, they are
- * re-fetched constantly, and every one of them is an aggregate scan rather than an indexed
- * lookup. The rest of the admin API is either a paginated list (already cheap and filtered by
- * query params that would make the key space unbounded) or a mutation.
+ * re-fetched constantly, and each is a batch of aggregates rather than one lookup. The rest of
+ * the admin API is either a paginated list (already cheap and filtered by query params that
+ * would make the key space unbounded) or a mutation.
  *
- * The action queue is the one that actually hurt. `AdminLayout` fetches it on *every* admin
- * navigation to render the sidebar badges, so before this every page load in the panel ran six
- * un-indexed `COUNT`s on top of whatever the page itself needed. `getAdminOverview` is worse per
- * call — ten domain summaries, dozens of aggregates — but only runs on `/admin`.
+ * The action queue is the most frequent. `AdminLayout` fetches it on *every* admin navigation to
+ * render the sidebar badges, so without the cache every page load in the panel would run its six
+ * `COUNT`s (each on a `[status, …]` index) on top of whatever the page itself needed.
+ * `getAdminOverview` is heavier per call — eight domain summaries plus health and recent
+ * activity, dozens of aggregates — but only runs on `/admin`.
  *
  * TTLs are deliberately short. This is an ops panel: an operator deciding whether to suspend a
  * portfolio needs numbers that are seconds old, not minutes. The TTL is a floor on freshness,

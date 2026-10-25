@@ -20,9 +20,110 @@ const allowedTypes = new Map([
 ]);
 
 const maxBytes = 5 * 1024 * 1024;
-const MAX_PENDING_UPLOADS_PER_USER = 20;
-const PENDING_UPLOAD_WINDOW_MS = 60 * 60 * 1000;
+const MAX_UPLOADS_PER_WINDOW = 20;
+const UPLOAD_WINDOW_MS = 60 * 60 * 1000;
+/** How long an abandoned upload, or a completed image nothing references, is kept. */
+const STALE_ASSET_AGE_MS = 24 * 60 * 60 * 1000;
 let client: S3Client | null = null;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function assetIdOf(value: unknown): string | null {
+  return isRecord(value) && typeof value.id === "string" && value.id ? value.id : null;
+}
+
+/**
+ * Every asset id a stored portfolio body references: the avatar, the social image, and each
+ * item's cover on the main page and on every extra page. Reads stored JSON without parsing it
+ * against the schema, so an older or partly invalid body still protects the images it shows.
+ */
+export function referencedAssetIds(content: unknown): Set<string> {
+  const ids = new Set<string>();
+  if (!isRecord(content)) return ids;
+
+  const add = (value: unknown) => {
+    const id = assetIdOf(value);
+    if (id) ids.add(id);
+  };
+
+  if (isRecord(content.identity)) add(content.identity.avatar);
+  if (isRecord(content.seo)) add(content.seo.socialImage);
+
+  const sectionLists = [
+    content.sections,
+    ...(Array.isArray(content.pages)
+      ? content.pages.map((page) => (isRecord(page) ? page.sections : null))
+      : []),
+  ];
+
+  for (const sections of sectionLists) {
+    if (!Array.isArray(sections)) continue;
+    for (const section of sections) {
+      if (!isRecord(section) || !Array.isArray(section.items)) continue;
+      for (const item of section.items) if (isRecord(item)) add(item.coverImage);
+    }
+  }
+
+  return ids;
+}
+
+/** The `suspensionReason` of the user's own Unpublish (see `PortfolioService`). */
+export const USER_UNPUBLISHED_REASON = "user_unpublished";
+
+/**
+ * Whether the stored snapshot can come back without a new publish, so its images must stay. A
+ * billing lapse or an admin takedown suspends the row but keeps the snapshot: a renewal
+ * (`BillingService`) or an admin lift (`adminPortfolioService.updatePublicationStatus`) sets it
+ * LIVE again as it was. Only the user's own Unpublish retires it: republishing uses the draft.
+ */
+function snapshotRestorable(publication: { status: string; suspensionReason: string | null }) {
+  return !(
+    publication.status === "SUSPENDED" && publication.suspensionReason === USER_UNPUBLISHED_REASON
+  );
+}
+
+/**
+ * The asset ids any of this user's portfolio bodies still reference: every PORTFOLIO document,
+ * soft-deleted ones included (a restore brings their images back), and the published snapshot
+ * whatever its status, unless the user unpublished it (`snapshotRestorable`).
+ */
+async function assetIdsInUse(userId: string): Promise<Set<string>> {
+  const [documents, publication] = await Promise.all([
+    prisma.document.findMany({ where: { userId, type: "PORTFOLIO" }, select: { content: true } }),
+    prisma.portfolioPublication.findUnique({
+      where: { userId },
+      select: { snapshot: true, status: true, suspensionReason: true },
+    }),
+  ]);
+
+  const inUse = new Set<string>();
+  for (const document of documents)
+    for (const id of referencedAssetIds(document.content)) inUse.add(id);
+  if (publication && snapshotRestorable(publication))
+    for (const id of referencedAssetIds(publication.snapshot)) inUse.add(id);
+
+  return inUse;
+}
+
+/**
+ * Deletes the R2 object, then the row. An R2 failure keeps the row (logged), so the object is
+ * never left without a record; the stale sweep retries it later.
+ */
+async function deleteAssetObject(s3: S3Client, asset: { id: string; key: string }) {
+  try {
+    await s3.send(new DeleteObjectCommand({ Bucket: config.r2.bucket, Key: asset.key }));
+  } catch (error) {
+    logger.warn("Failed to delete R2 asset; retaining metadata for retry", {
+      assetId: asset.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return;
+  }
+
+  await prisma.portfolioAsset.deleteMany({ where: { id: asset.id } });
+}
 
 function getClient() {
   if (
@@ -58,21 +159,15 @@ export class PortfolioAssetService {
       throw new ApiError(400, "Image must be 5 MB or smaller.");
 
     // Each call writes a row and mints a live R2 PUT URL, so without a cap a single account can
-    // spam storage and the assets table. Counts only PENDING rows, so normal usage (upload then
-    // complete) never approaches the ceiling — this bounds abandoned/never-completed uploads.
-    const pendingUploads = await prisma.portfolioAsset.count({
-      where: {
-        userId,
-        status: "PENDING",
-        createdAt: { gt: new Date(Date.now() - PENDING_UPLOAD_WINDOW_MS) },
-      },
+    // spam storage and the assets table. Every upload started in the window counts, completed or
+    // not: counting only PENDING rows let an upload-then-complete loop store 5 MB per call
+    // without limit (V-045).
+    const recentUploads = await prisma.portfolioAsset.count({
+      where: { userId, createdAt: { gt: new Date(Date.now() - UPLOAD_WINDOW_MS) } },
     });
 
-    if (pendingUploads >= MAX_PENDING_UPLOADS_PER_USER)
-      throw new ApiError(
-        429,
-        "Too many uploads in progress. Finish or wait for the pending ones to expire.",
-      );
+    if (recentUploads >= MAX_UPLOADS_PER_WINDOW)
+      throw new ApiError(429, "Too many image uploads this hour. Try again later.");
 
     const key = `portfolio/${userId}/${randomUUID()}.${extension}`;
     const asset = await prisma.portfolioAsset.create({ data: { userId, key, ...input } });
@@ -136,49 +231,109 @@ export class PortfolioAssetService {
   }
 
   /**
-   * Deletes PENDING uploads abandoned for a day. Takes no lock and throws on failure: the hourly
-   * portfolio access sweep runs it under its own job lock and reports a failure to `/health/jobs`.
-   * An R2 delete that fails keeps the row for the next run and is not a failure.
+   * Deletes PENDING uploads abandoned for a day, and completed images nothing has referenced for
+   * a day (V-045): one uploaded and never saved into a portfolio, or one a path dropped without
+   * releasing it. Takes no lock and throws on failure: the hourly portfolio access sweep runs it
+   * under its own job lock and reports a failure to `/health/jobs`. An R2 delete that fails
+   * keeps the row for the next run and is not a failure.
+   *
+   * READY rows are taken oldest `updatedAt` first and the ones still in use are touched, so more
+   * than one batch of images in use rotates instead of hiding the orphans behind it every run.
    */
   static async cleanupStaleAssets() {
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const staleAssets = await prisma.portfolioAsset.findMany({
-      where: {
-        status: "PENDING",
-        createdAt: { lt: oneDayAgo },
-      },
-      // Bounded so one run can't try to issue an unbounded number of sequential R2 deletes;
-      // the job runs on a schedule and drains any remainder on the next tick.
-      take: 500,
-    });
+    const staleBefore = new Date(Date.now() - STALE_ASSET_AGE_MS);
 
-    if (staleAssets.length === 0) return;
+    // Bounded so one run can't try to issue an unbounded number of sequential R2 deletes;
+    // the job runs on a schedule and drains any remainder on the next tick.
+    const [pending, ready] = await Promise.all([
+      prisma.portfolioAsset.findMany({
+        where: { status: "PENDING", createdAt: { lt: staleBefore } },
+        select: { id: true, key: true },
+        take: 500,
+      }),
+      prisma.portfolioAsset.findMany({
+        where: { status: "READY", updatedAt: { lt: staleBefore } },
+        select: { id: true, key: true, userId: true },
+        orderBy: { updatedAt: "asc" },
+        take: 500,
+      }),
+    ]);
 
-    const s3 = getClient();
-    const deletedIds: string[] = [];
-    for (const asset of staleAssets) {
-      try {
-        await s3.send(new DeleteObjectCommand({ Bucket: config.r2.bucket, Key: asset.key }));
-        deletedIds.push(asset.id);
-      } catch (error) {
-        logger.warn("Failed to delete stale R2 asset; retaining metadata for retry", {
-          assetId: asset.id,
-          error: error instanceof Error ? error.message : String(error),
-        });
+    const orphans: Array<{ id: string; key: string }> = [];
+    const inUseIds: string[] = [];
+
+    for (const userId of new Set(ready.map((asset) => asset.userId))) {
+      const inUse = await assetIdsInUse(userId);
+      for (const asset of ready.filter((candidate) => candidate.userId === userId)) {
+        if (inUse.has(asset.id)) inUseIds.push(asset.id);
+        else orphans.push(asset);
       }
     }
 
-    if (deletedIds.length === 0) return;
+    if (inUseIds.length > 0)
+      await prisma.portfolioAsset.updateMany({
+        where: { id: { in: inUseIds } },
+        data: { updatedAt: new Date() },
+      });
 
-    await prisma.portfolioAsset.deleteMany({
-      where: { id: { in: deletedIds } },
-    });
+    if (pending.length === 0 && orphans.length === 0) return;
+
+    const s3 = getClient();
+    for (const asset of [...pending, ...orphans]) await deleteAssetObject(s3, asset);
+  }
+
+  /**
+   * Called once a draft save or a publish has committed, with the asset ids the body it replaced
+   * referenced (V-045). The ones no portfolio body references any more (the old avatar, a removed
+   * project cover) are deleted from R2 and the table. Never throws: the save already succeeded,
+   * and anything left behind is picked up by the stale sweep.
+   */
+  static async releaseReplacedAssets(userId: string, previousIds: Iterable<string>) {
+    try {
+      const candidates = [...new Set(previousIds)];
+      if (candidates.length === 0) return;
+
+      const inUse = await assetIdsInUse(userId);
+      const unused = candidates.filter((id) => !inUse.has(id));
+      if (unused.length === 0) return;
+
+      const assets = await prisma.portfolioAsset.findMany({
+        where: { id: { in: unused }, userId, status: "READY" },
+        select: { id: true, key: true },
+      });
+      if (assets.length === 0) return;
+
+      const s3 = getClient();
+      for (const asset of assets) await deleteAssetObject(s3, asset);
+    } catch (error) {
+      logger.warn("Could not release replaced portfolio assets; the stale sweep will retry", {
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   static async delete(userId: string, assetId: string) {
     const asset = await prisma.portfolioAsset.findFirst({ where: { id: assetId, userId } });
 
     if (!asset) throw new ApiError(404, "Portfolio asset not found.");
+
+    // The live page serves the published snapshot, not the draft: deleting an image it shows
+    // breaks the public site until the next publish (V-045).
+    const publication = await prisma.portfolioPublication.findUnique({
+      where: { userId },
+      select: { snapshot: true, status: true, suspensionReason: true },
+    });
+
+    if (
+      publication &&
+      snapshotRestorable(publication) &&
+      referencedAssetIds(publication.snapshot).has(asset.id)
+    )
+      throw new ApiError(
+        409,
+        "Your published portfolio still shows this image. Publish without it first.",
+      );
 
     await getClient().send(new DeleteObjectCommand({ Bucket: config.r2.bucket, Key: asset.key }));
     await prisma.portfolioAsset.delete({ where: { id: asset.id } });

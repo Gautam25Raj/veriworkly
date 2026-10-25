@@ -1,4 +1,4 @@
-export const RESERVED_USERNAMES = new Set([
+const RESERVED_USERNAMES = new Set([
   "admin",
   "api",
   "app",

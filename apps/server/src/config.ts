@@ -17,10 +17,11 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
 }
 
-const defaultAuthSessionCacheEnabled =
-  (process.env.NODE_ENV || "development") === "production" ? "true" : "false";
+const nodeEnv = process.env.NODE_ENV || "development";
 
-const isProductionEnv = (process.env.NODE_ENV || "development") === "production";
+/** The one production check: everything else imports this. */
+export const isProduction = nodeEnv === "production";
+export const isDevelopment = nodeEnv === "development";
 
 function parseTrustProxy(value: string | undefined): boolean | string | number {
   if (value == null) return false;
@@ -46,7 +47,7 @@ function getOriginSafe(urlStr: string): string | null {
   }
 }
 
-const defaultStudioUrl = isProductionEnv ? "https://app.veriworkly.com" : "http://localhost:3001";
+const defaultStudioUrl = isProduction ? "https://app.veriworkly.com" : "http://localhost:3001";
 const configuredStudioUrl =
   process.env.STUDIO_URL || process.env.NEXT_PUBLIC_APP_URL || defaultStudioUrl;
 const configuredStudioLoginUrl =
@@ -54,7 +55,7 @@ const configuredStudioLoginUrl =
 const studioOrigin = getOriginSafe(configuredStudioUrl);
 
 export const config = {
-  nodeEnv: process.env.NODE_ENV || "development",
+  nodeEnv,
 
   port: parseIntegerEnv(process.env.PORT, 8080),
 
@@ -70,10 +71,6 @@ export const config = {
         .filter(Boolean),
     ),
   ),
-
-  database: {
-    url: process.env.DATABASE_URL || "",
-  },
 
   redis: {
     url: process.env.REDIS_URL || "redis://localhost:6379",
@@ -95,10 +92,7 @@ export const config = {
       .filter((header) => Boolean(header) && header !== "x-forwarded-client-ip"),
     sessionTtlSeconds: parseIntegerEnv(process.env.AUTH_SESSION_TTL_SECONDS, 2592000),
     sessionResetTtlOnUse: parseIntegerEnv(process.env.AUTH_SESSION_RESET_TTL_ON_USE, 86400),
-    sessionCacheEnabled: parseBoolean(
-      process.env.AUTH_SESSION_CACHE_ENABLED,
-      defaultAuthSessionCacheEnabled === "true",
-    ),
+    sessionCacheEnabled: parseBoolean(process.env.AUTH_SESSION_CACHE_ENABLED, isProduction),
     sessionCacheMaxAgeSeconds: parseIntegerEnv(process.env.AUTH_SESSION_CACHE_MAX_AGE_SECONDS, 900),
     otpTtlSeconds: parseIntegerEnv(process.env.AUTH_OTP_TTL_SECONDS, 300),
     otpAllowedAttempts: parseIntegerEnv(process.env.AUTH_OTP_ALLOWED_ATTEMPTS, 3),
@@ -140,10 +134,7 @@ export const config = {
 
   server: {
     trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
-    clusteringEnabled: parseBoolean(
-      process.env.CLUSTERING_ENABLED,
-      (process.env.NODE_ENV || "development") === "production",
-    ),
+    clusteringEnabled: parseBoolean(process.env.CLUSTERING_ENABLED, isProduction),
     workers: (() => {
       const requested = parseIntegerEnv(
         process.env.WEB_CONCURRENCY || process.env.SERVER_WORKERS,
@@ -200,7 +191,6 @@ export const config = {
   cache: {
     roadmapTtlSeconds: parseIntegerEnv(process.env.ROADMAP_CACHE_TTL_SECONDS, 2592000),
     roadmapStatsTtlSeconds: parseIntegerEnv(process.env.ROADMAP_STATS_CACHE_TTL_SECONDS, 2592000),
-    roadmapTagsTtlSeconds: parseIntegerEnv(process.env.ROADMAP_TAGS_CACHE_TTL_SECONDS, 2592000),
     githubStatsTtlSeconds: parseIntegerEnv(process.env.GITHUB_STATS_CACHE_TTL_SECONDS, 43200),
     changelogTtlSeconds: parseIntegerEnv(process.env.CHANGELOG_CACHE_TTL_SECONDS, 2592000),
   },
@@ -287,13 +277,7 @@ export const config = {
   // non-production environments by default so they can be built/tested, and off in production
   // until explicitly turned on via env vars once the program is ready to launch publicly.
   growth: {
-    affiliateProgramEnabled: parseBoolean(process.env.AFFILIATE_PROGRAM_ENABLED, !isProductionEnv),
-    ambassadorProgramEnabled: parseBoolean(
-      process.env.AMBASSADOR_PROGRAM_ENABLED,
-      !isProductionEnv,
-    ),
+    affiliateProgramEnabled: parseBoolean(process.env.AFFILIATE_PROGRAM_ENABLED, !isProduction),
+    ambassadorProgramEnabled: parseBoolean(process.env.AMBASSADOR_PROGRAM_ENABLED, !isProduction),
   },
 };
-
-export const isDevelopment = config.nodeEnv === "development";
-export const isProduction = config.nodeEnv === "production";

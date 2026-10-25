@@ -2,25 +2,11 @@ import { z } from "zod";
 import { Request, Response, NextFunction } from "express";
 
 import * as githubService from "#services/github/index";
+import { startGitHubSync } from "#services/admin/adminSyncTrigger";
 
-import {
-  parseOffsetPagination,
-  createOffsetPaginationMeta,
-  notBothPageAndOffset,
-  notBothPageAndOffsetError,
-  publicOffsetParam,
-  publicPageParam,
-} from "#utils/pagination";
+import { parseOffsetPagination, createOffsetPaginationMeta } from "#utils/pagination";
+import { githubQuerySchema } from "#validators/githubValidator";
 import { createSuccessResponse, handleValidationError } from "#lib/errors";
-
-/**
- * Validation schema for GitHub query parameters.
- */
-
-// A date (2026-08-01) or a full ISO datetime; anything else is a 400 rather than a silent no-op.
-const isoDateFilter = z
-  .union([z.string().date(), z.string().datetime({ offset: true })])
-  .optional();
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -39,22 +25,6 @@ function toDateRange(from?: string, to?: string): githubService.GitHubDateRange 
 
   return range;
 }
-
-const githubQuerySchema = z
-  .object({
-    status: z.enum(["todo", "in-progress", "done"]).optional(),
-    kind: z.enum(["issue", "pull-request", "all"]).optional(),
-    page: publicPageParam,
-    pageSize: z.coerce.number().int().min(1).max(50).optional(),
-    limit: z.coerce.number().int().min(1).max(50).optional(),
-    offset: publicOffsetParam,
-    createdFrom: isoDateFilter,
-    createdTo: isoDateFilter,
-    updatedFrom: isoDateFilter,
-    updatedTo: isoDateFilter,
-  })
-  .strict()
-  .refine(notBothPageAndOffset, notBothPageAndOffsetError);
 
 export class GithubController {
   /**
@@ -113,7 +83,9 @@ export class GithubController {
   }
 
   /**
-   * Trigger a manual sync of GitHub data (Admin only).
+   * Trigger a manual sync of GitHub data (Admin only). Answers 202 once the sync's lock is taken
+   * and runs the sync in the background (V-080): it pages through GitHub for longer than a proxy
+   * holds a request open. 409 while a sync is running, 503 when Redis is down.
    *
    * @param req Express request
    * @param res Express response
@@ -122,9 +94,9 @@ export class GithubController {
 
   static async syncStats(req: Request, res: Response, next: NextFunction) {
     try {
-      const syncResult = await githubService.syncGitHubStatsFromGitHub();
+      const started = await startGitHubSync(false);
 
-      res.json(createSuccessResponse(syncResult, "Manual GitHub sync completed successfully"));
+      res.status(202).json(createSuccessResponse(started, "GitHub sync started"));
     } catch (error) {
       next(error);
     }

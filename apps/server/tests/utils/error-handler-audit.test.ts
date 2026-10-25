@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("#config", () => ({
   config: { nodeEnv: "production" },
+  isProduction: true,
 }));
 
 vi.mock("#lib/logger", () => ({

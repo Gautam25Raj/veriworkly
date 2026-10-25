@@ -4,7 +4,7 @@ import { Request, Response, NextFunction } from "express";
 import multer from "multer";
 import { ZodError } from "zod";
 
-import { config } from "#config";
+import { isProduction } from "#config";
 
 import { logger } from "#lib/logger";
 import { ApiError, createErrorResponse, handleValidationError } from "#lib/errors";
@@ -251,7 +251,7 @@ export function errorHandler(error: unknown, req: Request, res: Response, next: 
     // response body is generic in production.
     recordAuditError(res, error.message);
 
-    const message = config.nodeEnv === "production" ? "Internal server error" : error.message;
+    const message = isProduction ? "Internal server error" : error.message;
     return res.status(500).json(createErrorResponse(500, message));
   }
 

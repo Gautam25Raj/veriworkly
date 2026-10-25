@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  adminFlagParam,
   adminDateRangeSchema,
   adminPaginationSchema,
   adminSearchSchema,
@@ -19,7 +20,7 @@ export const adminAuditListQuerySchema = adminPaginationSchema
 export type AdminAuditListQuery = z.infer<typeof adminAuditListQuerySchema>;
 
 /** Position after the last row of a request-log page, ordered `(createdAt DESC, id DESC)`. */
-export interface RequestLogCursor {
+interface RequestLogCursor {
   createdAt: Date;
   id: string;
 }
@@ -38,7 +39,7 @@ function decodeRequestLogCursor(value: string): RequestLogCursor | null {
 }
 
 /** Request-log offsets only serve the studio's first pages; deeper paging uses the cursor (V-078). */
-export const REQUEST_LOG_MAX_OFFSET = 1000;
+const REQUEST_LOG_MAX_OFFSET = 1000;
 
 export const adminRequestLogQuerySchema = adminPaginationSchema.merge(adminDateRangeSchema).extend({
   offset: adminPaginationSchema.shape.offset.transform((value) =>
@@ -63,8 +64,5 @@ export const adminRequestLogQuerySchema = adminPaginationSchema.merge(adminDateR
   path: z.string().trim().min(1).max(255).optional(),
   /** `4` or `5` narrows to the 4xx/5xx family — the only filter that matters on-call. */
   statusClass: z.enum(["2", "3", "4", "5"]).optional(),
-  errorsOnly: z
-    .union([z.string(), z.boolean()])
-    .optional()
-    .transform((value) => value === true || value === "true"),
+  errorsOnly: adminFlagParam,
 });

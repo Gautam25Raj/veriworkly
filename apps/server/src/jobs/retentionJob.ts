@@ -196,7 +196,7 @@ const RULES: Array<{ name: string; setting: RetentionSetting; step: BatchStep }>
   },
 ];
 
-export type RetentionSummary = {
+type RetentionSummary = {
   /** Rows deleted or redacted per enabled rule. */
   affected: Record<string, number>;
   /** Rules that stopped on the time budget with rows left; the next run continues them. */
@@ -301,9 +301,9 @@ export function startRetentionJob() {
 }
 
 /** Stops scheduling and resolves once the run in progress, if any, has finished. */
-export function stopRetentionJob(): Promise<void> {
+export async function stopRetentionJob(): Promise<void> {
   if (job) {
-    job.stop();
+    await job.stop();
     job = null;
     logger.info("Retention job stopped");
   }

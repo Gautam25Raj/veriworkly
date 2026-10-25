@@ -46,7 +46,7 @@ type PaginationConfig = {
   maxPageSize?: number;
 };
 
-export type OffsetPagination = {
+type OffsetPagination = {
   page: number;
   pageSize: number;
   limit: number;
@@ -107,4 +107,12 @@ export function createOffsetPaginationMeta(total: number, pagination: OffsetPagi
       nextCursor: null as string | null,
     },
   };
+}
+
+/**
+ * The admin list envelope: the page plus the window it was read with. Lists that report an extra
+ * total (amount, size) spread this and add their own field.
+ */
+export function listPage<T>(items: T[], total: number, query: { limit: number; offset: number }) {
+  return { items, total, limit: query.limit, offset: query.offset };
 }

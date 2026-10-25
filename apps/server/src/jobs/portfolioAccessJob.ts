@@ -156,8 +156,8 @@ export function startPortfolioAccessJob() {
 }
 
 /** Stops scheduling and resolves once the sweep in progress, if any, has finished. */
-export function stopPortfolioAccessJob(): Promise<void> {
-  job?.stop();
+export async function stopPortfolioAccessJob(): Promise<void> {
+  await job?.stop();
   job = null;
 
   return runs.idle();

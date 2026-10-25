@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  adminOptionalFlagParam,
   adminPaginationSchema,
   adminReasonSchema,
   adminSearchSchema,
@@ -8,10 +9,7 @@ import {
 
 export const adminApiKeyListQuerySchema = adminPaginationSchema.merge(adminSearchSchema).extend({
   userId: z.string().trim().min(1).optional(),
-  active: z
-    .union([z.string(), z.boolean()])
-    .optional()
-    .transform((value) => (value === undefined ? undefined : value === true || value === "true")),
+  active: adminOptionalFlagParam,
   sort: z.enum(["newest", "lastUsed"]).default("newest"),
 });
 

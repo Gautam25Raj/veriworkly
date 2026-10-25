@@ -1,15 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Prisma } from "@prisma/client";
 
-const { affiliateMock, creditMock, apiKeyServiceMock, billingMailMock } = vi.hoisted(() => ({
-  affiliateMock: { createCommission: vi.fn() },
-  creditMock: { grant: vi.fn(), getWallet: vi.fn() },
-  apiKeyServiceMock: { invalidateAuthCacheForUser: vi.fn().mockResolvedValue(undefined) },
-  billingMailMock: {
-    sendSubscriptionPurchasedEmail: vi.fn().mockResolvedValue(undefined),
-    sendSubscriptionCancelledEmail: vi.fn().mockResolvedValue(undefined),
-  },
-}));
+const { affiliateMock, creditMock, apiKeyServiceMock, billingMailMock, loggerMock } = vi.hoisted(
+  () => ({
+    loggerMock: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+    affiliateMock: { createCommission: vi.fn() },
+    creditMock: { grant: vi.fn(), getWallet: vi.fn() },
+    apiKeyServiceMock: { invalidateAuthCacheForUser: vi.fn().mockResolvedValue(undefined) },
+    billingMailMock: {
+      sendSubscriptionPurchasedEmail: vi.fn().mockResolvedValue(undefined),
+      sendSubscriptionCancelledEmail: vi.fn().mockResolvedValue(undefined),
+    },
+  }),
+);
+
+vi.mock("#lib/logger", () => ({ logger: loggerMock }));
 
 const prismaMock = {
   billingWebhookEvent: {
@@ -21,6 +26,7 @@ const prismaMock = {
     findUnique: vi.fn(),
     updateMany: vi.fn(),
     create: vi.fn(),
+    count: vi.fn(),
   },
   entitlementGrant: {
     updateMany: vi.fn(),
@@ -89,6 +95,14 @@ vi.mock("#config", () => ({
       portfolioProSevenDayProductId: "prod_seven_day",
       portfolioProMonthlyProductId: "prod_monthly",
       portfolioProAnnualProductId: "prod_annual",
+      aiCreditsMonthlyProductId: "prod_ai_monthly",
+      aiCreditsAnnualProductId: "prod_ai_annual",
+      bundleMonthlyProductId: "prod_bundle_monthly",
+      bundleAnnualProductId: "prod_bundle_annual",
+      bundleOneDayProductId: "prod_bundle_one_day",
+      bundleSevenDayProductId: "prod_bundle_seven_day",
+      creditPack250ProductId: "prod_pack_250",
+      creditPack500ProductId: "prod_pack_500",
     },
     apiKeys: {
       hashSecret: "test-api-key-secret",
@@ -120,6 +134,9 @@ describe("billing webhook processing and idempotency", () => {
     prismaMock.subscription.findUnique.mockReset();
     prismaMock.subscription.updateMany.mockReset();
     prismaMock.subscription.create.mockReset();
+    prismaMock.subscription.count.mockReset().mockResolvedValue(0);
+    loggerMock.warn.mockReset();
+    loggerMock.error.mockReset();
     prismaMock.entitlementGrant.updateMany.mockReset();
     prismaMock.entitlementGrant.upsert.mockReset();
     prismaMock.entitlementGrant.findFirst.mockReset();
@@ -310,7 +327,7 @@ describe("billing webhook processing and idempotency", () => {
     expect(prismaMock.subscription.updateMany.mock.calls[0][0].data.cancelAtPeriodEnd).toBe(true);
   });
 
-  it("takes a token-checked 60 s lock and releases it by compare-and-delete (V-014)", async () => {
+  it("takes a token-checked, renewable 60 s lock and releases it by compare-and-delete (V-014, V-127)", async () => {
     const { BillingService } = await import("../../src/services/billingService");
 
     prismaMock.billingWebhookEvent.create.mockResolvedValue({
@@ -328,11 +345,11 @@ describe("billing webhook processing and idempotency", () => {
     expect(mockRedis.set).toHaveBeenCalledWith(
       "billing:webhook:lock:evt_lock",
       expect.any(String),
-      { NX: true, EX: 60 },
+      { NX: true, PX: 60_000 },
     );
     const token = mockRedis.set.mock.calls[0][1];
     expect(token).not.toBe("1");
-    expect(mockRedis.del).not.toHaveBeenCalled();
+    expect(mockRedis.del).not.toHaveBeenCalledWith("billing:webhook:lock:evt_lock");
     expect(mockRedis.eval).toHaveBeenCalledWith(expect.stringContaining('redis.call("get"'), {
       keys: ["billing:webhook:lock:evt_lock"],
       arguments: [token],
@@ -538,6 +555,314 @@ describe("billing webhook processing and idempotency", () => {
     expect(prismaMock.billingWebhookEvent.update).toHaveBeenCalledWith({
       where: { id: "evt_payment" },
       data: { status: "FAILED", error: expect.stringContaining("user metadata") },
+    });
+  });
+
+  /**
+   * V-154: the payment and status paths the original seven cases never exercised. Timestamps are
+   * fixed so interval arithmetic is exact.
+   */
+  describe("payment.succeeded grants (V-154)", () => {
+    const PAID_AT = "2026-06-11T12:00:00.000Z";
+    const DAY_MS = 24 * 60 * 60 * 1000;
+
+    function payment(data: Record<string, unknown>) {
+      return {
+        type: "payment.succeeded",
+        timestamp: PAID_AT,
+        data: {
+          payment_id: "pay_1",
+          total_amount: 599,
+          settlement_amount: 599,
+          settlement_currency: "USD",
+          metadata: { veriworkly_user_id: "user_123" },
+          ...data,
+        },
+      };
+    }
+
+    beforeEach(() => {
+      prismaMock.billingWebhookEvent.create.mockResolvedValue({
+        id: "evt_pay",
+        status: "PROCESSING",
+        retryCount: 0,
+      });
+      prismaMock.portfolioPublication.findUnique.mockResolvedValue(null);
+      creditMock.grant.mockResolvedValue({ id: "tx_1" });
+    });
+
+    it("expires a renewal allowance one interval after the payment when the stored period end is stale", async () => {
+      const { BillingService } = await import("../../src/services/billingService");
+      prismaMock.subscription.findUnique.mockResolvedValue({
+        userId: "user_123",
+        productKey: "ai_credits",
+        interval: "MONTHLY",
+        // The period that just ended: payment.succeeded arrived before subscription.renewed.
+        currentPeriodEnd: new Date("2026-06-11T11:00:00.000Z"),
+      });
+
+      await BillingService.processWebhook(
+        "evt_stale_period",
+        payment({ subscription_id: "sub_ai" }),
+      );
+
+      expect(creditMock.grant).toHaveBeenCalledWith(
+        "user_123",
+        1_000,
+        expect.objectContaining({
+          requestId: "subscription-credit:pay_1",
+          source: "subscription_payment",
+          sourceId: "pay_1",
+          expiresAt: new Date("2026-07-11T12:00:00.000Z"),
+        }),
+      );
+    });
+
+    it("keeps the stored period end when it lies beyond one interval", async () => {
+      const { BillingService } = await import("../../src/services/billingService");
+      const periodEnd = new Date("2027-06-11T12:00:00.000Z");
+      prismaMock.subscription.findUnique.mockResolvedValue({
+        userId: "user_123",
+        productKey: "ai_credits",
+        interval: "MONTHLY",
+        currentPeriodEnd: periodEnd,
+      });
+
+      await BillingService.processWebhook("evt_far_period", payment({ subscription_id: "sub_ai" }));
+
+      expect(creditMock.grant.mock.calls[0][2].expiresAt).toEqual(periodEnd);
+    });
+
+    it.each([
+      { productId: "prod_bundle_seven_day", days: 7, credits: 400, interval: "seven_day" },
+      { productId: "prod_bundle_one_day", days: 3, credits: 150, interval: "one_day" },
+    ])(
+      "a one-time bundle pass ($productId) grants the bundle entitlements for $days days and $credits credits",
+      async ({ productId, days, credits, interval }) => {
+        const { BillingService } = await import("../../src/services/billingService");
+        const endsAt = new Date(new Date(PAID_AT).getTime() + days * DAY_MS);
+
+        await BillingService.processWebhook(
+          `evt_pass_${interval}`,
+          payment({ product_cart: [{ product_id: productId, quantity: 1 }] }),
+        );
+
+        // Every bundle entitlement, SYSTEM-sourced on the payment id, flagged as a pass.
+
+        const { productCatalog } = await import("../../src/services/productCatalog");
+        expect(prismaMock.entitlementGrant.upsert).toHaveBeenCalledTimes(
+          productCatalog.bundle.entitlements.length,
+        );
+        for (const [args] of prismaMock.entitlementGrant.upsert.mock.calls) {
+          expect(args.where.userId_key_source_sourceId).toMatchObject({
+            userId: "user_123",
+            source: "SYSTEM",
+            sourceId: "pay_1",
+          });
+          expect(args.create).toMatchObject({
+            startsAt: new Date(PAID_AT),
+            endsAt,
+            metadata: { productKey: "bundle", interval, pass: true },
+          });
+        }
+        expect(prismaMock.$executeRaw).toHaveBeenCalledTimes(1);
+        expect(creditMock.grant).toHaveBeenCalledWith(
+          "user_123",
+          credits,
+          expect.objectContaining({ requestId: "subscription-credit:pay_1", expiresAt: endsAt }),
+        );
+      },
+    );
+
+    it("a credit pack grants the pack for 90 days and touches no entitlement", async () => {
+      const { BillingService } = await import("../../src/services/billingService");
+
+      await BillingService.processWebhook(
+        "evt_pack",
+        payment({
+          metadata: { veriworkly_user_id: "user_123", veriworkly_product: "credit_pack_250" },
+        }),
+      );
+
+      expect(creditMock.grant).toHaveBeenCalledWith("user_123", 250, {
+        requestId: "payment-credit:pay_1",
+        source: "credit_pack",
+        sourceId: "pay_1",
+        expiresAt: new Date(new Date(PAID_AT).getTime() + 90 * DAY_MS),
+        reason: "250 extra credits",
+      });
+      expect(prismaMock.entitlementGrant.upsert).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      { label: "an update-payment-method charge", data: { is_update_payment_method: true } },
+      { label: "a zero-amount charge", data: { total_amount: 0, settlement_amount: 0 } },
+    ])("$label earns no allowance", async ({ data }) => {
+      const { BillingService } = await import("../../src/services/billingService");
+      prismaMock.subscription.findUnique.mockResolvedValue({
+        userId: "user_123",
+        productKey: "ai_credits",
+        interval: "MONTHLY",
+        currentPeriodEnd: new Date("2026-07-11T12:00:00.000Z"),
+      });
+
+      const result = await BillingService.processWebhook(
+        "evt_no_allowance",
+        payment({ subscription_id: "sub_ai", ...data }),
+      );
+
+      expect(result).toEqual({ duplicate: false });
+      expect(creditMock.grant).not.toHaveBeenCalled();
+    });
+
+    it("skips a usage-only renewal and keys a real renewal's grant on its service period", async () => {
+      const { BillingService } = await import("../../src/services/billingService");
+      prismaMock.subscription.findUnique.mockResolvedValue({
+        userId: "user_123",
+        productKey: "ai_credits",
+        interval: "MONTHLY",
+        currentPeriodEnd: null,
+      });
+
+      await BillingService.processWebhook(
+        "evt_usage_only",
+        payment({
+          subscription_id: "sub_ai",
+          service_periods: [{ subscription_id: "sub_other", starts_at: "x", ends_at: "y" }],
+        }),
+      );
+      expect(creditMock.grant).not.toHaveBeenCalled();
+
+      await BillingService.processWebhook(
+        "evt_period",
+        payment({
+          subscription_id: "sub_ai",
+          service_periods: [{ subscription_id: "sub_ai", starts_at: PAID_AT, ends_at: "y" }],
+        }),
+      );
+      expect(creditMock.grant).toHaveBeenCalledWith(
+        "user_123",
+        1_000,
+        expect.objectContaining({ sourceId: `sub_ai:${PAID_AT}` }),
+      );
+    });
+
+    it("a non-USD settlement still grants, warns, and records the commission in its currency", async () => {
+      const { BillingService } = await import("../../src/services/billingService");
+      prismaMock.subscription.findUnique.mockResolvedValue({
+        userId: "user_123",
+        productKey: "ai_credits",
+        interval: "MONTHLY",
+        currentPeriodEnd: null,
+      });
+      prismaMock.affiliateReferral.findUnique.mockResolvedValue({
+        affiliate: { affiliateTier: "TIER_1", affiliateStatus: "ACTIVE" },
+      });
+      affiliateMock.createCommission.mockResolvedValue({ id: "c_1" });
+
+      await BillingService.processWebhook(
+        "evt_inr",
+        payment({
+          subscription_id: "sub_ai",
+          settlement_amount: 50_000,
+          settlement_currency: "inr",
+          currency: "INR",
+          tax: 5_000,
+        }),
+      );
+
+      expect(creditMock.grant).toHaveBeenCalledTimes(1);
+      expect(loggerMock.warn).toHaveBeenCalledWith(
+        expect.stringContaining("settled in INR"),
+        expect.objectContaining({ settlementCurrency: "INR" }),
+      );
+      expect(affiliateMock.createCommission).toHaveBeenCalledWith(
+        expect.objectContaining({ purchaseAmountCents: 45_000, currency: "INR" }),
+      );
+    });
+  });
+
+  describe("subscription status table (V-154)", () => {
+    const AT = "2026-05-31T12:00:00.000Z";
+    const GRACE_END = new Date(new Date(AT).getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    function event(status: string) {
+      return {
+        type: `subscription.${status}`,
+        timestamp: AT,
+        data: {
+          subscription_id: "sub_table",
+          customer: { customer_id: "cust_1" },
+          product_id: "prod_monthly",
+          status,
+          cancel_at_next_billing_date: false,
+          // In the future relative to the clock: access (and so the grants) depends on it.
+          next_billing_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          metadata: { veriworkly_user_id: "user_123" },
+        },
+      };
+    }
+
+    beforeEach(() => {
+      prismaMock.billingWebhookEvent.create.mockResolvedValue({
+        id: "evt_row",
+        status: "PROCESSING",
+        retryCount: 0,
+      });
+      prismaMock.subscription.findUnique.mockResolvedValue(null);
+      prismaMock.subscription.updateMany.mockResolvedValue({ count: 1 });
+      prismaMock.portfolioPublication.updateMany.mockResolvedValue({ count: 0 });
+      prismaMock.portfolioPublication.findUnique.mockResolvedValue(null);
+    });
+
+    it.each([
+      { status: "active", stored: "ACTIVE", grace: null, granted: true },
+      { status: "on_hold", stored: "PAST_DUE", grace: GRACE_END, granted: false },
+      { status: "past_due", stored: "PAST_DUE", grace: GRACE_END, granted: false },
+      { status: "paused", stored: "PAST_DUE", grace: GRACE_END, granted: false },
+      { status: "failed", stored: "INACTIVE", grace: null, granted: false },
+      { status: "cancelled", stored: "CANCELED", grace: null, granted: true },
+      { status: "expired", stored: "CANCELED", grace: null, granted: true },
+    ])("$status is stored as $stored", async ({ status, stored, grace, granted }) => {
+      const { BillingService } = await import("../../src/services/billingService");
+      const { productCatalog } = await import("../../src/services/productCatalog");
+      const grants = granted ? productCatalog.portfolio_pro.entitlements.length : 0;
+
+      await BillingService.processWebhook(`evt_${status}`, event(status));
+
+      const written = prismaMock.subscription.updateMany.mock.calls[0][0].data;
+      expect(written).toMatchObject({ status: stored, rawStatus: status, graceEndsAt: grace });
+      // Every non-pending status first revokes the subscription's grants, then re-grants the
+      // Creator Pro entitlements while access runs (active, or cancelled inside the period).
+      expect(prismaMock.entitlementGrant.updateMany).toHaveBeenCalledTimes(1);
+      expect(prismaMock.entitlementGrant.upsert).toHaveBeenCalledTimes(grants);
+    });
+
+    it("pending is stored INACTIVE and leaves existing grants alone", async () => {
+      const { BillingService } = await import("../../src/services/billingService");
+
+      await BillingService.processWebhook("evt_pending", event("pending"));
+
+      expect(prismaMock.subscription.updateMany.mock.calls[0][0].data).toMatchObject({
+        status: "INACTIVE",
+        graceEndsAt: null,
+      });
+      expect(prismaMock.entitlementGrant.updateMany).not.toHaveBeenCalled();
+      expect(prismaMock.entitlementGrant.upsert).not.toHaveBeenCalled();
+    });
+
+    it("a status outside the table fails the event instead of revoking access", async () => {
+      const { BillingService } = await import("../../src/services/billingService");
+
+      await expect(BillingService.processWebhook("evt_odd", event("mystery"))).rejects.toThrow(
+        'Unknown subscription status "mystery"',
+      );
+
+      expect(prismaMock.subscription.updateMany).not.toHaveBeenCalled();
+      expect(prismaMock.billingWebhookEvent.update).toHaveBeenCalledWith({
+        where: { id: "evt_row" },
+        data: { status: "FAILED", error: expect.stringContaining("mystery") },
+      });
     });
   });
 });

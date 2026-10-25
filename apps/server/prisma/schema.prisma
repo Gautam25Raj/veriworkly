@@ -291,7 +291,9 @@ model CreditReservation {
   wallet    CreditWallet            @relation(fields: [walletId], references: [id], onDelete: Cascade)
   userId    String
   user      User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  requestId String                  @unique
+  // Unique per user, not globally: the id is client-supplied, so one user's UUID must never
+  // 409 another user's request (or leak that it exists).
+  requestId String
   action    String
   cost      Int
   status    CreditReservationStatus @default(PENDING)
@@ -299,6 +301,7 @@ model CreditReservation {
   createdAt DateTime                @default(now())
   updatedAt DateTime                @updatedAt
 
+  @@unique([userId, requestId])
   @@index([userId, status, expiresAt])
   @@index([walletId, status])
   @@index([status, updatedAt])
@@ -317,7 +320,9 @@ model CreditTransaction {
   amount       Int
   balanceAfter Int
   action       String?
-  requestId    String?                 @unique
+  // Per-user idempotency key (see CreditReservation.requestId); server-minted ids carry their
+  // own prefix (payment-credit:, subscription-credit:, admin-credit:, expire:).
+  requestId    String?
   documentId   String?
   referenceId  String?
   reason       String?
@@ -325,6 +330,7 @@ model CreditTransaction {
   createdAt    DateTime                @default(now())
   allocations  CreditUsageAllocation[]
 
+  @@unique([userId, requestId])
   @@index([userId, createdAt])
   @@index([walletId, createdAt])
   @@index([referenceId])
@@ -423,8 +429,10 @@ enum AffiliateCommissionStatus {
 
 model AffiliateCommission {
   id                String                    @id @default(cuid())
-  affiliateId       String
-  affiliate         User                      @relation("AffiliateCommissionOwner", fields: [affiliateId], references: [id], onDelete: Cascade)
+  // Money history outlives the account: deleting the affiliate detaches the row instead of
+  // erasing what was earned and paid out. A detached PENDING commission can no longer be released.
+  affiliateId       String?
+  affiliate         User?                     @relation("AffiliateCommissionOwner", fields: [affiliateId], references: [id], onDelete: SetNull)
   referralId        String?
   referral          AffiliateReferral?        @relation(fields: [referralId], references: [id], onDelete: SetNull)
   subscriptionId    String?
@@ -469,8 +477,10 @@ enum AffiliateWithdrawalStatus {
 
 model AffiliateWithdrawal {
   id          String                    @id @default(cuid())
-  userId      String
-  user        User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Detached, not deleted, with the account (payout history). An open withdrawal still blocks
+  // deletion in userService / adminUserService.
+  userId      String?
+  user        User?                     @relation(fields: [userId], references: [id], onDelete: SetNull)
   amountCents Int
   // ISO 4217 code of `amountCents`; always USD today because the wallet it draws from is USD.
   currency    String                    @default("USD")
@@ -737,6 +747,9 @@ model ChangelogEntry {
   security    String[]  @default([])
   tags        String[]  @default([])
   prRefs      Json?
+  // Set only by admin writes. The release sync re-parses an auto-synced entry's text while this
+  // is null; `updatedAt` cannot say so, because the sync's own prRefs update moves it (V-066).
+  editedAt    DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

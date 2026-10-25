@@ -35,6 +35,10 @@ const prismaMock = {
     updateMany: vi.fn(),
     findUnique: vi.fn(),
   },
+  affiliateReferral: {
+    findUnique: vi.fn(),
+  },
+  $executeRaw: vi.fn().mockResolvedValue(1),
   $transaction: vi.fn((cb) => cb(prismaMock)),
 };
 
@@ -51,6 +55,7 @@ vi.mock("#utils/portfolioPublicationCache", () => ({
 const mockRedis = {
   set: vi.fn().mockResolvedValue("OK"),
   del: vi.fn().mockResolvedValue(1),
+  eval: vi.fn().mockResolvedValue(1),
 };
 
 vi.mock("#lib/redis", () => ({
@@ -102,6 +107,9 @@ describe("billing webhook processing and idempotency", () => {
     vi.restoreAllMocks();
     mockRedis.set.mockReset().mockResolvedValue("OK");
     mockRedis.del.mockReset().mockResolvedValue(1);
+    mockRedis.eval.mockReset().mockResolvedValue(1);
+    prismaMock.affiliateReferral.findUnique.mockReset().mockResolvedValue(null);
+    prismaMock.$executeRaw.mockReset().mockResolvedValue(1);
     apiKeyServiceMock.invalidateAuthCacheForUser.mockReset().mockResolvedValue(undefined);
     billingMailMock.sendSubscriptionPurchasedEmail.mockReset().mockResolvedValue(undefined);
     billingMailMock.sendSubscriptionCancelledEmail.mockReset().mockResolvedValue(undefined);
@@ -260,6 +268,123 @@ describe("billing webhook processing and idempotency", () => {
     // Since existing subscription lastWebhookAt is newer, updateMany/create should not be called inside transaction
     expect(prismaMock.subscription.updateMany).not.toHaveBeenCalled();
     expect(prismaMock.subscription.create).not.toHaveBeenCalled();
+
+    // V-013: a stale or retried event skips the DB mutation only; the post-commit invalidation
+    // still runs so a retry after a failed invalidation repairs the caches.
+    const { cacheDel } = await import("#lib/redis");
+    expect(cacheDel).toHaveBeenCalledWith("billing:summary:user_123");
+    // V-140: key validity no longer depends on billing, so billing never touches the key cache.
+    expect(apiKeyServiceMock.invalidateAuthCacheForUser).not.toHaveBeenCalled();
+  });
+
+  it("applies a distinct event that shares the row's lastWebhookAt timestamp (V-013)", async () => {
+    const { BillingService } = await import("../../src/services/billingService");
+
+    prismaMock.subscription.findUnique.mockResolvedValue({
+      id: "sub_1",
+      providerSubId: "sub_123",
+      userId: "user_123",
+      status: "ACTIVE",
+      lastWebhookAt: new Date("2026-05-31T12:00:00.000Z"),
+    });
+    prismaMock.billingWebhookEvent.create.mockResolvedValue({
+      id: "evt_1",
+      status: "PROCESSING",
+      retryCount: 0,
+    });
+    prismaMock.subscription.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.portfolioPublication.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.portfolioPublication.findUnique.mockResolvedValue(null);
+
+    await BillingService.processWebhook("evt_same_ts", {
+      ...validEvent,
+      type: "subscription.updated",
+      data: { ...validEvent.data, cancel_at_next_billing_date: true },
+    });
+
+    expect(prismaMock.subscription.updateMany).toHaveBeenCalledTimes(1);
+    expect(prismaMock.subscription.updateMany.mock.calls[0][0].where.OR).toEqual([
+      { lastWebhookAt: null },
+      { lastWebhookAt: { lte: new Date("2026-05-31T12:00:00.000Z") } },
+    ]);
+    expect(prismaMock.subscription.updateMany.mock.calls[0][0].data.cancelAtPeriodEnd).toBe(true);
+  });
+
+  it("takes a token-checked 60 s lock and releases it by compare-and-delete (V-014)", async () => {
+    const { BillingService } = await import("../../src/services/billingService");
+
+    prismaMock.billingWebhookEvent.create.mockResolvedValue({
+      id: "evt_1",
+      status: "PROCESSING",
+      retryCount: 0,
+    });
+    prismaMock.subscription.findUnique.mockResolvedValue(null);
+    prismaMock.subscription.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.portfolioPublication.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.portfolioPublication.findUnique.mockResolvedValue(null);
+
+    await BillingService.processWebhook("evt_lock", validEvent);
+
+    expect(mockRedis.set).toHaveBeenCalledWith(
+      "billing:webhook:lock:evt_lock",
+      expect.any(String),
+      { NX: true, EX: 60 },
+    );
+    const token = mockRedis.set.mock.calls[0][1];
+    expect(token).not.toBe("1");
+    expect(mockRedis.del).not.toHaveBeenCalled();
+    expect(mockRedis.eval).toHaveBeenCalledWith(expect.stringContaining('redis.call("get"'), {
+      keys: ["billing:webhook:lock:evt_lock"],
+      arguments: [token],
+    });
+  });
+
+  it("treats a PROCESSING row younger than the lock TTL as in flight (V-014)", async () => {
+    const { BillingService } = await import("../../src/services/billingService");
+
+    const prismaError = new Prisma.PrismaClientKnownRequestError("Unique constraint", {
+      code: "P2002",
+      clientVersion: "x.y.z",
+    });
+    prismaMock.billingWebhookEvent.create.mockRejectedValue(prismaError);
+    prismaMock.billingWebhookEvent.findUnique.mockResolvedValue({
+      id: "evt_1",
+      providerEventId: "evt_123",
+      status: "PROCESSING",
+      retryCount: 0,
+      lastAttemptAt: new Date(Date.now() - 5_000),
+    });
+
+    await expect(BillingService.processWebhook("evt_123", validEvent)).rejects.toMatchObject({
+      statusCode: 503,
+    });
+
+    expect(prismaMock.billingWebhookEvent.update).not.toHaveBeenCalled();
+    expect(prismaMock.subscription.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("takes the per-user advisory lock first inside the billing transaction (V-120)", async () => {
+    const { BillingService } = await import("../../src/services/billingService");
+
+    prismaMock.billingWebhookEvent.create.mockResolvedValue({
+      id: "evt_1",
+      status: "PROCESSING",
+      retryCount: 0,
+    });
+    prismaMock.subscription.findUnique.mockResolvedValue(null);
+    prismaMock.subscription.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.portfolioPublication.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.portfolioPublication.findUnique.mockResolvedValue(null);
+
+    await BillingService.processWebhook("evt_advisory", validEvent);
+
+    expect(prismaMock.$executeRaw).toHaveBeenCalledTimes(1);
+    const lockOrder = prismaMock.$executeRaw.mock.invocationCallOrder[0];
+    expect(lockOrder).toBeLessThan(prismaMock.subscription.updateMany.mock.invocationCallOrder[0]);
+    expect(prismaMock.$executeRaw.mock.calls[0][0].join("?")).toContain(
+      "pg_advisory_xact_lock(hashtext(?))",
+    );
+    expect(prismaMock.$executeRaw.mock.calls[0][1]).toBe("user_123");
   });
 
   it("rejects active subscriptions for unknown products", async () => {
@@ -317,6 +442,9 @@ describe("billing webhook processing and idempotency", () => {
       interval: "MONTHLY",
       currentPeriodEnd: new Date("2026-07-01T00:00:00.000Z"),
     });
+    prismaMock.affiliateReferral.findUnique.mockResolvedValue({
+      affiliate: { affiliateTier: "TIER_1", affiliateStatus: "ACTIVE" },
+    });
     affiliateMock.createCommission.mockResolvedValue({ id: "commission_1" });
 
     await BillingService.processWebhook("evt_paid", {
@@ -325,12 +453,16 @@ describe("billing webhook processing and idempotency", () => {
       data: {
         payment_id: "payment_123",
         subscription_id: "sub_123",
-        settlement_amount: 999,
+        total_amount: 1_099,
+        settlement_amount: 1_099,
+        settlement_tax: 100,
         settlement_currency: "USD",
         metadata: { veriworkly_user_id: "user_123" },
       },
     });
 
+    // V-017: the base is the settlement net of tax; V-017 (T3 half): the settlement currency
+    // travels with it.
     expect(affiliateMock.createCommission).toHaveBeenCalledWith({
       referredUserId: "user_123",
       subscriptionId: "sub_123",
@@ -338,6 +470,74 @@ describe("billing webhook processing and idempotency", () => {
       purchaseAmountCents: 999,
       status: "PENDING",
       reason: "Dodo payment succeeded",
+      currency: "USD",
+    });
+  });
+
+  it("skips a sub-cent commission and still processes the payment (V-143)", async () => {
+    const { BillingService } = await import("../../src/services/billingService");
+    prismaMock.billingWebhookEvent.create.mockResolvedValue({
+      id: "evt_payment",
+      status: "PROCESSING",
+      retryCount: 0,
+    });
+    prismaMock.subscription.findUnique.mockResolvedValue({
+      userId: "user_123",
+      productKey: "portfolio_pro",
+      interval: "MONTHLY",
+      currentPeriodEnd: new Date("2026-07-01T00:00:00.000Z"),
+    });
+    prismaMock.affiliateReferral.findUnique.mockResolvedValue({
+      affiliate: { affiliateTier: "TIER_1", affiliateStatus: "ACTIVE" },
+    });
+
+    const result = await BillingService.processWebhook("evt_tiny", {
+      type: "payment.succeeded",
+      timestamp: "2026-06-11T12:00:00.000Z",
+      data: {
+        payment_id: "payment_tiny",
+        subscription_id: "sub_123",
+        total_amount: 40,
+        settlement_amount: 40,
+        settlement_currency: "USD",
+        metadata: { veriworkly_user_id: "user_123" },
+      },
+    });
+
+    expect(result).toEqual({ duplicate: false });
+    expect(affiliateMock.createCommission).not.toHaveBeenCalled();
+    expect(prismaMock.billingWebhookEvent.update).toHaveBeenCalledWith({
+      where: { id: "evt_payment" },
+      data: { status: "PROCESSED", processedAt: expect.any(Date) },
+    });
+  });
+
+  it("fails a payment event with no user and grants nothing (V-012)", async () => {
+    const { BillingService } = await import("../../src/services/billingService");
+    prismaMock.billingWebhookEvent.create.mockResolvedValue({
+      id: "evt_payment",
+      status: "PROCESSING",
+      retryCount: 0,
+    });
+
+    await expect(
+      BillingService.processWebhook("evt_orphan", {
+        type: "payment.succeeded",
+        timestamp: "2026-06-11T12:00:00.000Z",
+        data: {
+          payment_id: "payment_orphan",
+          total_amount: 599,
+          settlement_amount: 599,
+          settlement_currency: "USD",
+          metadata: {},
+        },
+      }),
+    ).rejects.toThrow("missing VeriWorkly user metadata");
+
+    expect(creditMock.grant).not.toHaveBeenCalled();
+    expect(prismaMock.billingWebhookEvent.update).toHaveBeenCalledWith({
+      where: { id: "evt_payment" },
+      data: { status: "FAILED", error: expect.stringContaining("user metadata") },
     });
   });
 });

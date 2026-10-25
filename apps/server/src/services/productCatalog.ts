@@ -14,7 +14,12 @@ export const ENTITLEMENT_KEYS = {
 } as const;
 
 export type EntitlementKey = (typeof ENTITLEMENT_KEYS)[keyof typeof ENTITLEMENT_KEYS];
-export type CatalogInterval = "one_day" | "seven_day" | "monthly" | "annual";
+export const CATALOG_INTERVALS = ["one_day", "seven_day", "monthly", "annual"] as const;
+export type CatalogInterval = (typeof CATALOG_INTERVALS)[number];
+
+export function isCatalogInterval(value: string): value is CatalogInterval {
+  return CATALOG_INTERVALS.includes(value as CatalogInterval);
+}
 
 export const creditPackCatalog = {
   credit_pack_250: {

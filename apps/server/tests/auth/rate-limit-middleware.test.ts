@@ -23,8 +23,11 @@ vi.mock("#config", () => ({
       rateLimitMaxRequests: 3,
     },
     metrics: { statsInternalKey: "test-stats-internal-key" },
+    internal: { apiKey: "test-internal-api-key-0123456789abcdef" },
   },
 }));
+
+const INTERNAL_KEY = "test-internal-api-key-0123456789abcdef";
 
 vi.mock("#lib/redis", () => ({
   getRedis: mockGetRedis,
@@ -164,6 +167,33 @@ describe("rateLimitMiddleware", () => {
     expect(mockGetRedis).not.toHaveBeenCalled();
     expect(res.status).not.toHaveBeenCalled();
   });
+
+  /**
+   * The operator endpoints are polled by a scraper from one address, so a request carrying the
+   * right internal key is exempt. Without it (or with a wrong one) it is rate limited like any
+   * other request, so guessing the key stays throttled.
+   */
+  it.each(["/api/v1/health/metrics", "/api/v1/health/jobs", "/api/v1/Health/Jobs/"])(
+    "exempts %s only with the valid internal key",
+    async (path) => {
+      const redisMockInstance = {
+        isReady: true,
+        eval: vi.fn().mockResolvedValue([1, 60000, 1, 1]),
+      };
+      mockGetRedis.mockReturnValue(redisMockInstance);
+
+      Object.assign(req, { path, method: "GET", headers: { "x-internal-key": INTERNAL_KEY } });
+      await rateLimitMiddleware(req as Request, res as Response, next);
+      expect(redisMockInstance.eval).not.toHaveBeenCalled();
+
+      for (const headers of [{}, { "x-internal-key": "a-wrong-guess" }]) {
+        Object.assign(req, { headers });
+        await rateLimitMiddleware(req as Request, res as Response, next);
+      }
+      expect(redisMockInstance.eval).toHaveBeenCalledTimes(2);
+      expect(next).toHaveBeenCalledTimes(3);
+    },
+  );
 
   it.each(["/api/v1/healthz", "/api/v1/health-x", "/api/v1/health/../admin"])(
     "does not exempt %s, which only shares the health prefix",

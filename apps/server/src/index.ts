@@ -1,3 +1,4 @@
+import cluster from "node:cluster";
 import throng from "throng";
 
 import "./polyfills.js";
@@ -6,8 +7,10 @@ import { app } from "./app.js";
 import { config, isDevelopment } from "#config";
 
 import { logger } from "#lib/logger";
-import { closePrisma, poolMax, clusterWorkerCount } from "#lib/prisma";
+import { closePrisma } from "#lib/prisma";
 import { initRedis, closeRedis } from "#lib/redis";
+import { installWorkerRespawn } from "#lib/workerRespawn";
+import { markJobsBaseline } from "#lib/metrics";
 import { flushAuditLogs } from "#middleware/logging";
 
 import { stopExtractPool } from "#services/ats/extractPool";
@@ -22,14 +25,13 @@ import {
 // CRON_ROLE=all|none: which processes schedule background jobs (documented in the module).
 import { parseCronRole } from "#config/cronRole";
 
-import { startGitHubSyncJob, stopGitHubSyncJob } from "#jobs/githubSyncJob";
-import { startChangelogSyncJob, stopChangelogSyncJob } from "#jobs/changelogSyncJob";
-import { startViewsFlushJob, stopViewsFlushJob } from "#jobs/viewsFlushJob";
-import { startUsageMetricsJob, stopUsageMetricsJob } from "#jobs/usageMetricsJob";
-import { startPortfolioAccessJob, stopPortfolioAccessJob } from "#jobs/portfolioAccessJob";
-import { startCreditSweepJob, stopCreditSweepJob } from "#jobs/creditSweepJob";
+import { startScheduledJobs, stopScheduledJobs } from "#jobs/scheduledJobs";
 
 const SHUTDOWN_HTTP_GRACE_MS = 10_000;
+// Drains alongside the HTTP grace (both start at shutdown), so a worker needs at most ~20 s plus
+// closing Redis/Prisma; throng's `grace` (force kill) sits above that.
+const SHUTDOWN_JOB_DRAIN_MS = 20_000;
+const THRONG_GRACE_MS = 35_000;
 
 let serverInstance: ReturnType<typeof app.listen> | null = null;
 
@@ -42,6 +44,20 @@ async function shutdownWorker(id: number, disconnect: () => void) {
   isShuttingDown = true;
 
   logger.info(`Worker ${id}: Shutting down gracefully...`);
+
+  // Stop scheduling first so no new run starts, and let a run already in progress finish while
+  // HTTP drains (Phase 4 item 1). Every worker may have scheduled jobs (CRON_ROLE=all); the stop
+  // functions are no-ops when nothing was started. Each resolves once its in-flight run is done.
+  logger.info(`Worker ${id}: Stopping background cron jobs...`);
+  // Capped from this moment, so a stuck job cannot hold shutdown past throng's grace.
+  let drainCapTimer: NodeJS.Timeout | undefined;
+  const jobsDrained = Promise.race([
+    stopScheduledJobs().then(() => true),
+    new Promise<boolean>((resolve) => {
+      drainCapTimer = setTimeout(() => resolve(false), SHUTDOWN_JOB_DRAIN_MS);
+      drainCapTimer.unref();
+    }),
+  ]);
 
   if (serverInstance) {
     logger.info(`Worker ${id}: Stopping HTTP server from accepting new requests...`);
@@ -64,16 +80,11 @@ async function shutdownWorker(id: number, disconnect: () => void) {
   }
 
   try {
-    // Every worker may have scheduled jobs (CRON_ROLE=all); the stop functions are no-ops when
-    // nothing was started. They stop scheduling only: the jobs expose no in-flight promise to
-    // await, so a run already in progress is not drained (Phase 4 item 1).
-    logger.info(`Worker ${id}: Stopping background cron jobs...`);
-    stopGitHubSyncJob();
-    stopChangelogSyncJob();
-    stopViewsFlushJob();
-    stopUsageMetricsJob();
-    stopPortfolioAccessJob();
-    stopCreditSweepJob();
+    // Redis and Prisma close only after the running jobs finish, so a flush is not cut off
+    // mid-transaction.
+    if (!(await jobsDrained))
+      logger.warn(`Worker ${id}: Background jobs still running after the drain cap. Continuing.`);
+    clearTimeout(drainCapTimer);
 
     stopExtractPool();
 
@@ -125,6 +136,10 @@ async function startWorker(id: number, disconnect: () => void) {
     await initRedis();
     logger.info(`Worker ${id}: Redis connected`);
 
+    // When jobs started being scheduled, so /health/jobs does not call a job that has simply not
+    // had its first tick yet stale. The first worker's write sticks (NX).
+    await markJobsBaseline();
+
     // One-off boot routine: worker 1 only. It is idempotent, so a revived worker (never id 1)
     // skipping it is fine.
     if (id === 1) {
@@ -136,14 +151,8 @@ async function startWorker(id: number, disconnect: () => void) {
     // Cron jobs run on every worker; their Redis locks pick one runner per tick (V-053/V-086).
     const cronRole = parseCronRole(process.env.CRON_ROLE);
 
-    if (cronRole === "all") {
-      startGitHubSyncJob();
-      startChangelogSyncJob();
-      startViewsFlushJob();
-      startUsageMetricsJob();
-      startPortfolioAccessJob();
-      startCreditSweepJob();
-    }
+    // The job table (src/jobs/scheduledJobs.ts) is also what /health/jobs reports on.
+    if (cronRole === "all") startScheduledJobs();
 
     // One line per worker; per-job scheduling and lock-held skips log at debug.
     logger.info(
@@ -161,14 +170,6 @@ async function startWorker(id: number, disconnect: () => void) {
         trustProxy: config.server.trustProxy,
         authIpAddressHeaders: config.auth.ipAddressHeaders,
       });
-
-      if (id === 1) {
-        logger.info(`Worker ${id}: Database pool sizing`, {
-          poolMaxPerWorker: poolMax,
-          workers: clusterWorkerCount,
-          totalConnections: poolMax * clusterWorkerCount,
-        });
-      }
 
       if (isDevelopment && id === 1) {
         logger.info(`Allowed origins: ${config.allowedOrigins.join(", ")}`);
@@ -230,10 +231,19 @@ function main() {
     if (clusteringEnabled) {
       logger.info(`Master process starting cluster with ${workers} workers...`);
 
-      throng({
+      // throng revives a dead worker immediately, with no hook to delay it, so a boot-time
+      // Redis/DB failure was a tight fork loop. `lifetime: 0` turns its revive off and
+      // `installWorkerRespawn` revives instead, backing off on workers that die during boot
+      // (1 s, 2 s, 4 s … 30 s; see src/lib/workerRespawn.ts).
+      void throng({
+        master: () => {
+          const respawn = installWorkerRespawn(cluster);
+          for (const signal of ["SIGTERM", "SIGINT"] as const) process.on(signal, respawn.stop);
+        },
         worker: startWorker,
         count: workers,
-        grace: 15000,
+        lifetime: 0,
+        grace: THRONG_GRACE_MS,
       });
     } else {
       logger.info("Clustering disabled. Starting single process worker...");

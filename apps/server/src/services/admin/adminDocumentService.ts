@@ -4,6 +4,7 @@ import type { z } from "zod";
 import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
 import { bumpGeneration } from "#lib/cacheGeneration";
+import { assertDocumentNotPurged, PURGED_DOCUMENT_CONTENT } from "#jobs/retentionJob";
 import { cacheNamespaces, documentCacheNamespaces } from "#lib/cacheKeys";
 
 import { isModerationLocked, MODERATION_SUSPENSION_PREFIX } from "#services/portfolioService";
@@ -204,6 +205,8 @@ async function loadDocumentForMutation(documentId: string) {
       title: true,
       visibility: true,
       deletedAt: true,
+      // For restoreDocument's purge check (assertDocumentNotPurged).
+      content: true,
       user: { select: { username: true } },
       shareLinks: { select: { slug: true } },
     },
@@ -270,9 +273,30 @@ export async function restoreDocument(documentId: string) {
 
   if (!document.deletedAt) throw new ApiError(409, "Document is not deleted.");
 
-  const updated = await prisma.document.update({
-    where: { id: documentId },
+  assertDocumentNotPurged(document);
+
+  // Conditional, so a purge that lands between the read above and this write wins (410).
+  const restored = await prisma.document.updateMany({
+    where: {
+      id: documentId,
+      deletedAt: { not: null },
+      NOT: { content: { equals: PURGED_DOCUMENT_CONTENT as Prisma.InputJsonObject } },
+    },
     data: { deletedAt: null },
+  });
+
+  if (restored.count === 0) {
+    const current = await prisma.document.findUnique({
+      where: { id: documentId },
+      select: { deletedAt: true, content: true },
+    });
+    if (!current) throw new ApiError(404, "Document not found.");
+    assertDocumentNotPurged(current);
+    throw new ApiError(409, "Document is not deleted.");
+  }
+
+  const updated = await prisma.document.findUniqueOrThrow({
+    where: { id: documentId },
     select: DOCUMENT_LIST_SELECT,
   });
 

@@ -81,7 +81,34 @@ Rules the callers can rely on:
 
 ## ⏰ Cron jobs
 
-Five scheduled jobs (`src/jobs/`), each guarded by a Redis distributed lock: GitHub sync (twice daily), portfolio/share view flush (every 10 minutes), usage-metrics flush (daily), portfolio access job (hourly — grace-period suspension plus abandoned-upload cleanup), and changelog release sync (`CHANGELOG_RELEASE_SYNC_CRON`, default daily at 06:00 UTC).
+Seven scheduled jobs (`src/jobs/`), each guarded by a Redis distributed lock and reporting its last success to `/health/jobs`: GitHub sync (twice daily), portfolio/share view flush (every 10 minutes), usage-metrics flush (daily), portfolio access job (hourly — grace-period suspension plus abandoned-upload cleanup), credit expiry sweep (hourly at :30), changelog release sync (`CHANGELOG_RELEASE_SYNC_CRON`, default daily at 06:00 UTC), and data retention (daily at 03:15 UTC, see below).
+
+## 🧹 Data retention
+
+`src/jobs/retentionJob.ts` runs daily at 03:15 UTC (no run at startup) under the shared job lock. Each rule is one setting; `0` disables it. Every statement touches at most 5,000 rows picked through an indexed column, and a run stops starting new batches after about 4 minutes, so a large backlog drains over several nights. It logs one line per run with the rows affected per rule, plus any rule that ran out of time or failed (a failing rule never stops the others).
+
+| Rule                                                                                                                                                                 | Setting                                                               | Default                   |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------- |
+| Delete expired `Session` rows                                                                                                                                        | `RETENTION_EXPIRED_SESSION_DAYS`                                      | 1 day after `expiresAt`   |
+| Delete expired `Verification` rows                                                                                                                                   | `RETENTION_EXPIRED_VERIFICATION_DAYS`                                 | 1 day after `expiresAt`   |
+| Redact `BillingWebhookEvent.payload` to `{ "redacted": true, "type": … }` for PROCESSED rows (row, ids, status and error kept; FAILED and PROCESSING rows untouched) | `RETENTION_WEBHOOK_PAYLOAD_DAYS`                                      | 30 days                   |
+| Delete `AuditLog` (request log) rows                                                                                                                                 | `RETENTION_AUDIT_LOG_DAYS` (falls back to `AUDIT_LOG_RETENTION_DAYS`) | 90 days                   |
+| Delete `AdminAuditEntry` rows                                                                                                                                        | `RETENTION_ADMIN_AUDIT_DAYS`                                          | 365 days                  |
+| Delete COMMITTED, RELEASED and EXPIRED `CreditReservation` rows                                                                                                      | `RETENTION_CREDIT_RESERVATION_DAYS`                                   | 90 days after `updatedAt` |
+| Delete `ViewFlushBatch` and `UsageMetricFlushBatch` markers                                                                                                          | `RETENTION_FLUSH_BATCH_DAYS`                                          | 7 days                    |
+| Delete `AffiliateClick` rows                                                                                                                                         | `RETENTION_AFFILIATE_CLICK_DAYS`                                      | 0 (off)                   |
+| Delete `PortfolioViewDaily` rows                                                                                                                                     | `RETENTION_PORTFOLIO_VIEW_DAYS`                                       | 0 (off)                   |
+| Set `content` to the marker `{ "purged": true }` on soft-deleted `Document` rows                                                                                     | `RETENTION_DELETED_DOCUMENT_DAYS`                                     | 30 days after `deletedAt` |
+
+Soft-deleted documents keep their row: it is the sync tombstone that tells an offline device the document was deleted (and makes a re-create with that id a 409 instead of a resurrection), and deleting it would cascade away its share link and portfolio publication. A restore (owner or admin) of a document carrying the purge marker answers 410; only the marker decides that, so a document that was simply empty restores, and changing `RETENTION_DELETED_DOCUMENT_DAYS` later never makes a purged one restorable.
+
+Three defaults are deliberately long or off:
+
+- **Credit reservations (90 days).** A reservation row is the idempotency record `reserve()` finds for a repeated `requestId`. Once it is deleted, a late retry reserves again, runs the AI call, and then fails to commit on the `CreditTransaction.requestId` unique constraint (a 500 after the provider was paid). Keep this well past any client retry window.
+- **Affiliate clicks (off).** The affiliate dashboard and the admin affiliate stats count every `AffiliateClick` row, so pruning old ones would shrink lifetime click totals the same way.
+- **Portfolio views (off).** A portfolio's total views is the sum over its `PortfolioViewDaily` rows, so deleting old rows silently turns "total views" into a rolling window. Enable it only together with a stored lifetime total.
+
+When every rule is `0`, the job is not scheduled and `/health/jobs` reports it as disabled.
 
 ## 🧠 Redis memory and limits
 
@@ -90,6 +117,63 @@ Five scheduled jobs (`src/jobs/`), each guarded by a Redis distributed lock: Git
 - **Rate limiter.** Each Redis call is bounded by `RATE_LIMIT_REDIS_TIMEOUT_MS` (default 400 ms); past it the request is counted in process memory, and after 3 timeouts in a row the limiter skips Redis for 5 s before trying again, except the fail-closed classes (share verify, contact, OTP), which answer 503. Every 429 carries `Retry-After`, including the AI in-flight cap.
 - **Autosave class.** `PATCH /api/v1/documents/:id` and `PUT /api/v1/profiles/master` are limited to 600 per 15 minutes per user, counted after authentication (the IP limiter runs before auth, so it only counts these in the per-IP global bucket). A request that reaches the class without a user is keyed on its IP.
 - **JSON bodies** are limited to 100 kb. After authentication, documents, profiles (master profile and imports), share create (`POST /shares`) and the portfolio draft (`PUT /portfolios/draft`) accept 4 MB, and `/ai/*` plus ATS `check`/`analyze`/`convert-resume` accept 256 kb. Larger bodies get 413.
+
+## 🐘 Database connections
+
+- **Per-replica budget.** Each cluster worker has its own `pg` pool, so one replica opens up to `WEB_CONCURRENCY × pool size` connections. `DB_POOL_MAX_TOTAL` (default 80 in production) is that per-replica budget; the per-worker pool is `max(2, floor(DB_POOL_MAX_TOTAL / workers))`. The master logs `Database connection budget: <workers> workers x <pool> = <total> of DB_POOL_MAX_TOTAL=<budget>` once at boot.
+- **Sizing.** Keep `DB_POOL_MAX_TOTAL × replicas` at or under about 80% of Postgres `max_connections`, leaving room for migrations, `db:studio` and an admin session. Example: `max_connections = 100` and two replicas gives `DB_POOL_MAX_TOTAL=40`.
+- **Refusal.** In production the server refuses to boot when the derived pool still overcommits the budget (the floor of 2 per worker against a small budget). Setting `DB_POOL_MAX` explicitly overrides the derived size for the pooler case; an over-budget value then only logs a warning.
+- **URLs.** `DATABASE_URL` should be the pooled host (Neon `-pooler`), so the budget above is spent on pooler client slots rather than Postgres backends. `DIRECT_DATABASE_URL` is the direct host and is what `prisma migrate` uses (`prisma.config.ts`).
+- **Per-connection settings.** Every connection sets `application_name = veriworkly-api-w<worker id>` (visible in `pg_stat_activity`), `statement_timeout` (`DB_POOL_STATEMENT_TIMEOUT_MS`, 30 s).
+- **Idle-in-transaction timeout.** `idle_in_transaction_session_timeout` ends a session left idle inside an open transaction instead of letting it hold locks and a pool slot. `DB_IDLE_IN_TRANSACTION_TIMEOUT_MS` sends it per connection, but it is **opt-in with no default**: `pg` sends it as a startup parameter, and a pooler such as Neon's `-pooler` (PgBouncer) can refuse unknown startup parameters ("unsupported startup parameter"), failing every connection. Set it only on a direct Postgres connection. Behind the Neon pooler, set it on the role once instead (it applies to new sessions):
+
+  ```sql
+  ALTER ROLE <role> SET idle_in_transaction_session_timeout = '60s';
+  ```
+
+## 📈 Monitoring
+
+Two operator endpoints take the `x-internal-key` header (equal to `INTERNAL_API_KEY`, compared in constant time). They answer 401 without the key and 404 when `INTERNAL_API_KEY` is not set. A request carrying the valid key skips the global IP rate limiter, so a scraper is never 429'd; one without it is limited like any other request, so the key cannot be guessed at speed.
+
+- `GET /api/v1/health/metrics`: Prometheus text. Metrics live in each worker's memory, so a scrape sees **one worker per request** (whichever accepted the connection). Aggregate across scrapes with `sum`/`rate` and treat a single sample as one worker. Series: `http_request_duration_seconds{method,route,status_class}` (route is the matched pattern, such as `/api/v1/documents/:id`, or `unmatched` when no route handled the request, including router-level auth refusals), `redis_command_duration_seconds{command="ratelimit_eval"}`, `db_pool_connections{state="total|idle|waiting"}`, `ats_extract_queue_depth`, `ats_extract_queue_max`, `ats_extract_in_flight`, `process_uptime_seconds`.
+- `GET /api/v1/health/jobs`: JSON with each job's last success (`views-flush`, `usage-metrics`, `github-sync`, `changelog-sync`, `portfolio-access`, `credit-sweep`, `retention`). Successes are kept in Redis (`jobs:last-success`) as well as in memory, so any worker answers for all of them. A job is `stale: true` when it has not succeeded within twice its schedule (10 min, 24 h, 12 h, 24 h, 1 h, 1 h, 24 h) or has never succeeded and twice its schedule has passed since the jobs baseline (`jobs:baseline` in Redis, written by the first worker to boot and kept by later ones, so a fresh deploy is not reported stale while the daily jobs wait for their first tick); the top-level `stale` is true when any enabled job is. A job that is not scheduled reports `enabled: false` and is never stale: changelog sync with `CHANGELOG_RELEASE_SYNC_ENABLED=false`, GitHub sync when disabled or without `GITHUB_OWNER`/`GITHUB_REPO`, and retention when every rule is `0`. A run in which any step failed is not recorded as a success.
+
+What to alert on (example PromQL):
+
+| Alert                           | Condition                                                                                                                            |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Job staleness                   | `/health/jobs` returns `"stale": true` (an HTTP check with a body match, or a blackbox-exporter probe)                               |
+| Pool waiting for 1 min          | `min_over_time(db_pool_connections{state="waiting"}[1m]) > 0`                                                                        |
+| Rate-limiter Redis p95 > 100 ms | `histogram_quantile(0.95, sum by (le) (rate(redis_command_duration_seconds_bucket{command="ratelimit_eval"}[5m]))) > 0.1`            |
+| Extract queue at max            | `max_over_time(ats_extract_queue_depth[5m]) >= ats_extract_queue_max`                                                                |
+| 5xx rate                        | `sum(rate(http_request_duration_seconds_count{status_class="5xx"}[5m])) / sum(rate(http_request_duration_seconds_count[5m])) > 0.01` |
+
+Counters reset when a worker restarts; `rate()` handles that.
+
+## 🛑 Graceful shutdown and process managers
+
+On SIGTERM or SIGINT each worker stops accepting connections, drains HTTP for up to 10 s and lets a running background job finish for up to 20 s (both in parallel), then closes Redis and Prisma. The cluster master force-kills a worker still alive after 35 s. A process manager must therefore wait **at least 40 s** before its own SIGKILL, or it cuts a flush off mid-transaction:
+
+- **Docker Compose:** `compose.yaml` sets `stop_grace_period: 40s` on `api` (the default is 10 s).
+- **pm2:** the default `kill_timeout` is 1600 ms. Set it in the ecosystem file (one pm2 process; the server forks its own workers, so do not use pm2 cluster mode):
+
+  ```js
+  // ecosystem.config.js
+  module.exports = {
+    apps: [
+      {
+        name: "veriworkly-server",
+        script: "dist/index.js",
+        cwd: "/path/to/apps/server",
+        exec_mode: "fork",
+        instances: 1,
+        kill_timeout: 40000,
+      },
+    ],
+  };
+  ```
+
+  Apply it with `pm2 delete veriworkly-server && pm2 start ecosystem.config.js` (a plain restart keeps the old setting). Without an ecosystem file, start the process with `pm2 start dist/index.js --name veriworkly-server --kill-timeout 40000`.
 
 ## 📁 Folder Structure
 

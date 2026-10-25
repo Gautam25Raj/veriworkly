@@ -180,6 +180,7 @@ model Document {
   @@index([userId, type, deletedAt, updatedAt])
   @@index([userId, deletedAt, updatedAt])
   @@index([createdAt])
+  @@index([deletedAt])
 }
 
 // No TRIALING. VeriWorkly does not offer a free trial on any plan, and never had a
@@ -300,6 +301,7 @@ model CreditReservation {
 
   @@index([userId, status, expiresAt])
   @@index([walletId, status])
+  @@index([status, updatedAt])
   // Also "CreditReservation_sweep_idx" ("expiresAt", "userId") WHERE status = 'PENDING': a
   // partial index for the credit sweep job, hand-written in migration
   // 20261025160000_admin_query_indexes because Prisma cannot model partial indexes.
@@ -409,6 +411,7 @@ model AffiliateClick {
 
   @@index([affiliateId, createdAt])
   @@index([code, createdAt])
+  @@index([createdAt])
 }
 
 enum AffiliateCommissionStatus {
@@ -760,6 +763,7 @@ model UsageMetricFlushBatch {
   createdAt DateTime @default(now())
 
   @@index([date])
+  @@index([createdAt])
 }
 
 model ViewFlushBatch {
@@ -768,6 +772,7 @@ model ViewFlushBatch {
   createdAt DateTime @default(now())
 
   @@index([kind, createdAt])
+  @@index([createdAt])
 }
 
 // GitHub Stats sync record
@@ -782,6 +787,8 @@ model GitHubSync {
   inProgressCount Int              @default(0)
   doneCount       Int              @default(0)
   data            Json // Full GitHub data
+  /// Not an HTTP ETag: holds the ISO time the previous GitHub fetch started, used as the next
+  /// sync's `since` cursor (see syncGitHubStatsFromGitHub). Column reused, not renamed.
   etag            String?
   lastSyncStatus  String? // "success", "failed", "not-modified"
   lastError       String?

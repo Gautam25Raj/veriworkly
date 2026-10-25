@@ -4,6 +4,7 @@ import { config } from "#config";
 import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
 import { getRedis } from "#lib/redis";
+import { createRunTracker } from "#lib/jobLock";
 
 import {
   shouldSyncChangelogReleases,
@@ -11,6 +12,7 @@ import {
 } from "#services/changelog/index";
 
 let job: ScheduledTask | null = null;
+const runs = createRunTracker();
 
 /** Never rejects; a Redis blip is a skipped tick logged at warn, not an error (V-101). */
 export async function runChangelogSync(reason: "startup" | "cron"): Promise<void> {
@@ -51,29 +53,36 @@ export async function runChangelogSync(reason: "startup" | "cron"): Promise<void
   }
 }
 
-export function startChangelogSyncJob() {
-  const { enabled, cron: cronExpression, timezone } = config.changelogSync;
+/** Whether startChangelogSyncJob schedules anything; `/health/jobs` reports it disabled otherwise. */
+export function isChangelogSyncJobEnabled(): boolean {
+  return config.changelogSync.enabled;
+}
 
-  if (!enabled) {
+export function startChangelogSyncJob() {
+  const { cron: cronExpression, timezone } = config.changelogSync;
+
+  if (!isChangelogSyncJobEnabled()) {
     logger.warn("Changelog release sync is disabled in config.");
     return;
   }
 
   if (job) return;
 
-  job = cron.schedule(cronExpression, () => void runChangelogSync("cron"), { timezone });
+  job = cron.schedule(cronExpression, () => runs.track(runChangelogSync("cron")), { timezone });
 
   logger.debug("Changelog release sync cron started", { schedule: cronExpression });
 
-  void runChangelogSync("startup");
+  runs.track(runChangelogSync("startup"));
 }
 
-// Stops scheduling only; an in-flight sync is not tracked or awaited (Phase 4 item 1).
-export function stopChangelogSyncJob() {
+/** Stops scheduling and resolves once the sync in progress, if any, has finished. */
+export function stopChangelogSyncJob(): Promise<void> {
   if (job) {
     job.stop();
     job = null;
 
     logger.info("Changelog release sync cron stopped.");
   }
+
+  return runs.idle();
 }

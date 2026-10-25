@@ -15,6 +15,7 @@ import { ShareService } from "#services/shareService";
 import { prisma } from "#lib/prisma";
 import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
+import { assertDocumentNotPurged, PURGED_DOCUMENT_CONTENT } from "#jobs/retentionJob";
 import { buildUniqueSlugHelper } from "#utils/slugs";
 import { cacheGet, cacheSet, cacheDel } from "#lib/redis";
 import { bumpGeneration, resolveGenerationalKey } from "#lib/cacheGeneration";
@@ -789,22 +790,31 @@ export class DocumentService {
     const docWithShares = await prisma.document.findFirst({
       where: { id: documentId, userId },
       select: {
+        content: true,
         user: { select: { username: true } },
         shareLinks: { select: { slug: true } },
       },
     });
 
-    let document;
-    try {
-      document = await prisma.document.update({
-        where: { id: documentId, userId },
-        data: { deletedAt: null },
-      });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025")
-        throw new ApiError(404, "Document not found");
-      throw error;
-    }
+    // Refuses a document the retention job has already purged (see assertDocumentNotPurged).
+    if (docWithShares) assertDocumentNotPurged(docWithShares);
+
+    // Conditional, so a purge that lands between the read above and this write wins: the restore
+    // then answers 410 instead of bringing back the marker as the document's content.
+    const restored = await prisma.document.updateMany({
+      where: {
+        id: documentId,
+        userId,
+        deletedAt: { not: null },
+        NOT: { content: { equals: PURGED_DOCUMENT_CONTENT as Prisma.InputJsonObject } },
+      },
+      data: { deletedAt: null },
+    });
+
+    const document = await prisma.document.findFirst({ where: { id: documentId, userId } });
+    if (!document) throw new ApiError(404, "Document not found");
+    // Nothing restored: either it was not deleted (a no-op, as before) or it was purged meanwhile.
+    if (restored.count === 0) assertDocumentNotPurged(document);
 
     await bumpGeneration(
       ...documentCacheNamespaces(userId, documentId),

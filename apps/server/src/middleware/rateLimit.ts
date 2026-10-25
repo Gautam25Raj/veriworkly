@@ -4,6 +4,7 @@ import { config } from "#config";
 
 import { logger } from "#lib/logger";
 import { getRedis } from "#lib/redis";
+import { timeRedis } from "#lib/metrics";
 import { ApiError, createErrorResponse } from "#lib/errors";
 import { AI_REQUEST_DEADLINE_MS } from "#services/ats/aiDeadline";
 import { addressBucket, getRequestIpDetails, matchesSharedSecret } from "#utils/requestIp";
@@ -76,6 +77,12 @@ const RATE_LIMIT_EXEMPT_PATHS = new Set([
 ]);
 
 /**
+ * The operator endpoints, polled by a scraper from one address: exempt only when the request
+ * carries the valid INTERNAL_API_KEY, so attempts to guess the key stay rate limited.
+ */
+const INTERNAL_KEY_EXEMPT_PATHS = new Set(["/api/v1/health/metrics", "/api/v1/health/jobs"]);
+
+/**
  * The ATS routes that spend AI credits. They sat in the generic 100/15 min class while
  * `/api/v1/ai/*` had its own 20/min, although each call holds a provider connection for up to
  * the request deadline (V-038).
@@ -91,8 +98,14 @@ function normalizePath(path: string): string {
   return path.toLowerCase().replace(/\/+$/, "") || "/";
 }
 
-function isRateLimitExempt(path: string): boolean {
-  return RATE_LIMIT_EXEMPT_PATHS.has(normalizePath(path));
+function isRateLimitExempt(req: Request): boolean {
+  const path = normalizePath(req.path);
+  if (RATE_LIMIT_EXEMPT_PATHS.has(path)) return true;
+
+  return (
+    INTERNAL_KEY_EXEMPT_PATHS.has(path) &&
+    matchesSharedSecret(req.headers["x-internal-key"], config.internal?.apiKey)
+  );
 }
 
 function getClientKey(req: Request): string {
@@ -310,12 +323,15 @@ async function countBuckets(
   try {
     if (Date.now() < breakerOpenUntil) throw new Error("Redis skipped: rate limiter breaker open");
 
-    const counts = (await withTimeout(
-      getRedis().eval(INCREMENT_WITH_EXPIRY_SCRIPT, {
-        keys: buckets.map((b) => b.key),
-        arguments: buckets.map((b) => String(b.windowMs)),
-      }),
-      REDIS_TIMEOUT_MS,
+    const counts = (await timeRedis(
+      "ratelimit_eval",
+      withTimeout(
+        getRedis().eval(INCREMENT_WITH_EXPIRY_SCRIPT, {
+          keys: buckets.map((b) => b.key),
+          arguments: buckets.map((b) => String(b.windowMs)),
+        }),
+        REDIS_TIMEOUT_MS,
+      ),
     )) as number[];
 
     noteRedisAnswered();
@@ -475,7 +491,7 @@ export async function withAiSlot<T>(userId: string, work: () => Promise<T>): Pro
 
 export const rateLimitMiddleware = async (req: Request, res: Response, next: NextFunction) => {
   if (config.nodeEnv === "development") return next();
-  if (isRateLimitExempt(req.path)) return next();
+  if (isRateLimitExempt(req)) return next();
 
   const path = normalizePath(req.path);
   const { windowMs, maxRequests, failClosed } = getRouteLimitConfig(

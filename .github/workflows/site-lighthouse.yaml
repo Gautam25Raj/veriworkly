@@ -21,7 +21,6 @@ env:
   NEXT_PUBLIC_BACKEND_URL: "http://127.0.0.1:1/api/v1"
   BACKEND_INTERNAL_URL: "http://127.0.0.1:1/api/v1"
   NEXT_PUBLIC_SITE_URL: "http://localhost:3100"
-  SITE_URL: "http://localhost:3100"
   DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy"
 
 jobs:

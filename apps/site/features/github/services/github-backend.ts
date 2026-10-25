@@ -25,9 +25,7 @@ export interface GitHubProjectStats {
   /** Not sent by the server today; the page falls back to the repository link. */
   projectUrl?: string;
   stats: {
-    /** The server sends `total` today and will rename it to `totalItems`; read either. */
-    total?: number;
-    totalItems?: number;
+    total: number;
     issues: number;
     pullRequests: number;
     todo: number;

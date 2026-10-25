@@ -25,16 +25,7 @@ const StatsOverview = ({ stats }: StatsOverviewProps) => {
     );
   }
 
-  const {
-    total: legacyTotal,
-    totalItems,
-    issues,
-    pullRequests,
-    todo,
-    inProgress,
-    done,
-    completionRate,
-  } = stats.stats;
+  const { total, issues, pullRequests, todo, inProgress, done, completionRate } = stats.stats;
   const completion = Number.parseFloat(completionRate) || 0;
 
   const segments = [
@@ -48,7 +39,7 @@ const StatsOverview = ({ stats }: StatsOverviewProps) => {
     <div className="space-y-12">
       <dl className="grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-4">
         {[
-          { label: "Items on the board", value: totalItems ?? legacyTotal ?? 0 },
+          { label: "Items on the board", value: total },
           { label: "Issues", value: issues },
           { label: "Pull requests", value: pullRequests },
           { label: "Done", value: `${completion}%` },

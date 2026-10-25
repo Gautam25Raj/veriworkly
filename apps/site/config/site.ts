@@ -34,8 +34,7 @@ export const siteConfig = {
     postalAddress: "Phase-3, DLF Cyber City, Gurugram, Haryana 122010, India",
   },
 
-  /** Client components import siteConfig and only NEXT_PUBLIC_* vars reach the browser; SITE_URL is a server-only fallback. */
-  url: process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL || links.main,
+  url: process.env.NEXT_PUBLIC_SITE_URL || links.main,
 
   description:
     "Free-to-use, open-core, and privacy-first AI career workspace. Build and tailor professional resumes, cover letters, and web portfolios with local-first ownership, optional secure cloud sync, and frontier AI models accessed through a privacy-conscious gateway.",

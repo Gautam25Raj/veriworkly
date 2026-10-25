@@ -38,7 +38,12 @@ vi.mock("#lib/logger", () => ({
 }));
 
 import { logger } from "#lib/logger";
-import { AI_IN_FLIGHT_MAX, rateLimitMiddleware, withAiSlot } from "#middleware/rateLimit";
+import {
+  AI_IN_FLIGHT_MAX,
+  autosaveRateLimit,
+  rateLimitMiddleware,
+  withAiSlot,
+} from "#middleware/rateLimit";
 
 describe("rateLimitMiddleware", () => {
   let req: Partial<Request> & { headers: Record<string, string> };
@@ -456,6 +461,7 @@ describe("withAiSlot", () => {
     await expect(withAiSlot("user-1", work)).rejects.toMatchObject({
       statusCode: 429,
       message: expect.stringMatching(/in progress/i),
+      details: { retryAfterSeconds: expect.any(Number) },
     });
     expect(work).not.toHaveBeenCalled();
     // The over-count increment is undone so the user is not locked out by their own refusal.
@@ -528,5 +534,121 @@ describe("withAiSlot on a Redis that cannot count", () => {
     expect(await withAiSlot("user-1", work)).toBe("done");
     expect(redis.eval).toHaveBeenCalledTimes(1);
     expect(work).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("rateLimitMiddleware on a stalled Redis (V-095)", () => {
+  function call(path: string, method = "POST") {
+    const res = { set: vi.fn(), status: vi.fn().mockReturnThis(), json: vi.fn() };
+    const next = vi.fn();
+    const req = {
+      headers: {},
+      ip: "203.0.113.20",
+      path,
+      method,
+      socket: { remoteAddress: "203.0.113.20" },
+    } as unknown as Request;
+    return rateLimitMiddleware(req, res as unknown as Response, next).then(() => ({
+      passed: next.mock.calls.length === 1,
+      status: (res.status.mock.calls[0] as [number] | undefined)?.[0],
+    }));
+  }
+
+  beforeEach(() => {
+    mockGetRedis.mockReset();
+    // Connected, but the reply never comes.
+    mockGetRedis.mockReturnValue({ isReady: true, eval: vi.fn(() => new Promise(() => {})) });
+  });
+
+  it("stops waiting after the timeout and counts the request in memory", async () => {
+    const started = Date.now();
+    const result = await call("/api/v1/documents", "GET");
+    expect(result.passed).toBe(true);
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
+  it("keeps a fail-closed class closed: 503", async () => {
+    expect((await call("/api/v1/contact")).status).toBe(503);
+  });
+});
+
+describe("autosave class (V-130)", () => {
+  beforeEach(() => mockGetRedis.mockReset());
+
+  it("counts PATCH /documents/:id only in the global bucket at the IP limiter", async () => {
+    const evalFn = vi.fn().mockResolvedValue([1, 900000]);
+    mockGetRedis.mockReturnValue({ isReady: true, eval: evalFn });
+    const next = vi.fn();
+    const req = {
+      headers: {},
+      ip: "203.0.113.30",
+      path: "/api/v1/documents/doc_abc123def456",
+      method: "PATCH",
+      socket: { remoteAddress: "203.0.113.30" },
+    } as unknown as Request;
+
+    await rateLimitMiddleware(req, { set: vi.fn() } as unknown as Response, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(evalFn.mock.calls[0][1].keys).toEqual(["rate-limit:global:203.0.113.30"]);
+  });
+
+  it("keys on the user and answers 429 with Retry-After past 600", async () => {
+    const evalFn = vi.fn().mockResolvedValue([601, 42_000]);
+    mockGetRedis.mockReturnValue({ isReady: true, eval: evalFn });
+    const res = { set: vi.fn(), status: vi.fn().mockReturnThis(), json: vi.fn() };
+    const next = vi.fn();
+    const req = {
+      headers: {},
+      ip: "203.0.113.31",
+      path: "/api/v1/documents/doc_1",
+      method: "PATCH",
+      socket: { remoteAddress: "203.0.113.31" },
+      authUser: { id: "user_1", email: null, name: null },
+    } as unknown as Request;
+
+    await autosaveRateLimit(req, res as unknown as Response, next);
+
+    expect(evalFn.mock.calls[0][1].keys).toEqual(["rate-limit:autosave:user:user_1"]);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(429);
+    expect(res.set).toHaveBeenCalledWith("Retry-After", "42");
+  });
+});
+
+// Last in the file: it opens the module-level breaker, then closes it again.
+describe("rateLimitMiddleware circuit breaker (V-095)", () => {
+  const call = () => {
+    const req = {
+      headers: {},
+      ip: "203.0.113.40",
+      path: "/api/v1/documents",
+      method: "GET",
+      socket: { remoteAddress: "203.0.113.40" },
+    } as unknown as Request;
+    const next = vi.fn();
+    return rateLimitMiddleware(req, { set: vi.fn() } as unknown as Response, next).then(
+      () => next.mock.calls.length === 1,
+    );
+  };
+
+  it("skips Redis for 5 s after 3 timeouts in a row, then tries again", async () => {
+    const stalled = vi.fn(() => new Promise(() => {}));
+    mockGetRedis.mockReset();
+    mockGetRedis.mockReturnValue({ isReady: true, eval: stalled });
+    for (let i = 0; i < 3; i += 1) expect(await call()).toBe(true);
+    expect(stalled).toHaveBeenCalledTimes(3);
+
+    // Open: answered from memory without asking Redis.
+    expect(await call()).toBe(true);
+    expect(stalled).toHaveBeenCalledTimes(3);
+
+    const healthy = vi.fn().mockResolvedValue([1, 60000, 1, 900000]);
+    mockGetRedis.mockReturnValue({ isReady: true, eval: healthy });
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(now + 6_000);
+    expect(await call()).toBe(true);
+    clock.mockRestore();
+    expect(healthy).toHaveBeenCalledTimes(1);
   });
 });

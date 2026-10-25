@@ -67,7 +67,23 @@ app.post(
 // triggering a preflight — mounting a parser for it would give away preflight as a structural
 // CSRF barrier for no benefit, since no client sends that format (multipart uploads go through
 // multer on the routes that accept them). SameSite=lax on the session cookie is the other layer.
-app.use(express.json({ limit: "4mb" }));
+//
+// V-098: 100 kb everywhere, so unauthenticated routes (contact, auth, stats events, share
+// verify) never parse large bodies. These paths are skipped here because their routers mount a
+// larger parser after authentication: 4 MB for documents, profiles (master profile, imports),
+// share create and the portfolio draft; 256 kb for the AI and ATS text routes.
+const defaultJsonBody = express.json({ limit: "100kb" });
+const OWN_BODY_PARSER_PATHS = [
+  /^\/api\/v1\/(documents|profiles|ai)(\/|$)/i,
+  /^\/api\/v1\/shares\/?$/i,
+  /^\/api\/v1\/portfolios\/draft\/?$/i,
+  /^\/api\/v1\/ats\/(check|analyze|convert-resume)\/?$/i,
+];
+app.use((req: Request, res: Response, next: NextFunction) =>
+  OWN_BODY_PARSER_PATHS.some((pattern) => pattern.test(req.path))
+    ? next()
+    : defaultJsonBody(req, res, next),
+);
 
 // Trust proxy (for accurate IP addresses behind reverse proxies)
 app.set("trust proxy", config.server.trustProxy);

@@ -77,3 +77,23 @@ describe("errorHandler audit diagnostics", () => {
     expect(res.locals.errorMessage).toBe("Unknown error type");
   });
 });
+
+describe("errorHandler Retry-After", () => {
+  it("sets Retry-After on a 429 ApiError that carries retryAfterSeconds", () => {
+    const set = vi.fn();
+    const res = {
+      locals: {},
+      set,
+      status: vi.fn().mockReturnValue({ json: vi.fn() }),
+    } as unknown as Response;
+
+    errorHandler(
+      new ApiError(429, "Too many", { retryAfterSeconds: 10 }),
+      { method: "POST", path: "/api/v1/ats/analyze" } as Request,
+      res,
+      vi.fn(),
+    );
+
+    expect(set).toHaveBeenCalledWith("Retry-After", "10");
+  });
+});

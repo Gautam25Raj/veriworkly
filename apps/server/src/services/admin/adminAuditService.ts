@@ -127,26 +127,36 @@ export async function listAuditEntries(query: AdminAuditListQuery) {
   return { items, total, limit: query.limit, offset: query.offset };
 }
 
+/**
+ * Filter dropdown values. `groupBy` runs a SQL `GROUP BY`, so Postgres returns one row per
+ * distinct value; Prisma's `distinct` without the `nativeDistinct` preview fetches every row and
+ * de-duplicates in memory, i.e. it read the whole audit table twice per page load (V-077).
+ */
 export async function getAuditFilters() {
-  const [targetTypes, actors] = await Promise.all([
-    prisma.adminAuditEntry.findMany({
-      distinct: ["targetType"],
-      select: { targetType: true },
+  const [targetTypes, actorIds] = await Promise.all([
+    prisma.adminAuditEntry.groupBy({
+      by: ["targetType"],
       orderBy: { targetType: "asc" },
       take: 100,
     }),
-    prisma.adminAuditEntry.findMany({
-      distinct: ["actorId"],
+    prisma.adminAuditEntry.groupBy({
+      by: ["actorId"],
       where: { actorId: { not: null } },
-      select: { actor: { select: { id: true, name: true, email: true } } },
+      orderBy: { actorId: "asc" },
       take: 50,
     }),
   ]);
 
+  const actors = await prisma.user.findMany({
+    where: { id: { in: actorIds.map((row) => row.actorId).filter((id) => id !== null) } },
+    select: { id: true, name: true, email: true },
+    orderBy: { email: "asc" },
+  });
+
   return {
     actions: Object.values(ADMIN_AUDIT_ACTIONS),
     targetTypes: targetTypes.map((entry) => entry.targetType),
-    actors: actors.map((entry) => entry.actor).filter((actor) => actor !== null),
+    actors,
   };
 }
 

@@ -9,8 +9,20 @@ import { ADMIN_TIME_SERIES_TTL_SECONDS, adminTimeSeriesCacheKey } from "#service
  * Prisma's `groupBy` cannot bucket a `DateTime` column by day, so each metric is a raw
  * `date_trunc` query. The gap filling is deliberately done in TypeScript rather than with a
  * SQL `generate_series` join: a day with no rows must still render as a zero point, and doing
- * that in JS keeps every query a plain single-table scan that the existing indexes already
- * cover. Joining against a generated series instead would defeat those indexes.
+ * that in JS keeps every query a plain single-table range scan on the window column (each one
+ * has a leading index on it: `createdAt`, `publishedAt`, `date`, `[type, createdAt]`).
+ *
+ * Day boundaries are UTC regardless of the session `TimeZone` (V-071). Prisma `DateTime` columns
+ * are `timestamp without time zone` holding UTC wall-clock time, so the 2-argument
+ * `date_trunc('day', "createdAt")` on the bare column already truncates at UTC midnight. Adding
+ * `AT TIME ZONE 'UTC'` (or the 3-argument form, which only takes a `timestamptz`) converts to
+ * `timestamptz` first and then truncates in the session zone, which moved rows a day on any
+ * non-UTC session.
+ *
+ * Every series counts what was *created* that day, whatever happened to the row afterwards: a
+ * subscription cancelled later, a commission reversed later and a document soft-deleted later
+ * all stay on their creation day (`getDocumentSummary.createdLast30Days` follows the same rule).
+ * Filtering on current state made yesterday's bars shrink as rows changed.
  *
  * Every query here is a literal template — no identifier is interpolated from input — so the
  * only parameter that ever reaches Postgres is the window start date.
@@ -21,7 +33,7 @@ interface DailyRow {
   value: number | bigint | null;
 }
 
-/** UTC midnight for `date`, matching the `date_trunc('day', ..., 'UTC')` used in the queries. */
+/** UTC midnight for `date`, matching the `date_trunc('day', <timestamp>)` used in the queries. */
 function startOfUtcDay(date: Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
@@ -79,47 +91,47 @@ async function buildAdminTimeSeries(days: number) {
     commissionCents,
   ] = await Promise.all([
     prisma.$queryRaw<DailyRow[]>`
-      SELECT date_trunc('day', "createdAt" AT TIME ZONE 'UTC') AS bucket, COUNT(*) AS value
+      SELECT date_trunc('day', "createdAt") AS bucket, COUNT(*) AS value
       FROM "User"
       WHERE "createdAt" >= ${since}
       GROUP BY bucket
     `,
     prisma.$queryRaw<DailyRow[]>`
-      SELECT date_trunc('day', "createdAt" AT TIME ZONE 'UTC') AS bucket, COUNT(*) AS value
+      SELECT date_trunc('day', "createdAt") AS bucket, COUNT(*) AS value
       FROM "Subscription"
-      WHERE "createdAt" >= ${since} AND "status" = 'ACTIVE'
+      WHERE "createdAt" >= ${since}
       GROUP BY bucket
     `,
     prisma.$queryRaw<DailyRow[]>`
-      SELECT date_trunc('day', "publishedAt" AT TIME ZONE 'UTC') AS bucket, COUNT(*) AS value
+      SELECT date_trunc('day', "publishedAt") AS bucket, COUNT(*) AS value
       FROM "PortfolioPublication"
       WHERE "publishedAt" >= ${since}
       GROUP BY bucket
     `,
     prisma.$queryRaw<DailyRow[]>`
-      SELECT date_trunc('day', "createdAt" AT TIME ZONE 'UTC') AS bucket, COUNT(*) AS value
+      SELECT date_trunc('day', "createdAt") AS bucket, COUNT(*) AS value
       FROM "Document"
-      WHERE "createdAt" >= ${since} AND "deletedAt" IS NULL
+      WHERE "createdAt" >= ${since}
       GROUP BY bucket
     `,
     // Already pre-aggregated per day by the view flush job, so this sums rather than counts.
     prisma.$queryRaw<DailyRow[]>`
-      SELECT date_trunc('day', "date" AT TIME ZONE 'UTC') AS bucket, SUM("count") AS value
+      SELECT date_trunc('day', "date") AS bucket, SUM("count") AS value
       FROM "PortfolioViewDaily"
       WHERE "date" >= ${since}
       GROUP BY bucket
     `,
     // DEBIT amounts are stored negative; negate so the chart plots spend as a positive number.
     prisma.$queryRaw<DailyRow[]>`
-      SELECT date_trunc('day', "createdAt" AT TIME ZONE 'UTC') AS bucket, -SUM("amount") AS value
+      SELECT date_trunc('day', "createdAt") AS bucket, -SUM("amount") AS value
       FROM "CreditTransaction"
       WHERE "createdAt" >= ${since} AND "type" = 'DEBIT'
       GROUP BY bucket
     `,
     prisma.$queryRaw<DailyRow[]>`
-      SELECT date_trunc('day', "createdAt" AT TIME ZONE 'UTC') AS bucket, SUM("amountCents") AS value
+      SELECT date_trunc('day', "createdAt") AS bucket, SUM("amountCents") AS value
       FROM "AffiliateCommission"
-      WHERE "createdAt" >= ${since} AND "status" <> 'REVERSED'
+      WHERE "createdAt" >= ${since}
       GROUP BY bucket
     `,
   ]);
@@ -148,13 +160,13 @@ async function buildAdminTimeSeries(days: number) {
  * still move, so serving a few-minute-old series costs the operator nothing.
  */
 export async function getAdminTimeSeries(days: number) {
-  const key = adminTimeSeriesCacheKey(days);
+  const key = await adminTimeSeriesCacheKey(days);
 
-  const cached = await cacheGet<Awaited<ReturnType<typeof buildAdminTimeSeries>>>(key);
+  const cached = key ? await cacheGet<Awaited<ReturnType<typeof buildAdminTimeSeries>>>(key) : null;
   if (cached) return cached;
 
   const series = await buildAdminTimeSeries(days);
-  await cacheSet(key, series, ADMIN_TIME_SERIES_TTL_SECONDS);
+  if (key) await cacheSet(key, series, ADMIN_TIME_SERIES_TTL_SECONDS);
 
   return series;
 }

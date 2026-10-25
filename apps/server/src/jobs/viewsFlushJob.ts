@@ -51,17 +51,53 @@ export async function runViewsFlush(reason: "startup" | "cron"): Promise<void> {
       return;
     }
 
-    // 1. Flush Portfolio Views
-    const dateKeys = await PortfolioService.getPendingViewDates();
-    let flushedPortfolioViews = 0;
+    // Each step is isolated (V-068): a failing portfolio day must not hold back the other days,
+    // the share flush or the retention sweep in the same run.
+    const logStepFailure = (step: string, error: unknown, extra?: Record<string, unknown>) =>
+      logger.error(`Views flush (${reason}): ${step} failed`, {
+        ...extra,
+        error: error instanceof Error ? error.message : error,
+      });
 
-    for (const dateKey of dateKeys) {
-      const result = await PortfolioService.flushViewsForDate(dateKey);
-      flushedPortfolioViews += result.flushedCount;
+    // 1. Flush Portfolio Views
+    let flushedPortfolioViews = 0;
+    const skippedPortfolioDates: string[] = [];
+
+    try {
+      for (const dateKey of await PortfolioService.getPendingViewDates()) {
+        try {
+          const result = await PortfolioService.flushViewsForDate(dateKey);
+          flushedPortfolioViews += result.flushedCount;
+          if ("skipped" in result) skippedPortfolioDates.push(dateKey);
+        } catch (error) {
+          logStepFailure("portfolio views", error, { dateKey });
+        }
+      }
+    } catch (error) {
+      logStepFailure("listing portfolio view dates", error);
     }
 
+    if (skippedPortfolioDates.length > 0)
+      logger.warn(`Views flush (${reason}): portfolio days locked by another flush`, {
+        dates: skippedPortfolioDates,
+      });
+
     // 2. Flush Share Views
-    const shareFlushResult = await ShareService.flushShareViews();
+    let shareFlushResult: Awaited<ReturnType<typeof ShareService.flushShareViews>> | undefined;
+    try {
+      shareFlushResult = await ShareService.flushShareViews();
+      if ("skipped" in shareFlushResult)
+        logger.warn(`Views flush (${reason}): share views locked by another flush`);
+    } catch (error) {
+      logStepFailure("share views", error);
+    }
+
+    // 3. ShareView retention, batched and outside the flush transaction (V-110).
+    try {
+      await ShareService.pruneShareViews();
+    } catch (error) {
+      logStepFailure("share view retention", error);
+    }
 
     if (
       flushedPortfolioViews > 0 ||

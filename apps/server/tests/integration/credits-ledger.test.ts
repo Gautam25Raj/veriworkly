@@ -4,15 +4,16 @@ import { describe, expect, it } from "vitest";
 
 import { ApiError } from "#lib/errors";
 import { prisma } from "#lib/prisma";
-import { CreditService } from "#services/creditService";
+import { CreditService, sweepExpiredCredits } from "#services/creditService";
 
 import { createUserWithSession } from "./helpers/auth.js";
 
 /**
  * The credit ledger against the real database. Every scenario ends by asserting the ledger
  * invariant straight from SQL: `balance + reserved == Σ remaining of unexpired grants`, and no
- * wallet or grant ever goes negative. The invariant is stated after a sweep (`getWallet` runs
- * both expiry sweeps), because grant expiry is lazy by design.
+ * wallet or grant ever goes negative. The invariant is stated after a sweep
+ * (`sweepExpiredCredits` runs both expiry sweeps; reads no longer do, V-107), because grant
+ * expiry is lazy by design.
  */
 
 const HOUR = 60 * 60 * 1000;
@@ -170,10 +171,10 @@ describe("credit ledger invariants against the real database", () => {
       data: { expiresAt: new Date(reservation.createdAt.getTime() + 1) },
     });
 
-    // The sweep inside getWallet must defer the expiry while the reservation is pending: the
-    // reservation's 30 credits were carved out of this grant, and the commit filter deliberately
-    // still admits a grant that was valid when the reservation was created.
-    await CreditService.getWallet(user.id);
+    // The sweep must defer the expiry while the reservation is pending: the reservation's 30
+    // credits were carved out of this grant, and the commit filter deliberately still admits a
+    // grant that was valid when the reservation was created.
+    await sweepExpiredCredits();
     let ledger = await ledgerOf(user.id);
     expect(ledger.balance).toBeGreaterThanOrEqual(0);
     expect(ledger).toMatchObject({ balance: 70, reserved: 30 });
@@ -190,7 +191,7 @@ describe("credit ledger invariants against the real database", () => {
     ).resolves.toMatchObject({ amount: -30 });
     expect(await allocationsOf(g.id)).toBe(30);
 
-    await CreditService.getWallet(user.id);
+    await sweepExpiredCredits();
     ledger = await expectInvariant(user.id);
     expect(ledger).toMatchObject({ balance: 0, reserved: 0, unexpired: 0 });
     const expiry = await prisma.creditTransaction.findFirst({
@@ -285,7 +286,7 @@ describe("credit ledger invariants against the real database", () => {
     ).resolves.toMatchObject({ amount: -30 });
     expect(await allocationsOf(g1.id)).toBe(30);
 
-    await CreditService.getWallet(user.id);
+    await sweepExpiredCredits();
     const ledger = await expectInvariant(user.id);
     expect(ledger).toMatchObject({ balance: 50, reserved: 0, unexpired: 50 });
   });

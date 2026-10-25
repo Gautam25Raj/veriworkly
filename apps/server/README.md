@@ -83,6 +83,14 @@ Rules the callers can rely on:
 
 Five scheduled jobs (`src/jobs/`), each guarded by a Redis distributed lock: GitHub sync (twice daily), portfolio/share view flush (every 10 minutes), usage-metrics flush (daily), portfolio access job (hourly — grace-period suspension plus abandoned-upload cleanup), and changelog release sync (`CHANGELOG_RELEASE_SYNC_CRON`, default daily at 06:00 UTC).
 
+## 🧠 Redis memory and limits
+
+- **Every key the server writes has a TTL**, with one deliberate exception: the view-flush batch ids (`share:views:processing:batch-id`, `portfolio:views:buffer:*:processing:batch-id`), which must survive until their batch commits and are deleted with it. Caches go through `cacheSet` (always `SETEX`); view and usage buffers, dedup markers, rate-limit buckets and locks set `EX`/`PX` or `EXPIRE` when written. Keep it that way for new keys. Known exceptions still to fix: the usage-metrics flush batch id (`analyticsService.ts`) and better-auth secondary-storage writes that arrive without a ttl (`auth/index.ts`).
+- **Memory ceiling.** Compose runs Redis with `--maxmemory ${REDIS_MAXMEMORY:-256mb} --maxmemory-policy volatile-lru`. That policy evicts any key with a TTL, not only caches: under memory pressure it can also drop buffered view and usage counts, rate-limit buckets and job locks. Once nothing evictable is left, writes fail with OOM. Size `REDIS_MAXMEMORY` so the working set (caches plus a day of buffers) fits with headroom, and treat evictions in `INFO stats` as a signal to raise it. Sessions survive eviction: better-auth stores them in Postgres too (`storeSessionInDatabase`) and falls back to the database when the Redis copy is gone, so an evicted session costs one extra query, not a sign-out. Evicted better-auth rate-limit buckets (`ba-rl:*`) simply restart their window.
+- **Rate limiter.** Each Redis call is bounded by `RATE_LIMIT_REDIS_TIMEOUT_MS` (default 400 ms); past it the request is counted in process memory, and after 3 timeouts in a row the limiter skips Redis for 5 s before trying again, except the fail-closed classes (share verify, contact, OTP), which answer 503. Every 429 carries `Retry-After`, including the AI in-flight cap.
+- **Autosave class.** `PATCH /api/v1/documents/:id` and `PUT /api/v1/profiles/master` are limited to 600 per 15 minutes per user, counted after authentication (the IP limiter runs before auth, so it only counts these in the per-IP global bucket). A request that reaches the class without a user is keyed on its IP.
+- **JSON bodies** are limited to 100 kb. After authentication, documents, profiles (master profile and imports), share create (`POST /shares`) and the portfolio draft (`PUT /portfolios/draft`) accept 4 MB, and `/ai/*` plus ATS `check`/`analyze`/`convert-resume` accept 256 kb. Larger bodies get 413.
+
 ## 📁 Folder Structure
 
 - `src/`: TypeScript source code.

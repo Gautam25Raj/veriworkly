@@ -53,6 +53,15 @@ model User {
   adminAuditEntries     AdminAuditEntry[]     @relation("AdminAuditActor")
   portfolioPublication  PortfolioPublication?
   portfolioAssets       PortfolioAsset[]
+
+  // Admin overview signup windows and the signups series (V-070/V-105).
+  @@index([createdAt])
+  // Admin user search is `contains` + `mode: insensitive` (leading-wildcard ILIKE), which only a
+  // trigram index can serve. Needs the `pg_trgm` extension, created by hand in migration
+  // 20261025160000_admin_query_indexes (Prisma does not manage extensions here).
+  @@index([email(ops: raw("gin_trgm_ops"))], map: "User_email_trgm_idx", type: Gin)
+  @@index([name(ops: raw("gin_trgm_ops"))], map: "User_name_trgm_idx", type: Gin)
+  @@index([username(ops: raw("gin_trgm_ops"))], map: "User_username_trgm_idx", type: Gin)
 }
 
 enum Role {
@@ -170,6 +179,7 @@ model Document {
   @@unique([userId, slug])
   @@index([userId, type, deletedAt, updatedAt])
   @@index([userId, deletedAt, updatedAt])
+  @@index([createdAt])
 }
 
 // No TRIALING. VeriWorkly does not offer a free trial on any plan, and never had a
@@ -212,6 +222,8 @@ model Subscription {
   @@index([userId, status])
   @@index([userId, productKey, status])
   @@index([userId, updatedAt])
+  @@index([createdAt])
+  @@index([status, createdAt])
 }
 
 enum EntitlementSource {
@@ -288,6 +300,9 @@ model CreditReservation {
 
   @@index([userId, status, expiresAt])
   @@index([walletId, status])
+  // Also "CreditReservation_sweep_idx" ("expiresAt", "userId") WHERE status = 'PENDING': a
+  // partial index for the credit sweep job, hand-written in migration
+  // 20261025160000_admin_query_indexes because Prisma cannot model partial indexes.
 }
 
 model CreditTransaction {
@@ -311,6 +326,7 @@ model CreditTransaction {
   @@index([userId, createdAt])
   @@index([walletId, createdAt])
   @@index([referenceId])
+  @@index([type, createdAt])
 }
 
 model CreditGrant {
@@ -330,6 +346,9 @@ model CreditGrant {
   @@unique([userId, source, sourceId])
   @@index([userId, expiresAt, remaining])
   @@index([walletId, expiresAt, remaining])
+  // Also "CreditGrant_sweep_idx" ("expiresAt", "userId") WHERE remaining > 0: a partial index
+  // the credit sweep job relies on. Prisma cannot model partial indexes, so it is hand-written in
+  // migration 20261025160000_admin_query_indexes; do not let `migrate dev` drop it.
 }
 
 model CreditUsageAllocation {
@@ -424,6 +443,7 @@ model AffiliateCommission {
   @@index([affiliateId, status, createdAt])
   @@index([referralId, createdAt])
   @@index([subscriptionId])
+  @@index([status, createdAt])
 }
 
 model AffiliateWallet {
@@ -507,6 +527,7 @@ model AdminAuditEntry {
   @@index([actorId, createdAt])
   @@index([targetType, targetId, createdAt])
   @@index([action, createdAt])
+  @@index([createdAt])
 }
 
 enum PortfolioPublicationStatus {
@@ -533,6 +554,7 @@ model PortfolioPublication {
   views             PortfolioViewDaily[]
 
   @@index([status, updatedAt])
+  @@index([publishedAt])
 }
 
 enum BillingWebhookStatus {
@@ -559,6 +581,7 @@ model BillingWebhookEvent {
   @@index([type, createdAt])
   @@index([status, createdAt])
   @@index([userId, createdAt])
+  @@index([createdAt])
 }
 
 enum PortfolioAssetKind {
@@ -586,6 +609,7 @@ model PortfolioAsset {
   updatedAt DateTime             @updatedAt
 
   @@index([userId, status])
+  @@index([status, createdAt])
 }
 
 model PortfolioViewDaily {
@@ -598,8 +622,10 @@ model PortfolioViewDaily {
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
 
+  // Its leading `(publicationId, date)` also serves per-publication date ranges, so the separate
+  // `[publicationId, date]` index was dropped as redundant (V-105).
   @@unique([publicationId, date, referrerHost])
-  @@index([publicationId, date])
+  @@index([date])
 }
 
 model MasterProfile {
@@ -667,7 +693,7 @@ model RoadmapFeature {
   details          Json?
   interactions     RoadmapInteraction[]
 
-  @@index([status])
+  // No `[status]` index: `[status, createdAt]` and `[status, completedAt, updatedAt]` lead with it.
   @@index([createdAt])
   @@index([status, createdAt])
   @@index([completedAt, updatedAt])
@@ -783,8 +809,11 @@ model GitHubSyncItem {
   updatedAt  DateTime
   insertedAt DateTime   @default(now())
 
+  // `[syncId]` was dropped (V-105): the unique and four indexes below lead with it. The rest stay:
+  // `[status]`, `[kind]`, `[createdAt]`, `[updatedAt]` are the only ones leading with their
+  // column, and each `[syncId, …, updatedAt]` has a different second column, so none is a prefix
+  // of another.
   @@unique([syncId, githubId])
-  @@index([syncId])
   @@index([status])
   @@index([kind])
   @@index([createdAt])
@@ -813,10 +842,12 @@ model ApiKey {
   updatedAt DateTime  @updatedAt
   lastUsed  DateTime?
 
-  @@index([userId])
+  // `[userId]` was dropped: `[userId, isActive]` leads with it. `[isActive]` is kept: no other
+  // index leads with it, so the register's "redundant" call does not hold for it.
   @@index([userId, isActive])
   @@index([isActive])
   @@index([expiresAt])
+  @@index([lastUsed])
 }
 
 // Audit log for tracking API access

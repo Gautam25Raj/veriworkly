@@ -12,8 +12,9 @@ import { ShareService } from "#services/shareService";
 import { logger } from "#lib/logger";
 import { normalizeSlug, normalizeUsername } from "#utils/slugs";
 import { addressBucket, getRequestIpDetails } from "#utils/requestIp";
-import { cacheGet, cacheSet, cacheDel, cacheDelByPrefix } from "#lib/redis";
-import { userProfileCacheKey } from "#lib/cacheKeys";
+import { cacheGet, cacheSet, cacheDel } from "#lib/redis";
+import { bumpGeneration, resolveGenerationalKey } from "#lib/cacheGeneration";
+import { cacheNamespaces, userProfileCacheKey } from "#lib/cacheKeys";
 import { parseOffsetPagination, createOffsetPaginationMeta } from "#utils/pagination";
 import { createSuccessResponse, handleValidationError, ApiError } from "#lib/errors";
 
@@ -57,6 +58,10 @@ const publicReadableParamsSchema = z.object({
 });
 
 type PublicShareLinkView = Omit<PublicShareLink, "passwordHash"> & { hasPassword: boolean };
+
+/** Cached in place of a share that does not exist, so repeated misses skip Postgres. */
+const MISSING_SHARE = { missing: true } as const;
+const MISSING_SHARE_TTL_SECONDS = 60;
 
 /**
  * Strips the scrypt password hash before this record is cached. Nothing downstream of the
@@ -113,22 +118,17 @@ export class ShareController {
       const body = shareLinkCreateSchema.parse(req.body);
       const { documentId } = body;
 
-      const { shareLink, previousSlug } = await ShareService.createShareLink(
-        user.id,
-        documentId,
-        body,
-      );
+      const { shareLink } = await ShareService.createShareLink(user.id, documentId, body);
 
+      // One bump covers the old slug, the new one and any cached 404 for it.
       await Promise.all([
-        cacheDelByPrefix(`share:list:${user.id}:${documentId}:`),
-        cacheDelByPrefix(`share:shared-document-ids:${user.id}:`),
+        bumpGeneration(
+          cacheNamespaces.shareList(user.id),
+          cacheNamespaces.sharedDocumentIds(user.id),
+          cacheNamespaces.publicShare(shareLink.username),
+        ),
         cacheDel(`profile:${user.id}`),
         cacheDel(userProfileCacheKey(user.id)),
-        ...(previousSlug
-          ? [cacheDel(`share:public-readable:${shareLink.username}:${previousSlug}`)]
-          : []),
-        cacheDel(`share:public-readable:${shareLink.username}:${shareLink.documentSlug}`),
-        cacheDel(`share:public-readable:${shareLink.username}:${shareLink.slug}`),
       ]);
 
       res
@@ -164,9 +164,14 @@ export class ShareController {
         maxPageSize: 50,
       });
 
-      const cacheKey = `share:list:${user.id}:${documentId}:${pagination.limit}:${pagination.offset}`;
+      const cacheKey = await resolveGenerationalKey(
+        cacheNamespaces.shareList(user.id),
+        documentId,
+        String(pagination.limit),
+        String(pagination.offset),
+      );
 
-      const cached = await cacheGet<unknown>(cacheKey);
+      const cached = cacheKey ? await cacheGet<unknown>(cacheKey) : null;
 
       if (cached) return res.json(createSuccessResponse(cached, "Share links fetched from cache"));
 
@@ -179,7 +184,7 @@ export class ShareController {
       const formattedItems = items.map(formatShareLinkResponse);
       const response = { items: formattedItems, ...createOffsetPaginationMeta(total, pagination) };
 
-      await cacheSet(cacheKey, response, 1800);
+      if (cacheKey) await cacheSet(cacheKey, response, 1800);
 
       res.json(createSuccessResponse(response, "Share links fetched successfully"));
     } catch (error) {
@@ -191,9 +196,12 @@ export class ShareController {
     try {
       const user = requireAuthUser(req);
       const { ids } = sharedDocumentIdsQuerySchema.parse(req.query);
-      const cacheKey = `share:shared-document-ids:${user.id}:${ids.sort().join(",")}`;
+      const cacheKey = await resolveGenerationalKey(
+        cacheNamespaces.sharedDocumentIds(user.id),
+        ids.sort().join(","),
+      );
 
-      const cached = await cacheGet<unknown>(cacheKey);
+      const cached = cacheKey ? await cacheGet<unknown>(cacheKey) : null;
 
       if (cached)
         return res.json(createSuccessResponse(cached, "Shared document ids fetched from cache"));
@@ -201,7 +209,7 @@ export class ShareController {
       const documentIds = await ShareService.listSharedDocumentIds(user.id, ids);
       const response = { documentIds };
 
-      await cacheSet(cacheKey, response, 300);
+      if (cacheKey) await cacheSet(cacheKey, response, 300);
 
       res.json(createSuccessResponse(response, "Shared document ids fetched successfully"));
     } catch (error) {
@@ -228,11 +236,13 @@ export class ShareController {
 
       // Invalidate caches
       await Promise.all([
-        cacheDelByPrefix(`share:list:${user.id}:${documentId}:`),
-        cacheDelByPrefix(`share:shared-document-ids:${user.id}:`),
+        bumpGeneration(
+          cacheNamespaces.shareList(user.id),
+          cacheNamespaces.sharedDocumentIds(user.id),
+          cacheNamespaces.publicShare(revoked.username),
+        ),
         cacheDel(`profile:${user.id}`),
         cacheDel(userProfileCacheKey(user.id)),
-        cacheDel(`share:public-readable:${revoked.username}:${revoked.slug}`),
       ]);
 
       res.json(createSuccessResponse(null, "Share link revoked successfully"));
@@ -253,12 +263,29 @@ export class ShareController {
   static async getPublicReadable(req: Request, res: Response, next: NextFunction) {
     try {
       const { username, slug } = publicReadableParamsSchema.parse(req.params);
-      const cacheKey = `share:public-readable:${username}:${slug}`;
+      // Generation read before the DB load (V-122): a revoke or password change that lands
+      // mid-read bumps it, so this reader's stale snapshot is written under a dead key.
+      const cacheKey = await resolveGenerationalKey(cacheNamespaces.publicShare(username), slug);
+      const cached = cacheKey
+        ? await cacheGet<PublicShareLinkView | typeof MISSING_SHARE>(cacheKey)
+        : null;
 
-      let shareLink = await cacheGet<PublicShareLinkView>(cacheKey);
+      if (cached && "missing" in cached) throw new ApiError(404, "Link not found");
+
+      let shareLink = cached;
 
       if (!shareLink) {
-        const fresh = await ShareService.getPublicShareLinkByUsernameAndSlug(username, slug);
+        let fresh: Awaited<ReturnType<typeof ShareService.getPublicShareLinkByUsernameAndSlug>>;
+
+        try {
+          fresh = await ShareService.getPublicShareLinkByUsernameAndSlug(username, slug);
+        } catch (error) {
+          // Negative cache; share create bumps this generation, so a new link is readable at once.
+          if (cacheKey && error instanceof ApiError && error.statusCode === 404)
+            await cacheSet(cacheKey, MISSING_SHARE, MISSING_SHARE_TTL_SECONDS);
+          throw error;
+        }
+
         shareLink = toPublicShareLinkView(fresh);
         let ttl = 3600;
 
@@ -272,7 +299,7 @@ export class ShareController {
           }
         }
 
-        if (ttl > 0) await cacheSet(cacheKey, shareLink, ttl);
+        if (ttl > 0 && cacheKey) await cacheSet(cacheKey, shareLink, ttl);
       }
 
       if (!shareLink) throw new ApiError(404, "Link not found");

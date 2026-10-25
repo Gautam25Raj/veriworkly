@@ -9,14 +9,23 @@ export function userProfileCacheKey(userId: string): string {
 }
 
 /**
- * Prefix covering every cached document-list variant for a user.
- *
- * The list cache is keyed by type *and* by `updatedSince` and whether bodies were
- * included, so there is no longer a fixed set of keys to delete by name. Every
- * mutation must invalidate by this prefix — deleting only `…:all` and `…:<TYPE>`
- * (what the call sites used to do) would leave incremental and full-body variants
- * serving stale documents for the rest of their 30-minute TTL.
+ * Generation namespaces (see `#lib/cacheGeneration`). Each is invalidated as a whole by one
+ * `bumpGeneration`, so variants keyed by type, pagination or filters need no prefix SCAN.
  */
-export function documentListCachePrefix(userId: string): string {
-  return `documents:list:${userId}:`;
+export const cacheNamespaces = {
+  /** Every cached document-list variant for a user (one per document type). */
+  documentList: (userId: string) => `documents:list:${userId}`,
+  /** One document: a per-entity generation, so a racing reader cannot re-cache a stale row. */
+  document: (userId: string, documentId: string) => `document:${userId}:${documentId}`,
+  /** Every paginated share-link list for a user, across all of their documents. */
+  shareList: (userId: string) => `share:list:${userId}`,
+  /** Every `ids=` variant of the shared-document-ids lookup for a user. */
+  sharedDocumentIds: (userId: string) => `share:shared-document-ids:${userId}`,
+  /** Every public share snapshot (and cached 404) under a username, whatever the slug. */
+  publicShare: (username: string) => `share:public-readable:${username}`,
+};
+
+/** The document itself and every list that contains it. */
+export function documentCacheNamespaces(userId: string, documentId: string): string[] {
+  return [cacheNamespaces.document(userId, documentId), cacheNamespaces.documentList(userId)];
 }

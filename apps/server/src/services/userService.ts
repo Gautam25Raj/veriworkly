@@ -3,8 +3,9 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
 
-import { cacheGet, cacheSet, cacheDel, cacheDelByPrefix } from "#lib/redis";
-import { documentListCachePrefix, userProfileCacheKey } from "#lib/cacheKeys";
+import { cacheGet, cacheSet, cacheDel } from "#lib/redis";
+import { bumpGeneration } from "#lib/cacheGeneration";
+import { cacheNamespaces, userProfileCacheKey } from "#lib/cacheKeys";
 import { logger } from "#lib/logger";
 import { usernameInvalidReason } from "#utils/slugs";
 import { revokeAllSessionsForUserSafely } from "#auth/sessions";
@@ -15,6 +16,7 @@ import {
 import { invalidateAffiliate } from "#services/affiliate/cache";
 import { ApiKeyService } from "#services/apiKeyService";
 import { CreditService } from "#services/creditService";
+import { EntitlementService } from "#services/entitlementService";
 import { PortfolioAssetService } from "#services/portfolioAssetService";
 import { sendAccountDeletedEmail } from "#services/mail/index";
 
@@ -109,21 +111,20 @@ export async function purgeDeletedUserCaches(targets: DeletedUserCacheTargets): 
   await Promise.allSettled([
     cacheDel(userProfileCacheKey(userId)),
     cacheDel(`profile:${userId}`),
-    ...targets.documentIds.map((documentId) => cacheDel(`document:${userId}:${documentId}`)),
-    ...(username
-      ? targets.publicSlugs.map((slug) => cacheDel(`share:public-readable:${username}:${slug}`))
-      : []),
+    // One round trip of INCRs: every document, list and public share variant goes dark at once.
+    bumpGeneration(
+      ...targets.documentIds.map((documentId) => cacheNamespaces.document(userId, documentId)),
+      ...(username ? [cacheNamespaces.publicShare(username)] : []),
+      cacheNamespaces.documentList(userId),
+      cacheNamespaces.shareList(userId),
+      cacheNamespaces.sharedDocumentIds(userId),
+    ),
     // credits:summary, credits:history and billing:summary.
     CreditService.invalidate(userId),
+    EntitlementService.invalidateEntitlements(userId),
     cacheDel(`billing:history:${userId}`),
     invalidateAffiliate(userId),
     ...(targets.subdomain ? [invalidatePublicPortfolioCaches([targets.subdomain])] : []),
-    // These three lists are keyed by pagination/filter variants, so there is no fixed set of
-    // names to delete; a prefix SCAN is the only option. cacheDelByPrefix walks the whole
-    // keyspace (Phase 3 replaces it) — keep these the only prefix deletes on this path.
-    cacheDelByPrefix(documentListCachePrefix(userId)),
-    cacheDelByPrefix(`share:list:${userId}:`),
-    cacheDelByPrefix(`share:shared-document-ids:${userId}:`),
   ]);
 }
 

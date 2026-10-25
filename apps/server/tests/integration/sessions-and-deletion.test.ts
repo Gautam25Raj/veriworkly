@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 import { app } from "#app";
 import { prisma } from "#lib/prisma";
 import { cacheGet, cacheSet, getRedis } from "#lib/redis";
+import { getGeneration } from "#lib/cacheGeneration";
+import { cacheNamespaces } from "#lib/cacheKeys";
 import { ApiKeyService } from "#services/apiKeyService";
 import { getSessionCacheKey, invalidateCacheByToken } from "#utils/authCache";
 
@@ -148,7 +150,7 @@ describe("self-service account deletion (V-118, V-048, V-021)", () => {
         content: { basics: { name: "Shared" } },
       },
     });
-    const share = await prisma.shareLink.create({
+    await prisma.shareLink.create({
       data: {
         userId: user.id,
         documentId: document.id,
@@ -157,13 +159,18 @@ describe("self-service account deletion (V-118, V-048, V-021)", () => {
       },
     });
 
+    // Share snapshots, documents and the lists are generation namespaces: deletion must move
+    // each one to a new generation, which strands every key written under the old one.
+    const namespaces = [
+      cacheNamespaces.publicShare(username),
+      cacheNamespaces.document(user.id, document.id),
+      cacheNamespaces.documentList(user.id),
+      cacheNamespaces.shareList(user.id),
+      cacheNamespaces.sharedDocumentIds(user.id),
+    ];
+    const generationsBefore = await Promise.all(namespaces.map((ns) => getGeneration(ns)));
+
     const keys = [
-      `share:public-readable:${username}:${share.slug}`,
-      `share:public-readable:${username}:${document.slug}`,
-      `document:${user.id}:${document.id}`,
-      `documents:list:${user.id}:all:none:false`,
-      `share:list:${user.id}:${document.id}:20:0`,
-      `share:shared-document-ids:${user.id}:${document.id}`,
       `profile:${user.id}`,
       `user:profile:v2:${user.id}`,
       `billing:summary:${user.id}`,
@@ -179,6 +186,8 @@ describe("self-service account deletion (V-118, V-048, V-021)", () => {
     expect(deleted.status).toBe(200);
 
     for (const key of keys) expect(await exists(key), key).toBe(false);
+    for (const [index, ns] of namespaces.entries())
+      expect(await getGeneration(ns), ns).not.toBe(generationsBefore[index]);
   });
 });
 

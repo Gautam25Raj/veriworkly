@@ -9,8 +9,9 @@ import { prisma } from "#lib/prisma";
 import { config } from "#config";
 import { ApiError } from "#lib/errors";
 import { logger } from "#lib/logger";
-import { cacheDel, cacheDelByPrefix } from "#lib/redis";
-import { documentListCachePrefix } from "#lib/cacheKeys";
+import { cacheDel } from "#lib/redis";
+import { bumpGeneration } from "#lib/cacheGeneration";
+import { cacheNamespaces } from "#lib/cacheKeys";
 import { masterProfileContentSchema } from "#validators/masterProfileValidator";
 import { getAtsAiPolicy } from "#services/ats/aiPolicy";
 import { aiFailure, createServerAtsAi, taskRoute } from "#services/ats/atsAi";
@@ -305,7 +306,7 @@ export class ProfileImportService {
     // that clear and the commit could have re-cached the pre-import state.
     await Promise.all([
       cacheDel(`profile:${userId}`),
-      cacheDelByPrefix(documentListCachePrefix(userId)),
+      bumpGeneration(cacheNamespaces.documentList(userId)),
     ]);
 
     return document;

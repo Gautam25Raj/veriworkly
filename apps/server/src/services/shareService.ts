@@ -15,6 +15,15 @@ import { UserService } from "#services/userService";
 const scryptAsync = promisify(scrypt);
 const VIEW_BUFFER_TTL_SECONDS = 14 * 24 * 60 * 60;
 const MAX_BUFFERED_SHARE_VIEWS = 10_000;
+/** Above the flush's whole budget (three statements under the 30 s statement timeout). */
+const SHARE_FLUSH_LOCK_SECONDS = 300;
+const SHARE_VIEW_RETENTION_DAYS = 30;
+const SHARE_VIEW_PRUNE_BATCH_SIZE = 5_000;
+const SHARE_VIEW_PRUNE_BUDGET_MS = 20_000;
+const RELEASE_SHARE_FLUSH_LOCK_SCRIPT = `
+  if redis.call("GET", KEYS[1]) == ARGV[1] then return redis.call("DEL", KEYS[1]) end
+  return 0
+`;
 
 export class ShareService {
   static async hashPassword(password: string) {
@@ -56,12 +65,13 @@ export class ShareService {
       timestamp,
     });
 
-    await redis.lPush("share:views:buffer", viewRecord);
-    await redis.lTrim("share:views:buffer", 0, MAX_BUFFERED_SHARE_VIEWS - 1);
-    await redis.hIncrBy("share:links:view_count", shareLinkId, 1);
-    await redis.hSet("share:links:last_viewed", shareLinkId, String(timestamp));
+    // V-114: one MULTI, so a view is one round trip and never half-recorded.
     await redis
       .multi()
+      .lPush("share:views:buffer", viewRecord)
+      .lTrim("share:views:buffer", 0, MAX_BUFFERED_SHARE_VIEWS - 1)
+      .hIncrBy("share:links:view_count", shareLinkId, 1)
+      .hSet("share:links:last_viewed", shareLinkId, String(timestamp))
       .expire("share:views:buffer", VIEW_BUFFER_TTL_SECONDS)
       .expire("share:links:view_count", VIEW_BUFFER_TTL_SECONDS)
       .expire("share:links:last_viewed", VIEW_BUFFER_TTL_SECONDS)
@@ -71,25 +81,34 @@ export class ShareService {
   static async flushShareViews() {
     const redis = getRedis();
 
-    const hasViews = (await redis.exists("share:views:buffer")) > 0;
-    const hasCounts = (await redis.exists("share:links:view_count")) > 0;
+    const viewsProcessingKey = "share:views:buffer:processing";
+    const countsProcessingKey = "share:links:view_count:processing";
+    const lastViewedProcessingKey = "share:links:last_viewed:processing";
+    const batchKey = "share:views:processing:batch-id";
 
-    if (!hasViews && !hasCounts) return { flushedViews: 0, flushedLinks: 0 };
+    const [hasViews, hasCounts, hasLeftovers] = (
+      await Promise.all([
+        redis.exists("share:views:buffer"),
+        redis.exists("share:links:view_count"),
+        // V-029: a crashed flush leaves these behind; drain them even when nothing new arrived.
+        redis.exists([viewsProcessingKey, countsProcessingKey]),
+      ])
+    ).map((count) => count > 0);
+
+    if (!hasViews && !hasCounts && !hasLeftovers) return { flushedViews: 0, flushedLinks: 0 };
 
     const lockKey = "share:views:flush-lock";
     // Serialize flush attempts so a manual admin retry overlapping the cron tick (or a rolling
     // deploy briefly running two worker processes) can't both compute a pre-transaction view
     // count and then have one of them silently discard data on a unique-constraint rollback.
-    const lockAcquired = (await redis.set(lockKey, "1", { NX: true, EX: 120 })) === "OK";
+    // The TTL sits above the flush's budget and the release checks the token (V-029).
+    const lockToken = randomUUID();
+    const lockAcquired =
+      (await redis.set(lockKey, lockToken, { NX: true, EX: SHARE_FLUSH_LOCK_SECONDS })) === "OK";
 
     if (!lockAcquired) return { flushedViews: 0, flushedLinks: 0, skipped: true as const };
 
     try {
-      const viewsProcessingKey = "share:views:buffer:processing";
-      const countsProcessingKey = "share:links:view_count:processing";
-      const lastViewedProcessingKey = "share:links:last_viewed:processing";
-      const batchKey = "share:views:processing:batch-id";
-
       if (hasViews && !(await redis.exists(viewsProcessingKey))) {
         try {
           await redis.rename("share:views:buffer", viewsProcessingKey);
@@ -125,6 +144,8 @@ export class ShareService {
 
       const counts = await redis.hGetAll(countsProcessingKey);
       const lastViewed = await redis.hGetAll(lastViewedProcessingKey);
+      // No TTL on purpose: under volatile-lru a batch id with a TTL could be evicted mid-retry and
+      // the retry would commit the same views again under a new id. It is deleted with the batch.
       await redis.set(batchKey, randomUUID(), { NX: true });
       const batchId = await redis.get(batchKey);
 
@@ -148,48 +169,42 @@ export class ShareService {
       const flushedViews = validViews.length;
       const flushedLinks = validCounts.length;
 
+      // V-110: the counters are one UPDATE … FROM unnest(…) and the batch commits as three
+      // statements; the 30-day retention sweep is `pruneShareViews`, outside this transaction.
+      const now = Date.now();
+      const counters = validCounts.map(([shareLinkId, rawCount]) => {
+        const timestamp = parseInt(lastViewed[shareLinkId] ?? "", 10);
+        return {
+          id: shareLinkId,
+          count: parseInt(rawCount, 10) || 0,
+          lastViewedAtMs: Number.isFinite(timestamp) ? timestamp : now,
+        };
+      });
+
       try {
-        await prisma.$transaction(
-          async (tx) => {
-            await tx.viewFlushBatch.create({ data: { id: batchId, kind: "share" } });
-
-            if (validViews.length > 0) {
-              await tx.shareView.createMany({
-                data: validViews.map((v) => ({
-                  shareLinkId: v.shareLinkId,
-                  ipAddress: v.ipAddress,
-                  userAgent: v.userAgent,
-                  createdAt: new Date(v.timestamp),
-                })),
-              });
-            }
-
-            for (const [shareLinkId, rawCount] of validCounts) {
-              const count = parseInt(rawCount, 10) || 0;
-              const tsString = lastViewed[shareLinkId];
-              const lastViewedAt = tsString ? new Date(parseInt(tsString, 10)) : new Date();
-
-              await tx.shareLink.update({
-                where: { id: shareLinkId },
-                data: {
-                  viewCount: { increment: count },
-                  lastViewedAt,
-                },
-              });
-            }
-
-            const retentionLimit = new Date();
-            retentionLimit.setDate(retentionLimit.getDate() - 30);
-            await tx.shareView.deleteMany({
-              where: {
-                createdAt: { lt: retentionLimit },
-              },
-            });
-            // Batch job with one update per share link plus a retention sweep; the 5s default is
-            // far too short once a flush covers a real backlog of links.
-          },
-          { timeout: 120_000, maxWait: 15_000 },
-        );
+        await prisma.$transaction([
+          prisma.viewFlushBatch.create({ data: { id: batchId, kind: "share" } }),
+          prisma.shareView.createMany({
+            data: validViews.map((v) => ({
+              shareLinkId: v.shareLinkId,
+              ipAddress: v.ipAddress,
+              userAgent: v.userAgent,
+              createdAt: new Date(v.timestamp),
+            })),
+          }),
+          prisma.$executeRaw`
+            UPDATE "ShareLink" AS s
+            SET "viewCount" = s."viewCount" + v."count",
+                "lastViewedAt" = to_timestamp(v."lastViewedAtMs" / 1000.0) AT TIME ZONE 'UTC',
+                "updatedAt" = now()
+            FROM unnest(
+              ${counters.map((c) => c.id)}::text[],
+              ${counters.map((c) => c.count)}::int[],
+              ${counters.map((c) => c.lastViewedAtMs)}::bigint[]
+            ) AS v("id", "count", "lastViewedAtMs")
+            WHERE s."id" = v."id"
+          `,
+        ]);
       } catch (error) {
         if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) {
           throw error;
@@ -209,8 +224,41 @@ export class ShareService {
 
       return { flushedViews, flushedLinks };
     } finally {
-      await redis.del(lockKey).catch(() => {});
+      await redis
+        .eval(RELEASE_SHARE_FLUSH_LOCK_SCRIPT, { keys: [lockKey], arguments: [lockToken] })
+        .catch(() => {});
     }
+  }
+
+  /**
+   * Deletes `ShareView` rows past the 30-day retention window in batches of `batchSize` by id,
+   * until none are left or the time budget is spent (V-110). Runs outside the views flush so a
+   * large backlog never holds the flush transaction or its connection. Returns rows deleted.
+   */
+  static async pruneShareViews({
+    batchSize = SHARE_VIEW_PRUNE_BATCH_SIZE,
+    budgetMs = SHARE_VIEW_PRUNE_BUDGET_MS,
+  } = {}) {
+    const cutoff = new Date(Date.now() - SHARE_VIEW_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    const deadline = Date.now() + budgetMs;
+    let deleted = 0;
+
+    while (Date.now() < deadline) {
+      const stale = await prisma.shareView.findMany({
+        where: { createdAt: { lt: cutoff } },
+        select: { id: true },
+        take: batchSize,
+      });
+      if (stale.length === 0) break;
+
+      const result = await prisma.shareView.deleteMany({
+        where: { id: { in: stale.map((row) => row.id) } },
+      });
+      deleted += result.count;
+      if (stale.length < batchSize) break;
+    }
+
+    return deleted;
   }
 
   static async createShareLink(

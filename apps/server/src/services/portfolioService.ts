@@ -17,8 +17,9 @@ import { prisma } from "#lib/prisma";
 import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
 import { normalizePortfolioSubdomain, portfolioSubdomainLookupKey } from "#utils/slugs";
-import { cacheGet, cacheSet, cacheDel, cacheDelByPrefix, getRedis } from "#lib/redis";
-import { documentListCachePrefix, userProfileCacheKey } from "#lib/cacheKeys";
+import { cacheGet, cacheSet, cacheDel, getRedis } from "#lib/redis";
+import { bumpGeneration, singleFlight } from "#lib/cacheGeneration";
+import { cacheNamespaces, documentCacheNamespaces, userProfileCacheKey } from "#lib/cacheKeys";
 import { hashForAnalytics } from "#utils/analyticsHash";
 import { sendPortfolioUpdatedEmail } from "#services/mail/portfolioMail";
 
@@ -33,6 +34,32 @@ const MAX_VIEW_BUFFER_FIELDS = 10_000;
 // A vanity metric doesn't need per-request precision, but trivially repeatable POSTs shouldn't be
 // able to inflate it either — collapse repeat views from the same viewer within this window.
 const VIEW_DEDUP_WINDOW_SECONDS = 30 * 60;
+/** Above the flush's whole budget (one INSERT under the 30 s statement timeout, plus Redis). */
+const VIEW_FLUSH_LOCK_SECONDS = 300;
+
+/**
+ * V-114: one round trip, and the cap check cannot race. KEYS: buffer, pending, dedup (or "").
+ * ARGV: field, fallback field, cap, date key, buffer TTL, dedup TTL. Returns 0 for a repeat view.
+ */
+const BUFFER_PORTFOLIO_VIEW_SCRIPT = `
+  if KEYS[3] ~= "" and not redis.call("SET", KEYS[3], "1", "NX", "EX", ARGV[6]) then
+    return 0
+  end
+  local field = ARGV[1]
+  if redis.call("HEXISTS", KEYS[1], field) == 0 and redis.call("HLEN", KEYS[1]) >= tonumber(ARGV[3]) then
+    field = ARGV[2]
+  end
+  redis.call("HINCRBY", KEYS[1], field, 1)
+  redis.call("HINCRBY", KEYS[2], ARGV[4], 1)
+  redis.call("EXPIRE", KEYS[1], ARGV[5])
+  redis.call("EXPIRE", KEYS[2], ARGV[5])
+  return 1
+`;
+
+const RELEASE_VIEW_FLUSH_LOCK_SCRIPT = `
+  if redis.call("GET", KEYS[1]) == ARGV[1] then return redis.call("DEL", KEYS[1]) end
+  return 0
+`;
 // The sitemap asks for everything; a bound keeps one unparameterised GET from streaming the table.
 const PUBLIC_LIST_MAX = 1000;
 
@@ -166,22 +193,30 @@ function collectAssetIds(content: PortfolioContentInput) {
 
 export class PortfolioService {
   static async listPublicPortfolios(limit?: number, offset?: number) {
-    const cacheKey = publicPortfolioListCacheKey(limit, offset);
-    const cached = await cacheGet<Array<{ subdomain: string; updatedAt: string }>>(cacheKey);
+    type PublicListItem = { subdomain: string; updatedAt: string | Date };
+
+    const cacheKey = await publicPortfolioListCacheKey(limit, offset);
+    const readCache = async () => (cacheKey ? cacheGet<PublicListItem[]>(cacheKey) : null);
+    const cached = await readCache();
 
     if (cached) return cached;
 
-    const result = await prisma.portfolioPublication.findMany({
-      where: { status: { in: ["LIVE", "GRACE"] } },
-      select: { subdomain: true, updatedAt: true },
-      orderBy: { updatedAt: "desc" },
-      take: limit ?? PUBLIC_LIST_MAX,
-      skip: offset,
-    });
+    const build = async (): Promise<PublicListItem[]> => {
+      const result = await prisma.portfolioPublication.findMany({
+        where: { status: { in: ["LIVE", "GRACE"] } },
+        select: { subdomain: true, updatedAt: true },
+        orderBy: { updatedAt: "desc" },
+        take: limit ?? PUBLIC_LIST_MAX,
+        skip: offset,
+      });
 
-    await cacheSet(cacheKey, result, 300);
+      if (cacheKey) await cacheSet(cacheKey, result, 300);
 
-    return result;
+      return result;
+    };
+
+    // Concurrent cold misses (the sitemap build fans out) run the query once (V-117).
+    return cacheKey ? singleFlight(cacheKey, 2_000, build, readCache) : build();
   }
 
   /**
@@ -420,8 +455,7 @@ export class PortfolioService {
           });
 
       await Promise.all([
-        cacheDel(`document:${userId}:${document.id}`),
-        cacheDelByPrefix(documentListCachePrefix(userId)),
+        bumpGeneration(...documentCacheNamespaces(userId, document.id)),
         cacheDel(userProfileCacheKey(userId)),
       ]);
 
@@ -548,11 +582,12 @@ export class PortfolioService {
 
       await Promise.all([
         invalidatePublicPortfolioCaches(subdomains),
-        cacheDel(`document:${userId}:${document.id}`),
-        cacheDelByPrefix(documentListCachePrefix(userId)),
-        ...(existingPublication && existingPublication.documentId !== document.id
-          ? [cacheDel(`document:${userId}:${existingPublication.documentId}`)]
-          : []),
+        bumpGeneration(
+          ...documentCacheNamespaces(userId, document.id),
+          ...(existingPublication && existingPublication.documentId !== document.id
+            ? [cacheNamespaces.document(userId, existingPublication.documentId)]
+            : []),
+        ),
       ]);
 
       void revalidatePublicPortfolios(subdomains);
@@ -613,8 +648,7 @@ export class PortfolioService {
 
     await Promise.all([
       invalidatePublicPortfolioCaches([publication.subdomain]),
-      cacheDel(`document:${userId}:${publication.documentId}`),
-      cacheDelByPrefix(documentListCachePrefix(userId)),
+      bumpGeneration(...documentCacheNamespaces(userId, publication.documentId)),
     ]);
 
     void revalidatePublicPortfolios([publication.subdomain]);
@@ -627,29 +661,37 @@ export class PortfolioService {
 
     if (!publication) throw new ApiError(404, "Portfolio not found");
 
-    const redis = getRedis();
+    await this.bufferView(publication.id, normalizeReferrerHost(referrer), ipAddress);
+  }
 
-    if (ipAddress) {
-      const dedupKey = `portfolio:views:dedup:${publication.id}:${hashForAnalytics(ipAddress)}`;
-      const isFirstViewInWindow =
-        (await redis.set(dedupKey, "1", { NX: true, EX: VIEW_DEDUP_WINDOW_SECONDS })) === "OK";
-
-      if (!isFirstViewInWindow) return;
-    }
-
+  /**
+   * Buffers one view for today in a single script (V-114): the dedup check, the field-cap check
+   * (past the cap a new referrer folds into the publication's direct field) and both counters.
+   * Returns false for a repeat view inside the dedup window.
+   */
+  static async bufferView(publicationId: string, referrerHost: string, ipAddress?: string) {
     const dateKey = utcDay().toISOString().slice(0, 10);
-    const referrerHost = normalizeReferrerHost(referrer);
+    const dedupKey = ipAddress
+      ? `portfolio:views:dedup:${publicationId}:${hashForAnalytics(ipAddress)}`
+      : "";
 
-    const key = `portfolio:views:buffer:${dateKey}`;
-    let field = `${publication.id}:${referrerHost}`;
+    const recorded = await getRedis().eval(BUFFER_PORTFOLIO_VIEW_SCRIPT, {
+      keys: [
+        `portfolio:views:buffer:${dateKey}`,
+        `portfolio:views:pending:${publicationId}`,
+        dedupKey,
+      ],
+      arguments: [
+        `${publicationId}:${referrerHost}`,
+        `${publicationId}:`,
+        String(MAX_VIEW_BUFFER_FIELDS),
+        dateKey,
+        String(VIEW_BUFFER_TTL_SECONDS),
+        String(VIEW_DEDUP_WINDOW_SECONDS),
+      ],
+    });
 
-    if (!(await redis.hExists(key, field)) && (await redis.hLen(key)) >= MAX_VIEW_BUFFER_FIELDS) {
-      field = `${publication.id}:`;
-    }
-    await redis.hIncrBy(key, field, 1);
-    await redis.hIncrBy(`portfolio:views:pending:${publication.id}`, dateKey, 1);
-    await redis.expire(key, VIEW_BUFFER_TTL_SECONDS);
-    await redis.expire(`portfolio:views:pending:${publication.id}`, VIEW_BUFFER_TTL_SECONDS);
+    return Number(recorded) === 1;
   }
 
   static async getPendingViewDates() {
@@ -683,7 +725,9 @@ export class PortfolioService {
     // Serialize flush attempts for this date so a manual admin retry overlapping the cron tick
     // (or a rolling deploy briefly running two worker processes) can't race the same batch id and
     // permanently discard that day's buffered views on a unique-constraint rollback.
-    const lockAcquired = (await redis.set(lockKey, "1", { NX: true, EX: 120 })) === "OK";
+    const lockToken = randomUUID();
+    const lockAcquired =
+      (await redis.set(lockKey, lockToken, { NX: true, EX: VIEW_FLUSH_LOCK_SECONDS })) === "OK";
 
     if (!lockAcquired) return { dateKey, flushedCount: 0, skipped: true as const };
 
@@ -707,7 +751,8 @@ export class PortfolioService {
         return { dateKey, flushedCount: 0 };
       }
 
-      const date = new Date(`${dateKey}T00:00:00.000Z`);
+      // No TTL on purpose: under volatile-lru a batch id with a TTL could be evicted mid-retry and
+      // the retry would commit the same views again under a new id. It is deleted with the batch.
       await redis.set(batchKey, randomUUID(), { NX: true });
       const batchId = await redis.get(batchKey);
 
@@ -724,45 +769,52 @@ export class PortfolioService {
           })
         ).map((publication) => publication.id),
       );
+      // Computed outside the transaction (V-124), so the P2002 recovery below has them too.
       let flushedCount = 0;
       const pendingAdjustments = new Map<string, number>();
+      const rows = new Map<
+        string,
+        { publicationId: string; referrerHost: string; count: number }
+      >();
+
+      for (const [field, rawCount] of entries) {
+        const separator = field.indexOf(":");
+        const publicationId = field.slice(0, separator);
+        const referrerHost = field.slice(separator + 1);
+        if (!publicationId || !survivingPublications.has(publicationId)) continue;
+        const count = parseInt(rawCount, 10) || 0;
+        if (count <= 0) continue;
+        const pendingKey = `portfolio:views:pending:${publicationId}`;
+        pendingAdjustments.set(pendingKey, (pendingAdjustments.get(pendingKey) ?? 0) + count);
+        const rowKey = `${publicationId}:${referrerHost}`;
+        const row = rows.get(rowKey) ?? { publicationId, referrerHost, count: 0 };
+        row.count += count;
+        rows.set(rowKey, row);
+        flushedCount += count;
+      }
+
+      const values = [...rows.values()];
 
       try {
-        await prisma.$transaction(async (tx) => {
-          await tx.viewFlushBatch.create({ data: { id: batchId, kind: "portfolio" } });
-
-          for (const [field, rawCount] of entries) {
-            const separator = field.indexOf(":");
-            const publicationId = field.slice(0, separator);
-            const referrerHost = field.slice(separator + 1);
-            if (!publicationId || !survivingPublications.has(publicationId)) continue;
-            const count = parseInt(rawCount, 10) || 0;
-            if (count <= 0) continue;
-            const pendingKey = `portfolio:views:pending:${publicationId}`;
-            pendingAdjustments.set(pendingKey, (pendingAdjustments.get(pendingKey) ?? 0) + count);
-
-            await tx.portfolioViewDaily.upsert({
-              where: {
-                publicationId_date_referrerHost: {
-                  publicationId,
-                  date,
-                  referrerHost: referrerHost || "",
-                },
-              },
-              create: {
-                publicationId,
-                date,
-                referrerHost: referrerHost || "",
-                count,
-              },
-              update: {
-                count: { increment: count },
-              },
-            });
-
-            flushedCount += count;
-          }
-        });
+        // V-103: one statement for the whole day instead of one upsert per field inside a 5 s
+        // interactive transaction. The batch row and the counts still commit together.
+        await prisma.$transaction([
+          prisma.viewFlushBatch.create({ data: { id: batchId, kind: "portfolio" } }),
+          prisma.$executeRaw`
+            INSERT INTO "PortfolioViewDaily"
+              ("id", "publicationId", "date", "referrerHost", "count", "createdAt", "updatedAt")
+            SELECT gen_random_uuid()::text, v."publicationId", ${dateKey}::date::timestamp,
+                   v."referrerHost", v."count", now(), now()
+            FROM unnest(
+              ${values.map((row) => row.publicationId)}::text[],
+              ${values.map((row) => row.referrerHost)}::text[],
+              ${values.map((row) => row.count)}::int[]
+            ) AS v("publicationId", "referrerHost", "count")
+            ON CONFLICT ("publicationId", "date", "referrerHost")
+            DO UPDATE SET "count" = "PortfolioViewDaily"."count" + EXCLUDED."count",
+                          "updatedAt" = now()
+          `,
+        ]);
       } catch (error) {
         if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) {
           throw error;
@@ -791,7 +843,9 @@ export class PortfolioService {
       await redis.del([processingKey, batchKey, pendingAdjustedKey]);
       return { dateKey, flushedCount };
     } finally {
-      await redis.del(lockKey).catch(() => {});
+      await redis
+        .eval(RELEASE_VIEW_FLUSH_LOCK_SCRIPT, { keys: [lockKey], arguments: [lockToken] })
+        .catch(() => {});
     }
   }
 

@@ -201,6 +201,9 @@ services:
 
   redis:
     image: redis:7-alpine
+    # V-113: bounded memory. volatile-lru evicts only keys with a TTL (caches, but also view and
+    # usage buffers, rate-limit buckets and locks). Once nothing with a TTL is left, writes still
+    # fail with OOM, so size REDIS_MAXMEMORY for the working set (see apps/server/README.md).
     command:
       [
         "redis-server",
@@ -208,6 +211,10 @@ services:
         "yes",
         "--requirepass",
         "${REDIS_PASSWORD:?REDIS_PASSWORD is required}",
+        "--maxmemory",
+        "${REDIS_MAXMEMORY:-256mb}",
+        "--maxmemory-policy",
+        "volatile-lru",
       ]
     environment:
       # redis-cli reads REDISCLI_AUTH, so the healthcheck authenticates without putting the

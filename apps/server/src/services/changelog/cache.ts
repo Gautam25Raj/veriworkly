@@ -1,10 +1,14 @@
-import { cacheDel, cacheDelByPrefix } from "#lib/redis";
+import { bumpGeneration, resolveGenerationalKey } from "#lib/cacheGeneration";
 import { logger } from "#lib/logger";
 
+/**
+ * The read caches are generation namespaces (`#lib/cacheGeneration`): invalidation is an INCR,
+ * never a prefix SCAN, so it cannot touch the sync lock or freshness marker below (V-072).
+ */
 export const CHANGELOG_CACHE_KEYS = {
-  LIST_PREFIX: "changelog:list:",
-  ENTRY_PREFIX: "changelog:entry:",
-  STATS_KEY: "changelog:stats",
+  LIST_NAMESPACE: "changelog:list",
+  ENTRY_NAMESPACE: "changelog:entry",
+  STATS_NAMESPACE: "changelog:stats",
   RELEASE_SYNC_LOCK: "changelog:release-sync:lock",
   SYNC_MARKER: "changelog:release-sync:last-run",
 } as const;
@@ -15,12 +19,23 @@ export function buildChangelogListCacheKey(
   search?: string,
   limit = 20,
   offset = 0,
-): string {
-  return `${CHANGELOG_CACHE_KEYS.LIST_PREFIX}${type || "all"}:${tag || "-"}:${search || "-"}:${limit}:${offset}`;
+): Promise<string | null> {
+  return resolveGenerationalKey(
+    CHANGELOG_CACHE_KEYS.LIST_NAMESPACE,
+    type || "all",
+    tag || "-",
+    search || "-",
+    String(limit),
+    String(offset),
+  );
 }
 
-export function buildChangelogEntryCacheKey(id: string): string {
-  return `${CHANGELOG_CACHE_KEYS.ENTRY_PREFIX}${id}`;
+export function buildChangelogEntryCacheKey(id: string): Promise<string | null> {
+  return resolveGenerationalKey(CHANGELOG_CACHE_KEYS.ENTRY_NAMESPACE, id);
+}
+
+export function buildChangelogStatsCacheKey(): Promise<string | null> {
+  return resolveGenerationalKey(CHANGELOG_CACHE_KEYS.STATS_NAMESPACE);
 }
 
 /**
@@ -29,11 +44,11 @@ export function buildChangelogEntryCacheKey(id: string): string {
  */
 export async function invalidateChangelogReadCaches(): Promise<void> {
   try {
-    await Promise.all([
-      cacheDelByPrefix(CHANGELOG_CACHE_KEYS.LIST_PREFIX),
-      cacheDelByPrefix(CHANGELOG_CACHE_KEYS.ENTRY_PREFIX),
-      cacheDel(CHANGELOG_CACHE_KEYS.STATS_KEY),
-    ]);
+    await bumpGeneration(
+      CHANGELOG_CACHE_KEYS.LIST_NAMESPACE,
+      CHANGELOG_CACHE_KEYS.ENTRY_NAMESPACE,
+      CHANGELOG_CACHE_KEYS.STATS_NAMESPACE,
+    );
   } catch (err) {
     logger.warn("Changelog read cache invalidation failed (best-effort)", err);
   }

@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { json, Router } from "express";
 
 import { flexibleAuth } from "#middleware/flexibleAuth";
 import { requireApiKeyScopes } from "#middleware/apiKeyScope";
@@ -20,7 +20,13 @@ router.post(
 
 router.use(flexibleAuth);
 
-router.post("/", requireApiKeyScopes("resume:write"), ShareController.create);
+// V-098: the snapshot is a whole document; `app.ts` leaves this path unparsed for this.
+router.post(
+  "/",
+  requireApiKeyScopes("resume:write"),
+  json({ limit: "4mb" }),
+  ShareController.create,
+);
 router.get(
   "/documents/shared-ids",
   requireApiKeyScopes("resume:read"),

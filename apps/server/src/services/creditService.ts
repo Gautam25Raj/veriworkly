@@ -175,9 +175,9 @@ export class CreditService {
       take: 1,
     });
     if (!due.length) return 0;
-    // Cheap read-path check: while a reservation is pending the transaction below would only
-    // take the wallet lock to defer, and this runs on every `getWallet`. The count inside the
-    // lock stays authoritative.
+    // Cheap pre-check: while a reservation is pending the transaction below would only take the
+    // wallet lock to defer, and this runs at the start of every `reserve` and `consume`. The
+    // count inside the lock stays authoritative.
     if (await prisma.creditReservation.count({ where: { userId, status: "PENDING" } })) return 0;
 
     const total = await prisma.$transaction(async (tx) => {
@@ -246,9 +246,12 @@ export class CreditService {
     return total;
   }
 
+  /**
+   * Read path (V-107): no sweep and no write. Expired credits may still sit in `balance` until a
+   * write path (`reserve`, `consume`) or `sweepExpiredCredits` runs; `available` already leaves
+   * them out, so nothing expired is ever shown as spendable.
+   */
   static async getWallet(userId: string) {
-    await this.releaseExpiredReservations(userId);
-    await this.expireCredits(userId);
     const cached = await cacheGet<{
       balance: number;
       reserved: number;
@@ -262,11 +265,9 @@ export class CreditService {
     if (cached) return cached;
 
     const now = new Date();
-    const [wallet, nextGrant, unexpired] = await Promise.all([
-      prisma.creditWallet.upsert({
+    const [row, nextGrant, unexpired] = await Promise.all([
+      prisma.creditWallet.findUnique({
         where: { userId },
-        create: { userId },
-        update: {},
         select: {
           balance: true,
           reserved: true,
@@ -289,6 +290,14 @@ export class CreditService {
         _sum: { remaining: true },
       }),
     ]);
+    // A user who never earned a credit has no wallet row; the first grant creates it.
+    const wallet = row ?? {
+      balance: 0,
+      reserved: 0,
+      lifetimeCredited: 0,
+      lifetimeDebited: 0,
+      updatedAt: now,
+    };
     const result = {
       ...wallet,
       // What `reserve` would accept right now. Differs from `balance` while an expiry is
@@ -479,6 +488,9 @@ export class CreditService {
 
   static async consume(userId: string, cost: number, context: CreditContext) {
     validateAmount(cost);
+    // Release first: an overdue PENDING reservation would otherwise defer the expiry below and
+    // keep holding credits an admin debit should be able to reach.
+    await this.releaseExpiredReservations(userId);
     await this.expireCredits(userId);
 
     const result = await prisma.$transaction(async (tx) => {
@@ -614,4 +626,47 @@ export class CreditService {
       });
     return this.consume(userId, Math.abs(amount), { ...context, action: "admin_adjustment" });
   }
+}
+
+const SWEEP_BATCH_SIZE = 100;
+
+/**
+ * Periodic expiry sweep (V-107): the wallets with a due grant or an overdue PENDING reservation,
+ * walked in `userId` order in batches, each one through the same locked sweeps the write paths
+ * run. A wallet whose expiry is deferred under a live reservation is visited once per run, not
+ * retried, because the cursor only moves forward. Per-wallet failures are logged and skipped so
+ * one bad ledger cannot stall the rest.
+ *
+ * Scheduled hourly by `jobs/creditSweepJob.ts` under its own Redis lock.
+ */
+export async function sweepExpiredCredits(at = new Date()) {
+  const totals = { wallets: 0, released: 0, expired: 0, failed: 0 };
+  let cursor = "";
+  for (;;) {
+    // Relies on the partial indexes CreditGrant("expiresAt","userId") WHERE remaining > 0 and
+    // CreditReservation("expiresAt","userId") WHERE status = 'PENDING' (database track).
+    const due = await prisma.$queryRaw<Array<{ userId: string }>>`
+      SELECT "userId" FROM (
+        SELECT "userId" FROM "CreditGrant"
+          WHERE remaining > 0 AND "expiresAt" <= ${at} AND "userId" > ${cursor}
+        UNION
+        SELECT "userId" FROM "CreditReservation"
+          WHERE status = 'PENDING' AND "expiresAt" <= ${at} AND "userId" > ${cursor}
+      ) AS due ORDER BY "userId" ASC LIMIT ${SWEEP_BATCH_SIZE}`;
+    if (!due.length) break;
+
+    for (const { userId } of due) {
+      totals.wallets += 1;
+      try {
+        totals.released += await CreditService.releaseExpiredReservations(userId, at);
+        totals.expired += await CreditService.expireCredits(userId, at);
+      } catch (error) {
+        totals.failed += 1;
+        logger.error("Credit expiry sweep failed for a wallet", { userId, error });
+      }
+    }
+    cursor = due[due.length - 1]!.userId;
+    if (due.length < SWEEP_BATCH_SIZE) break;
+  }
+  return totals;
 }

@@ -12,9 +12,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * anything they close over has to be initialised up there with them — a plain `const` would still
  * be in its temporal dead zone when the factory runs.
  */
-const { count, store } = vi.hoisted(() => ({
+const { count, store, generations } = vi.hoisted(() => ({
   count: vi.fn(async () => 3),
   store: new Map<string, string>(),
+  generations: new Map<string, number>(),
+}));
+
+/** In-memory generation namespaces with the real key shape; single-flight just builds. */
+vi.mock("#lib/cacheGeneration", () => ({
+  resolveGenerationalKey: vi.fn(async (namespace: string, ...parts: string[]) =>
+    [namespace, `g${generations.get(namespace) ?? 0}`, ...parts].join(":"),
+  ),
+  bumpGeneration: vi.fn(async (...namespaces: string[]) => {
+    for (const namespace of namespaces)
+      generations.set(namespace, (generations.get(namespace) ?? 0) + 1);
+  }),
+  singleFlight: vi.fn(async (_key: string, _ttl: number, build: () => Promise<unknown>) => build()),
 }));
 
 vi.mock("#lib/redis", () => ({
@@ -24,11 +37,6 @@ vi.mock("#lib/redis", () => ({
   }),
   cacheSet: vi.fn(async (key: string, value: unknown) => {
     store.set(key, JSON.stringify(value));
-  }),
-  cacheDelByPrefix: vi.fn(async (prefix: string) => {
-    for (const key of [...store.keys()]) {
-      if (key.startsWith(prefix)) store.delete(key);
-    }
   }),
 }));
 
@@ -56,7 +64,8 @@ vi.mock("#lib/prisma", () => ({
 import { invalidateAdminCacheOnWrite } from "../../src/middleware/adminCacheInvalidation";
 import { getActionQueue } from "../../src/services/admin/adminOverviewService";
 import {
-  ADMIN_CACHE_PREFIX,
+  ADMIN_CACHE_NAMESPACE,
+  adminActionQueueCacheKey,
   adminOverviewCacheKey,
   adminTimeSeriesCacheKey,
   invalidateAdminCaches,
@@ -64,6 +73,7 @@ import {
 
 beforeEach(() => {
   store.clear();
+  generations.clear();
   vi.clearAllMocks();
 });
 
@@ -91,19 +101,20 @@ describe("admin overview caching", () => {
   });
 
   it("keys the overview by window, so switching ranges is not served a stale window", async () => {
-    expect(adminOverviewCacheKey(7)).not.toBe(adminOverviewCacheKey(30));
-    expect(adminTimeSeriesCacheKey(7)).not.toBe(adminTimeSeriesCacheKey(30));
+    expect(await adminOverviewCacheKey(7)).not.toBe(await adminOverviewCacheKey(30));
+    expect(await adminTimeSeriesCacheKey(7)).not.toBe(await adminTimeSeriesCacheKey(30));
   });
 
-  it("scopes its prefix so invalidation cannot clear unrelated admin keys", async () => {
+  it("invalidates by bumping only its own generation, never a prefix delete", async () => {
     // The legacy analytics dashboard owns `admin:dashboard:stats` and has its own invalidation
-    // triggered by the usage-metric flush; a prefix delete here must leave it alone.
+    // triggered by the usage-metric flush; admin invalidation must leave it alone.
     store.set("admin:dashboard:stats", JSON.stringify({ totals: {} }));
-    store.set(`${ADMIN_CACHE_PREFIX}queue`, JSON.stringify({ failedWebhooks: 1 }));
+    const before = await adminActionQueueCacheKey();
 
     await invalidateAdminCaches();
 
-    expect(store.has(`${ADMIN_CACHE_PREFIX}queue`)).toBe(false);
+    expect(await adminActionQueueCacheKey()).not.toBe(before);
+    expect([...generations.keys()]).toEqual([ADMIN_CACHE_NAMESPACE]);
     expect(store.has("admin:dashboard:stats")).toBe(true);
   });
 });
@@ -126,8 +137,6 @@ describe("admin cache invalidation middleware", () => {
   }
 
   it("invalidates only after a successful mutation", async () => {
-    const seed = () => store.set(`${ADMIN_CACHE_PREFIX}queue`, JSON.stringify({ pending: 1 }));
-
     const cases: Array<{ method: string; status: number; survives: boolean }> = [
       // A read must never invalidate — that would defeat the cache entirely.
       { method: "GET", status: 200, survives: true },
@@ -141,8 +150,7 @@ describe("admin cache invalidation middleware", () => {
     ];
 
     for (const { method, status, survives } of cases) {
-      store.clear();
-      seed();
+      const seeded = await adminActionQueueCacheKey();
 
       const ctx = runMiddleware(method, status);
 
@@ -155,7 +163,7 @@ describe("admin cache invalidation middleware", () => {
       await Promise.resolve();
 
       expect(
-        store.has(`${ADMIN_CACHE_PREFIX}queue`),
+        (await adminActionQueueCacheKey()) === seeded,
         `${method} ${status} should ${survives ? "keep" : "drop"} the cache`,
       ).toBe(survives);
     }

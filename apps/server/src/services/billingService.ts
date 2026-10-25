@@ -443,7 +443,9 @@ export class BillingService {
 
     if (!user) throw new ApiError(404, "User not found");
     const entitlements = [...new Set(activeGrants.map((grant) => grant.key))];
-    const access = describeAccess(activeGrants, wallet.balance);
+    // `available` not `balance`: reads no longer sweep (V-107), so `balance` can still hold
+    // expired credits for a while, and those must never make a user look paying.
+    const access = describeAccess(activeGrants, wallet.available);
     const entitlementCurrent = entitlements.includes(ENTITLEMENT_KEYS.PORTFOLIO_PUBLISH);
     const hasAiCredits = entitlements.includes(ENTITLEMENT_KEYS.AI_CREDITS);
     const portfolioAccessEndsAt =
@@ -846,6 +848,8 @@ export class BillingService {
     await Promise.all([
       cacheDel(billingSummaryCacheKey(userId)),
       cacheDel(billingHistoryCacheKey(userId)),
+      // Every grant write in this file and in reconcileAccess's callers ends here (V-108).
+      EntitlementService.invalidateEntitlements(userId),
     ]);
   }
 

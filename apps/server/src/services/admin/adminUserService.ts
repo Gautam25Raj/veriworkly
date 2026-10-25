@@ -6,6 +6,12 @@ import { cacheDel } from "#lib/redis";
 import { isAdminUser } from "#lib/isAdminUser";
 import { userProfileCacheKey } from "#lib/cacheKeys";
 import { revokeAllSessionsForUser, revokeAllSessionsForUserSafely } from "#auth/sessions";
+import { ApiKeyService } from "#services/apiKeyService";
+import {
+  deleteUserCascade,
+  purgeDeletedUserCaches,
+  readDeletedUserCacheTargets,
+} from "#services/userService";
 
 import type {
   AdminUserListQuery,
@@ -329,13 +335,33 @@ export async function deleteUser(userId: string, confirmEmail: string) {
   if (target.email.trim().toLowerCase() !== confirmEmail.trim().toLowerCase())
     throw new ApiError(400, "The confirmation email does not match this account.");
 
-  // Sessions must be revoked *before* the cascade removes the rows we read tokens from —
-  // otherwise their better-auth Redis entries outlive the account and keep authenticating.
+  // The cascade would drop a withdrawal that is still being paid; the admin resolves it first.
+  const openWithdrawal = await prisma.affiliateWithdrawal.findFirst({
+    where: { userId, status: { in: ["REQUESTED", "APPROVED"] } },
+    select: { id: true, status: true, amountCents: true, currency: true },
+  });
+
+  if (openWithdrawal)
+    throw new ApiError(
+      409,
+      `This account has an open affiliate withdrawal (${openWithdrawal.id}, ${openWithdrawal.status}, ${openWithdrawal.amountCents} ${openWithdrawal.currency} cents). Pay or reject it before deleting the account.`,
+    );
+
+  // Read while the rows still exist: the exact cache keys are named after them.
+  const cacheTargets = await readDeletedUserCacheTargets(userId);
+
+  // Both caches must be purged *before* the cascade removes the rows they are found through —
+  // otherwise the API keys' `apikey:auth:*` entries and the sessions' better-auth Redis entries
+  // outlive the account and keep authenticating. The keys get the revoked marker, not a plain
+  // DEL, so a validation racing the cascade cannot re-cache them (V-122). If the transaction
+  // below then fails the user is signed out but still exists, which is the safer side to err on.
+  await ApiKeyService.markAllRevokedForUser(userId);
   await revokeAllSessionsForUserSafely(userId);
 
-  // Every owned row (documents, publications, wallets, keys, sessions) cascades from User.
-  await prisma.user.delete({ where: { id: userId } });
-  await cacheDel(userProfileCacheKey(userId));
+  // Same transaction body as self-service deletion (allocation pre-delete + user cascade).
+  await prisma.$transaction((tx) => deleteUserCascade(tx, userId));
+
+  if (cacheTargets) await purgeDeletedUserCaches(cacheTargets);
 
   return { id: userId, email: target.email };
 }

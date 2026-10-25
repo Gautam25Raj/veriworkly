@@ -173,8 +173,9 @@ async function invalidateAuthCache(keyHash: string) {
  * marker, written before the DEL and checked first by validateKey(), closes that window: it
  * outlives any stale positive entry that raced it (the stale SETEX's own TTL is the same length
  * and started no later than the marker plus a few ms of slack). Only terminal transitions
- * (revoke, rotate, delete) write it; plain cache invalidation (`invalidateAuthCacheForUser`) must
- * not, or a billing event would lock every key for the marker's lifetime.
+ * (revoke, rotate, delete, account deletion) write it; plain cache invalidation
+ * (`invalidateAuthCacheForUser`) must not, or it would lock every live key for the marker's
+ * lifetime.
  */
 const REVOKED_MARKER_TTL_SECONDS = AUTH_CACHE_TTL_SECONDS + 30;
 
@@ -544,11 +545,10 @@ export class ApiKeyService {
   }
 
   /**
-   * Drop every cached auth record for a user's API keys (account deletion, admin edits to a
-   * key, billing callers that predate V-140). Key validity no longer depends on anything
-   * outside the key row, so this is a plain cache drop: it deliberately does NOT write the
-   * revoked marker, which would lock every live key for its lifetime. Must be called while the
-   * key rows still exist, since the hashes are read from them.
+   * Drop every cached auth record for a user's API keys (admin edits to a key). Key validity
+   * depends on nothing outside the key row, so this is a plain cache drop: it deliberately does
+   * NOT write the revoked marker, which would lock every live key for its lifetime. Must be
+   * called while the key rows still exist, since the hashes are read from them.
    */
   static async invalidateAuthCacheForUser(userId: string) {
     const keys = await prisma.apiKey.findMany({
@@ -557,6 +557,21 @@ export class ApiKeyService {
     });
 
     await Promise.all(keys.map((key) => invalidateAuthCache(key.keyHash)));
+  }
+
+  /**
+   * Terminal invalidation for every key of a user (account deletion): writes the revoked marker
+   * for each key hash and then drops the auth entry, so a validateKey() that read a row just
+   * before the cascade removed it cannot re-cache the key for the auth-cache TTL (V-122). Must
+   * be called while the key rows still exist, since the hashes are read from them.
+   */
+  static async markAllRevokedForUser(userId: string) {
+    const keys = await prisma.apiKey.findMany({
+      where: { userId },
+      select: { keyHash: true },
+    });
+
+    await Promise.all(keys.map((key) => markKeyRevoked(key.keyHash)));
   }
 
   /**

@@ -86,6 +86,7 @@ export function applyServerEnv(target: NodeJS.ProcessEnv = process.env): Integra
     AUTH_BASE_URL: "http://localhost:8080",
     AUTH_EMAIL_PROVIDER: "console",
     AUTH_SESSION_CACHE_ENABLED: "false",
+    ADMIN_EMAIL: "admin@example.test",
     API_KEY_HASH_SECRET: "integration-test-api-key-secret",
     ANALYTICS_HASH_PEPPER: "integration-test-pepper",
     STUDIO_URL: "http://localhost:3001",

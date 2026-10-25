@@ -35,6 +35,7 @@ const BrandTrustMarquee = () => {
         {duplicatedLogos.map((logo, index) => (
           <div
             key={`${logo.name}-${index}`}
+            aria-hidden={index >= logos.length || undefined}
             className="flex shrink-0 items-center gap-2 whitespace-nowrap text-zinc-400/60 transition-all duration-300 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-300"
             title={logo.name}
           >

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { connection } from "next/server";
 import dynamic from "next/dynamic";
 import { siteConfig } from "@/config/site";
 import { isAmbassadorProgramEnabled } from "@/lib/feature-flags";
@@ -24,6 +23,9 @@ const pageOgImage = `${siteConfig.url}/api/og?title=${encodeURIComponent(
   "Represent VeriWorkly on campus. Founding cohort applications open.",
 )}`;
 
+// Flags come from the runtime env (the build does not pass them), so re-read them every 5 minutes.
+export const revalidate = 300;
+
 export const metadata: Metadata = buildPageMetadata({
   path: "/ambassador",
 
@@ -45,9 +47,6 @@ export const metadata: Metadata = buildPageMetadata({
 });
 
 const AmbassadorPage = async () => {
-  // Read the program flag at request time, not at build time.
-  await connection();
-
   // Without this the pitch rendered while Apply dead-ended on the flagged-off apply page.
   const programEnabled = isAmbassadorProgramEnabled();
 

@@ -22,7 +22,7 @@ Set per application in `apps/{app}/.env`, or shared via the root `.env`.
 
 | Variable                  | Required | Description                                                                                                                                      | Example / default                                   |
 | :------------------------ | :------- | :----------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------- |
-| `SITE_URL`                | Yes      | The public URL of this application.                                                                                                              | `https://veriworkly.com`                            |
+| `SITE_URL`                | Yes      | The public URL of this application (blog and docs). The marketing site uses `NEXT_PUBLIC_SITE_URL`.                                              | `https://veriworkly.com`                            |
 | `NEXT_PUBLIC_BACKEND_URL` | Yes      | The API endpoint used by the browser. Inlined at build time.                                                                                     | `http://localhost:8080/api/v1`                      |
 | `BACKEND_INTERNAL_URL`    | No       | The API address used for server-side rendering. In Docker, the service name.                                                                     | `http://api:8080/api/v1`                            |
 | `AUTH_SECRET`             | Yes      | Must match the backend value exactly.                                                                                                            | —                                                   |

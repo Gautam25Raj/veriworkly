@@ -1,5 +1,4 @@
 import dynamic from "next/dynamic";
-import { connection } from "next/server";
 
 import type { Metadata } from "next";
 
@@ -29,6 +28,9 @@ const pageOgImage = `${siteConfig.url}/api/og?title=${encodeURIComponent(
 )}&description=${encodeURIComponent(
   "Earn recurring commissions of 2%, 3%, or 5% referring VeriWorkly.",
 )}`;
+
+// Flags come from the runtime env (the build does not pass them), so re-read them every 5 minutes.
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: "Partner Affiliate Program | VeriWorkly",
@@ -65,9 +67,6 @@ export const metadata: Metadata = {
 };
 
 const AffiliatePage = async () => {
-  // Read the program flag at request time, not at build time.
-  await connection();
-
   const programEnabled = isAffiliateProgramEnabled();
 
   const affiliateSchema = {

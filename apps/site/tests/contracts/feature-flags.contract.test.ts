@@ -15,11 +15,14 @@ function pages(dir: string): string[] {
 }
 
 describe("program flags", () => {
-  it("are read at request time on every page that reads them (W-044)", () => {
+  it("are re-read at runtime on every page that reads them, not baked at build", () => {
     const baked = pages(appDir).filter((file) => {
       const source = readFileSync(file, "utf8");
       const readsFlags = source.includes("@/lib/feature-flags");
-      const dynamic = /await connection\(\)|dynamic = "force-dynamic"/.test(source);
+      const dynamic =
+        /await connection\(\)|dynamic = "force-dynamic"|export const revalidate = \d+;/.test(
+          source,
+        );
 
       return readsFlags && !dynamic;
     });

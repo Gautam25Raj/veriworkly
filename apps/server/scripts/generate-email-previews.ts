@@ -11,7 +11,8 @@ import {
   renderSubscriptionCancelledEmail,
   renderPortfolioUpdatedEmail,
   renderAdminContactNotificationEmail,
-  renderUserContactConfirmationEmail,
+  renderContactReceiptEmail,
+  contactReceiptFirstName,
 } from "../src/mail/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -82,12 +83,7 @@ const emailSamples = [
     id: "contact-user-confirmation",
     name: "9. General: Contact Auto-Confirmation Receipt",
     category: "Contact & Support",
-    html: renderUserContactConfirmationEmail({
-      name: "Sarah Jenkins",
-      subject: "Partnership & Enterprise Inquiry",
-      message:
-        "Hi VeriWorkly team,\n\nWe love your verified resume builder. We'd like to explore integrating VeriWorkly for our 300+ engineering candidates. Could we schedule a demo call this week?",
-    }),
+    html: renderContactReceiptEmail(contactReceiptFirstName("Sarah Jenkins")).html,
   },
 ];
 

@@ -13,6 +13,17 @@ import { chatResponse, stubChatApi } from "./helpers/chatApi";
  * change to what production asks the model for, and has to be deliberate.
  */
 
+// Account deletion now revokes better-auth sessions, which loads the auth instance and the
+// full config. This suite does not exercise auth, so the revocation module is stubbed.
+vi.mock("#auth/sessions", () => ({
+  revokeAllSessionsForUser: vi.fn().mockResolvedValue(0),
+  revokeAllSessionsForUserSafely: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("#services/apiKeyService", () => ({
+  ApiKeyService: { invalidateAuthCacheForUser: vi.fn().mockResolvedValue(undefined) },
+}));
+
 vi.mock("#config", () => ({
   config: {
     nodeEnv: "test",

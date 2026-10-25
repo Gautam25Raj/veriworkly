@@ -95,6 +95,12 @@ export async function updateApiKey(apiKeyId: string, input: ApiKeyUpdateInput) {
 
   if (!existing) throw new ApiError(404, "API key not found.");
 
+  // Disabling is a terminal-style transition for the cache: the revoked marker (written before
+  // the row changes) stops the key at once, even if a validateKey() read raced this update and
+  // re-caches the old active record afterwards (V-122). Re-enabling within the marker's TTL is
+  // not possible by design; the marker is only written when the key is being switched off.
+  if (input.isActive === false) await ApiKeyService.markRevokedById(apiKeyId);
+
   const updated = await prisma.apiKey.update({
     where: { id: apiKeyId },
     data: {
@@ -105,7 +111,7 @@ export async function updateApiKey(apiKeyId: string, input: ApiKeyUpdateInput) {
   });
 
   // validateKey() caches the whole auth record (isActive, rateLimit, revokedAt included), so a
-  // disabled key keeps authenticating until that entry expires unless it is evicted here.
+  // rate-limit change keeps serving the old limit until that entry expires unless it is evicted.
   await ApiKeyService.invalidateAuthCacheForUser(existing.userId);
 
   return { apiKey: updated, previous: existing };
@@ -119,6 +125,9 @@ export async function revokeApiKey(apiKeyId: string) {
 
   if (!existing) throw new ApiError(404, "API key not found.");
   if (existing.revokedAt) throw new ApiError(409, "This API key is already revoked.");
+
+  // Marker before the row update: see updateApiKey and ApiKeyService.markRevokedById (V-122).
+  await ApiKeyService.markRevokedById(apiKeyId);
 
   const updated = await prisma.apiKey.update({
     where: { id: apiKeyId },

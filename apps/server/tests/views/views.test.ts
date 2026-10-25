@@ -149,6 +149,13 @@ vi.mock("#services/apiKeyService", () => ({
   },
 }));
 
+// Account deletion now revokes better-auth sessions, which loads the auth instance and the
+// full config. This suite does not exercise auth, so the revocation module is stubbed.
+vi.mock("#auth/sessions", () => ({
+  revokeAllSessionsForUser: vi.fn().mockResolvedValue(0),
+  revokeAllSessionsForUserSafely: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("#config", () => ({
   config: {
     auth: {

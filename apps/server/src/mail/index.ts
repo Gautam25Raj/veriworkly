@@ -9,7 +9,4 @@ export {
   renderAdminContactNotificationEmail,
   type ContactAdminMailData,
 } from "./general/contactAdmin.js";
-export {
-  renderUserContactConfirmationEmail,
-  type ContactUserMailData,
-} from "./general/contactUser.js";
+export { contactReceiptFirstName, renderContactReceiptEmail } from "./general/contactReceipt.js";

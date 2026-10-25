@@ -48,10 +48,40 @@ export const dodoWebhookEventSchema = z.object({
   data: z.unknown(),
 });
 
-export const dodoPaymentSchema = z.object({
-  payment_id: z.string().trim().min(1),
-  subscription_id: z.string().trim().nullable().optional(),
-  settlement_amount: z.number().int().nonnegative(),
-  settlement_currency: z.string().trim().min(1),
-  metadata: z.record(z.string()).default({}),
-});
+/**
+ * Only the fields the webhook handler reads are typed; everything else Dodo sends passes through
+ * untouched (the whole event is stored as the audit payload). `total_amount` and
+ * `is_update_payment_method` decide whether a payment earns the renewal credit allowance: a
+ * card-update charge is a zero-amount `payment.succeeded` and must not mint credits (V-141).
+ */
+export const dodoPaymentSchema = z
+  .object({
+    payment_id: z.string().trim().min(1),
+    subscription_id: z.string().trim().nullable().optional(),
+    product_id: z.string().trim().nullable().optional(),
+    product_cart: z
+      .array(z.object({ product_id: z.string().trim().min(1) }).passthrough())
+      .nullable()
+      .optional(),
+    total_amount: z.number().int().nonnegative().optional(),
+    settlement_amount: z.number().int().nonnegative(),
+    settlement_currency: z.string().trim().min(1),
+    settlement_tax: z.number().int().nonnegative().nullable().optional(),
+    tax: z.number().int().nonnegative().nullable().optional(),
+    currency: z.string().trim().min(1).optional(),
+    is_update_payment_method: z.boolean().optional().default(false),
+    service_periods: z
+      .array(
+        z
+          .object({
+            subscription_id: z.string().trim().min(1),
+            starts_at: z.string().trim().min(1),
+            ends_at: z.string().trim().min(1),
+          })
+          .passthrough(),
+      )
+      .nullable()
+      .optional(),
+    metadata: z.record(z.string()).default({}),
+  })
+  .passthrough();

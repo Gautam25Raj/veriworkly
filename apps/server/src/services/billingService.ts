@@ -1,7 +1,13 @@
+import { randomUUID } from "node:crypto";
+
 import { z } from "zod";
 import DodoPayments from "dodopayments";
 
-import { Prisma, type Subscription as PrismaSubscription } from "@prisma/client";
+import {
+  Prisma,
+  type EntitlementSource,
+  type Subscription as PrismaSubscription,
+} from "@prisma/client";
 
 import { config } from "#config";
 
@@ -18,8 +24,8 @@ import { cacheDel, cacheGet, cacheSet, getRedis } from "#lib/redis";
 import { userProfileCacheKey } from "#lib/cacheKeys";
 import { EntitlementService } from "#services/entitlementService";
 import { AffiliateService } from "#services/affiliate/index";
+import { AFFILIATE_TIER_RATE_BPS } from "#services/affiliate/constants";
 import { CreditService } from "#services/creditService";
-import { ApiKeyService } from "#services/apiKeyService";
 import {
   sendSubscriptionPurchasedEmail,
   sendSubscriptionCancelledEmail,
@@ -30,6 +36,7 @@ import {
   ENTITLEMENT_KEYS,
   getProductFromProviderId,
   getProviderProductId,
+  isCatalogInterval,
   isProductKey,
   productCatalog,
   publicCatalog,
@@ -47,9 +54,39 @@ type BillingIntervalInput = "one_day" | "seven_day" | "monthly" | "annual";
 const BILLING_SUMMARY_TTL_SECONDS = 60;
 const BILLING_HISTORY_TTL_SECONDS = 60;
 const CHECKOUT_LOCK_TTL_SECONDS = 600;
-const WEBHOOK_LOCK_TTL_SECONDS = 30;
+/**
+ * Must outlive one full processing attempt: the entitlement transaction alone may wait 10 s for
+ * a connection and run 20 s, and the pre/post work (event row, cache invalidation, affiliate
+ * commission) adds more. A lock that expires mid-flight lets a retry run in parallel.
+ */
+const WEBHOOK_LOCK_TTL_SECONDS = 60;
 const WEBHOOK_LOCK_WAIT_ATTEMPTS = 10;
 const WEBHOOK_LOCK_WAIT_MS = 300;
+const WEBHOOK_IN_FLIGHT_MESSAGE =
+  "This webhook event is already being processed by a concurrent request. Please retry.";
+/**
+ * The only `suspensionReason` values billing is allowed to overwrite: the ones billing itself
+ * writes (`applySubscriptionEvent` stores the normalised subscription status) and the grace
+ * expiry written by `jobs/portfolioAccessJob` and `portfolioService`. A row suspended for any
+ * other reason belongs to someone else: `user_unpublished` (the user's own takedown) and an
+ * admin's free-text reason from `adminPortfolioService.updatePublicationStatus` (an abuse
+ * takedown). Billing must leave those rows alone, or the next payment would republish them.
+ */
+export const BILLING_SUSPENSION_REASONS = [
+  "ACTIVE",
+  "PAST_DUE",
+  "CANCELED",
+  "INACTIVE",
+  "grace_expired",
+] as const;
+
+/** Compare-and-delete: only the attempt that took the lock may release it. */
+const releaseWebhookLockScript = `
+  if redis.call("get", KEYS[1]) == ARGV[1] then
+    return redis.call("del", KEYS[1])
+  end
+  return 0
+`;
 
 /**
  * Prisma's interactive-transaction defaults (maxWait 2s / timeout 5s) are tuned for single-shot
@@ -93,24 +130,90 @@ function addYears(date: Date, years: number) {
   return d;
 }
 
-function statusFromDodo(rawStatus: string) {
-  switch (rawStatus) {
-    // We never request a trial, so Dodo should never report one. It is still mapped
-    // rather than dropped: the provider owns the status vocabulary, and falling through
-    // to the default would mark such a subscription INACTIVE and revoke access someone
-    // is paying for. Treating it as ACTIVE fails safe for the subscriber.
-    case "active":
-    case "trialing":
-      return "ACTIVE" as const;
-    case "on_hold":
-    case "failed":
-      return "PAST_DUE" as const;
-    case "cancelled":
-    case "expired":
-      return "CANCELED" as const;
-    default:
-      return "INACTIVE" as const;
+function addCatalogInterval(date: Date, interval: CatalogInterval) {
+  // `one_day` is the catalog key of the pass sold as the "3-Day Sprint"; three days is correct.
+  if (interval === "one_day") return addDays(date, 3);
+  if (interval === "seven_day") return addDays(date, 7);
+  if (interval === "annual") return addYears(date, 1);
+  return addMonths(date, 1);
+}
+
+function toBillingInterval(interval: CatalogInterval) {
+  if (interval === "one_day") return "ONE_DAY" as const;
+  if (interval === "seven_day") return "SEVEN_DAY" as const;
+  if (interval === "annual") return "ANNUAL" as const;
+  return "MONTHLY" as const;
+}
+
+function fromBillingInterval(interval: PrismaSubscription["interval"]): CatalogInterval {
+  if (interval === "ONE_DAY") return "one_day";
+  if (interval === "SEVEN_DAY") return "seven_day";
+  if (interval === "ANNUAL") return "annual";
+  return "monthly";
+}
+
+/**
+ * The provider's product id is the truth about what is being billed: after a plan change in the
+ * Dodo portal the checkout metadata still names the plan the customer started on. Metadata is
+ * only consulted for a product id the catalog does not know, and then its interval is validated
+ * against the catalog instead of being trusted.
+ */
+function resolveCatalogProduct(
+  productId: string | null | undefined,
+  metadata: { veriworkly_product?: string; veriworkly_interval?: string },
+): { productKey: ProductKey; interval: CatalogInterval } | null {
+  if (productId) {
+    const product = getProductFromProviderId(productId);
+    if (product) return product;
   }
+
+  const metaProduct = metadata.veriworkly_product;
+  const metaInterval = metadata.veriworkly_interval;
+  if (
+    metaProduct &&
+    isProductKey(metaProduct) &&
+    metaInterval &&
+    isCatalogInterval(metaInterval) &&
+    productCatalog[metaProduct].prices[metaInterval] !== undefined
+  )
+    return { productKey: metaProduct, interval: metaInterval };
+
+  return null;
+}
+
+/**
+ * Every status the Dodo SDK can report, mapped explicitly. The `Record` over the SDK type makes a
+ * new provider status a compile error here rather than a silent `INACTIVE` that revokes access
+ * someone is paying for. A status that is not in the table at runtime fails the event.
+ */
+const SUBSCRIPTION_STATUS_TABLE: Record<
+  DodoPayments.SubscriptionStatus,
+  { status: PrismaSubscription["status"]; grace: boolean }
+> = {
+  active: { status: "ACTIVE", grace: false },
+  // Dunning after a failed renewal: the paid period is over, the grants go, and the portfolio
+  // sits in GRACE for `portfolio.graceDays` while Dodo retries the card.
+  on_hold: { status: "PAST_DUE", grace: true },
+  past_due: { status: "PAST_DUE", grace: true },
+  // A pause is a customer or merchant choice with nothing charged until it is resumed. There is
+  // no paid period to honour, but the customer intends to come back, so it gets the same grace
+  // as a failed renewal rather than an immediate suspension.
+  paused: { status: "PAST_DUE", grace: true },
+  // Created but not yet paid (mandate or first charge pending). Nothing is granted, and nothing
+  // still inside a paid period is taken away: `applySubscriptionEvent` leaves existing grants
+  // untouched for this status.
+  pending: { status: "INACTIVE", grace: false },
+  // Never paid: no grace.
+  failed: { status: "INACTIVE", grace: false },
+  // Access runs to `currentPeriodEnd`, then the user is free (see `accessStatus`).
+  cancelled: { status: "CANCELED", grace: false },
+  expired: { status: "CANCELED", grace: false },
+};
+
+function statusFromDodo(rawStatus: string) {
+  return Object.prototype.hasOwnProperty.call(SUBSCRIPTION_STATUS_TABLE, rawStatus)
+    ? SUBSCRIPTION_STATUS_TABLE[rawStatus as DodoPayments.SubscriptionStatus]
+    : null;
 }
 
 function accessStatus(
@@ -126,10 +229,142 @@ function accessStatus(
   )
     return { canPublish: true, publicationStatus: "LIVE" as const };
 
+  // Cancellation keeps what was paid for: access until the period the customer paid for ends.
+  if (
+    subscription.status === "CANCELED" &&
+    subscription.currentPeriodEnd &&
+    subscription.currentPeriodEnd > now
+  )
+    return { canPublish: true, publicationStatus: "LIVE" as const };
+
   if (subscription.graceEndsAt && subscription.graceEndsAt > now)
     return { canPublish: false, publicationStatus: "GRACE" as const };
 
   return { canPublish: false, publicationStatus: "SUSPENDED" as const };
+}
+
+/**
+ * Two webhook events for one user (an old subscription cancelled while a new one activates)
+ * each recompute the portfolio publication from every grant the user holds. Row locks are per
+ * subscription, so without this they can read each other's pre-commit state and the last writer
+ * suspends a paying customer. Taken first in every billing transaction; released at commit.
+ */
+async function lockUserForBilling(tx: Prisma.TransactionClient, userId: string) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`;
+}
+
+/**
+ * Publication follows the grants, not one subscription: LIVE while any publish grant is in
+ * effect, otherwise `fallback` (or untouched when the caller only added access).
+ */
+async function reconcilePortfolioPublication(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  at: Date,
+  fallback: { publicationStatus: "GRACE" | "SUSPENDED"; suspensionReason: string } | null,
+) {
+  // Grants are read as of the later of the event and the clock: with events for one user
+  // serialised on the advisory lock, an older-stamped event that runs second must still see
+  // the grant the newer one just made (it started after this event's own timestamp).
+  const now = new Date();
+  const asOf = at > now ? at : now;
+  const effectivePublishGrant = await tx.entitlementGrant.findFirst({
+    where: {
+      userId,
+      key: ENTITLEMENT_KEYS.PORTFOLIO_PUBLISH,
+      startsAt: { lte: asOf },
+      revokedAt: null,
+      OR: [{ endsAt: null }, { endsAt: { gt: asOf } }],
+    },
+    select: { endsAt: true },
+    orderBy: { endsAt: "desc" },
+  });
+
+  // Only rows billing suspended (or never suspended) follow the grants. A row the user took
+  // down or an admin suspended stays down whatever billing says; only a republish or the admin
+  // brings it back. Written as an OR because `in` alone excludes NULL rows.
+  const billingOwned = {
+    OR: [{ suspensionReason: null }, { suspensionReason: { in: [...BILLING_SUSPENSION_REASONS] } }],
+  };
+
+  if (effectivePublishGrant) {
+    await tx.portfolioPublication.updateMany({
+      where: { userId, ...billingOwned },
+      data: { status: "LIVE", suspensionReason: null, suspendedAt: null },
+    });
+    return;
+  }
+
+  if (!fallback) return;
+
+  await tx.portfolioPublication.updateMany({
+    where: { userId, ...billingOwned },
+    data:
+      fallback.publicationStatus === "SUSPENDED"
+        ? {
+            status: "SUSPENDED",
+            suspensionReason: fallback.suspensionReason,
+            suspendedAt: new Date(),
+          }
+        : { status: "GRACE", suspensionReason: null, suspendedAt: null },
+  });
+}
+
+type AccessGrant = {
+  key: string;
+  endsAt: Date | null;
+  source: EntitlementSource;
+  metadata: Prisma.JsonValue;
+};
+
+function isPassGrant(grant: AccessGrant) {
+  return (
+    grant.source === "SYSTEM" &&
+    typeof grant.metadata === "object" &&
+    grant.metadata !== null &&
+    !Array.isArray(grant.metadata) &&
+    grant.metadata.pass === true
+  );
+}
+
+/** Latest end among the grants; `null` when there are none or when one of them is open-ended. */
+function latestEnd(grants: AccessGrant[]) {
+  if (grants.length === 0 || grants.some((grant) => grant.endsAt === null)) return null;
+  return new Date(Math.max(...grants.map((grant) => (grant.endsAt as Date).getTime())));
+}
+
+/**
+ * What the customer is paying for, derived from the grants in effect (any source) and the credit
+ * wallet, so a pass holder or a credit-pack buyer is never described as a free user.
+ */
+function describeAccess(grants: AccessGrant[], creditBalance: number) {
+  const portfolio = grants.filter((grant) => grant.key === ENTITLEMENT_KEYS.PORTFOLIO_PUBLISH);
+  const ai = grants.filter((grant) => grant.key === ENTITLEMENT_KEYS.AI_CREDITS);
+  const passes = grants.filter(isPassGrant);
+  const subscribedPortfolio = portfolio.some((grant) => !isPassGrant(grant));
+  const subscribedAi = ai.some((grant) => !isPassGrant(grant));
+
+  const tier =
+    subscribedPortfolio && subscribedAi
+      ? ("bundle" as const)
+      : subscribedPortfolio
+        ? ("portfolio_pro" as const)
+        : subscribedAi
+          ? ("ai_credits" as const)
+          : passes.length > 0
+            ? ("pass" as const)
+            : creditBalance > 0
+              ? ("credits" as const)
+              : ("free" as const);
+
+  return {
+    tier,
+    isPaying: grants.length > 0 || creditBalance > 0,
+    passEndsAt: latestEnd(passes),
+    portfolioAccessEndsAt: latestEnd(portfolio),
+    aiCreditsEndsAt: latestEnd(ai),
+    creditBalance,
+  };
 }
 
 export class BillingService {
@@ -148,7 +383,8 @@ export class BillingService {
   }
 
   private static async buildSummary(userId: string) {
-    const [user, subscription, activeSubscriptions, entitlements, wallet] = await Promise.all([
+    const at = new Date();
+    const [user, subscription, activeSubscriptions, activeGrants, wallet] = await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
         select: { id: true },
@@ -158,15 +394,28 @@ export class BillingService {
         where: {
           userId,
           status: { in: ["ACTIVE"] },
-          OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: new Date() } }],
+          OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: at } }],
         },
         select: { productKey: true, currentPeriodEnd: true },
       }),
-      EntitlementService.listActive(userId),
+      // Same predicate as EntitlementService.listActive; the rows (not just the keys) are
+      // needed to tell a pass from a subscription and to report when access ends.
+      prisma.entitlementGrant.findMany({
+        where: {
+          userId,
+          startsAt: { lte: at },
+          revokedAt: null,
+          OR: [{ endsAt: null }, { endsAt: { gt: at } }],
+        },
+        select: { key: true, endsAt: true, source: true, metadata: true },
+        orderBy: { endsAt: "desc" },
+      }),
       CreditService.getWallet(userId),
     ]);
 
     if (!user) throw new ApiError(404, "User not found");
+    const entitlements = [...new Set(activeGrants.map((grant) => grant.key))];
+    const access = describeAccess(activeGrants, wallet.balance);
     const entitlementCurrent = entitlements.includes(ENTITLEMENT_KEYS.PORTFOLIO_PUBLISH);
     const hasAiCredits = entitlements.includes(ENTITLEMENT_KEYS.AI_CREDITS);
     const portfolioAccessEndsAt =
@@ -207,6 +456,7 @@ export class BillingService {
           ? "GRACE"
           : "SUSPENDED",
       entitlements,
+      access,
       credits: wallet,
       catalog: publicCatalog(),
       creditEconomics: publicCreditEconomics(),
@@ -429,8 +679,10 @@ export class BillingService {
     const parsedEvent = dodoWebhookEventSchema.parse(event);
 
     const lockKey = `billing:webhook:lock:${providerEventId}`;
+    const lockToken = randomUUID();
     const lockAcquired =
-      (await getRedis().set(lockKey, "1", { NX: true, EX: WEBHOOK_LOCK_TTL_SECONDS })) === "OK";
+      (await getRedis().set(lockKey, lockToken, { NX: true, EX: WEBHOOK_LOCK_TTL_SECONDS })) ===
+      "OK";
 
     if (!lockAcquired) {
       // A concurrent delivery of the same event is already processing it (webhook retry racing
@@ -445,10 +697,7 @@ export class BillingService {
         if (existing?.status === "PROCESSED") return { duplicate: true };
       }
 
-      throw new ApiError(
-        503,
-        "This webhook event is already being processed by a concurrent request. Please retry.",
-      );
+      throw new ApiError(503, WEBHOOK_IN_FLIGHT_MESSAGE);
     }
 
     try {
@@ -478,6 +727,17 @@ export class BillingService {
 
           if (existing.status === "PROCESSED") return { duplicate: true };
 
+          // The Redis lock was free but the row says an attempt is still running: Redis lost
+          // the lock (restart, flush) or the attempt crashed moments ago. Either way, running
+          // a second attempt alongside it is the race the lock exists to prevent; tell the
+          // provider to retry after the lock budget has passed.
+          if (
+            existing.status === "PROCESSING" &&
+            existing.lastAttemptAt &&
+            Date.now() - existing.lastAttemptAt.getTime() < WEBHOOK_LOCK_TTL_SECONDS * 1000
+          )
+            throw new ApiError(503, WEBHOOK_IN_FLIGHT_MESSAGE);
+
           stored = await prisma.billingWebhookEvent.update({
             where: { id: existing.id },
             data: {
@@ -505,10 +765,8 @@ export class BillingService {
         }
         if (parsedEvent.type === "payment.succeeded") {
           const payment = dodoPaymentSchema.parse(parsedEvent.data);
-          const userId = await this.applyPaymentEvent(payment);
-          if (userId) {
-            await prisma.billingWebhookEvent.update({ where: { id: stored.id }, data: { userId } });
-          }
+          const userId = await this.applyPaymentEvent(payment, new Date(parsedEvent.timestamp));
+          await prisma.billingWebhookEvent.update({ where: { id: stored.id }, data: { userId } });
         }
 
         await prisma.billingWebhookEvent.update({
@@ -539,179 +797,13 @@ export class BillingService {
       }
     } finally {
       await getRedis()
-        .del(lockKey)
+        .eval(releaseWebhookLockScript, { keys: [lockKey], arguments: [lockToken] })
         .catch((error) => logger.warn("Failed to release billing webhook lock", error));
     }
   }
 
-  private static async applySubscriptionEvent(
-    subscription: z.infer<typeof dodoSubscriptionSchema>,
-    eventTime: Date,
-  ) {
-    const existing = await prisma.subscription.findUnique({
-      where: { providerSubId: subscription.subscription_id },
-    });
-
-    const userId = subscription.metadata.veriworkly_user_id || existing?.userId;
-
-    if (!userId)
-      throw new ApiError(400, "Subscription webhook is missing VeriWorkly user metadata.");
-    if (
-      existing?.userId &&
-      subscription.metadata.veriworkly_user_id &&
-      existing.userId !== subscription.metadata.veriworkly_user_id
-    )
-      throw new ApiError(400, "Subscription webhook user metadata does not match its owner.");
-
-    if (existing?.lastWebhookAt && existing.lastWebhookAt >= eventTime) return userId;
-
-    const isNewSubscription = !existing;
-    const previousStatus = existing?.status ?? null;
-
-    const normalizedStatus = statusFromDodo(subscription.status);
-
-    let productKey: ProductKey;
-    let rawInterval: CatalogInterval;
-
-    const metaProduct = subscription.metadata.veriworkly_product;
-    const metaInterval = subscription.metadata.veriworkly_interval;
-
-    if (metaProduct && isProductKey(metaProduct) && metaInterval) {
-      productKey = metaProduct;
-      rawInterval = metaInterval as CatalogInterval;
-    } else {
-      const product = getProductFromProviderId(subscription.product_id);
-      if (!product) throw new ApiError(400, "Subscription webhook references an unknown product.");
-      productKey = product.productKey;
-      rawInterval = product.interval;
-    }
-
-    const interval =
-      rawInterval === "one_day"
-        ? ("ONE_DAY" as const)
-        : rawInterval === "seven_day"
-          ? ("SEVEN_DAY" as const)
-          : rawInterval === "annual"
-            ? ("ANNUAL" as const)
-            : ("MONTHLY" as const);
-
-    const pastDue = normalizedStatus === "PAST_DUE";
-    const graceEndsAt = pastDue ? addDays(eventTime, config.portfolio.graceDays) : null;
-    const currentPeriodEnd = subscription.next_billing_date
-      ? new Date(subscription.next_billing_date)
-      : rawInterval === "one_day"
-        ? addDays(eventTime, 3)
-        : rawInterval === "seven_day"
-          ? addDays(eventTime, 7)
-          : rawInterval === "annual"
-            ? addYears(eventTime, 1)
-            : addMonths(eventTime, 1);
-
-    await prisma.$transaction(async (tx) => {
-      const updateResult = await tx.subscription.updateMany({
-        where: {
-          providerSubId: subscription.subscription_id,
-          OR: [{ lastWebhookAt: null }, { lastWebhookAt: { lt: eventTime } }],
-        },
-        data: {
-          providerCustomerId: subscription.customer.customer_id,
-          providerPriceId: subscription.product_id,
-          productKey,
-          interval,
-          rawStatus: subscription.status,
-          status: normalizedStatus,
-          currentPeriodEnd,
-          cancelAtPeriodEnd: subscription.cancel_at_next_billing_date,
-          graceEndsAt,
-          lastWebhookAt: eventTime,
-        },
-      });
-
-      if (updateResult.count === 0) {
-        const currentSub = await tx.subscription.findUnique({
-          where: { providerSubId: subscription.subscription_id },
-          select: { id: true, lastWebhookAt: true },
-        });
-
-        if (currentSub) return;
-
-        await tx.subscription.create({
-          data: {
-            userId,
-            provider: "dodo",
-            providerCustomerId: subscription.customer.customer_id,
-            providerPriceId: subscription.product_id,
-            providerSubId: subscription.subscription_id,
-            productKey,
-            interval,
-            rawStatus: subscription.status,
-            status: normalizedStatus,
-            currentPeriodEnd,
-            cancelAtPeriodEnd: subscription.cancel_at_next_billing_date,
-            graceEndsAt,
-            lastWebhookAt: eventTime,
-          },
-        });
-      }
-
-      const access = accessStatus({ status: normalizedStatus, currentPeriodEnd, graceEndsAt });
-      await tx.entitlementGrant.updateMany({
-        where: { userId, source: "SUBSCRIPTION", sourceId: subscription.subscription_id },
-        data: { revokedAt: eventTime },
-      });
-
-      if (access.canPublish) {
-        for (const key of productCatalog[productKey].entitlements) {
-          await tx.entitlementGrant.upsert({
-            where: {
-              userId_key_source_sourceId: {
-                userId,
-                key,
-                source: "SUBSCRIPTION",
-                sourceId: subscription.subscription_id,
-              },
-            },
-            create: {
-              userId,
-              key,
-              source: "SUBSCRIPTION",
-              sourceId: subscription.subscription_id,
-              startsAt: eventTime,
-              endsAt: currentPeriodEnd,
-              metadata: { productKey },
-            },
-            update: {
-              startsAt: eventTime,
-              endsAt: currentPeriodEnd,
-              revokedAt: null,
-              metadata: { productKey },
-            },
-          });
-        }
-      }
-
-      const effectivePublishGrant = await tx.entitlementGrant.findFirst({
-        where: {
-          userId,
-          key: ENTITLEMENT_KEYS.PORTFOLIO_PUBLISH,
-          startsAt: { lte: eventTime },
-          revokedAt: null,
-          OR: [{ endsAt: null }, { endsAt: { gt: eventTime } }],
-        },
-        select: { endsAt: true },
-        orderBy: { endsAt: "desc" },
-      });
-      const canPublish = Boolean(effectivePublishGrant);
-      const publicationStatus = canPublish ? "LIVE" : access.publicationStatus;
-      await tx.portfolioPublication.updateMany({
-        where: { userId },
-        data:
-          publicationStatus === "SUSPENDED"
-            ? { status: "SUSPENDED", suspensionReason: normalizedStatus, suspendedAt: new Date() }
-            : { status: publicationStatus, suspensionReason: null, suspendedAt: null },
-      });
-    }, BILLING_TRANSACTION_OPTIONS);
-
+  /** Post-commit work, safe to repeat: every call here is an invalidation, not a mutation. */
+  private static async invalidateAfterBillingChange(userId: string) {
     const publication = await prisma.portfolioPublication.findUnique({
       where: { userId },
       select: { subdomain: true },
@@ -726,12 +818,201 @@ export class BillingService {
     await Promise.all([
       cacheDel(billingSummaryCacheKey(userId)),
       cacheDel(billingHistoryCacheKey(userId)),
-      ApiKeyService.invalidateAuthCacheForUser(userId),
     ]);
+  }
+
+  private static async applySubscriptionEvent(
+    subscription: z.infer<typeof dodoSubscriptionSchema>,
+    eventTime: Date,
+  ) {
+    const existing = await prisma.subscription.findUnique({
+      where: { providerSubId: subscription.subscription_id },
+    });
+
+    const userId = subscription.metadata.veriworkly_user_id || existing?.userId;
+
+    if (!userId) {
+      logger.error("Subscription webhook is missing VeriWorkly user metadata", {
+        subscriptionId: subscription.subscription_id,
+      });
+      throw new ApiError(400, "Subscription webhook is missing VeriWorkly user metadata.");
+    }
+    if (
+      existing?.userId &&
+      subscription.metadata.veriworkly_user_id &&
+      existing.userId !== subscription.metadata.veriworkly_user_id
+    )
+      throw new ApiError(400, "Subscription webhook user metadata does not match its owner.");
+
+    // An event older than what the row reflects must not move it backwards. An event with the
+    // same timestamp is either a distinct event that also has to apply or a retry of the one
+    // that last touched the row after a post-commit failure; the writes below are idempotent,
+    // so both cases re-run. A stale event still gets the cache invalidation after this block.
+    const staleEvent = Boolean(existing?.lastWebhookAt && existing.lastWebhookAt > eventTime);
+
+    const isNewSubscription = !existing;
+    const previousStatus = existing?.status ?? null;
+
+    const mapped = statusFromDodo(subscription.status);
+    if (!mapped) {
+      logger.error("Subscription webhook carries a provider status the table does not know", {
+        subscriptionId: subscription.subscription_id,
+        status: subscription.status,
+      });
+      throw new ApiError(400, `Unknown subscription status "${subscription.status}".`);
+    }
+    const normalizedStatus = mapped.status;
+
+    const product = resolveCatalogProduct(subscription.product_id, subscription.metadata);
+    if (!product) {
+      logger.error("Subscription webhook references an unknown product", {
+        subscriptionId: subscription.subscription_id,
+        productId: subscription.product_id,
+        metadata: subscription.metadata,
+      });
+      throw new ApiError(400, "Subscription webhook references an unknown product.");
+    }
+    const { productKey, interval: rawInterval } = product;
+    const interval = toBillingInterval(rawInterval);
+
+    const graceEndsAt = mapped.grace ? addDays(eventTime, config.portfolio.graceDays) : null;
+    // Without a `next_billing_date` only an ACTIVE subscription earns a fresh period from the
+    // event; a cancellation, expiry or failure keeps the period the row already holds (or ends
+    // now), so no event can hand out access that was never paid for.
+    const currentPeriodEnd = subscription.next_billing_date
+      ? new Date(subscription.next_billing_date)
+      : normalizedStatus === "ACTIVE"
+        ? addCatalogInterval(eventTime, rawInterval)
+        : (existing?.currentPeriodEnd ?? eventTime);
+    // `pending` is unpaid: it grants nothing and must not revoke a period already paid for.
+    const touchesGrants = subscription.status !== "pending";
+
+    if (!staleEvent) {
+      await prisma.$transaction(async (tx) => {
+        await lockUserForBilling(tx, userId);
+
+        const updateResult = await tx.subscription.updateMany({
+          where: {
+            providerSubId: subscription.subscription_id,
+            OR: [{ lastWebhookAt: null }, { lastWebhookAt: { lte: eventTime } }],
+          },
+          data: {
+            providerCustomerId: subscription.customer.customer_id,
+            providerPriceId: subscription.product_id,
+            productKey,
+            interval,
+            rawStatus: subscription.status,
+            status: normalizedStatus,
+            currentPeriodEnd,
+            cancelAtPeriodEnd: subscription.cancel_at_next_billing_date,
+            graceEndsAt,
+            lastWebhookAt: eventTime,
+          },
+        });
+
+        if (updateResult.count === 0) {
+          const currentSub = await tx.subscription.findUnique({
+            where: { providerSubId: subscription.subscription_id },
+            select: { id: true, lastWebhookAt: true },
+          });
+
+          if (currentSub) return;
+
+          await tx.subscription.create({
+            data: {
+              userId,
+              provider: "dodo",
+              providerCustomerId: subscription.customer.customer_id,
+              providerPriceId: subscription.product_id,
+              providerSubId: subscription.subscription_id,
+              productKey,
+              interval,
+              rawStatus: subscription.status,
+              status: normalizedStatus,
+              currentPeriodEnd,
+              cancelAtPeriodEnd: subscription.cancel_at_next_billing_date,
+              graceEndsAt,
+              lastWebhookAt: eventTime,
+            },
+          });
+        }
+
+        const access = accessStatus({ status: normalizedStatus, currentPeriodEnd, graceEndsAt });
+
+        if (touchesGrants) {
+          await tx.entitlementGrant.updateMany({
+            where: { userId, source: "SUBSCRIPTION", sourceId: subscription.subscription_id },
+            data: { revokedAt: eventTime },
+          });
+
+          if (access.canPublish) {
+            for (const key of productCatalog[productKey].entitlements) {
+              await tx.entitlementGrant.upsert({
+                where: {
+                  userId_key_source_sourceId: {
+                    userId,
+                    key,
+                    source: "SUBSCRIPTION",
+                    sourceId: subscription.subscription_id,
+                  },
+                },
+                create: {
+                  userId,
+                  key,
+                  source: "SUBSCRIPTION",
+                  sourceId: subscription.subscription_id,
+                  startsAt: eventTime,
+                  endsAt: currentPeriodEnd,
+                  metadata: { productKey },
+                },
+                update: {
+                  startsAt: eventTime,
+                  endsAt: currentPeriodEnd,
+                  revokedAt: null,
+                  metadata: { productKey },
+                },
+              });
+            }
+          }
+        }
+
+        // Free templates publish with no publish grant at all, so only an event about a plan
+        // that carries `portfolio_publish` may move the publication to GRACE/SUSPENDED, and
+        // never an unpaid `pending` one. Everything else leaves it alone (it still becomes
+        // LIVE when any publish grant is in effect).
+        const governsPublication =
+          touchesGrants &&
+          productCatalog[productKey].entitlements.includes(ENTITLEMENT_KEYS.PORTFOLIO_PUBLISH);
+        await reconcilePortfolioPublication(
+          tx,
+          userId,
+          eventTime,
+          governsPublication
+            ? {
+                publicationStatus: access.publicationStatus === "GRACE" ? "GRACE" : "SUSPENDED",
+                suspensionReason: normalizedStatus,
+              }
+            : null,
+        );
+      }, BILLING_TRANSACTION_OPTIONS);
+    }
+
+    await this.invalidateAfterBillingChange(userId);
+
+    if (staleEvent) return userId;
 
     if (isNewSubscription && normalizedStatus === "ACTIVE") {
       void this.notifySubscriptionPurchased(userId, productKey);
-    } else if (previousStatus && previousStatus !== "CANCELED" && normalizedStatus === "CANCELED") {
+    } else if (
+      previousStatus &&
+      previousStatus !== "CANCELED" &&
+      normalizedStatus === "CANCELED" &&
+      // The mail promises access until the end of the paid period. A natural `expired` (end of
+      // a period or of a pass) is not a cancellation, and without a future period end there is
+      // nothing left to promise.
+      subscription.status !== "expired" &&
+      currentPeriodEnd > new Date()
+    ) {
       void this.notifySubscriptionCancelled(userId);
     }
 
@@ -770,7 +1051,7 @@ export class BillingService {
     }
   }
 
-  private static async applyPaymentEvent(payment: z.infer<typeof dodoPaymentSchema>) {
+  private static async applyPaymentEvent(payment: z.infer<typeof dodoPaymentSchema>, paidAt: Date) {
     const subscription = payment.subscription_id
       ? await prisma.subscription.findUnique({
           where: { providerSubId: payment.subscription_id },
@@ -778,14 +1059,32 @@ export class BillingService {
         })
       : null;
     const userId = payment.metadata.veriworkly_user_id || subscription?.userId;
-    if (!userId) return null;
-    if (payment.settlement_currency.toUpperCase() !== "USD") {
-      logger.warn(
-        `Payment ${payment.payment_id} for user ${userId} settled in non-USD currency ` +
-          `(${payment.settlement_currency}); skipping credit/entitlement grant since only USD is supported.`,
-      );
-      return userId;
+    if (!userId) {
+      logger.error("Payment webhook cannot be attributed to a user", {
+        paymentId: payment.payment_id,
+        subscriptionId: payment.subscription_id ?? null,
+      });
+      throw new ApiError(400, "Payment webhook is missing VeriWorkly user metadata.");
     }
+
+    // The account settles in USD; customers may still pay in INR by UPI and adaptive pricing can
+    // settle elsewhere. Grants are per product, never per currency, so a non-USD settlement is
+    // noted for the operator and processed like any other.
+    const settlementCurrency = payment.settlement_currency.toUpperCase();
+    if (settlementCurrency !== "USD")
+      logger.warn(
+        `Payment ${payment.payment_id} for user ${userId} settled in ${settlementCurrency}, not USD; grants proceed per product.`,
+        {
+          paymentId: payment.payment_id,
+          settlementCurrency,
+          settlementAmount: payment.settlement_amount,
+          currency: payment.currency ?? null,
+        },
+      );
+
+    // A card-update charge is a zero-amount `payment.succeeded`; so is a fully discounted one.
+    // Neither earns a renewal allowance.
+    const earnsAllowance = !payment.is_update_payment_method && payment.total_amount !== 0;
 
     const purchasedProduct = payment.metadata.veriworkly_product;
     if (purchasedProduct && isCreditPackKey(purchasedProduct)) {
@@ -794,56 +1093,186 @@ export class BillingService {
         requestId: `payment-credit:${payment.payment_id}`,
         source: "credit_pack",
         sourceId: payment.payment_id,
-        expiresAt: addDays(new Date(), pack.expiresInDays),
+        expiresAt: addDays(paidAt, pack.expiresInDays),
         reason: pack.name,
       });
     } else {
-      let productKey: ProductKey | null =
-        subscription?.productKey && isProductKey(subscription.productKey)
-          ? subscription.productKey
-          : null;
-      let intervalInput: CatalogInterval | null = null;
-      let expiresAt: Date | null = subscription?.currentPeriodEnd ?? null;
+      // The stored row already follows the provider's product id (plan changes included); a
+      // payment that lands before its subscription row exists resolves from the payload. Only
+      // `product_cart[0]` is read: every checkout the API creates is a single-item cart.
+      const product =
+        subscription && isProductKey(subscription.productKey)
+          ? {
+              productKey: subscription.productKey,
+              interval: fromBillingInterval(subscription.interval),
+            }
+          : resolveCatalogProduct(
+              payment.product_cart?.[0]?.product_id ?? payment.product_id,
+              payment.metadata,
+            );
+      if (!product) {
+        logger.error("Payment webhook references an unknown product", {
+          paymentId: payment.payment_id,
+          subscriptionId: payment.subscription_id ?? null,
+          productId: payment.product_cart?.[0]?.product_id ?? payment.product_id ?? null,
+          metadata: payment.metadata,
+        });
+        throw new ApiError(400, "Payment webhook references an unknown product.");
+      }
+      const { productKey, interval } = product;
 
-      if (subscription) {
-        intervalInput =
-          subscription.interval === "ANNUAL"
-            ? "annual"
-            : subscription.interval === "ONE_DAY"
-              ? "one_day"
-              : subscription.interval === "SEVEN_DAY"
-                ? "seven_day"
-                : "monthly";
-      } else {
-        const metaProduct = payment.metadata.veriworkly_product;
-        const metaInterval = payment.metadata.veriworkly_interval;
-        if (metaProduct && isProductKey(metaProduct) && metaInterval) {
-          productKey = metaProduct;
-          intervalInput = metaInterval as CatalogInterval;
-          const now = new Date();
-          expiresAt =
-            intervalInput === "one_day"
-              ? addDays(now, 3)
-              : intervalInput === "seven_day"
-                ? addDays(now, 7)
-                : intervalInput === "annual"
-                  ? addYears(now, 1)
-                  : addMonths(now, 1);
-        }
+      // The allowance lives at least one catalog interval from the payment. The stored period
+      // end is only trusted when it is further out: `payment.succeeded` and
+      // `subscription.renewed` have no ordering guarantee, and after dunning recovery the row
+      // still holds the period that just ended, so a grant keyed on it would expire at once.
+      const intervalEnd = addCatalogInterval(paidAt, interval);
+      const expiresAt =
+        subscription?.currentPeriodEnd && subscription.currentPeriodEnd > intervalEnd
+          ? subscription.currentPeriodEnd
+          : intervalEnd;
+
+      // A bundle pass is a one-time product: no `subscription.*` event ever follows, so its
+      // entitlements are granted here, for the pass window, keyed on the payment id. A pass with
+      // a zero total (a 100 % coupon) still grants the entitlements but, by design, no credit
+      // allowance (see `earnsAllowance`).
+      const isPass =
+        !payment.subscription_id &&
+        productKey === "bundle" &&
+        (interval === "one_day" || interval === "seven_day");
+
+      if (isPass) {
+        await prisma.$transaction(async (tx) => {
+          await lockUserForBilling(tx, userId);
+
+          for (const key of productCatalog.bundle.entitlements) {
+            await tx.entitlementGrant.upsert({
+              where: {
+                userId_key_source_sourceId: {
+                  userId,
+                  key,
+                  source: "SYSTEM",
+                  sourceId: payment.payment_id,
+                },
+              },
+              create: {
+                userId,
+                key,
+                source: "SYSTEM",
+                sourceId: payment.payment_id,
+                startsAt: paidAt,
+                endsAt: intervalEnd,
+                metadata: { productKey, interval, pass: true },
+              },
+              update: {
+                startsAt: paidAt,
+                endsAt: intervalEnd,
+                revokedAt: null,
+                metadata: { productKey, interval, pass: true },
+              },
+            });
+          }
+
+          await reconcilePortfolioPublication(tx, userId, paidAt, null);
+        }, BILLING_TRANSACTION_OPTIONS);
       }
 
-      if (productKey && (productKey === "ai_credits" || productKey === "bundle") && intervalInput) {
-        const allowance = productCatalog[productKey].creditAllowance?.[intervalInput] ?? 0;
-        if (allowance > 0) {
+      const allowance =
+        productKey === "ai_credits" || productKey === "bundle"
+          ? (productCatalog[productKey].creditAllowance?.[interval] ?? 0)
+          : 0;
+
+      // The service period this payment pays for, when the payload names one. A subscription
+      // payment whose `service_periods` has no entry for its subscription bills usage only and
+      // does not extend the period (SDK), so it earns no allowance either.
+      const servicePeriod = payment.subscription_id
+        ? payment.service_periods?.find(
+            (period) => period.subscription_id === payment.subscription_id,
+          )
+        : undefined;
+      const usageOnlyRenewal = Boolean(
+        payment.subscription_id && payment.service_periods && !servicePeriod,
+      );
+
+      if (allowance > 0 && !earnsAllowance) {
+        logger.info("Skipping credit allowance for a zero-amount or card-update payment", {
+          paymentId: payment.payment_id,
+          subscriptionId: payment.subscription_id ?? null,
+          isUpdatePaymentMethod: payment.is_update_payment_method,
+          totalAmount: payment.total_amount ?? null,
+        });
+      } else if (allowance > 0 && usageOnlyRenewal) {
+        logger.info("Skipping credit allowance for a usage-only subscription payment", {
+          paymentId: payment.payment_id,
+          subscriptionId: payment.subscription_id,
+        });
+      } else if (allowance > 0) {
+        // One allowance per service period: when the payload names the period this payment
+        // pays for, the grant is keyed on it so a second successful charge in the same period
+        // cannot mint a second allowance. The request id stays per payment, so a retry of this
+        // event returns the grant it already made. Without a service period the payment id is
+        // the only stable key (the stored period end moves with webhook order and would
+        // collide across renewals).
+        const sourceId = servicePeriod
+          ? `${payment.subscription_id}:${servicePeriod.starts_at}`
+          : payment.payment_id;
+
+        try {
           await CreditService.grant(userId, allowance, {
             requestId: `subscription-credit:${payment.payment_id}`,
             source: "subscription_payment",
-            sourceId: payment.payment_id,
+            sourceId,
             expiresAt,
             reason: `${productCatalog[productKey].name} credit allowance`,
           });
+        } catch (error) {
+          if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"))
+            throw error;
+          logger.warn("Credit allowance for this service period was already granted", {
+            paymentId: payment.payment_id,
+            subscriptionId: payment.subscription_id,
+            sourceId,
+          });
         }
       }
+    }
+
+    await this.recordAffiliateCommission(userId, payment);
+    await this.invalidateAfterBillingChange(userId);
+    return userId;
+  }
+
+  /**
+   * The commission base is the settlement net of the tax collected: `settlement_tax` when Dodo
+   * reports it, else `tax` when it is in the settlement currency, else the full settlement. A
+   * commission that rounds below one cent is skipped, never a reason to fail the payment.
+   */
+  private static async recordAffiliateCommission(
+    userId: string,
+    payment: z.infer<typeof dodoPaymentSchema>,
+  ) {
+    const referral = await prisma.affiliateReferral.findUnique({
+      where: { referredUserId: userId },
+      select: { affiliate: { select: { affiliateTier: true, affiliateStatus: true } } },
+    });
+    if (!referral || referral.affiliate.affiliateStatus !== "ACTIVE") return;
+
+    const settlementCurrency = payment.settlement_currency.toUpperCase();
+    const taxCents =
+      payment.settlement_tax ??
+      (payment.currency && payment.currency.toUpperCase() === settlementCurrency
+        ? (payment.tax ?? 0)
+        : 0);
+    const purchaseAmountCents = Math.max(0, payment.settlement_amount - taxCents);
+    const rateBps = AFFILIATE_TIER_RATE_BPS[referral.affiliate.affiliateTier];
+    const amountCents = Math.floor((purchaseAmountCents * rateBps) / 10_000);
+
+    if (amountCents < 1) {
+      logger.debug("Skipping sub-cent affiliate commission", {
+        paymentId: payment.payment_id,
+        purchaseAmountCents,
+        rateBps,
+      });
+      return;
     }
 
     try {
@@ -851,21 +1280,15 @@ export class BillingService {
         referredUserId: userId,
         subscriptionId: payment.subscription_id ?? undefined,
         providerPaymentId: payment.payment_id,
-        purchaseAmountCents: payment.settlement_amount,
+        purchaseAmountCents,
         status: "PENDING",
         reason: "Dodo payment succeeded",
+        currency: settlementCurrency,
       });
     } catch (error) {
-      if (error instanceof ApiError && error.statusCode === 404) {
-        await cacheDel(billingHistoryCacheKey(userId));
-        return userId;
-      }
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")
-        return userId;
+      if (error instanceof ApiError && error.statusCode === 404) return;
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return;
       throw error;
     }
-
-    await cacheDel(billingHistoryCacheKey(userId));
-    return userId;
   }
 }

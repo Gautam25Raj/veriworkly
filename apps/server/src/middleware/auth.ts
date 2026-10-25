@@ -22,15 +22,12 @@ export async function getSessionUserFromRequest(req: Request): Promise<Authentic
   }
 
   try {
-    // 3. Try Redis cache (hash a stable session fingerprint to avoid key churn)
+    // 3. Try Redis cache. The key is derived from the session token alone (so revocation paths,
+    //    which only know the token, can clear it). No session-token cookie means nothing to
+    //    cache under, not "unauthenticated": better-auth still gets to decide.
     const cacheKey = getSessionCacheKey(cookieHeader);
 
-    if (!cacheKey) {
-      req._authChecked = true;
-      return null;
-    }
-
-    const cachedUser = await cacheGet<AuthenticatedUser>(cacheKey);
+    const cachedUser = cacheKey ? await cacheGet<AuthenticatedUser>(cacheKey) : null;
 
     if (cachedUser) {
       req.authUser = cachedUser;
@@ -60,7 +57,7 @@ export async function getSessionUserFromRequest(req: Request): Promise<Authentic
       name: user.name ?? null,
     };
 
-    await cacheSet(cacheKey, authUser, config.auth.sessionCacheMaxAgeSeconds);
+    if (cacheKey) await cacheSet(cacheKey, authUser, config.auth.sessionCacheMaxAgeSeconds);
 
     req.authUser = authUser;
     return authUser;

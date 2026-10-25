@@ -72,6 +72,7 @@ describe("contact route", () => {
       subject: "Buy crypto now",
       message: "Check out this link to buy crypto right now!",
       website: "https://spamlink.com",
+      _ts: Date.now() - 5000,
     };
 
     await router(req as Request, res as Response, next);
@@ -154,6 +155,31 @@ describe("contact route", () => {
         success: false,
         statusCode: 500,
         message: "Internal server error. Failed to send message.",
+      }),
+    );
+  });
+
+  /**
+   * V-046: the bot checks were client-controlled; omitting `_ts` skipped the timing check and
+   * sent the mails. A submission without it is now refused outright.
+   */
+  it("returns 400 and sends nothing when _ts is missing", async () => {
+    req.body = {
+      name: "No Timestamp",
+      email: "victim@example.com",
+      subject: "Inquiry",
+      message: "Hello VeriWorkly! Need help with resumes.",
+    };
+
+    await router(req as Request, res as Response, next);
+
+    expect(sendContactEmail).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        statusCode: 400,
+        details: expect.arrayContaining([expect.objectContaining({ path: "_ts" })]),
       }),
     );
   });

@@ -1,9 +1,16 @@
+import { createHmac } from "node:crypto";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const findManyMock = vi.fn();
 const deleteSessionsMock = vi.fn();
 const cacheDelMock = vi.fn();
-const invalidateCacheByTokenMock = vi.fn();
+
+const AUTH_SECRET = "unit-test-auth-secret";
+
+vi.mock("#config", () => ({
+  config: { nodeEnv: "test", auth: { secret: AUTH_SECRET } },
+}));
 
 vi.mock("#lib/prisma", () => ({
   prisma: { session: { findMany: findManyMock } },
@@ -17,10 +24,6 @@ vi.mock("#lib/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
-vi.mock("#utils/authCache", () => ({
-  invalidateCacheByToken: invalidateCacheByTokenMock,
-}));
-
 vi.mock("#auth/index", () => ({
   auth: {
     $context: Promise.resolve({
@@ -29,7 +32,17 @@ vi.mock("#auth/index", () => ({
   },
 }));
 
+// `#utils/authCache` is deliberately NOT mocked: the point of these tests is that the key the
+// revocation path deletes is the key the request path reads. Mocking it made the suite pass
+// while the two hashed different strings and revoked sessions stayed authenticated.
+const { getSessionCacheKey } = await import("#utils/authCache");
 const { revokeAllSessionsForUser, revokeAllSessionsForUserSafely } = await import("#auth/sessions");
+
+/** The cookie a browser actually sends: better-call's `encodeURIComponent(token.base64(HMAC))`. */
+function signedCookie(token: string, name = "veriworkly-auth.session_token") {
+  const signature = createHmac("sha256", AUTH_SECRET).update(token).digest("base64");
+  return `${name}=${encodeURIComponent(`${token}.${signature}`)}`;
+}
 
 /**
  * Regression cover for the bug where admin "revoke sessions" deleted only the Postgres row.
@@ -43,7 +56,6 @@ describe("revokeAllSessionsForUser", () => {
     findManyMock.mockReset();
     deleteSessionsMock.mockReset();
     cacheDelMock.mockReset();
-    invalidateCacheByTokenMock.mockReset();
   });
 
   it("clears better-auth secondary storage, the active-sessions index, and the app session cache", async () => {
@@ -59,9 +71,13 @@ describe("revokeAllSessionsForUser", () => {
     // 2. The active-sessions index, which the *plural* deleteSessions does not prune itself.
     expect(cacheDelMock).toHaveBeenCalledWith("active-sessions-user-1");
 
-    // 3. This app's own auth:session:<cookie-hash> cache, one entry per token.
-    expect(invalidateCacheByTokenMock).toHaveBeenCalledWith("token-a");
-    expect(invalidateCacheByTokenMock).toHaveBeenCalledWith("token-b");
+    // 3. This app's own auth:session:<token-hash> cache — the SAME key the request path builds
+    //    from the signed cookie, with the real signature check and hashing on both sides.
+    const deletedKeys = cacheDelMock.mock.calls.map(([key]) => key as string);
+
+    expect(deletedKeys).toContain(getSessionCacheKey(signedCookie("token-a")));
+    expect(deletedKeys).toContain(getSessionCacheKey(signedCookie("token-b")));
+    expect(deletedKeys.filter((key) => key.startsWith("auth:session:"))).toHaveLength(2);
   });
 
   it("no-ops without touching any store when the user has no sessions", async () => {
@@ -71,7 +87,6 @@ describe("revokeAllSessionsForUser", () => {
 
     expect(deleteSessionsMock).not.toHaveBeenCalled();
     expect(cacheDelMock).not.toHaveBeenCalled();
-    expect(invalidateCacheByTokenMock).not.toHaveBeenCalled();
   });
 
   it("swallows failures in the safe variant so account deletion is never blocked", async () => {

@@ -14,6 +14,7 @@ const tx = {
   },
   creditGrant: {
     findMany: vi.fn(),
+    aggregate: vi.fn(),
     updateMany: vi.fn(),
   },
   creditTransaction: {
@@ -22,6 +23,8 @@ const tx = {
   creditUsageAllocation: {
     createMany: vi.fn(),
   },
+  // `SELECT ... FOR UPDATE` on the wallet row, then on the grant rows.
+  $queryRaw: vi.fn(),
 };
 
 const prisma = {
@@ -55,6 +58,8 @@ describe("AI credit reservations", () => {
     tx.creditReservation.updateMany.mockResolvedValue({ count: 1 });
     tx.creditWallet.upsert.mockResolvedValue({ id: "wallet_1", balance: 10 });
     tx.creditWallet.updateMany.mockResolvedValue({ count: 1 });
+    tx.$queryRaw.mockResolvedValue([{ id: "wallet_1", balance: 10, reserved: 0 }]);
+    tx.creditGrant.aggregate.mockResolvedValue({ _sum: { remaining: 10 } });
     tx.creditReservation.create.mockResolvedValue({
       id: "reservation_1",
       userId: "user_1",
@@ -94,9 +99,10 @@ describe("AI credit reservations", () => {
       status: "PENDING",
       createdAt: new Date("2026-06-11T00:00:00Z"),
     });
-    tx.creditGrant.findMany.mockResolvedValue([{ id: "grant_1", remaining: 10 }]);
+    tx.$queryRaw
+      .mockResolvedValueOnce([{ id: "wallet_1", balance: 3, reserved: 7 }])
+      .mockResolvedValueOnce([{ id: "grant_1", remaining: 10 }]);
     tx.creditGrant.updateMany.mockResolvedValue({ count: 1 });
-    tx.creditWallet.update.mockResolvedValue({ balance: 3 });
     tx.creditTransaction.create.mockResolvedValue({ id: "debit_1", balanceAfter: 3 });
 
     const result = await CreditService.commitReservation("user_1", "request_1", {
@@ -104,14 +110,47 @@ describe("AI credit reservations", () => {
     });
 
     expect(result).toMatchObject({ id: "debit_1", balanceAfter: 3 });
-    expect(tx.creditWallet.update).toHaveBeenCalledWith({
-      where: { id: "wallet_1" },
-      data: { reserved: { decrement: 7 }, lifetimeDebited: { increment: 7 } },
-    });
-    expect(tx.creditReservation.update).toHaveBeenCalledWith({
-      where: { id: "reservation_1" },
+    // The flip is conditional on PENDING and happens before any wallet or grant write.
+    expect(tx.creditReservation.updateMany).toHaveBeenCalledWith({
+      where: { id: "reservation_1", status: "PENDING" },
       data: { status: "COMMITTED" },
     });
+    expect(tx.creditGrant.updateMany).toHaveBeenCalledWith({
+      where: { id: "grant_1", remaining: { gte: 7 } },
+      data: { remaining: { decrement: 7 } },
+    });
+    expect(tx.creditWallet.updateMany).toHaveBeenCalledWith({
+      where: { id: "wallet_1", reserved: { gte: 7 } },
+      data: { reserved: { decrement: 7 }, lifetimeDebited: { increment: 7 } },
+    });
+  });
+
+  it("refuses to commit a reservation that is no longer pending without touching the wallet", async () => {
+    const { CreditService } = await import("../../src/services/creditService");
+    tx.creditReservation.findUnique.mockResolvedValue({
+      id: "reservation_1",
+      walletId: "wallet_1",
+      userId: "user_1",
+      requestId: "request_1",
+      action: "rewrite_section",
+      cost: 7,
+      status: "PENDING",
+      createdAt: new Date("2026-06-11T00:00:00Z"),
+    });
+    // The release sweep won the race between our read and our conditional flip.
+    tx.creditReservation.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      CreditService.commitReservation("user_1", "request_1", { referenceId: "generation_1" }),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    // Lock order: the wallet row is locked before the conditional flip, never after it.
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.creditReservation.updateMany.mock.invocationCallOrder[0]!,
+    );
+    expect(tx.creditGrant.updateMany).not.toHaveBeenCalled();
+    expect(tx.creditWallet.updateMany).not.toHaveBeenCalled();
+    expect(tx.creditTransaction.create).not.toHaveBeenCalled();
   });
 
   it("returns reserved credits when generation fails", async () => {
@@ -126,8 +165,8 @@ describe("AI credit reservations", () => {
     });
 
     await expect(CreditService.releaseReservation("user_1", "request_1")).resolves.toBe(true);
-    expect(tx.creditWallet.update).toHaveBeenCalledWith({
-      where: { id: "wallet_1" },
+    expect(tx.creditWallet.updateMany).toHaveBeenCalledWith({
+      where: { id: "wallet_1", reserved: { gte: 7 } },
       data: { balance: { increment: 7 }, reserved: { decrement: 7 } },
     });
   });

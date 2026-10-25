@@ -5,10 +5,13 @@ import { z } from "zod";
 import { PublicShareLink } from "#types/api";
 
 import { requireAuthUser } from "#middleware/auth";
+import { incrementFixedWindow } from "#middleware/rateLimit";
 
 import { ShareService } from "#services/shareService";
 
+import { logger } from "#lib/logger";
 import { normalizeSlug, normalizeUsername } from "#utils/slugs";
+import { addressBucket, getRequestIpDetails } from "#utils/requestIp";
 import { cacheGet, cacheSet, cacheDel, cacheDelByPrefix } from "#lib/redis";
 import { userProfileCacheKey } from "#lib/cacheKeys";
 import { parseOffsetPagination, createOffsetPaginationMeta } from "#utils/pagination";
@@ -27,6 +30,10 @@ const shareLinkCreateSchema = z.object({
   updateSlug: z.boolean().optional(),
   removePassword: z.boolean().optional(),
 });
+
+/** Password attempts per (share link, client network) per window; a correct password resets it. */
+const SHARE_VERIFY_MAX_ATTEMPTS = 5;
+const SHARE_VERIFY_WINDOW_SECONDS = 5 * 60;
 
 const shareLinkPasswordSchema = z.object({
   password: z.string().min(1),
@@ -295,8 +302,33 @@ export class ShareController {
       const shareLink = await ShareService.getPublicShareLinkByUsernameAndSlug(username, slug);
 
       if (shareLink.passwordHash) {
+        // Keyed on the link, not the request path: every spelling that resolves to this link
+        // (case, trailing slash, `slug-`/`-slug`) draws on one budget per client network.
+        const ip = getRequestIpDetails(req).resolvedIp;
+        const attemptsKey = `share:verify-attempts:${shareLink.id}:${ip ? addressBucket(ip) : "unknown"}`;
+
+        let attempt: { count: number; ttlSeconds: number };
+        try {
+          attempt = await incrementFixedWindow(attemptsKey, SHARE_VERIFY_WINDOW_SECONDS);
+        } catch (error) {
+          // Fail closed: without the counter nothing bounds guessing across path spellings.
+          logger.warn("Share verify attempt counter unavailable; refusing verification", {
+            error: error instanceof Error ? error.message : String(error),
+          });
+          res.set("Retry-After", "30");
+          throw new ApiError(503, "Password verification is temporarily unavailable");
+        }
+
+        if (attempt.count > SHARE_VERIFY_MAX_ATTEMPTS) {
+          res.set("Retry-After", String(attempt.ttlSeconds));
+          throw new ApiError(429, "Too many password attempts. Please try again later.");
+        }
+
         const matches = await ShareService.verifyPassword(password, shareLink.passwordHash);
-        if (!matches) throw new ApiError(401, "Invalid password");
+        // 403, not 401: the studio treats every 401 as an expired session and signs out (V-128).
+        if (!matches) throw new ApiError(403, "Invalid password");
+
+        await cacheDel(attemptsKey);
       }
 
       ShareService.recordShareView(shareLink.id, req.ip, req.headers["user-agent"]).catch((err) =>

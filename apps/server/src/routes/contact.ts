@@ -18,8 +18,9 @@ const contactSchema = z.object({
     .max(5000, "Message is too long"),
   // Honeypot: a hidden field real users never see or fill. Bots filling it will be caught in the route logic.
   website: z.string().optional().or(z.literal("")),
-  // Optional client-side timestamp in milliseconds when form was loaded.
-  _ts: z.number().optional(),
+  // Client-side timestamp (ms) when the form was loaded. Required: while it was optional, a bot
+  // skipped the timing check by leaving it out (V-046). Captcha is still open.
+  _ts: z.number({ required_error: "Form timestamp is required" }),
 });
 
 router.post("/", async (req, res) => {
@@ -60,21 +61,19 @@ router.post("/", async (req, res) => {
     }
 
     // 2. Timing check: If submitted impossibly fast (< 1200ms from form mount), it's automated.
-    if (typeof _ts === "number" && _ts > 0) {
-      const elapsedMs = Date.now() - _ts;
-      if (elapsedMs < 1200 && elapsedMs >= 0) {
-        logger.warn("[Contact] Bot blocked via fast-submission timing check", {
-          ip: req.ip,
-          elapsedMs,
-        });
-        res.json(
-          createSuccessResponse(
-            { name, email, subject, timestamp: new Date().toISOString() },
-            "Message sent successfully",
-          ),
-        );
-        return;
-      }
+    const elapsedMs = Date.now() - _ts;
+    if (elapsedMs < 1200 && elapsedMs >= 0) {
+      logger.warn("[Contact] Bot blocked via fast-submission timing check", {
+        ip: req.ip,
+        elapsedMs,
+      });
+      res.json(
+        createSuccessResponse(
+          { name, email, subject, timestamp: new Date().toISOString() },
+          "Message sent successfully",
+        ),
+      );
+      return;
     }
 
     logger.info("[Contact] Received legitimate contact submission", {

@@ -16,7 +16,7 @@ import { invalidateCacheByToken } from "#utils/authCache";
  *   1. better-auth's session-by-token entry in Redis  -> internalAdapter.deleteSessions()
  *   2. better-auth's `active-sessions-<userId>` index  -> deleted here; note that the *plural*
  *      deleteSessions() does not prune it (only the singular deleteSession() does)
- *   3. this app's own `auth:session:<cookie-hash>` cache -> invalidateCacheByToken()
+ *   3. this app's own `auth:session:<token-hash>` cache -> invalidateCacheByToken()
  *
  * A raw Prisma delete also bypasses better-auth's `databaseHooks.session.delete.after`, which is
  * what would otherwise have called invalidateCacheByToken for us. Always route session removal

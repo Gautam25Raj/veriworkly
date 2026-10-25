@@ -204,3 +204,79 @@ describe("rateLimitMiddleware", () => {
     expect(res.status).toHaveBeenCalledWith(429);
   });
 });
+
+/**
+ * V-087: Express routing is case-insensitive and ignores a trailing slash, so every spelling that
+ * reaches a handler has to land in that handler's limit class and in one bucket.
+ */
+describe("rateLimitMiddleware path normalisation", () => {
+  async function routeCall(path: string) {
+    const redisMockInstance = {
+      isReady: true,
+      eval: vi.fn().mockResolvedValue([1, 60000, 1, 900000]),
+    };
+    mockGetRedis.mockReturnValue(redisMockInstance);
+
+    const req = {
+      headers: {},
+      ip: "203.0.113.7",
+      path,
+      method: "POST",
+      socket: { remoteAddress: "203.0.113.7" },
+    } as unknown as Request;
+    const res = { set: vi.fn(), status: vi.fn().mockReturnThis(), json: vi.fn() };
+
+    await rateLimitMiddleware(req, res as unknown as Response, vi.fn());
+
+    const [, options] = redisMockInstance.eval.mock.calls[0] as [
+      string,
+      { keys: string[]; arguments: string[] },
+    ];
+    return { routeKey: options.keys[0], windowMs: options.arguments[0] };
+  }
+
+  beforeEach(() => mockGetRedis.mockReset());
+
+  it("puts /api/v1/Contact/ and /api/v1/contact in one bucket with the contact limit", async () => {
+    const canonical = await routeCall("/api/v1/contact");
+    const shouted = await routeCall("/api/v1/Contact/");
+
+    expect(shouted.routeKey).toBe(canonical.routeKey);
+    expect(canonical.routeKey).toBe("rate-limit:POST:/api/v1/contact:203.0.113.7");
+    // 1 hour: the contact class, not the 15-minute default a mis-cased path used to get.
+    expect(shouted.windowMs).toBe(String(60 * 60 * 1000));
+  });
+
+  it("applies the share-verify class to an upper-case, trailing-slash spelling", async () => {
+    const canonical = await routeCall("/api/v1/shares/public/alice/my-resume/verify");
+    const shouted = await routeCall("/api/v1/SHARES/PUBLIC/Alice/My-Resume/VERIFY/");
+
+    expect(shouted.routeKey).toBe(canonical.routeKey);
+    expect(shouted.windowMs).toBe(String(5 * 60 * 1000));
+  });
+
+  it("uses 20 per 5 minutes as the share-verify outer bound (the per-link limit is in the handler)", async () => {
+    const outcome = async (routeCount: number) => {
+      mockGetRedis.mockReturnValue({
+        isReady: true,
+        eval: vi.fn().mockResolvedValue([routeCount, 120000, 1, 900000]),
+      });
+      const res = { set: vi.fn(), status: vi.fn().mockReturnThis(), json: vi.fn() };
+      const next = vi.fn();
+      const req = {
+        headers: {},
+        ip: "203.0.113.7",
+        path: "/api/v1/shares/public/alice/my-resume/verify",
+        method: "POST",
+        socket: { remoteAddress: "203.0.113.7" },
+      } as unknown as Request;
+      await rateLimitMiddleware(req, res as unknown as Response, next);
+      return { passed: next.mock.calls.length === 1, res };
+    };
+
+    expect((await outcome(20)).passed).toBe(true);
+    const over = await outcome(21);
+    expect(over.passed).toBe(false);
+    expect(over.res.status).toHaveBeenCalledWith(429);
+  });
+});

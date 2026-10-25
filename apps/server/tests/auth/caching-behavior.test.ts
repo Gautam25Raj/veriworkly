@@ -1,12 +1,18 @@
+import { createHmac } from "node:crypto";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const cacheGetMock = vi.fn();
 const cacheSetMock = vi.fn();
 const getSessionMock = vi.fn();
 
+const AUTH_SECRET = "unit-test-auth-secret";
+
 vi.mock("#config", () => ({
   config: {
+    nodeEnv: "test",
     auth: {
+      secret: AUTH_SECRET,
       sessionCacheMaxAgeSeconds: 900,
     },
   },
@@ -21,6 +27,12 @@ vi.mock("#auth/index", () => ({
   convertNodeHeadersToWebHeaders: (headers: unknown) => headers,
   getSessionFromRequestHeaders: getSessionMock,
 }));
+
+/** A cookie signed the way better-call signs it; an unsigned value is never cached (see below). */
+function signedCookie(token: string) {
+  const signature = createHmac("sha256", AUTH_SECRET).update(token).digest("base64");
+  return `veriworkly-auth.session_token=${encodeURIComponent(`${token}.${signature}`)}`;
+}
 
 describe("Session Caching Behavior", () => {
   beforeEach(() => {
@@ -39,11 +51,7 @@ describe("Session Caching Behavior", () => {
 
     const { getSessionUserFromRequest } = await import("#middleware/auth");
 
-    const req = {
-      headers: {
-        cookie: "veriworkly-auth.session_token=valid-token",
-      },
-    } as never;
+    const req = { headers: { cookie: signedCookie("valid-token") } } as never;
 
     const user = await getSessionUserFromRequest(req);
 
@@ -71,11 +79,7 @@ describe("Session Caching Behavior", () => {
 
     const { getSessionUserFromRequest } = await import("#middleware/auth");
 
-    const req = {
-      headers: {
-        cookie: "veriworkly-auth.session_token=valid-token",
-      },
-    } as never;
+    const req = { headers: { cookie: signedCookie("valid-token") } } as never;
 
     const user = await getSessionUserFromRequest(req);
 
@@ -95,5 +99,21 @@ describe("Session Caching Behavior", () => {
       },
       900,
     );
+  });
+
+  it("never consults or fills the cache for an unsigned cookie; better-auth decides", async () => {
+    cacheGetMock.mockResolvedValue({ id: "user-cached", email: null, name: null });
+    getSessionMock.mockResolvedValue(null);
+
+    const { getSessionUserFromRequest } = await import("#middleware/auth");
+
+    const req = { headers: { cookie: "veriworkly-auth.session_token=valid-token" } } as never;
+
+    const user = await getSessionUserFromRequest(req);
+
+    expect(user).toBeNull();
+    expect(cacheGetMock).not.toHaveBeenCalled();
+    expect(cacheSetMock).not.toHaveBeenCalled();
+    expect(getSessionMock).toHaveBeenCalled();
   });
 });

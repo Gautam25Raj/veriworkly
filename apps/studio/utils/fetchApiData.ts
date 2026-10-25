@@ -9,11 +9,14 @@ interface ApiSuccessResponse<T> {
 
 export class ApiRequestError extends Error {
   status: number;
+  /** The error body's `details`, e.g. `currentUpdatedAt` on a master-profile 409. */
+  details: unknown;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, details?: unknown) {
     super(message);
     this.name = "ApiRequestError";
     this.status = status;
+    this.details = details;
   }
 }
 
@@ -37,9 +40,22 @@ function firstPartyServerHeaders(headers?: HeadersInit) {
 
 export async function fetchApiData<T>(
   path: string,
-  options: RequestInit & { errorMessage?: string; nullOnNotFound?: boolean } = {},
+  options: RequestInit & {
+    errorMessage?: string;
+    nullOnNotFound?: boolean;
+    /**
+     * `false` for calls a guest can make: their 401 means "not signed in", not "session
+     * expired", so it must reach the caller instead of signing out and leaving for /login.
+     */
+    redirectOnInvalidSession?: boolean;
+  } = {},
 ): Promise<T> {
-  const { errorMessage, nullOnNotFound, ...fetchOptions } = options;
+  const {
+    errorMessage,
+    nullOnNotFound,
+    redirectOnInvalidSession = true,
+    ...fetchOptions
+  } = options;
 
   const url = backendApiUrl(path);
 
@@ -53,7 +69,7 @@ export async function fetchApiData<T>(
   });
 
   if (!response.ok) {
-    if (isInvalidSessionResponse(path, response.status)) {
+    if (redirectOnInvalidSession && isInvalidSessionResponse(path, response.status)) {
       await clearInvalidSessionAndRedirect();
     }
 
@@ -64,7 +80,7 @@ export async function fetchApiData<T>(
     const errorData = await response.json().catch(() => ({}));
     const message = errorMessage || errorData.message || `Request failed: ${response.status}`;
 
-    throw new ApiRequestError(message, response.status);
+    throw new ApiRequestError(message, response.status, errorData.details);
   }
 
   const payload = (await response.json()) as ApiSuccessResponse<T>;

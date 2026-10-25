@@ -2,17 +2,17 @@
 
 import Link from "next/link";
 import { AlertCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import type { MasterProfile } from "@/types/resume";
 
 import { Button } from "@veriworkly/ui";
 
 import {
+  loadMasterProfileForEditor,
   saveMasterProfileToDatabase,
-  loadMasterProfileFromDatabase,
   saveMasterProfileToLocalStorage,
-  loadMasterProfileFromLocalStorage,
+  type MasterProfileEditorState,
 } from "@/features/resume/services/master-profile";
 
 import ProfileAdvanced from "./ProfileAdvanced";
@@ -27,47 +27,48 @@ const AdvancedProfileClient = () => {
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [profile, setProfile] = useState<MasterProfile | null>(null);
 
+  // A failed load blocks editing: saving a stand-in would overwrite the profile that did
+  // not load. Only "no profile yet" opens the editor without one from the database.
+  const applyLoadResult = useCallback((result: MasterProfileEditorState) => {
+    if (result.status === "ready") {
+      setProfile(result.profile);
+      setUpdatedAt(result.updatedAt);
+      setLoadError(null);
+    } else {
+      console.error("Failed to load master profile from the database", result.error);
+      setLoadError(
+        result.error instanceof Error ? result.error.message : "Could not load master profile.",
+      );
+    }
+
+    setLoading(false);
+  }, []);
+
   useEffect(() => {
     let mounted = true;
 
-    const loadProfile = async () => {
-      try {
-        const result = await loadMasterProfileFromDatabase();
-
-        if (!mounted) return;
-
-        if (result.status === "ok") {
-          setProfile(result.bundle.profile);
-          setUpdatedAt(result.bundle.updatedAt);
-        } else {
-          // "empty" is a first-time visitor; the rest mean the database copy is unusable.
-          // Either way the local cache is the best available answer, but only the first is
-          // routine, so the others are worth a line in the console.
-          if (result.status !== "empty") {
-            console.error("Failed to load master profile from the database", result);
-          }
-
-          setProfile(loadMasterProfileFromLocalStorage().profile);
-        }
-      } catch {
-        if (mounted) setLoadError("Could not load master profile data.");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-
-    void loadProfile();
+    void loadMasterProfileForEditor().then((result) => {
+      if (mounted) applyLoadResult(result);
+    });
 
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [applyLoadResult]);
 
-  const handleSave = async (nextProfile: MasterProfile) => {
+  const retryLoad = () => {
+    setLoading(true);
+    void loadMasterProfileForEditor().then(applyLoadResult);
+  };
+
+  const handleSave = async (nextProfile: MasterProfile, expectedUpdatedAt = updatedAt) => {
     setSaving(true);
 
     try {
-      const savedBundle = await saveMasterProfileToDatabase(nextProfile, updatedAt ?? undefined);
+      const savedBundle = await saveMasterProfileToDatabase(
+        nextProfile,
+        expectedUpdatedAt ?? undefined,
+      );
 
       saveMasterProfileToLocalStorage(savedBundle.profile);
       setProfile(savedBundle.profile);
@@ -89,13 +90,20 @@ const AdvancedProfileClient = () => {
             <h2 className="text-sm font-bold">Profile data unavailable</h2>
 
             <p className="text-muted mt-1 text-sm">
-              {loadError ?? "No profile payload was found."}
+              {loadError ?? "No profile payload was found."} Editing is paused so a saved profile is
+              not overwritten.
             </p>
           </div>
 
-          <Button asChild size="sm" className="mt-4">
-            <Link href="/profile/master">Open guided editor</Link>
-          </Button>
+          <div className="mt-4 flex gap-2">
+            <Button size="sm" onClick={retryLoad}>
+              Try again
+            </Button>
+
+            <Button asChild size="sm" variant="secondary">
+              <Link href="/profile/master">Open guided editor</Link>
+            </Button>
+          </div>
         </div>
       </div>
     );

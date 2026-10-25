@@ -57,6 +57,11 @@ const MEASURABLE_FIXTURES = PARITY_FIXTURE_IDS.filter((id) => id !== "cjk");
 const KNOWN_PAGINATION_DIFFERENCES: Record<string, string> = {
   "veriworkly-special/dense":
     "preview measures 2 pages; the PDF's character-count estimate reserves 3",
+  // The neutral sample letter put the long fixture on a page edge: the preview's measured split
+  // starts a second page, react-pdf fits one. Both go when the export uses the measured split
+  // (studio audit Phase 4 item 1, S-026/S-106).
+  "professional/long": "preview measures 2 pages; the PDF fits 1",
+  "ats-essential/long": "preview measures 2 pages; the PDF fits 1",
 };
 
 let server: ParityServer;

@@ -14,10 +14,16 @@ import {
   getMasterProfile,
   salvageMasterProfile,
   deriveResumeFromMasterProfile,
+  resolveConflictUpdatedAt,
+  loadMasterProfileForEditor,
   loadMasterProfileFromDatabase,
+  saveMasterProfileToDatabase,
+  getMasterProfileForNewDocument,
   loadMasterProfileFromLocalStorage,
   saveMasterProfileToLocalStorage,
 } from "@/features/resume/services/master-profile";
+import { ApiRequestError } from "@/utils/fetchApiData";
+import { useUserStore } from "@/store/useUserStore";
 
 /**
  * Contract for the master-profile storage round trip.
@@ -37,10 +43,12 @@ vi.mock("@/utils/fetchApiData", () => ({
   fetchApiData: fetchApiDataMock,
   ApiRequestError: class ApiRequestError extends Error {
     status: number;
+    details: unknown;
 
-    constructor(message: string, status: number) {
+    constructor(message: string, status: number, details?: unknown) {
       super(message);
       this.status = status;
+      this.details = details;
     }
   },
 }));
@@ -96,6 +104,15 @@ function buildMasterProfile(overrides: Partial<MasterProfileData> = {}): MasterP
   } as MasterProfileData;
 }
 
+/** The stored profile, failing the test when the device has none to read. */
+function loadStoredProfile(): MasterProfileData {
+  const result = loadMasterProfileFromLocalStorage();
+
+  if (result.status !== "ok") throw new Error(`expected a stored profile, got "${result.status}"`);
+
+  return result.profile;
+}
+
 function storeMasterProfile(profile: MasterProfileData) {
   window.localStorage.setItem(
     MASTER_PROFILE_STORAGE_KEY,
@@ -124,12 +141,21 @@ describe("master profile storage contract", () => {
     vi.unstubAllGlobals();
   });
 
-  it("returns the defaultResume-derived profile when nothing is stored", () => {
-    const { profile } = loadMasterProfileFromLocalStorage();
+  it("S-115: reports an empty device instead of inventing a sample profile", () => {
+    expect(loadMasterProfileFromLocalStorage()).toEqual({ status: "empty" });
+  });
 
-    expect(profile.basics.fullName).toBe(defaultResume.basics.fullName);
-    expect(profile.summary).toBe(defaultResume.summary);
-    expect(profile.templateId).toBe(defaultResume.templateId);
+  it("S-115: a list the user emptied stays empty after a reload", () => {
+    saveMasterProfileToLocalStorage(
+      buildMasterProfile({ experience: [], education: [], projects: [], skills: [] }),
+    );
+
+    const profile = loadStoredProfile();
+
+    expect(profile.experience).toEqual([]);
+    expect(profile.education).toEqual([]);
+    expect(profile.projects).toEqual([]);
+    expect(profile.skills).toEqual([]);
   });
 
   it("keeps a stored profile whose phone is empty", () => {
@@ -139,7 +165,7 @@ describe("master profile storage contract", () => {
       }),
     );
 
-    const { profile } = loadMasterProfileFromLocalStorage();
+    const profile = loadStoredProfile();
 
     expect(profile.basics.fullName).toBe("Ada Lovelace");
     expect(profile.basics.phone).toBe("");
@@ -153,7 +179,7 @@ describe("master profile storage contract", () => {
       }),
     );
 
-    const { profile } = loadMasterProfileFromLocalStorage();
+    const profile = loadStoredProfile();
 
     expect(profile.basics.fullName).toBe("Ada Lovelace");
     expect(profile.basics.email).toBe("");
@@ -168,7 +194,7 @@ describe("master profile storage contract", () => {
 
     saveMasterProfileToLocalStorage(profile);
 
-    const { profile: loaded } = loadMasterProfileFromLocalStorage();
+    const loaded = loadStoredProfile();
 
     expect(withoutUpdatedAt(loaded)).toEqual(withoutUpdatedAt(profile));
   });
@@ -180,7 +206,7 @@ describe("master profile storage contract", () => {
 
     saveMasterProfileToLocalStorage(profile);
 
-    const { profile: loaded } = loadMasterProfileFromLocalStorage();
+    const loaded = loadStoredProfile();
     const resume = deriveResumeFromMasterProfile("resume-intl", loaded);
 
     expect(loaded.basics.phone).toBe("+44 20 7946 0958");
@@ -195,10 +221,7 @@ describe("master profile storage contract", () => {
 
     storeMasterProfile(profile);
 
-    const resume = deriveResumeFromMasterProfile(
-      "resume-derived",
-      loadMasterProfileFromLocalStorage().profile,
-    );
+    const resume = deriveResumeFromMasterProfile("resume-derived", loadStoredProfile());
 
     expect(resume.id).toBe("resume-derived");
     expect(resume.basics).toEqual(profile.basics);
@@ -224,10 +247,7 @@ describe("master profile storage contract", () => {
 
     storeMasterProfile(buildMasterProfile({ customSections }));
 
-    const resume = deriveResumeFromMasterProfile(
-      "resume-custom",
-      loadMasterProfileFromLocalStorage().profile,
-    );
+    const resume = deriveResumeFromMasterProfile("resume-custom", loadStoredProfile());
 
     expect(resume.customSections.map((section) => section.title)).toEqual([
       "Speaking",
@@ -285,10 +305,7 @@ describe("master profile storage contract", () => {
 
     storeMasterProfile(profile);
 
-    const resume = deriveResumeFromMasterProfile(
-      "resume-typed",
-      loadMasterProfileFromLocalStorage().profile,
-    );
+    const resume = deriveResumeFromMasterProfile("resume-typed", loadStoredProfile());
 
     expect(resume.languages).toEqual(profile.languages);
     // A real date range, not the "2020-01 - Present" display string the mirror produced.
@@ -371,7 +388,7 @@ describe("master profile lifecycle", () => {
 
     expect(result.status).toBe("ok");
     expect(window.localStorage.getItem(MASTER_PROFILE_STORAGE_KEY)).not.toBeNull();
-    expect(loadMasterProfileFromLocalStorage().profile.basics.fullName).toBe("Barbara Liskov");
+    expect(loadStoredProfile().basics.fullName).toBe("Barbara Liskov");
   });
 
   it("falls back to the local cache when the database is unreachable", async () => {
@@ -391,9 +408,7 @@ describe("master profile lifecycle", () => {
   it("backs up an unreadable stored value instead of deleting it", () => {
     window.localStorage.setItem(MASTER_PROFILE_STORAGE_KEY, "{ not json");
 
-    const { profile } = loadMasterProfileFromLocalStorage();
-
-    expect(profile.basics.fullName).toBe(defaultResume.basics.fullName);
+    expect(loadMasterProfileFromLocalStorage()).toEqual({ status: "corrupt" });
     expect(window.localStorage.getItem(MASTER_PROFILE_STORAGE_KEY)).toBe("{ not json");
     expect(window.localStorage.getItem(CORRUPT_KEY)).toBe("{ not json");
   });
@@ -421,7 +436,7 @@ describe("master profile lifecycle", () => {
       awards: [{ id: "award-1", title: "Medal", awarder: "NASA", date: "not-a-date" }],
     } as unknown as MasterProfileData);
 
-    const { profile: loaded } = loadMasterProfileFromLocalStorage();
+    const loaded = loadStoredProfile();
 
     expect(loaded.experience).toHaveLength(1);
     expect(loaded.experience[0].company).toBe("NASA");
@@ -469,5 +484,131 @@ describe("master profile lifecycle", () => {
 
     expect(validation.ok).toBe(false);
     expect(validation.issues).toContain("Section Spacing must be between 0 and 120.");
+  });
+});
+
+describe("master profile for a new account and a failed load (S-115, S-158, S-184, S-080)", () => {
+  beforeEach(() => {
+    const localStorageMock = createLocalStorageMock();
+
+    fetchApiDataMock.mockReset();
+
+    vi.stubGlobal("localStorage", localStorageMock);
+    vi.stubGlobal("window", { localStorage: localStorageMock });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    useUserStore.getState().logout();
+  });
+
+  it("S-184: asks for the profile with 404 meaning empty", async () => {
+    fetchApiDataMock.mockResolvedValue(null);
+
+    expect(await loadMasterProfileFromDatabase()).toEqual({ status: "empty" });
+    expect(fetchApiDataMock).toHaveBeenCalledWith(
+      "/profiles/master",
+      expect.objectContaining({ nullOnNotFound: true }),
+    );
+  });
+
+  it("S-158: treats the old blank record (empty content, empty id) as empty, not unparseable", async () => {
+    fetchApiDataMock.mockResolvedValue({
+      profile: { id: "", userId: "user-1", content: {}, createdAt: "", updatedAt: "" },
+      summary: null,
+    });
+
+    expect((await loadMasterProfileFromDatabase()).status).toBe("empty");
+  });
+
+  it("S-115 S-211: a fresh account opens an empty master editor", async () => {
+    fetchApiDataMock.mockResolvedValue(null);
+
+    const state = await loadMasterProfileForEditor();
+
+    expect(state.status).toBe("ready");
+    if (state.status !== "ready") return;
+
+    expect(state.source).toBe("new");
+    expect(state.updatedAt).toBeNull();
+    expect(state.profile.basics.fullName).toBe("");
+    expect(state.profile.experience).toEqual([]);
+    expect(JSON.stringify(state.profile)).not.toMatch(/veriworkly|gautam/i);
+  });
+
+  it("S-080: a failed load is an error, never the local cache with no cursor", async () => {
+    storeMasterProfile(buildMasterProfile());
+    fetchApiDataMock.mockRejectedValue(new Error("Service unavailable"));
+
+    const state = await loadMasterProfileForEditor();
+
+    expect(state.status).toBe("error");
+  });
+
+  it("S-080: an unreadable row keeps its cursor so a save over it is not blind", async () => {
+    fetchApiDataMock.mockResolvedValue({
+      profile: {
+        id: "profile-1",
+        userId: "user-1",
+        content: { summary: 42 },
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-02T00:00:00.000Z",
+      },
+      summary: null,
+    });
+
+    const state = await loadMasterProfileForEditor();
+
+    expect(state.status === "ready" && state.updatedAt).toBe("2026-01-02T00:00:00.000Z");
+  });
+
+  it("S-184: a save on an existing profile sends its cursor", async () => {
+    fetchApiDataMock.mockResolvedValue({
+      id: "profile-1",
+      userId: "user-1",
+      content: buildMasterProfile(),
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-03T00:00:00.000Z",
+    });
+
+    await saveMasterProfileToDatabase(buildMasterProfile(), "2026-01-02T00:00:00.000Z");
+
+    const body = JSON.parse(fetchApiDataMock.mock.calls[0][1].body as string);
+
+    expect(body.expectedUpdatedAt).toBe("2026-01-02T00:00:00.000Z");
+  });
+
+  it("S-242: a 409 yields the server's current cursor for 'save my version'", async () => {
+    const conflict = new ApiRequestError("Master profile already exists.", 409, {
+      currentUpdatedAt: "2026-01-05T00:00:00.000Z",
+    });
+
+    expect(await resolveConflictUpdatedAt(conflict)).toBe("2026-01-05T00:00:00.000Z");
+    expect(await resolveConflictUpdatedAt(new ApiRequestError("Nope", 500))).toBeNull();
+  });
+
+  it("S-012: a guest creating a document never asks the server for a profile", async () => {
+    fetchApiDataMock.mockRejectedValue(new ApiRequestError("Unauthorized", 401));
+
+    expect(await getMasterProfileForNewDocument()).toBeUndefined();
+    expect(fetchApiDataMock).not.toHaveBeenCalled();
+  });
+
+  it("S-012: a signed-in user's new document is seeded from the database profile", async () => {
+    useUserStore.getState().setUser({ email: "ada@example.com" } as never);
+    fetchApiDataMock.mockResolvedValue({
+      profile: {
+        id: "profile-1",
+        userId: "user-1",
+        content: buildMasterProfile({
+          basics: { ...defaultResume.basics, fullName: "Ada Lovelace" },
+        }),
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-02T00:00:00.000Z",
+      },
+      summary: null,
+    });
+
+    expect((await getMasterProfileForNewDocument())?.basics.fullName).toBe("Ada Lovelace");
   });
 });

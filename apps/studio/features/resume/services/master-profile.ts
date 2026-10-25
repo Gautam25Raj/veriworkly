@@ -4,18 +4,19 @@ import {
   projectToResume,
   masterProfileSchema,
   normalizeMasterProfile,
+  createEmptyMasterProfile,
   salvageMasterProfile as salvageAgainstBase,
-  CURRENT_SCHEMA_VERSION,
   type MasterProfileData,
 } from "@veriworkly/profile-core";
 
 import type { ResumeData } from "@/types/resume";
 
-import { fetchApiData } from "@/utils/fetchApiData";
+import { ApiRequestError, fetchApiData } from "@/utils/fetchApiData";
 
 import { MASTER_PROFILE_STORAGE_KEY } from "@/lib/constants";
 
-import { defaultResume } from "@/features/resume/constants/default-resume";
+import { useUserStore } from "@/store/useUserStore";
+
 import { normalizeResumeData } from "@/features/resume/utils/normalize-data";
 import { normalizeFontFamilyId } from "@/features/documents/constants/fonts";
 import { safeSetLocalStorageItem } from "@/features/documents/services/storage/safe-local-storage";
@@ -48,12 +49,22 @@ export interface MasterProfileBundleState {
  * The outcomes of a database load are not interchangeable, and collapsing them all to
  * `null` is what made "your profile did not load" and "you have no profile yet" look
  * identical to every caller — including the one that then quietly served demo data.
+ *
+ * `unparseable` carries the row's `updatedAt`: the row exists, so a save over it has to send
+ * that cursor or the server refuses it.
  */
 export type MasterProfileLoadResult =
   | { status: "ok"; bundle: MasterProfileBundleState }
   | { status: "empty" }
-  | { status: "unparseable"; raw: unknown }
+  | { status: "unparseable"; raw: unknown; updatedAt: string }
   | { status: "error"; error: unknown };
+
+/**
+ * The device cache, read. `corrupt` means bytes were stored and could not be read at all;
+ * they are parked under the `:corrupt` key, and the caller decides what to show instead.
+ */
+export type LocalMasterProfileResult =
+  { status: "ok"; profile: MasterProfileData } | { status: "empty" } | { status: "corrupt" };
 
 const masterProfileStateSchema = z
   .object({
@@ -66,47 +77,8 @@ function isBrowser() {
   return typeof window !== "undefined";
 }
 
-/**
- * The studio's base profile: the master-profile-shaped subset of `defaultResume`.
- *
- * Deliberately not the package's `createEmptyMasterProfile()`. That one is genuinely empty,
- * which is right for the server's import shell but wrong here — a user who has never filled
- * in a profile should still get usable starter content in a new resume rather than a blank
- * page. This is why the package's normalisers take the base as an argument.
- */
-function getDefaultProfile(): MasterProfileData {
-  const profileData = structuredClone(defaultResume) as ResumeData;
-
-  return {
-    schemaVersion: CURRENT_SCHEMA_VERSION,
-    templateId: profileData.templateId,
-    basics: profileData.basics,
-    links: profileData.links,
-    summary: profileData.summary,
-    experience: profileData.experience,
-    education: profileData.education,
-    projects: profileData.projects,
-    skills: profileData.skills,
-    languages: [],
-    interests: [],
-    awards: [],
-    certificates: [],
-    publications: [],
-    volunteer: [],
-    references: [],
-    achievements: [],
-    customSections: profileData.customSections,
-    sections: profileData.sections,
-    customization: profileData.customization,
-    updatedAt: profileData.updatedAt,
-  };
-}
-
-function defaultState(): MasterProfileState {
-  return {
-    updatedAt: defaultResume.updatedAt,
-    profile: getDefaultProfile(),
-  };
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -130,9 +102,17 @@ function withNormalizedFont(profile: MasterProfileData): MasterProfileData {
   };
 }
 
-/** Merges over the studio's base profile, then applies the studio-only font mapping. */
+/**
+ * Merges over an empty profile, then applies the studio-only font mapping. Empty, not sample
+ * content: anything merged in here is saved back and projected into every new document.
+ */
 function normalizeProfile(value: Partial<MasterProfileData> | null | undefined) {
-  return withNormalizedFont(normalizeMasterProfile(value, getDefaultProfile()));
+  return withNormalizedFont(normalizeMasterProfile(value));
+}
+
+/** A profile with nothing in it, for an editor opened by someone who has not written one. */
+export function createEmptyStudioMasterProfile(): MasterProfileData {
+  return normalizeProfile(createEmptyMasterProfile());
 }
 
 function toMasterProfileData(value: unknown) {
@@ -145,9 +125,9 @@ function toMasterProfileData(value: unknown) {
   return normalizeProfile(parsed.data);
 }
 
-/** Field-by-field rescue, against the studio's base rather than an empty profile. */
+/** Field-by-field rescue of whatever in `raw` is still valid. */
 export function salvageMasterProfile(raw: unknown): MasterProfileData {
-  return withNormalizedFont(salvageAgainstBase(raw, getDefaultProfile()));
+  return withNormalizedFont(salvageAgainstBase(raw));
 }
 
 /**
@@ -166,44 +146,42 @@ function backUpCorruptProfile(rawValue: string) {
   );
 }
 
-export function loadMasterProfileFromLocalStorage(): MasterProfileState {
+export function loadMasterProfileFromLocalStorage(): LocalMasterProfileResult {
   if (!isBrowser()) {
-    return defaultState();
+    return { status: "empty" };
   }
 
   const rawValue = window.localStorage.getItem(MASTER_PROFILE_STORAGE_KEY);
 
   if (!rawValue) {
-    return defaultState();
+    return { status: "empty" };
   }
+
+  let stored: unknown;
 
   try {
-    const parsed = masterProfileStateSchema.safeParse(JSON.parse(rawValue));
-
-    if (!parsed.success) {
-      backUpCorruptProfile(rawValue);
-      return defaultState();
-    }
-
-    const parsedProfile = toMasterProfileData(parsed.data.profile);
-
-    if (!parsedProfile) {
-      backUpCorruptProfile(rawValue);
-
-      return {
-        updatedAt: parsed.data.updatedAt ?? defaultResume.updatedAt,
-        profile: salvageMasterProfile(parsed.data.profile),
-      };
-    }
-
-    return {
-      updatedAt: parsed.data.updatedAt ?? defaultResume.updatedAt,
-      profile: parsedProfile,
-    };
+    stored = JSON.parse(rawValue);
   } catch {
     backUpCorruptProfile(rawValue);
-    return defaultState();
+    return { status: "corrupt" };
   }
+
+  const parsed = masterProfileStateSchema.safeParse(stored);
+
+  if (!parsed.success) {
+    backUpCorruptProfile(rawValue);
+    return { status: "corrupt" };
+  }
+
+  const parsedProfile = toMasterProfileData(parsed.data.profile);
+
+  if (!parsedProfile) {
+    backUpCorruptProfile(rawValue);
+
+    return { status: "ok", profile: salvageMasterProfile(parsed.data.profile) };
+  }
+
+  return { status: "ok", profile: parsedProfile };
 }
 
 export function saveMasterProfileToLocalStorage(profile: MasterProfileData) {
@@ -273,25 +251,39 @@ function parseSavedMasterProfileResponse(
   } satisfies MasterProfileBundleState;
 }
 
+/**
+ * A row that stands for "no profile yet". The server answers 404 for that, but an older
+ * server answered with a blank record (`id: ""`, `content: {}`), which fails the schema and
+ * would otherwise read as a corrupt profile.
+ */
+function isPlaceholderRecord(record: MasterProfileApiRecord["profile"]) {
+  return record.id === "" || (isRecord(record.content) && Object.keys(record.content).length === 0);
+}
+
 export async function loadMasterProfileFromDatabase(): Promise<MasterProfileLoadResult> {
-  let profileRecord: MasterProfileApiRecord;
+  let profileRecord: MasterProfileApiRecord | null;
 
   try {
-    profileRecord = await fetchApiData<MasterProfileApiRecord>("/profiles/master", {
+    profileRecord = await fetchApiData<MasterProfileApiRecord | null>("/profiles/master", {
       method: "GET",
+      nullOnNotFound: true,
     });
   } catch (error) {
     return { status: "error", error };
   }
 
-  if (!profileRecord?.profile) {
+  if (!profileRecord?.profile || isPlaceholderRecord(profileRecord.profile)) {
     return { status: "empty" };
   }
 
   const profile = toMasterProfileData(profileRecord.profile.content);
 
   if (!profile) {
-    return { status: "unparseable", raw: profileRecord.profile.content };
+    return {
+      status: "unparseable",
+      raw: profileRecord.profile.content,
+      updatedAt: profileRecord.profile.updatedAt,
+    };
   }
 
   const bundle = {
@@ -303,7 +295,7 @@ export async function loadMasterProfileFromDatabase(): Promise<MasterProfileLoad
   /*
    * Cache through on the way out. Document creation reads local storage synchronously, so
    * without this a user whose profile lives in the database but who has never pressed Save
-   * on this device gets demo data in every resume they create here.
+   * on this device gets an empty document from every resume they create here.
    */
   if (isBrowser()) {
     saveMasterProfileToLocalStorage(bundle.profile);
@@ -312,9 +304,66 @@ export async function loadMasterProfileFromDatabase(): Promise<MasterProfileLoad
   return { status: "ok", bundle };
 }
 
+export type MasterProfileEditorState =
+  | {
+      status: "ready";
+      profile: MasterProfileData;
+      /** The row's cursor for the next save; `null` only when no row exists yet. */
+      updatedAt: string | null;
+      source: "database" | "local" | "new";
+    }
+  | { status: "error"; error: unknown };
+
+/**
+ * What the profile editors open with.
+ *
+ * Only a confirmed "no profile yet" falls back to this device's cache, and then to an empty
+ * profile. A failed load is an error the editor must show with a retry: editing a stand-in
+ * and saving it would overwrite a profile that exists but did not load. A row that exists
+ * but does not validate opens with whatever is salvageable and the row's real cursor.
+ */
+export async function loadMasterProfileForEditor(): Promise<MasterProfileEditorState> {
+  const result = await loadMasterProfileFromDatabase();
+
+  switch (result.status) {
+    case "ok":
+      return {
+        status: "ready",
+        profile: result.bundle.profile,
+        updatedAt: result.bundle.updatedAt,
+        source: "database",
+      };
+
+    case "unparseable":
+      return {
+        status: "ready",
+        profile: salvageMasterProfile(result.raw),
+        updatedAt: result.updatedAt,
+        source: "database",
+      };
+
+    case "error":
+      return { status: "error", error: result.error };
+
+    case "empty": {
+      const local = loadMasterProfileFromLocalStorage();
+
+      return local.status === "ok"
+        ? { status: "ready", profile: local.profile, updatedAt: null, source: "local" }
+        : {
+            status: "ready",
+            profile: createEmptyStudioMasterProfile(),
+            updatedAt: null,
+            source: "new",
+          };
+    }
+  }
+}
+
 /**
  * The one accessor other features should use. Database first, local cache for every other
- * outcome — offline, unauthenticated, no profile row yet, or a row we cannot read.
+ * outcome — offline, unauthenticated, no profile row yet, or a row we cannot read — and an
+ * empty profile when the device has none either.
  */
 export async function getMasterProfile(): Promise<MasterProfileData> {
   const result = await loadMasterProfileFromDatabase();
@@ -323,12 +372,9 @@ export async function getMasterProfile(): Promise<MasterProfileData> {
     return result.bundle.profile;
   }
 
-  return loadMasterProfileFromLocalStorage().profile;
-}
+  const local = loadMasterProfileFromLocalStorage();
 
-/** Whether this device has ever stored a profile, as opposed to falling back to defaults. */
-function hasStoredMasterProfile(): boolean {
-  return isBrowser() && window.localStorage.getItem(MASTER_PROFILE_STORAGE_KEY) !== null;
+  return local.status === "ok" ? local.profile : createEmptyStudioMasterProfile();
 }
 
 /**
@@ -336,28 +382,38 @@ function hasStoredMasterProfile(): boolean {
  * has not written one anywhere.
  *
  * Distinct from `getMasterProfile()`, which always answers with *something* because the
- * profile editor has to render a form. Seeding needs the sharper question: the studio's
- * fallback is `defaultResume`'s "VeriWorkly User" placeholder content, and handing that to a
- * projection would produce a cover letter addressed from a person who does not exist. When
- * this returns `undefined`, each document type falls back to its own sample content.
+ * profile editor has to render a form. When this returns `undefined`, each document type
+ * decides its own starting content.
+ *
+ * A guest has no database profile, and asking for one would be a 401 that signs them out;
+ * only the device cache is read for them.
  *
  * Never throws — a document must still be creatable when the network is down.
  */
 export async function getMasterProfileForNewDocument(): Promise<MasterProfileData | undefined> {
   try {
-    const result = await loadMasterProfileFromDatabase();
+    if (useUserStore.getState().isLoggedIn) {
+      const result = await loadMasterProfileFromDatabase();
 
-    if (result.status === "ok") {
-      return result.bundle.profile;
+      if (result.status === "ok") {
+        return result.bundle.profile;
+      }
     }
 
-    return hasStoredMasterProfile() ? loadMasterProfileFromLocalStorage().profile : undefined;
+    const local = loadMasterProfileFromLocalStorage();
+
+    return local.status === "ok" ? local.profile : undefined;
   } catch (error) {
-    console.warn("Could not read the master profile; creating the document from defaults.", error);
+    console.warn("Could not read the master profile; creating the document without it.", error);
     return undefined;
   }
 }
 
+/**
+ * `expectedUpdatedAt` is the `updatedAt` of the row this edit started from, and is required
+ * whenever a row exists: without it the server answers 409 rather than overwrite blind.
+ * Only the very first save of a profile omits it.
+ */
 export async function saveMasterProfileToDatabase(
   profile: MasterProfileData,
   expectedUpdatedAt?: string,
@@ -373,4 +429,28 @@ export async function saveMasterProfileToDatabase(
   );
 
   return parseSavedMasterProfileResponse(payload, normalized);
+}
+
+/**
+ * The cursor that lets the user overwrite after a 409: the server's `currentUpdatedAt`, or a
+ * fresh read when the response carried none. `null` when `error` is not a conflict or the
+ * stored row cannot be read either.
+ */
+export async function resolveConflictUpdatedAt(error: unknown): Promise<string | null> {
+  if (!(error instanceof ApiRequestError) || error.status !== 409) {
+    return null;
+  }
+
+  const details = isRecord(error.details) ? error.details : {};
+
+  if (typeof details.currentUpdatedAt === "string") {
+    return details.currentUpdatedAt;
+  }
+
+  const latest = await loadMasterProfileFromDatabase();
+
+  if (latest.status === "ok") return latest.bundle.updatedAt;
+  if (latest.status === "unparseable") return latest.updatedAt;
+
+  return null;
 }

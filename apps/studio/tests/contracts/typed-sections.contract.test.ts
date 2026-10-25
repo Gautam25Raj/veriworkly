@@ -6,7 +6,10 @@ import type { ResumeData } from "@/types/resume";
 
 import { defaultResume } from "@/features/resume/constants/default-resume";
 import { normalizeResumeData } from "@/features/resume/utils/normalize-data";
-import { parseResumeDataInput } from "@/features/resume/schemas/resume-storage-schema";
+import {
+  parseResumeDataInput,
+  parseResumeDataForExport,
+} from "@/features/resume/schemas/resume-storage-schema";
 import {
   getResumeAdditionalBlocks,
   getLanguageRenderItems,
@@ -317,5 +320,67 @@ describe("typed sections render as what they are", () => {
 
     expect(titles).not.toContain("Speaking");
     expect(titles).toContain("Certifications");
+  });
+});
+
+describe("resume storage parse (S-001, S-116, S-114)", () => {
+  /** What a user mid-way through typing has in the editor. None of it is valid content yet. */
+  function halfTypedResume(): ResumeData {
+    const resume = structuredClone(defaultResume);
+
+    resume.basics.email = "j";
+    resume.basics.phone = "+1 5";
+    resume.links.items[0].url = "linkedin.com/in/x";
+    resume.projects[0].link = "example.com";
+    resume.experience[0].startDate = "2020-1";
+
+    return resume;
+  }
+
+  it("S-001: stores what the user has typed so far, whatever its content", () => {
+    const parsed = parseResumeDataInput(halfTypedResume());
+
+    expect(parsed).not.toBeNull();
+    expect(parsed?.basics.email).toBe("j");
+    expect(parsed?.basics.phone).toBe("+1 5");
+    expect(parsed?.links.items[0].url).toBe("linkedin.com/in/x");
+    expect(parsed?.projects[0].link).toBe("example.com");
+  });
+
+  it("S-001: still rejects a value of the wrong shape", () => {
+    expect(parseResumeDataInput({ basics: { email: 42 } })).toBeNull();
+    expect(parseResumeDataInput({ experience: [{ company: "No id" }] })).toBeNull();
+  });
+
+  it("S-114: the export parse keeps the content rules", () => {
+    expect(() => parseResumeDataForExport(halfTypedResume())).toThrow();
+    expect(() => parseResumeDataForExport(structuredClone(defaultResume))).not.toThrow();
+  });
+
+  it("S-116: a partial resume is completed with empty fields, never sample content", () => {
+    const resume = normalizeResumeData({
+      id: "x",
+      basics: { fullName: "A" },
+    } as unknown as Partial<ResumeData>);
+
+    expect(resume.basics.fullName).toBe("A");
+    expect(resume.basics.email).toBe("");
+    expect(resume.links.items).toEqual([]);
+    expect(resume.experience).toEqual([]);
+    expect(resume.summary).toBe("");
+    expect(JSON.stringify(resume)).not.toMatch(/veriworkly|gautam/i);
+  });
+
+  it("S-116: keeps empty link rows the user has just added", () => {
+    const resume = structuredClone(defaultResume);
+    resume.links.items.push({ id: "link-new", type: "custom", label: "", url: "" });
+
+    expect(parseResumeDataInput(resume)?.links.items.map((item) => item.id)).toContain("link-new");
+  });
+
+  it("S-211: the sample resume holds no founder data and no false product claims", () => {
+    const sample = JSON.stringify(defaultResume);
+
+    expect(sample).not.toMatch(/veriworkly|gautam|0000000000|no login|zero data storage/i);
   });
 });

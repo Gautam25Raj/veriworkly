@@ -1,9 +1,12 @@
 "use client";
 
 import { toast } from "sonner";
+import { AlertCircle } from "lucide-react";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 
 import type { MasterProfileData } from "@/types/resume";
+
+import { Button } from "@veriworkly/ui";
 
 import { ApiRequestError } from "@/utils/fetchApiData";
 
@@ -13,54 +16,35 @@ import { MASTER_SECTION_NAV } from "./master-section-nav";
 import { MasterMobileSectionNav, MasterProfileNavigator } from "./MasterProfileNavigator";
 
 import {
+  resolveConflictUpdatedAt,
+  loadMasterProfileForEditor,
   saveMasterProfileToDatabase,
-  loadMasterProfileFromDatabase,
   saveMasterProfileToLocalStorage,
-  loadMasterProfileFromLocalStorage,
+  type MasterProfileEditorState,
 } from "@/features/resume/services/master-profile";
 
-/**
- * Turns a save failure into something the user can act on. A conflict and an oversized
- * payload need opposite responses from them, so they must not share a message.
- */
-function reportSaveFailure(error: unknown, retry: () => void) {
-  const status = error instanceof ApiRequestError ? error.status : null;
-
-  if (status === 409) {
-    toast.error("This profile was changed in another tab. Reload to get the latest version.", {
-      action: { label: "Reload", onClick: () => window.location.reload() },
-    });
-
-    return;
-  }
-
-  if (status === 413) {
-    toast.error("This profile is too large to save. Remove some content and try again.");
-
-    return;
-  }
-
-  toast.error("Could not save your master profile.", {
-    action: { label: "Retry", onClick: retry },
-  });
-}
+const SOURCE_LABELS = {
+  database: "Database",
+  local: "Local cache",
+  new: "New profile",
+} as const;
 
 export default function MasterProfileClient() {
   const [state, setState] = useState<{
     profile: MasterProfileData | null;
-    source: "database" | "local" | null;
+    source: keyof typeof SOURCE_LABELS | null;
     updatedAt: string | null;
   }>({ profile: null, source: null, updatedAt: null });
 
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [activeSectionId, setActiveSectionId] = useState<string>(MASTER_SECTION_NAV[0].id);
 
   const isManualScrolling = useRef(false);
 
-  const sourceLabel =
-    state.source === "database" ? "Database" : state.source === "local" ? "Local cache" : "Unknown";
+  const sourceLabel = state.source ? SOURCE_LABELS[state.source] : "Unknown";
 
   const sectionCounts = useMemo(() => {
     if (!state.profile) return { experience: 0, projects: 0, skills: 0 };
@@ -74,43 +58,36 @@ export default function MasterProfileClient() {
 
   const activeSectionIndex = MASTER_SECTION_NAV.findIndex((s) => s.id === activeSectionId);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const result = await loadMasterProfileFromDatabase();
+  const applyLoadResult = useCallback((result: MasterProfileEditorState) => {
+    if (result.status === "ready") {
+      setState({ profile: result.profile, source: result.source, updatedAt: result.updatedAt });
+      setLoadError(null);
+    } else {
+      console.error("Failed to load master profile from the database", result.error);
+      setLoadError(
+        result.error instanceof Error ? result.error.message : "Could not load master profile.",
+      );
+    }
 
-        if (result.status === "ok") {
-          setState({
-            profile: result.bundle.profile,
-            source: "database",
-            updatedAt: result.bundle.updatedAt,
-          });
-
-          return;
-        }
-
-        // "empty" is the ordinary first-visit case. The other two are not: log them so a
-        // profile that exists but cannot be read is distinguishable from one that does not
-        // exist, which is the distinction the old `null` return threw away.
-        if (result.status !== "empty") {
-          console.error("Failed to load master profile from the database", result);
-        }
-
-        const local = loadMasterProfileFromLocalStorage();
-
-        setState({
-          profile: local.profile,
-          source: "local",
-          updatedAt: null,
-        });
-      } catch (e) {
-        console.error("Failed to load profile", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    void loadMasterProfileForEditor().then((result) => {
+      if (mounted) applyLoadResult(result);
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [applyLoadResult]);
+
+  const retryLoad = () => {
+    setLoading(true);
+    void loadMasterProfileForEditor().then(applyLoadResult);
+  };
 
   useEffect(() => {
     if (loading || !state.profile) return;
@@ -156,18 +133,21 @@ export default function MasterProfileClient() {
   }, []);
 
   /*
-   * A failed save used to be a `try/finally` with no `catch`: the spinner stopped and
-   * nothing else happened, so "someone else edited this in another tab" and "the payload
-   * is too big" both looked like a save that had worked.
+   * A failed save is reported here and re-thrown so `ProfileMaster` keeps its own inline
+   * failure state, and so `state.profile` is never replaced with a value the server
+   * rejected — the user's draft stays in the editor.
    *
-   * The error is re-thrown after reporting so `ProfileMaster` keeps its own inline failure
-   * state, and so `state.profile` is never replaced with a value the server rejected.
+   * A 409 means the stored profile is not the one this edit started from. The server's
+   * message says why; "Save my version" overwrites it using the cursor the conflict carries.
    */
-  const handleSave = async (profile: MasterProfileData) => {
+  const handleSave = async (profile: MasterProfileData, expectedUpdatedAt = state.updatedAt) => {
     setSaving(true);
 
     try {
-      const savedBundle = await saveMasterProfileToDatabase(profile, state.updatedAt ?? undefined);
+      const savedBundle = await saveMasterProfileToDatabase(
+        profile,
+        expectedUpdatedAt ?? undefined,
+      );
 
       saveMasterProfileToLocalStorage(savedBundle.profile);
 
@@ -177,14 +157,71 @@ export default function MasterProfileClient() {
         updatedAt: savedBundle.updatedAt,
       });
     } catch (error) {
-      reportSaveFailure(error, () => void handleSave(profile));
+      await reportSaveFailure(error, profile);
       throw error;
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading || !state.profile) return <MasterSkeleton />;
+  async function reportSaveFailure(error: unknown, profile: MasterProfileData) {
+    const status = error instanceof ApiRequestError ? error.status : null;
+    const message = error instanceof Error ? error.message : "Could not save your master profile.";
+
+    if (status === 409) {
+      const currentUpdatedAt = await resolveConflictUpdatedAt(error);
+
+      toast.error(message, {
+        description: "Your changes are still in the editor.",
+        action: currentUpdatedAt
+          ? {
+              label: "Save my version",
+              onClick: () => void handleSave(profile, currentUpdatedAt).catch(() => undefined),
+            }
+          : undefined,
+      });
+
+      return;
+    }
+
+    if (status === 413) {
+      toast.error("This profile is too large to save. Remove some content and try again.");
+
+      return;
+    }
+
+    toast.error(message, {
+      action: {
+        label: "Retry",
+        onClick: () => void handleSave(profile).catch(() => undefined),
+      },
+    });
+  }
+
+  if (loading) return <MasterSkeleton />;
+
+  if (loadError || !state.profile) {
+    return (
+      <div className="border-destructive/20 bg-destructive/5 flex items-start gap-3 rounded-2xl border p-5">
+        <AlertCircle className="text-destructive h-5 w-5 shrink-0" />
+
+        <div className="space-y-2">
+          <div>
+            <h2 className="text-sm font-bold">Master profile did not load</h2>
+
+            <p className="text-muted mt-1 text-sm">
+              {loadError ?? "Could not load master profile."} Editing is paused so a saved profile
+              is not overwritten.
+            </p>
+          </div>
+
+          <Button size="sm" className="mt-4" onClick={retryLoad}>
+            Try again
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 gap-8 xl:grid-cols-12 xl:gap-10">

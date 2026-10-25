@@ -128,8 +128,8 @@ const ProfileMaster = ({ profile, onSave, isSaving }: ProfileMasterProps) => {
       setStatus({ type: "success", msg: "Changes synced." });
 
       setTimeout(() => setStatus(null), 3000);
-    } catch {
-      setStatus({ type: "error", msg: "Save failed." });
+    } catch (error) {
+      setStatus({ type: "error", msg: error instanceof Error ? error.message : "Save failed." });
     }
   }, [hasUnsavedChanges, isSaving, localProfile, onSave]);
 

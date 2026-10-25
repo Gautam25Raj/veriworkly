@@ -13,7 +13,6 @@ import type {
 } from "@/features/cover-letter/types";
 
 import {
-  createDefaultCoverLetter,
   createEmptyCoverLetter,
   createCoverLetterFromProfile,
 } from "@/features/cover-letter/defaults";
@@ -62,14 +61,41 @@ interface CoverLetterStoreState {
 
 const EMPTY_LINKS: CoverLetterContent["links"] = { displayMode: "icon-username", items: [] };
 
+const UNTITLED_TITLE = "Untitled Cover Letter";
+
+function targetTitle(content: CoverLetterContent): string {
+  return [content.jobTitle, content.companyName].filter(Boolean).join(" - ");
+}
+
 /**
- * Derives the document title from the target role and company, matching how the
- * document library describes a cover letter. Falls back to the existing title so a
- * user-edited title is never overwritten by a blank target.
+ * Follows the target role and company while the title is still the derived one (or the
+ * untitled placeholder). Once the user has renamed the letter, the title is theirs and no
+ * edit to the target changes it.
  */
 function deriveTitle(document: CoverLetterDocument, content: CoverLetterContent): string {
-  const derived = [content.jobTitle, content.companyName].filter(Boolean).join(" - ");
-  return derived || document.title;
+  const isDerived =
+    !document.title ||
+    document.title === UNTITLED_TITLE ||
+    document.title === targetTitle(document.content);
+
+  if (!isDerived) return document.title;
+
+  return targetTitle(content) || UNTITLED_TITLE;
+}
+
+/**
+ * Reset and "Empty fields" replace what the letter says, not how it looks or what it is
+ * called: the template, the appearance (which holds the hidden sections), the title and the
+ * sync linkage all carry over.
+ */
+function replaceContent(
+  current: CoverLetterDocument,
+  next: CoverLetterDocument,
+): CoverLetterDocument {
+  return withTimestamp({
+    ...current,
+    content: { ...next.content, appearance: current.content.appearance },
+  });
 }
 
 function withTimestamp(document: CoverLetterDocument): CoverLetterDocument {
@@ -99,11 +125,10 @@ export const useCoverLetterStore = create<CoverLetterStoreState>((set, get) => (
   },
 
   /*
-   * Reset restores what a NEW letter looks like, which since the projection landed means
-   * the profile-seeded one. Restoring the demo letter instead would overwrite the user's
-   * own name and contact details with "Veriworkly User" — worse than the state they were
-   * trying to get back to. `emptyDocument` below still clears everything, including the
-   * identity block, for a genuinely blank page.
+   * Reset restores what a NEW letter's content looks like: the profile-seeded one, or a
+   * blank one without a profile. Never the sample letter, which would put a stranger's name
+   * and contact details on the user's document. `emptyDocument` below clears everything,
+   * including the identity block.
    */
   resetDocument: (master) =>
     set((state) => {
@@ -111,21 +136,17 @@ export const useCoverLetterStore = create<CoverLetterStoreState>((set, get) => (
 
       const reset = master
         ? createCoverLetterFromProfile(state.document.id, master)
-        : createDefaultCoverLetter(state.document.id);
+        : createEmptyCoverLetter(state.document.id);
 
-      return {
-        document: withTimestamp({ ...reset, sync: state.document.sync }),
-      };
+      return { document: replaceContent(state.document, reset) };
     }),
 
   emptyDocument: () =>
     set((state) => {
       if (!state.document) return state;
 
-      const empty = createEmptyCoverLetter(state.document.id);
-
       return {
-        document: withTimestamp({ ...empty, sync: state.document.sync }),
+        document: replaceContent(state.document, createEmptyCoverLetter(state.document.id)),
       };
     }),
 

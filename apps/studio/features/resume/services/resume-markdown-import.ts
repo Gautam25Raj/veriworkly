@@ -9,15 +9,15 @@ import type {
   ResumeExperienceItem,
 } from "@/types/resume";
 
-import { defaultResume } from "@/features/resume/constants/default-resume";
+import { blankResume } from "@/features/resume/constants/default-resume";
 import { normalizeResumeData } from "@/features/resume/utils/normalize-data";
 
 function createImportedResumeId(): string {
   return `resume-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function cloneDefaultResume(): ResumeData {
-  return JSON.parse(JSON.stringify(defaultResume)) as ResumeData;
+function cloneBlankResume(): ResumeData {
+  return structuredClone(blankResume);
 }
 
 function cleanMarkdown(value: string): string {
@@ -233,7 +233,7 @@ function parseLinks(lines: string[]): ResumeLinkItem[] {
 }
 
 export function parseResumeMarkdown(markdown: string, currentResume?: ResumeData): ResumeData {
-  const base = cloneDefaultResume();
+  const base = cloneBlankResume();
   const resume = normalizeResumeData({
     ...base,
     ...(currentResume

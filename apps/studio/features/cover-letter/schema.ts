@@ -3,6 +3,7 @@ import type { CoverLetterContent, CoverLetterSectionId } from "./types";
 import type { ResumeLinkDisplayMode, ResumeLinkItem, ResumeLinkType } from "@/types/resume";
 
 import { normalizeFontFamilyId } from "@/features/documents/constants/fonts";
+import { documentSyncStatusSchema } from "@/features/resume/schemas/resume-storage-schema";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -47,18 +48,17 @@ function parseLinks(value: unknown): CoverLetterContent["links"] {
       ? (value.displayMode as ResumeLinkDisplayMode)
       : "icon-username";
 
+  // A row with an empty URL is kept: it is one the user has just added and is filling in.
+  // Templates skip links without a usable URL when they render.
   const items = Array.isArray(value.items)
-    ? value.items
-        .filter(isRecord)
-        .map((item, index): ResumeLinkItem => ({
-          id: asText(item.id) || `cover-letter-link-${index + 1}`,
-          type: LINK_TYPES.includes(item.type as ResumeLinkType)
-            ? (item.type as ResumeLinkType)
-            : "custom",
-          label: asText(item.label),
-          url: asText(item.url),
-        }))
-        .filter((item) => item.url)
+    ? value.items.filter(isRecord).map((item, index): ResumeLinkItem => ({
+        id: asText(item.id) || `cover-letter-link-${index + 1}`,
+        type: LINK_TYPES.includes(item.type as ResumeLinkType)
+          ? (item.type as ResumeLinkType)
+          : "custom",
+        label: asText(item.label),
+        url: asText(item.url),
+      }))
     : [];
 
   return { displayMode, items };
@@ -118,6 +118,15 @@ export function parseCoverLetterContent(input: unknown): CoverLetterContent {
   };
 }
 
+/** An unknown status on a synced document means "send it again", never a status the engine cannot handle. */
+function parseSyncStatus(value: unknown, enabled: boolean): BaseDocument["sync"]["status"] {
+  const parsed = documentSyncStatusSchema.safeParse(value);
+
+  if (parsed.success) return parsed.data;
+
+  return enabled ? "pending" : "local-only";
+}
+
 export function parseCoverLetterDocument(input: unknown): BaseDocument<CoverLetterContent> | null {
   if (!isRecord(input) || input.type !== "COVER_LETTER") return null;
   if (typeof input.id !== "string" || typeof input.templateId !== "string") return null;
@@ -131,7 +140,7 @@ export function parseCoverLetterDocument(input: unknown): BaseDocument<CoverLett
     sync: isRecord(input.sync)
       ? {
           enabled: Boolean(input.sync.enabled),
-          status: (input.sync.status as BaseDocument["sync"]["status"]) ?? "local-only",
+          status: parseSyncStatus(input.sync.status, Boolean(input.sync.enabled)),
           cloudDocumentId:
             typeof input.sync.cloudDocumentId === "string" ? input.sync.cloudDocumentId : null,
           lastSyncedAt:

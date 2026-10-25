@@ -2,7 +2,7 @@
 
 import type { BaseSectionProps } from "./section-types";
 
-import { TextInputField } from "@/features/documents/editor/form";
+import { DelimitedTextArea, Field, TextInputField } from "@/features/documents/editor/form";
 import TypedSectionEditor from "./TypedSectionEditor";
 
 const InterestsSection = (props: BaseSectionProps) => {
@@ -25,18 +25,17 @@ const InterestsSection = (props: BaseSectionProps) => {
             onValueChange={(name) => update({ name })}
           />
 
-          <TextInputField
-            label="Keywords (comma separated)"
-            value={interest.keywords.join(", ")}
-            onValueChange={(value) =>
-              update({
-                keywords: value
-                  .split(",")
-                  .map((part) => part.trim())
-                  .filter(Boolean),
-              })
-            }
-          />
+          {/* Children-based `Field`: DelimitedTextArea holds a local draft string, so a
+              typed comma survives until the next keyword is started. */}
+          <Field label="Keywords (comma separated)">
+            <DelimitedTextArea
+              className="min-h-11"
+              delimiter="comma"
+              key={interest.id}
+              onChange={(keywords) => update({ keywords })}
+              value={interest.keywords}
+            />
+          </Field>
         </div>
       )}
     </TypedSectionEditor>

@@ -7,8 +7,8 @@ import { ArrowLeft, FileJson } from "lucide-react";
 import MasterProfileClient from "@/features/profile/components/master/MasterProfileClient";
 
 export const metadata: Metadata = {
-  title: "Master Career Data",
-  description: "Guided editor for reusable career data.",
+  title: "Master Profile",
+  description: "Edit the career details new documents start from.",
   robots: { index: false, follow: false },
 };
 
@@ -29,24 +29,23 @@ const MasterProfilePage = () => {
     <main className="space-y-6" aria-labelledby="master-profile-title">
       <section className="border-border bg-card grid gap-0 overflow-hidden rounded-2xl border lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="p-5 sm:p-6">
-          <p className="text-accent text-xs font-bold tracking-[0.2em] uppercase">
-            Master career data
-          </p>
+          <p className="text-accent text-xs font-bold tracking-[0.2em] uppercase">Master Profile</p>
 
           <h1
             id="master-profile-title"
             className="mt-3 text-3xl font-black tracking-tight sm:text-4xl"
           >
-            Guided data editor
+            Your Master Profile
           </h1>
 
           <p className="text-muted mt-2 max-w-2xl text-base">
-            Reusable resume facts live here. User account profile remains separate.
+            The career details new documents can start from. Documents you already made do not
+            change when you edit it.
           </p>
         </div>
 
         <div className="border-border/70 grid gap-3 border-t p-5 lg:border-t-0 lg:border-l">
-          <QuickLink href="/profile" icon={ArrowLeft} label="User profile" />
+          <QuickLink href="/profile" icon={ArrowLeft} label="Account profile" />
           <QuickLink href="/profile/advanced" icon={FileJson} label="Advanced JSON" />
         </div>
       </section>

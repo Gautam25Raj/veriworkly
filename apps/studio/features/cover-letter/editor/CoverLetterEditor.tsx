@@ -16,6 +16,13 @@ import { CoverLetterPreview } from "@/templates/cover-letter/web";
 import { DocumentEditorShell } from "@/features/documents/editor/DocumentEditorShell";
 import { DocumentStateCard } from "@/features/documents/editor/DocumentStateCard";
 import {
+  loadStateFor,
+  INITIAL_LOAD_STATE,
+  cloudLoadFailureState,
+  useDocumentTabTitle,
+  type KeyedLoadState,
+} from "@/features/documents/editor/editor-load-status";
+import {
   startDocumentSyncWorker,
   subscribeToRemoteDeletions,
   hydrateCloudDocumentByIdToLocalStorage,
@@ -48,11 +55,13 @@ interface CoverLetterEditorProps {
 export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps) {
   const router = useRouter();
   const isLoggedIn = useUserStore((state) => state.isLoggedIn);
+  const accountAutoSync = useUserStore((state) => state.user?.autoSyncEnabled);
 
   const hasHydratedRef = useRef(false);
   const lastSaveFailureRef = useRef<string | null>(null);
 
-  const [hydrated, setHydrated] = useState(false);
+  const [loadState, setLoadState] = useState<KeyedLoadState>(INITIAL_LOAD_STATE);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [message, setMessage] = useState("Autosave ready");
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -64,13 +73,19 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
 
   const deferredDocument = useDeferredValue(document);
 
+  const load = loadStateFor(loadState, documentId);
+  // The same gate as `ResumeEditor`, plus the store holding the letter loaded for this URL:
+  // the store outlives the route, so after a client-side navigation it can still hold the
+  // previous letter.
+  const isReady = load.status === "ready" && document?.id === loadState.id;
+
   useEffect(() => {
     let cancelled = false;
 
     const hydrate = async () => {
       if (hydrateFromStorage(documentId)) {
         hasHydratedRef.current = true;
-        setHydrated(true);
+        setLoadState({ id: documentId, status: "ready" });
         return;
       }
 
@@ -78,10 +93,13 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
 
       if (cancelled) return;
 
-      if (cloudResult.ok) hydrateFromStorage(documentId);
+      if (cloudResult.ok && hydrateFromStorage(documentId)) {
+        hasHydratedRef.current = true;
+        setLoadState({ id: documentId, status: "ready" });
+        return;
+      }
 
-      hasHydratedRef.current = true;
-      setHydrated(true);
+      setLoadState({ id: documentId, ...cloudLoadFailureState(cloudResult) });
     };
 
     void hydrate();
@@ -89,7 +107,11 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
     return () => {
       cancelled = true;
     };
-  }, [documentId, hydrateFromStorage]);
+  }, [documentId, loadAttempt, hydrateFromStorage]);
+
+  const tabTitle = document?.title || "Untitled Cover Letter";
+
+  useDocumentTabTitle(tabTitle, isReady);
 
   const reportSaveResult = useCallback((failure: string | null) => {
     setMessage(failure ?? SAVE_PERSISTED_MESSAGE);
@@ -108,10 +130,14 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
   // it before the route does, so typing in between is saved to the new id, not the old one.
   const followMove = useCallback(
     (newId: string) => {
-      hydrateFromStorage(newId);
+      // Already loaded: no "loading" flash that would unmount the field being typed in.
+      if (hydrateFromStorage(newId)) {
+        setLoadState({ id: newId, movedFrom: documentId, status: "ready" });
+      }
+
       router.replace(getDocumentEditorPath("COVER_LETTER", newId));
     },
-    [router, hydrateFromStorage],
+    [documentId, router, hydrateFromStorage],
   );
 
   const handleSaveResult = useCallback(
@@ -149,7 +175,7 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
   // Autosave. Surfacing the result is the point: the previous implementation discarded it,
   // so a full-storage failure silently dropped the user's edits. Inspecting the returned
   // value was still not enough — a debounced save returns `{ queued: true }` before the
-  // write happens, so the real result (and "Saved locally") only ever comes from `onFlush`.
+  // write happens, so the real result (and "Saved on this device") only ever comes from `onFlush`.
   useEffect(() => {
     if (!hasHydratedRef.current || !document) return;
 
@@ -171,16 +197,17 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
 
   useFlushPendingSavesOnExit("COVER_LETTER");
 
+  // Keyed on the ready state rather than a ref, so the worker starts even when the store
+  // already held this letter; `accountAutoSync` re-runs it when sign-in changes the setting
+  // (`AuthInitializer` writes it to the workspace settings read here).
   useEffect(() => {
-    if (!hasHydratedRef.current || !isLoggedIn) return;
-
-    const workspaceSettings = loadWorkspaceSettingsFromLocalStorage();
+    if (!isReady || !isLoggedIn) return;
 
     startDocumentSyncWorker("COVER_LETTER", {
-      enabled: isLoggedIn && workspaceSettings.autoSyncEnabled,
+      enabled: loadWorkspaceSettingsFromLocalStorage().autoSyncEnabled,
       idleDelayMs: 12_000,
     });
-  }, [isLoggedIn, document?.id]);
+  }, [isReady, isLoggedIn, accountAutoSync, documentId]);
 
   /*
    * Declared above the early returns and wrapped in `useCallback` so the memoised toolbar
@@ -190,7 +217,7 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
   const saveNow = useCallback(() => {
     const failure = describeSaveResult(saveToStorage({ flush: true }));
 
-    setMessage(failure ?? "Draft saved locally");
+    setMessage(failure ?? "Saved on this device");
     if (failure) toast.error(failure);
   }, [saveToStorage]);
 
@@ -222,11 +249,7 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
   const openDelete = useCallback(() => setDeleteModalOpen(true), []);
   const closeDelete = useCallback(() => setDeleteModalOpen(false), []);
 
-  if (!hydrated) {
-    return <DocumentStateCard title="Loading cover letter" message="Preparing your editor." />;
-  }
-
-  if (!document) {
+  if (load.status === "not-found") {
     return (
       <DocumentStateCard
         title="Cover letter not found"
@@ -237,6 +260,30 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
         </Button>
       </DocumentStateCard>
     );
+  }
+
+  if (load.status === "error") {
+    return (
+      <DocumentStateCard title="Could not load this cover letter" message={load.message}>
+        <div className="flex justify-center gap-2">
+          <Button
+            onClick={() => {
+              setLoadState(INITIAL_LOAD_STATE);
+              setLoadAttempt((attempt) => attempt + 1);
+            }}
+          >
+            Try again
+          </Button>
+          <Button onClick={() => router.push("/documents")} variant="secondary">
+            Back to documents
+          </Button>
+        </div>
+      </DocumentStateCard>
+    );
+  }
+
+  if (!isReady || !document) {
+    return <DocumentStateCard title="Loading cover letter" message="Preparing your editor." />;
   }
 
   const currentDocument = document;
@@ -271,7 +318,7 @@ export default function CoverLetterEditor({ documentId }: CoverLetterEditorProps
           templateId={previewDocument.templateId}
         />
       }
-      previewTitle={previewDocument.title || "Cover Letter"}
+      previewTitle={tabTitle}
       settingsLabel="Style settings"
     />
   );

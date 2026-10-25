@@ -1,6 +1,10 @@
 "use client";
 
+import { useState } from "react";
+
 import { Button, Select } from "@veriworkly/ui";
+
+import ConfirmationModal from "@/components/modals/ConfirmationModal";
 
 interface ListEditorControlsProps<T> {
   items: T[];
@@ -37,6 +41,10 @@ export function ListEditorControls<T>({
   removeLabel = "Remove",
   fullWidthWhenEmpty = false,
 }: ListEditorControlsProps<T>) {
+  // The entry being removed, captured when Remove is clicked so switching entries behind
+  // the dialog cannot change what gets deleted.
+  const [pendingRemoval, setPendingRemoval] = useState<number | null>(null);
+
   if (!items.length && fullWidthWhenEmpty) {
     return (
       <div className="mb-3">
@@ -71,10 +79,27 @@ export function ListEditorControls<T>({
         size="sm"
         variant="ghost"
         disabled={items.length === 0}
-        onClick={() => onRemove(index)}
+        onClick={() => setPendingRemoval(index)}
       >
         {removeLabel}
       </Button>
+
+      <ConfirmationModal
+        open={pendingRemoval !== null}
+        onClose={() => setPendingRemoval(null)}
+        onConfirm={() => {
+          if (pendingRemoval !== null) onRemove(pendingRemoval);
+          setPendingRemoval(null);
+        }}
+        title="Remove this entry?"
+        description={
+          pendingRemoval !== null && items[pendingRemoval]
+            ? `"${labelFor(items[pendingRemoval], pendingRemoval)}" will be removed.`
+            : "This entry will be removed."
+        }
+        confirmText={removeLabel}
+        variant="destructive"
+      />
     </div>
   );
 }

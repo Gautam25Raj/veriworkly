@@ -1,8 +1,17 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 
 import { useUserStore } from "@/store/useUserStore";
+
+const subscribeNever = () => () => {};
+
+function greetingForHour(hour: number) {
+  if (hour >= 5 && hour < 12) return "Good morning";
+  if (hour >= 12 && hour < 17) return "Good afternoon";
+
+  return "Good evening";
+}
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
@@ -29,14 +38,13 @@ const OverviewHomeHeader = ({
     return name.split(" ")[0] || "builder";
   }, [user]);
 
-  const greeting = useMemo(() => {
-    const hour = new Date().getHours();
-
-    if (hour >= 5 && hour < 12) return "Good morning";
-    if (hour >= 12 && hour < 17) return "Good afternoon";
-
-    return "Good evening";
-  }, []);
+  // The hour is the viewer's, which the server cannot know: it renders a neutral greeting
+  // and the client swaps in the timed one after hydration instead of mismatching.
+  const greeting = useSyncExternalStore(
+    subscribeNever,
+    () => greetingForHour(new Date().getHours()),
+    () => "Welcome back",
+  );
 
   return (
     <header className="border-border bg-card rounded-2xl border p-5 shadow-sm sm:p-6">

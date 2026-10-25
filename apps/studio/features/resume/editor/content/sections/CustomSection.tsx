@@ -4,10 +4,12 @@ import type { BaseSectionProps } from "./section-types";
 import type { ResumeSectionId } from "@/types/resume";
 
 import { Button } from "@veriworkly/ui";
-import { Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Trash2 } from "lucide-react";
 
 import { useResumeStore } from "@/features/resume/store/resume-store";
 
+import ConfirmationModal from "@/components/modals/ConfirmationModal";
 import SectionAccordion from "@/features/documents/editor/SectionAccordion";
 import { ListEditorControls } from "@/features/documents/editor/ListEditorControls";
 import { useIndexedListEditor } from "@/features/documents/editor/useIndexedListEditor";
@@ -16,8 +18,6 @@ import { TextAreaField, TextInputField } from "@/features/documents/editor/form"
 interface CustomSectionProps extends BaseSectionProps {
   /** Which custom section this accordion edits. */
   customSectionId: string;
-  /** The last one gets the "Add custom section" button, so it appears exactly once. */
-  isLast: boolean;
 }
 
 /**
@@ -28,12 +28,11 @@ interface CustomSectionProps extends BaseSectionProps {
  * "custom")` — which found the first and left any others unreachable, and unreachable is
  * how they stayed until the next save dropped them.
  */
-const CustomSection = ({ customSectionId, isLast, isOpen, onToggle }: CustomSectionProps) => {
+const CustomSection = ({ customSectionId, isOpen, onToggle }: CustomSectionProps) => {
   const customSection = useResumeStore(
     (state) =>
       state.resume.customSections.find((section) => section.id === customSectionId) ?? null,
   );
-  const addCustomSection = useResumeStore((state) => state.addCustomSection);
   const removeCustomSection = useResumeStore((state) => state.removeCustomSection);
   const addCustomSectionItem = useResumeStore((state) => state.addCustomSectionItem);
   const removeCustomSectionItem = useResumeStore((state) => state.removeCustomSectionItem);
@@ -45,6 +44,7 @@ const CustomSection = ({ customSectionId, isLast, isOpen, onToggle }: CustomSect
   // Called unconditionally: the `if (!customSection)` bail-out below must not sit above a
   // hook. Previously this section's `useState` was above the same early return.
   const list = useIndexedListEditor(items, () => addCustomSectionItem(customSectionId));
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
 
   if (!customSection) {
     return null;
@@ -114,18 +114,24 @@ const CustomSection = ({ customSectionId, isLast, isOpen, onToggle }: CustomSect
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {isLast ? (
-          <Button onClick={addCustomSection} size="sm" variant="secondary">
-            <Plus className="mr-2 h-4 w-4" />
-            Add custom section
-          </Button>
-        ) : null}
-
-        <Button onClick={() => removeCustomSection(customSectionId)} size="sm" variant="ghost">
+        <Button onClick={() => setConfirmingRemove(true)} size="sm" variant="ghost">
           <Trash2 className="mr-2 h-4 w-4" />
           Remove this section
         </Button>
       </div>
+
+      <ConfirmationModal
+        open={confirmingRemove}
+        onClose={() => setConfirmingRemove(false)}
+        onConfirm={() => {
+          setConfirmingRemove(false);
+          removeCustomSection(customSectionId);
+        }}
+        title="Remove this section?"
+        description={`"${customSection.title || "Custom"}" and its ${items.length} item${items.length === 1 ? "" : "s"} will be removed from this resume.`}
+        confirmText="Remove section"
+        variant="destructive"
+      />
     </SectionAccordion>
   );
 };

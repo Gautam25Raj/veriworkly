@@ -2,6 +2,7 @@
 
 import {
   Eye,
+  Copy,
   Cloud,
   Trash2,
   Share2,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
+import { useParams } from "next/navigation";
 
 import { Button, Menu, MenuItem, MenuSeparator } from "@veriworkly/ui";
 
@@ -23,6 +25,9 @@ import { cn } from "@/lib/utils";
 import ConfirmModal from "@/components/modals/ConfirmModal";
 
 import { useUserStore } from "@/store/useUserStore";
+
+import { parseDocumentRouteSegment } from "@/features/documents/core/routes";
+import { useCreateDocument } from "@/components/dashboard/hooks/useCreateDocument";
 
 interface ToolbarActionsMenuProps {
   /** Shown in the reset/empty confirmations, e.g. "resume" or "cover letter". */
@@ -53,6 +58,14 @@ const ToolbarActionsMenu = ({
   onPdfDebug,
 }: ToolbarActionsMenuProps) => {
   const isLoggedIn = useUserStore((state) => state.isLoggedIn);
+  const { duplicateDocument } = useCreateDocument();
+
+  // The editor's route names the open document; both editors mount this menu there.
+  const params = useParams<{ type: string; id: string }>();
+  const routeType = params?.type ? parseDocumentRouteSegment(params.type) : null;
+
+  const onDuplicate =
+    routeType && params?.id ? () => void duplicateDocument(routeType, params.id) : undefined;
 
   // "Reset to Defaults" and "Empty Fields" both discard the entire document and there is
   // no undo stack, yet they used to fire straight from the menu with no confirmation —
@@ -72,6 +85,7 @@ const ToolbarActionsMenu = ({
       <ToolbarActionsMenuTrigger
         isLoggedIn={isLoggedIn}
         onDelete={onDelete}
+        onDuplicate={onDuplicate}
         onImportJson={onImportJson}
         onImportMarkdown={onImportMarkdown}
         onShare={onShare}
@@ -102,6 +116,7 @@ const ToolbarActionsMenu = ({
 interface ToolbarActionsMenuTriggerProps {
   isLoggedIn: boolean;
   onDelete: () => void;
+  onDuplicate?: () => void;
   onImportJson: () => void;
   onImportMarkdown: () => void;
   onShare: () => void;
@@ -115,6 +130,7 @@ interface ToolbarActionsMenuTriggerProps {
 const ToolbarActionsMenuTrigger = ({
   isLoggedIn,
   onDelete,
+  onDuplicate,
   onImportJson,
   onImportMarkdown,
   onShare,
@@ -171,6 +187,18 @@ const ToolbarActionsMenuTrigger = ({
 
           {onFullPreview || onPdfDebug ? <MenuSeparator /> : null}
 
+          {onDuplicate ? (
+            <MenuItem
+              onClick={() => {
+                close();
+                onDuplicate();
+              }}
+            >
+              <Copy className="h-4 w-4" />
+              Duplicate
+            </MenuItem>
+          ) : null}
+
           <MenuItem
             onClick={() => {
               close();
@@ -224,7 +252,7 @@ const ToolbarActionsMenuTrigger = ({
                 e.preventDefault();
                 e.stopPropagation();
 
-                toast.error("Please log in to sync documents.");
+                toast.error("Please log in to back up documents.");
 
                 return;
               }
@@ -234,7 +262,7 @@ const ToolbarActionsMenuTrigger = ({
             }}
           >
             <Cloud className="h-4 w-4" />
-            Upload to Cloud
+            Back up now
           </MenuItem>
 
           <MenuSeparator />

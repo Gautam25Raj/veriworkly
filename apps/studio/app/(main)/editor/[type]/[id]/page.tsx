@@ -12,10 +12,16 @@ interface Params {
   id: string;
 }
 
+/**
+ * Generic on purpose: documents live on the device, so the server cannot know the title.
+ * The editor puts the document's own title in the tab once it has loaded it.
+ */
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
-  const { type, id } = await params;
+  const { type } = await params;
+  const documentType = parseDocumentRouteSegment(type);
+
   return {
-    title: `Editor - ${type} - ${id}`,
+    title: documentType ? `${getDocumentDefinition(documentType).label} editor` : "Editor",
     description: "Edit documents in VeriWorkly Studio.",
     robots: { index: false, follow: false },
   };
@@ -36,13 +42,12 @@ export default async function EditorByTypePage({
   if (!documentType) notFound();
 
   if (id === "new") {
-    const definition = getDocumentDefinition(documentType);
-    const resolvedTemplate =
-      definition.templates.find((item) => item.id === template) ??
-      definition.templates.find((item) => item.id === definition.defaultTemplateId) ??
-      definition.templates[0];
+    // Only a template the link named; see the same rule in `app/(main)/editor/page.tsx`.
+    const requestedTemplate = getDocumentDefinition(documentType).templates.find(
+      (item) => item.id === template,
+    );
 
-    return <EditorEntryRedirect type={documentType} templateId={resolvedTemplate?.id} />;
+    return <EditorEntryRedirect type={documentType} templateId={requestedTemplate?.id} />;
   }
 
   const Editor = getDocumentDefinition(documentType).Editor;

@@ -14,9 +14,9 @@ import {
   emptySkill,
   fluencyOptions,
   isValidAbsoluteUrl,
-  joinLines,
-  splitLines,
 } from "./master-utils";
+import { useDelimitedDraft } from "@/features/documents/editor/form";
+
 import type { AddRepeatableItem, RemoveRepeatableItem, UpdateRepeatableItem } from "./types";
 
 type CoreSectionsProps = {
@@ -144,12 +144,12 @@ export function CoreSections({
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Highlights</label>
-                <TextArea
-                  value={joinLines(item.highlights)}
-                  onChange={(event) =>
+                <LinesTextArea
+                  value={item.highlights}
+                  onChange={(lines) =>
                     updateRepeatableItem("experience", item.id, (current) => ({
                       ...current,
-                      highlights: splitLines(event.target.value),
+                      highlights: lines,
                     }))
                   }
                   rows={4}
@@ -347,12 +347,12 @@ export function CoreSections({
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <label className="text-sm font-medium">Highlights</label>
-                  <TextArea
-                    value={joinLines(item.highlights)}
-                    onChange={(event) =>
+                  <LinesTextArea
+                    value={item.highlights}
+                    onChange={(lines) =>
                       updateRepeatableItem("projects", item.id, (current) => ({
                         ...current,
-                        highlights: splitLines(event.target.value),
+                        highlights: lines,
                       }))
                     }
                     rows={4}
@@ -398,12 +398,12 @@ export function CoreSections({
               />
               <div className="space-y-2">
                 <label className="text-sm font-medium">Keywords</label>
-                <TextArea
-                  value={joinLines(item.keywords)}
-                  onChange={(event) =>
+                <LinesTextArea
+                  value={item.keywords}
+                  onChange={(lines) =>
                     updateRepeatableItem("skills", item.id, (current) => ({
                       ...current,
-                      keywords: splitLines(event.target.value),
+                      keywords: lines,
                     }))
                   }
                   rows={4}
@@ -489,12 +489,12 @@ export function CoreSections({
                 }
                 placeholder="Interest"
               />
-              <TextArea
-                value={joinLines(item.keywords)}
-                onChange={(event) =>
+              <LinesTextArea
+                value={item.keywords}
+                onChange={(lines) =>
                   updateRepeatableItem("interests", item.id, (current) => ({
                     ...current,
-                    keywords: splitLines(event.target.value),
+                    keywords: lines,
                   }))
                 }
                 rows={3}
@@ -511,5 +511,29 @@ export function CoreSections({
         </div>
       </SectionCard>
     </>
+  );
+}
+
+/**
+ * A one-entry-per-line list. Holds the typed text rather than re-joining the parsed list on
+ * every keystroke, which swallowed Enter and trimmed the space before the next word.
+ */
+export function LinesTextArea({
+  onChange,
+  placeholder,
+  rows,
+  value,
+}: {
+  onChange: (lines: string[]) => void;
+  placeholder?: string;
+  rows?: number;
+  value: string[];
+}) {
+  return (
+    <TextArea
+      placeholder={placeholder}
+      rows={rows}
+      {...useDelimitedDraft(value, "newline", onChange)}
+    />
   );
 }

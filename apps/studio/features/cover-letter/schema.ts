@@ -92,6 +92,9 @@ export function parseCoverLetterContent(input: unknown): CoverLetterContent {
     companyLocation: asText(contentRaw.companyLocation),
 
     jobTitle: asText(contentRaw.jobTitle),
+    // Optional and omitted when empty, so letters saved before the field existed round-trip
+    // unchanged.
+    ...(asText(contentRaw.jobPost) ? { jobPost: asText(contentRaw.jobPost) } : {}),
     subject: asText(contentRaw.subject),
     greeting: asText(contentRaw.greeting),
     opening: asText(contentRaw.opening),

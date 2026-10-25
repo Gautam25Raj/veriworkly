@@ -19,6 +19,13 @@ import {
 import { DocumentEditorShell } from "@/features/documents/editor/DocumentEditorShell";
 import { DocumentStateCard } from "@/features/documents/editor/DocumentStateCard";
 import {
+  loadStateFor,
+  INITIAL_LOAD_STATE,
+  cloudLoadFailureState,
+  useDocumentTabTitle,
+  type KeyedLoadState,
+} from "@/features/documents/editor/editor-load-status";
+import {
   describeSaveResult,
   SAVE_QUEUED_MESSAGE,
   SAVE_PERSISTED_MESSAGE,
@@ -42,9 +49,6 @@ interface ResumeEditorProps {
   documentId: string;
 }
 
-/** Mirrors the `hydrated` / `document` gate in `CoverLetterEditor`. */
-type HydrationStatus = "loading" | "ready" | "not-found";
-
 const ResumeEditor = ({ documentId }: ResumeEditorProps) => {
   // No `useSearchParams` any more: it was only read by the dead `documentId === "new"`
   // branch, and it forces a Suspense boundary in the App Router.
@@ -54,6 +58,7 @@ const ResumeEditor = ({ documentId }: ResumeEditorProps) => {
   const lastSaveFailureRef = useRef<string | null>(null);
 
   const isLoggedIn = useUserStore((state) => state.isLoggedIn);
+  const accountAutoSync = useUserStore((state) => state.user?.autoSyncEnabled);
 
   // Narrow selectors, matching how the toolbar and the section components read the store.
   // `useResume()` was `useResumeStore()` with no selector, which in zustand subscribes to
@@ -64,7 +69,8 @@ const ResumeEditor = ({ documentId }: ResumeEditorProps) => {
   const setResume = useResumeStore((state) => state.setResume);
   const saveToStorage = useResumeStore((state) => state.saveToStorage);
 
-  const [status, setStatus] = useState<HydrationStatus>("loading");
+  const [loadState, setLoadState] = useState<KeyedLoadState>(INITIAL_LOAD_STATE);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [message, setMessage] = useState("Autosave ready");
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -72,6 +78,9 @@ const ResumeEditor = ({ documentId }: ResumeEditorProps) => {
   const deferredResume = useDeferredValue(resume);
 
   const resumePreviewId = `resume-preview-${resume.id}`;
+
+  const load = loadStateFor(loadState, documentId);
+  const isReady = load.status === "ready";
 
   useEffect(() => {
     let cancelled = false;
@@ -86,7 +95,7 @@ const ResumeEditor = ({ documentId }: ResumeEditorProps) => {
      */
     const hydrate = async () => {
       if (!documentId) {
-        setStatus("not-found");
+        setLoadState({ id: documentId, status: "not-found" });
 
         return;
       }
@@ -96,7 +105,7 @@ const ResumeEditor = ({ documentId }: ResumeEditorProps) => {
       if (routeResume) {
         setResume(routeResume);
         hasHydratedRef.current = true;
-        setStatus("ready");
+        setLoadState({ id: documentId, status: "ready" });
 
         return;
       }
@@ -107,22 +116,20 @@ const ResumeEditor = ({ documentId }: ResumeEditorProps) => {
         return;
       }
 
-      if (cloudResult.ok) {
-        const hydratedResume = loadResumeById(documentId);
+      const hydratedResume = cloudResult.ok ? loadResumeById(documentId) : null;
 
-        if (hydratedResume) {
-          setResume(hydratedResume);
-          hasHydratedRef.current = true;
-          setStatus("ready");
+      if (hydratedResume) {
+        setResume(hydratedResume);
+        hasHydratedRef.current = true;
+        setLoadState({ id: documentId, status: "ready" });
 
-          return;
-        }
+        return;
       }
 
       // Deliberately no fallback to the active-or-newest resume: that loaded a *different*
       // document while the URL kept showing this id, so autosave then wrote the user's
       // edits onto the wrong resume.
-      setStatus("not-found");
+      setLoadState({ id: documentId, ...cloudLoadFailureState(cloudResult) });
     };
 
     void hydrate();
@@ -130,7 +137,12 @@ const ResumeEditor = ({ documentId }: ResumeEditorProps) => {
     return () => {
       cancelled = true;
     };
-  }, [documentId, setResume]);
+  }, [documentId, loadAttempt, setResume]);
+
+  // The tab names the document, not the route.
+  const tabTitle = resume.title || resume.basics.fullName || "Untitled resume";
+
+  useDocumentTabTitle(tabTitle, isReady);
 
   const reportSaveResult = useCallback((failure: string | null) => {
     setMessage(failure ?? SAVE_PERSISTED_MESSAGE);
@@ -150,10 +162,16 @@ const ResumeEditor = ({ documentId }: ResumeEditorProps) => {
   const followMove = useCallback(
     (newId: string) => {
       const moved = loadResumeById(newId);
-      if (moved) setResume(moved);
+
+      if (moved) {
+        setResume(moved);
+        // Already loaded: no "loading" flash that would unmount the field being typed in.
+        setLoadState({ id: newId, movedFrom: documentId, status: "ready" });
+      }
+
       router.replace(getDocumentEditorPath("RESUME", newId));
     },
-    [router, setResume],
+    [documentId, router, setResume],
   );
 
   const handleSaveResult = useCallback(
@@ -191,7 +209,7 @@ const ResumeEditor = ({ documentId }: ResumeEditorProps) => {
   // Autosave. Surfacing the result is the point: the previous implementation discarded it,
   // so a full-storage failure silently dropped the user's edits. The returned value is only
   // a queue receipt — the write lands 300ms later — so `onFlush` is where the real result
-  // (including a quota failure) arrives, and only it may say "Saved locally".
+  // (including a quota failure) arrives, and only it may say "Saved on this device".
   useEffect(() => {
     if (!hasHydratedRef.current) {
       return;
@@ -215,22 +233,17 @@ const ResumeEditor = ({ documentId }: ResumeEditorProps) => {
 
   useFlushPendingSavesOnExit("RESUME");
 
+  // Keyed on the ready state rather than a ref, so the worker starts even when the store
+  // already held this document; `accountAutoSync` re-runs it when sign-in changes the setting
+  // (`AuthInitializer` writes it to the workspace settings read here).
   useEffect(() => {
-    if (!hasHydratedRef.current) {
-      return;
-    }
-
-    if (!isLoggedIn) {
-      return;
-    }
-
-    const workspaceSettings = loadWorkspaceSettingsFromLocalStorage();
+    if (!isReady || !isLoggedIn) return;
 
     startDocumentSyncWorker("RESUME", {
-      enabled: isLoggedIn && workspaceSettings.autoSyncEnabled,
+      enabled: loadWorkspaceSettingsFromLocalStorage().autoSyncEnabled,
       idleDelayMs: 12_000,
     });
-  }, [isLoggedIn, resume.id]);
+  }, [isReady, isLoggedIn, accountAutoSync, documentId]);
 
   // Stable identities so the memoised toolbar and modals below can bail out; inline arrows
   // would hand them new props on every keystroke and make `memo` pure overhead.
@@ -253,11 +266,11 @@ const ResumeEditor = ({ documentId }: ResumeEditorProps) => {
     </ResumePagedPreview>
   ) : null;
 
-  if (status === "loading") {
+  if (load.status === "loading") {
     return <DocumentStateCard title="Loading resume" message="Preparing your editor." />;
   }
 
-  if (status === "not-found") {
+  if (load.status === "not-found") {
     return (
       <DocumentStateCard
         title="Resume not found"
@@ -266,6 +279,26 @@ const ResumeEditor = ({ documentId }: ResumeEditorProps) => {
         <Button onClick={() => router.push("/documents")} variant="secondary">
           Back to documents
         </Button>
+      </DocumentStateCard>
+    );
+  }
+
+  if (load.status === "error") {
+    return (
+      <DocumentStateCard title="Could not load this resume" message={load.message}>
+        <div className="flex justify-center gap-2">
+          <Button
+            onClick={() => {
+              setLoadState(INITIAL_LOAD_STATE);
+              setLoadAttempt((attempt) => attempt + 1);
+            }}
+          >
+            Try again
+          </Button>
+          <Button onClick={() => router.push("/documents")} variant="secondary">
+            Back to documents
+          </Button>
+        </div>
       </DocumentStateCard>
     );
   }
@@ -294,7 +327,7 @@ const ResumeEditor = ({ documentId }: ResumeEditorProps) => {
       settingsPanel={<EditorSettingsPanel />}
       preview={preview}
       previewId={resumePreviewId}
-      previewTitle={deferredResume.basics.fullName || "Untitled Resume"}
+      previewTitle={tabTitle}
       settingsLabel="Style settings"
     />
   );

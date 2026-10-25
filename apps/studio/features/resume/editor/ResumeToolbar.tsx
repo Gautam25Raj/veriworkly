@@ -1,7 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
-import { memo, useRef } from "react";
+import { memo } from "react";
 import { useRouter } from "next/navigation";
 
 import { useUserStore } from "@/store/useUserStore";
@@ -19,6 +19,7 @@ import ToolbarDownloadMenu from "@/features/documents/editor/toolbar/ToolbarDown
 import { getSaveFailureMessage } from "@/features/documents/services/save-failure-message";
 import { useDocumentDownloads } from "@/features/documents/editor/toolbar/useDocumentDownloads";
 import { useDocumentJsonImport } from "@/features/documents/editor/toolbar/useDocumentJsonImport";
+import { useHiddenFileInput } from "@/features/documents/editor/toolbar/useHiddenFileInput";
 import ToolbarSaveButton from "@/features/documents/editor/toolbar/ToolbarSaveButton";
 
 import { useResumeStore } from "@/features/resume/store/resume-store";
@@ -55,9 +56,6 @@ const ResumeToolbar = memo(function ResumeToolbar({
   onOpenDelete,
 }: ToolbarProps) {
   const router = useRouter();
-
-  const jsonInputRef = useRef<HTMLInputElement>(null);
-  const markdownInputRef = useRef<HTMLInputElement>(null);
 
   const resume = useResumeStore((state) => state.resume);
   const resetResume = useResumeStore((state) => state.resetResume);
@@ -133,6 +131,9 @@ const ResumeToolbar = memo(function ResumeToolbar({
     }
   }
 
+  const jsonInput = useHiddenFileInput(onImportResume);
+  const markdownInput = useHiddenFileInput(onImportMarkdown);
+
   return (
     <div className="flex min-h-11 flex-wrap items-center justify-between gap-2">
       <ToolbarHeader
@@ -148,7 +149,7 @@ const ResumeToolbar = memo(function ResumeToolbar({
             const saveResult = saveToStorage({ flush: true });
 
             onSetMessage(
-              saveResult.ok ? "Draft saved locally" : getSaveFailureMessage(saveResult.reason),
+              saveResult.ok ? "Saved on this device" : getSaveFailureMessage(saveResult.reason),
             );
           }}
         />
@@ -156,25 +157,17 @@ const ResumeToolbar = memo(function ResumeToolbar({
         <input
           type="file"
           className="hidden"
-          ref={jsonInputRef}
+          ref={jsonInput.ref}
           accept="application/json"
-          onChange={(event) => {
-            void onImportResume(event.target.files?.[0]).finally(() => {
-              event.currentTarget.value = "";
-            });
-          }}
+          onChange={jsonInput.onChange}
         />
 
         <input
           type="file"
           className="hidden"
-          ref={markdownInputRef}
+          ref={markdownInput.ref}
           accept="text/markdown,.md,.markdown"
-          onChange={(event) => {
-            void onImportMarkdown(event.target.files?.[0]).finally(() => {
-              event.currentTarget.value = "";
-            });
-          }}
+          onChange={markdownInput.onChange}
         />
 
         <ToolbarDownloadMenu
@@ -191,8 +184,8 @@ const ResumeToolbar = memo(function ResumeToolbar({
           documentLabel="resume"
           onShare={onOpenShare}
           onDelete={onOpenDelete}
-          onImportJson={() => jsonInputRef.current?.click()}
-          onImportMarkdown={() => markdownInputRef.current?.click()}
+          onImportJson={jsonInput.open}
+          onImportMarkdown={markdownInput.open}
           onReset={async () => {
             // Same as a new resume: seeded from the profile, never the sample.
             const result = resetResume(await getMasterProfileForNewDocument());

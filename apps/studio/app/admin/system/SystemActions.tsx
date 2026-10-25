@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 import { Select } from "@veriworkly/ui";
 
 import AdminActionDialog from "@/components/admin/AdminActionDialog";
 import { flushAdminCache, triggerAdminGithubSync } from "@/features/admin/services/admin-actions";
+
+const subscribeNever = () => () => {};
 
 type CachePrefix =
   "portfolio:public" | "user:profile" | "affiliate" | "credits" | "changelog" | "roadmap";
@@ -86,7 +88,7 @@ export function GithubSyncControls({ nextSyncAt }: { nextSyncAt: string | null }
 
       {nextSyncAt ? (
         <p className="text-muted text-xs">
-          The scheduled job next runs at {new Date(nextSyncAt).toLocaleString()}.
+          The scheduled job next runs at <LocalDateTime iso={nextSyncAt} />.
         </p>
       ) : null}
 
@@ -106,4 +108,18 @@ export function GithubSyncControls({ nextSyncAt }: { nextSyncAt: string | null }
       />
     </div>
   );
+}
+
+/**
+ * Locale and time zone exist only in the browser, so the server snapshot is the UTC instant
+ * and React swaps in the local text after hydration instead of reporting a mismatch.
+ */
+function LocalDateTime({ iso }: { iso: string }) {
+  const text = useSyncExternalStore(
+    subscribeNever,
+    () => new Date(iso).toLocaleString(),
+    () => new Date(iso).toISOString().replace("T", " ").slice(0, 16) + " UTC",
+  );
+
+  return <time dateTime={iso}>{text}</time>;
 }

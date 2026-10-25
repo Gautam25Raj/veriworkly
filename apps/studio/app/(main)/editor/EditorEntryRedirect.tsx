@@ -9,13 +9,17 @@ import type { DocumentType } from "@/features/documents/core/document-types";
 
 import {
   saveDocument,
-  createDocumentFromMasterProfile,
+  loadDocumentById,
 } from "@/features/documents/services/document-workspace-service";
+import { createDocumentWithinLimit } from "@/features/documents/services/document-limit";
 import { getDocumentEditorPath } from "@/features/documents/core/routes";
 import { describeSaveResult } from "@/features/documents/services/save-failure-message";
+import { DocumentStateCard } from "@/features/documents/editor/DocumentStateCard";
+import { reportCreateFailure } from "@/components/dashboard/hooks/useCreateDocument";
 
 interface EditorEntryRedirectProps {
   type: DocumentType;
+  /** Only a template the link actually asked for; absent means the type's default. */
   templateId?: string;
 }
 
@@ -35,6 +39,17 @@ function applyTemplate(document: BaseDocument, templateId: string | undefined): 
   };
 }
 
+/** Writes the requested template onto `document`; the document exists either way. */
+function persistTemplate(document: BaseDocument, templateId: string | undefined) {
+  const withTemplate = applyTemplate(document, templateId);
+
+  if (withTemplate === document) return;
+
+  const failure = describeSaveResult(saveDocument(withTemplate, { flush: true }));
+
+  if (failure) toast.error(`Could not apply the template: ${failure}`);
+}
+
 export function EditorEntryRedirect({ type, templateId }: EditorEntryRedirectProps) {
   const router = useRouter();
   const createdRef = useRef(false);
@@ -43,30 +58,43 @@ export function EditorEntryRedirect({ type, templateId }: EditorEntryRedirectPro
     if (createdRef.current) return;
     createdRef.current = true;
 
-    // Fire-and-forget: the effect cannot be async, and the profile fetch inside
-    // createDocumentFromMasterProfile is what makes this path await at all.
     void (async () => {
-      const created = await createDocumentFromMasterProfile(type);
-      const createFailure = describeSaveResult(created.saveResult);
+      try {
+        const result = await createDocumentWithinLimit(type);
 
-      if (createFailure) {
-        toast.error(`Could not create the document: ${createFailure}`);
+        if (result.ok) {
+          persistTemplate(result.document, templateId);
+          router.replace(getDocumentEditorPath(type, result.document.id));
+          return;
+        }
+
+        // At the free limit a template link opens the document the user already has, wearing
+        // the template they picked, instead of a dead end or a second document the server
+        // would refuse to sync.
+        const existing =
+          result.reason === "limit" ? loadDocumentById(type, result.existingId) : null;
+
+        if (existing && result.reason === "limit") {
+          persistTemplate(existing, templateId);
+          toast.info(`Opened "${existing.title}" instead. ${result.message}`, {
+            action: { label: "Upgrade", onClick: () => router.push("/billing") },
+          });
+          router.replace(getDocumentEditorPath(type, existing.id));
+          return;
+        }
+
+        if (result.reason === "busy") return;
+
+        reportCreateFailure(result, router);
         router.replace("/documents");
-        return;
+      } catch (error) {
+        toast.error(
+          `Could not create the document: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        router.replace("/documents");
       }
-
-      const document = applyTemplate(created, templateId);
-
-      if (document.templateId === templateId) {
-        const templateFailure = describeSaveResult(saveDocument(document, { flush: true }));
-
-        // The document exists either way; only the chosen template did not stick.
-        if (templateFailure) toast.error(`Could not apply the template: ${templateFailure}`);
-      }
-
-      router.replace(getDocumentEditorPath(type, document.id));
     })();
   }, [router, templateId, type]);
 
-  return null;
+  return <DocumentStateCard title="Creating your document" message="Preparing your editor." />;
 }

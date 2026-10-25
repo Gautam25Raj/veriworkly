@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import { Input, Select } from "@veriworkly/ui";
 
@@ -199,50 +199,73 @@ export function invalidClass(error?: string) {
   return error ? "border-red-500 focus:border-red-500 focus:ring-red-200" : undefined;
 }
 
-function parseDelimited(value: string) {
+/**
+ * How a list field is typed as text. Short keywords are comma separated; sentence-like
+ * entries (highlights) are one per line, because the sentences themselves contain commas.
+ */
+export type ListDelimiter = "comma" | "newline";
+
+const LIST_DELIMITERS: Record<ListDelimiter, { split: RegExp; join: string }> = {
+  comma: { split: /[\n,]/, join: ", " },
+  newline: { split: /\n/, join: "\n" },
+};
+
+export function parseDelimited(value: string, delimiter: ListDelimiter): string[] {
   return value
-    .split(/[\n,]/)
+    .split(LIST_DELIMITERS[delimiter].split)
     .map((line) => line.trim())
     .filter(Boolean);
 }
 
+export function joinDelimited(items: string[], delimiter: ListDelimiter): string {
+  return items.join(LIST_DELIMITERS[delimiter].join);
+}
+
+function sameItems(left: string[], right: string[]) {
+  return left.length === right.length && left.every((item, index) => item === right[index]);
+}
+
+/**
+ * Text-box state for a list field. The typed text is the source of truth while it still
+ * parses to `value`, so a trailing delimiter, a blank line or a half-typed item survives the
+ * round trip through the store. Only a list that no longer matches the text (Reset, Import,
+ * AI apply) rewrites it.
+ */
+export function useDelimitedDraft(
+  value: string[],
+  delimiter: ListDelimiter,
+  onChange: (nextValue: string[]) => void,
+) {
+  const [draftValue, setDraftValue] = useState(() => joinDelimited(value, delimiter));
+  const [syncedValue, setSyncedValue] = useState(value);
+
+  if (!sameItems(value, syncedValue)) {
+    setSyncedValue(value);
+
+    if (!sameItems(parseDelimited(draftValue, delimiter), value)) {
+      setDraftValue(joinDelimited(value, delimiter));
+    }
+  }
+
+  return {
+    value: draftValue,
+    onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setDraftValue(event.target.value);
+      onChange(parseDelimited(event.target.value, delimiter));
+    },
+  };
+}
+
 export function DelimitedTextArea({
   className,
+  delimiter,
   onChange,
   value,
 }: {
   className?: string;
+  delimiter: ListDelimiter;
   onChange: (nextValue: string[]) => void;
   value: string[];
 }) {
-  const [draftValue, setDraftValue] = useState(value.join(", "));
-
-  // `onChange` round-trips through the parent store and comes back as a new `value`
-  // array on every keystroke — a naive effect that resyncs `draftValue` from `value`
-  // on every change would fight the user's typing (e.g. stripping a trailing comma
-  // they just typed). This flag distinguishes "value changed because of our own
-  // onChange" (skip resync) from "value changed externally" (e.g. Reset/Import/AI
-  // apply — resync so the field doesn't keep showing stale text).
-  const isSelfUpdateRef = useRef(false);
-
-  useEffect(() => {
-    if (isSelfUpdateRef.current) {
-      isSelfUpdateRef.current = false;
-      return;
-    }
-    setDraftValue(value.join(", "));
-  }, [value]);
-
-  return (
-    <TextArea
-      value={draftValue}
-      className={className}
-      onChange={(event) => {
-        const nextDraftValue = event.target.value;
-        setDraftValue(nextDraftValue);
-        isSelfUpdateRef.current = true;
-        onChange(parseDelimited(nextDraftValue));
-      }}
-    />
-  );
+  return <TextArea className={className} {...useDelimitedDraft(value, delimiter, onChange)} />;
 }

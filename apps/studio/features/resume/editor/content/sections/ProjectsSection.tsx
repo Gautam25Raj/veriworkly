@@ -102,6 +102,7 @@ const ProjectsSection = ({ isOpen, onToggle }: BaseSectionProps) => {
                 cannot take the value/onChange contract the `*Field` wrappers impose. */}
             <Field label="Skills (comma separated)">
               <DelimitedTextArea
+                delimiter="comma"
                 key={`${activeProject.id}-skills`}
                 onChange={(skills) => updateProject(list.index, { skills })}
                 value={activeProject.skills ?? []}
@@ -116,20 +117,24 @@ const ProjectsSection = ({ isOpen, onToggle }: BaseSectionProps) => {
             />
 
             <AiFieldAssist
+              key={activeProject.id}
               action={activeProject.summary ? "rewrite_section" : "generate_section"}
-              context={JSON.stringify({
-                name: activeProject.name,
-                role: activeProject.role,
-                skills: activeProject.skills,
-                highlights: activeProject.highlights,
-              })}
+              getContext={() =>
+                JSON.stringify({
+                  name: activeProject.name,
+                  role: activeProject.role,
+                  skills: activeProject.skills,
+                  highlights: activeProject.highlights,
+                })
+              }
               documentId={resumeId}
               onApply={(summary) => updateProject(list.index, { summary })}
               text={activeProject.summary}
             />
 
-            <Field label="Highlights (comma separated)">
+            <Field label="Highlights (one per line)">
               <DelimitedTextArea
+                delimiter="newline"
                 key={activeProject.id}
                 onChange={(highlights) => updateProject(list.index, { highlights })}
                 value={activeProject.highlights}

@@ -64,15 +64,15 @@ const SyncDetailsModal = ({
 
   const statusConfig = {
     synced: {
-      label: "Synced",
-      description: "Your data is safe in the cloud.",
+      label: "Backed up",
+      description: "A copy is saved to your account.",
       color: "text-emerald-500",
       bg: "md:bg-emerald-500/10",
       icon: Cloud,
     },
 
     syncing: {
-      label: "Syncing",
+      label: "Backing up",
       description: "Transferring data to our servers...",
       color: "text-accent",
       bg: "md:bg-accent/10",
@@ -97,7 +97,7 @@ const SyncDetailsModal = ({
 
     disabled: {
       label: "Local only",
-      description: "Sync is disabled for this document.",
+      description: "Saved on this device only. Backup is off for this document.",
       color: "text-zinc-500",
       bg: "md:bg-zinc-500/10",
       icon: CloudOff,
@@ -120,7 +120,7 @@ const SyncDetailsModal = ({
     },
 
     rejected: {
-      label: "Sync failed",
+      label: "Backup failed",
       description: "The server rejected this document.",
       color: "text-destructive",
       bg: "md:bg-destructive/10",
@@ -161,7 +161,7 @@ const SyncDetailsModal = ({
                 className={cn(
                   "h-4.5 w-4.5",
                   currentStatus.color,
-                  currentStatus.label === "Syncing" && "animate-spin",
+                  currentStatus.label === "Backing up" && "animate-spin",
                 )}
               />
             </div>
@@ -249,8 +249,8 @@ const SyncDetailsModal = ({
               </p>
 
               <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-                This document stays safe on this device. It will sync once your plan allows more
-                documents.
+                This document stays safe on this device. It will be backed up once your plan allows
+                more documents.
               </p>
 
               <Link
@@ -268,7 +268,7 @@ const SyncDetailsModal = ({
                 <AlertTriangle className="text-destructive h-3.5 w-3.5" />
 
                 <p className="text-destructive text-[10px] font-black tracking-widest uppercase">
-                  {isDeletedElsewhere ? "Deleted on another device" : "Sync error"}
+                  {isDeletedElsewhere ? "Deleted on another device" : "Backup error"}
                 </p>
               </div>
 
@@ -303,7 +303,7 @@ const SyncDetailsModal = ({
                 >
                   <div className="flex items-center gap-3">
                     <Monitor className="h-4 w-4" />
-                    <span className="text-xs font-bold">Push Local to Cloud</span>
+                    <span className="text-xs font-bold">Keep this device&apos;s version</span>
                   </div>
 
                   <ChevronRight className="h-3.5 w-3.5 opacity-50" />
@@ -316,7 +316,7 @@ const SyncDetailsModal = ({
                 >
                   <div className="flex items-center gap-3">
                     <Cloud className="h-4 w-4" />
-                    <span className="text-xs font-bold">Pull Cloud to Local</span>
+                    <span className="text-xs font-bold">Use cloud version</span>
                   </div>
 
                   <ChevronRight className="h-3.5 w-3.5 opacity-50" />
@@ -398,7 +398,7 @@ const SyncDetailsModal = ({
               onClick={() => onSyncNow(document.id)}
               className="font-semibold shadow-md active:scale-95"
             >
-              {isRejected || isUpgradeRequired ? "Try Again" : "Sync Now"}
+              {isRejected || isUpgradeRequired ? "Try Again" : "Back up now"}
             </Button>
           )}
         </Modal.Footer>

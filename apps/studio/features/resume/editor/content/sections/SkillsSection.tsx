@@ -56,6 +56,7 @@ const SkillsSection = ({ isOpen, onToggle }: BaseSectionProps) => {
           {/* Children-based `Field`: DelimitedTextArea holds a local draft string. */}
           <Field error={skillErrors.keywords} label="Keywords (comma separated)">
             <DelimitedTextArea
+              delimiter="comma"
               key={activeSkillGroup.id}
               value={activeSkillGroup.keywords}
               onChange={(keywords) => updateSkillGroup(list.index, { keywords })}

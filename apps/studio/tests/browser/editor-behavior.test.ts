@@ -543,12 +543,12 @@ describe("toolbar status line reflects autosave (VW-06)", () => {
     // Before the fix this state lived inside `ResumeToolbar` while autosave ran in
     // `ResumeEditor`, so the line read "Autosave ready" from mount until the user clicked
     // Save — no matter how much had actually been persisted.
-    expect(await status().innerText()).toBe("Saved locally");
+    expect(await status().innerText()).toBe("Saved on this device");
   });
 
   it("words a queued save differently from a persisted one", async () => {
     // The debounced write lands 300ms after the keystroke, so the status line must not
-    // claim "Saved locally" the moment the save is merely queued.
+    // claim "Saved on this device" the moment the save is merely queued.
     await page
       .getByLabel(/full name/i)
       .first()
@@ -558,7 +558,7 @@ describe("toolbar status line reflects autosave (VW-06)", () => {
 
     await page.waitForTimeout(1_500);
 
-    expect(await status().innerText()).toBe("Saved locally");
+    expect(await status().innerText()).toBe("Saved on this device");
   });
 
   it("does the same in the cover letter editor", async () => {
@@ -573,6 +573,304 @@ describe("toolbar status line reflects autosave (VW-06)", () => {
 
     await page.waitForTimeout(1_500);
 
-    expect(await status().innerText()).toBe("Saved locally");
+    expect(await status().innerText()).toBe("Saved on this device");
+  });
+});
+
+/** The stored envelope of a document, read the way the app wrote it. */
+function readStoredDocument(id: string): Promise<{
+  type: string;
+  content: Record<string, unknown> & {
+    interests: Array<{ keywords: string[] }>;
+    experience: Array<{ highlights: string[] }>;
+  };
+} | null> {
+  return page.evaluate((documentId) => {
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index)!;
+      const raw = localStorage.getItem(key) ?? "";
+
+      if (key.includes(documentId) && raw.includes('"content"')) return JSON.parse(raw);
+    }
+
+    return null;
+  }, id);
+}
+
+async function openSection(id: string) {
+  const button = page.locator(`[id="section-accordion-button-${id}"]`);
+
+  if ((await button.getAttribute("aria-expanded")) !== "true") await button.click();
+  await page.waitForTimeout(250);
+}
+
+/** Opens the experience section and adds entries until at least `count` exist. */
+async function ensureExperienceEntries(count: number) {
+  await openSection("experience");
+
+  const options = page
+    .locator('[id="section-accordion-panel-experience"]')
+    .getByRole("combobox")
+    .first()
+    .locator("option");
+
+  while ((await options.count()) < count) {
+    await page.getByRole("region").getByRole("button", { name: /^add$/i }).click();
+    await page.waitForTimeout(250);
+  }
+}
+
+describe("editor input (Phase 2)", () => {
+  let resumeId = "";
+  const pageErrors: string[] = [];
+
+  beforeAll(async () => {
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await page.setViewportSize(DESKTOP);
+    resumeId = await seedResume();
+    await page.goto(`${server.origin}/editor/resume/${resumeId}`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(1_000);
+  });
+
+  it("imports the same JSON file twice, without a page error (S-057)", async () => {
+    const stored = await readStoredDocument(resumeId);
+    const file = {
+      name: "resume.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(stored)),
+    };
+
+    pageErrors.length = 0;
+    const visited: string[] = [];
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const before = page.url();
+
+      await page.locator('input[type="file"][accept="application/json"]').setInputFiles(file);
+      await page.waitForFunction((url) => location.href !== url, before);
+      await page.waitForTimeout(1_200);
+
+      visited.push(page.url());
+    }
+
+    expect(new Set(visited).size).toBe(2);
+    expect(visited).not.toContain(`${server.origin}/editor/resume/${resumeId}`);
+    expect(pageErrors).toEqual([]);
+  });
+
+  it("clears the file input after an import so the same file can be chosen again (S-057)", async () => {
+    const input = page.locator('input[type="file"][accept="application/json"]');
+
+    expect(await input.evaluate((element: HTMLInputElement) => element.value)).toBe("");
+  });
+
+  it("accepts a typed comma in interest keywords (S-059)", async () => {
+    await page.goto(`${server.origin}/editor/resume/${resumeId}`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(1_000);
+
+    await openSection("interests");
+    await page.getByRole("button", { name: /^add interest$/i }).click();
+    await page.waitForTimeout(250);
+
+    const keywords = page.getByLabel("Keywords (comma separated)");
+
+    await keywords.pressSequentially("a, b", { delay: 60 });
+    await page.waitForTimeout(1_000);
+
+    expect(await keywords.inputValue()).toBe("a, b");
+    expect((await readStoredDocument(resumeId))?.content.interests.at(-1)?.keywords).toEqual([
+      "a",
+      "b",
+    ]);
+  });
+
+  it("keeps a highlight that contains a comma as one item, also after a keystroke (S-058)", async () => {
+    await ensureExperienceEntries(1);
+
+    const highlights = page.getByLabel("Highlights (one per line)");
+
+    await highlights.fill("x, y");
+    await page.waitForTimeout(1_000);
+
+    // Reloaded, so the field starts from the stored list rather than from typed text.
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForTimeout(1_000);
+    await openSection("experience");
+
+    await highlights.click();
+    await page.keyboard.press("End");
+    await page.keyboard.type(" z");
+    await page.waitForTimeout(1_000);
+
+    expect(await highlights.inputValue()).toBe("x, y z");
+    expect((await readStoredDocument(resumeId))?.content.experience[0].highlights).toEqual([
+      "x, y z",
+    ]);
+  });
+
+  it("starts a new highlight on Enter (S-058, S-079)", async () => {
+    const highlights = page.getByLabel("Highlights (one per line)");
+
+    await highlights.fill("");
+    await highlights.pressSequentially("a", { delay: 60 });
+    await page.keyboard.press("Enter");
+    await highlights.pressSequentially("b", { delay: 60 });
+    await page.waitForTimeout(1_000);
+
+    expect(await highlights.inputValue()).toBe("a\nb");
+    expect((await readStoredDocument(resumeId))?.content.experience[0].highlights).toEqual([
+      "a",
+      "b",
+    ]);
+  });
+
+  describe("AI field assist", () => {
+    let actionsStatus = 200;
+
+    beforeAll(async () => {
+      await page.route("**/ai/actions", async (route) => {
+        const headers = {
+          "access-control-allow-origin": server.origin,
+          "access-control-allow-credentials": "true",
+          "access-control-allow-headers": "content-type",
+        };
+
+        if (route.request().method() === "OPTIONS") {
+          await route.fulfill({ status: 204, headers });
+          return;
+        }
+
+        const costs = { standard: 2, expert: 5 };
+
+        await route.fulfill({
+          status: actionsStatus,
+          headers,
+          contentType: "application/json",
+          body: JSON.stringify(
+            actionsStatus === 200
+              ? {
+                  success: true,
+                  message: "ok",
+                  data: { rewrite_section: { costs }, generate_section: { costs } },
+                }
+              : { success: false, message: "AI service is down" },
+          ),
+        });
+      });
+    });
+
+    afterAll(async () => {
+      await page.unroute("**/ai/actions");
+    });
+
+    it("closes the assistant when switching to another entry (S-060)", async () => {
+      await ensureExperienceEntries(2);
+
+      const picker = page
+        .locator('[id="section-accordion-panel-experience"]')
+        .getByRole("combobox")
+        .first();
+      await picker.selectOption({ index: 0 });
+      await page.waitForTimeout(250);
+
+      await page.getByRole("button", { name: /(improve|write) with ai/i }).click();
+      await page.getByLabel(/instructions for the ai draft/i).fill("Only for entry one");
+
+      expect(await page.getByText("AI writing assistant").count()).toBe(1);
+
+      await picker.selectOption({ index: 1 });
+      await page.waitForTimeout(250);
+
+      expect(await page.getByText("AI writing assistant").count()).toBe(0);
+      expect(await page.getByRole("button", { name: /(improve|write) with ai/i }).count()).toBe(1);
+    });
+
+    it("explains a pricing failure and recovers on Retry instead of disabling Generate (S-066)", async () => {
+      actionsStatus = 500;
+
+      // A fresh page load drops the module-level pricing cache the last test filled.
+      await page.reload({ waitUntil: "networkidle" });
+      await page.waitForTimeout(1_000);
+      await openSection("experience");
+
+      await page.getByRole("button", { name: /(improve|write) with ai/i }).click();
+      await page.waitForTimeout(500);
+
+      const failure = page.getByRole("alert").filter({ hasText: /AI is unavailable/i });
+
+      expect(await failure.count()).toBe(1);
+
+      actionsStatus = 200;
+      await page.getByRole("button", { name: /^retry$/i }).click();
+      await page.waitForTimeout(500);
+
+      expect(await failure.count()).toBe(0);
+      expect(
+        await page.getByRole("button", { name: /generate draft · 2 credits/i }).isEnabled(),
+      ).toBe(true);
+      expect(
+        await page.getByRole("button", { name: /^standard/i }).getAttribute("aria-pressed"),
+      ).toBe("true");
+    });
+  });
+
+  it("keeps 'Add custom section' after the last custom section is removed (S-065)", async () => {
+    const customButtons = page.locator('[id^="section-accordion-button-custom:"]');
+
+    for (let guard = 0; guard < 10 && (await customButtons.count()) > 0; guard += 1) {
+      const first = customButtons.first();
+
+      if ((await first.getAttribute("aria-expanded")) !== "true") await first.click();
+      await page.waitForTimeout(250);
+
+      await page.getByRole("button", { name: /^remove this section$/i }).click();
+      await page.getByRole("button", { name: /^remove section$/i }).click();
+      await page.waitForTimeout(300);
+    }
+
+    expect(await customButtons.count()).toBe(0);
+
+    const add = page.getByRole("button", { name: /^add custom section$/i });
+
+    expect(await add.isVisible()).toBe(true);
+
+    await add.click();
+    await page.waitForTimeout(300);
+
+    expect(await customButtons.count()).toBe(1);
+  });
+
+  it("asks before removing a list entry (S-068)", async () => {
+    await ensureExperienceEntries(2);
+
+    const options = page
+      .locator('[id="section-accordion-panel-experience"]')
+      .getByRole("combobox")
+      .first()
+      .locator("option");
+    const before = await options.count();
+    const remove = page
+      .locator('[id="section-accordion-panel-experience"]')
+      .getByRole("button", { name: /^remove$/i });
+
+    await remove.click();
+    expect(await page.getByText("Remove this entry?").isVisible()).toBe(true);
+
+    await page.getByRole("button", { name: /^cancel$/i }).click();
+    await page.waitForTimeout(250);
+    expect(await options.count()).toBe(before);
+
+    await remove.click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: /^remove$/i })
+      .click();
+    await page.waitForTimeout(250);
+    expect(await options.count()).toBe(before - 1);
+  });
+
+  it("raised no page error anywhere in this block", () => {
+    expect(pageErrors).toEqual([]);
   });
 });

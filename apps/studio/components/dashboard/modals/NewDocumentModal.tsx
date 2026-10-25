@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
 
 import { Button, Modal } from "@veriworkly/ui";
@@ -38,6 +39,54 @@ const GithubIcon = ({ className }: { className?: string }) => (
 import { getDocumentIcon } from "@/features/documents/core/icons";
 import { getDocumentDefinition } from "@/features/documents/core/registry";
 import { DOCUMENT_TYPES, type DocumentType } from "@/features/documents/core/document-types";
+import type { NewDocumentSource } from "@/features/documents/services/document-limit";
+import { getMasterProfileForNewDocument } from "@/features/resume/services/master-profile";
+
+import { cn } from "@/lib/utils";
+import { useUserStore } from "@/store/useUserStore";
+
+const SOURCE_COPY: Record<NewDocumentSource, { label: string; description: string }> = {
+  blank: { label: "Blank", description: "Empty fields to fill in yourself." },
+  profile: {
+    label: "From my Master Profile",
+    description:
+      "Copies your Master Profile in once. Documents you already made do not change when you edit it later.",
+  },
+  sample: {
+    label: "Sample",
+    description: "Example content, to see what a finished one looks like.",
+  },
+};
+
+/**
+ * The starting points this user actually has: the Master Profile only once one is found, the
+ * sample only for guests (a signed-in user's document is saved and synced as theirs).
+ */
+function useNewDocumentSources() {
+  const isLoggedIn = useUserStore((state) => state.isLoggedIn);
+  const [hasProfile, setHasProfile] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    // Never throws: with no profile, offline or signed out it resolves to undefined.
+    void getMasterProfileForNewDocument().then((profile) => {
+      if (!cancelled) setHasProfile(Boolean(profile));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn]);
+
+  const sources: NewDocumentSource[] = [
+    "blank",
+    ...(hasProfile ? (["profile"] as const) : []),
+    ...(isLoggedIn ? [] : (["sample"] as const)),
+  ];
+
+  return { sources, defaultSource: hasProfile ? ("profile" as const) : ("blank" as const) };
+}
 
 export function NewDocumentButton({
   collapsed,
@@ -70,9 +119,14 @@ export function NewDocumentModal({
 }: {
   open: boolean;
   onClose: () => void;
-  onCreate: (type: DocumentType) => void;
+  onCreate: (type: DocumentType, source: NewDocumentSource) => void;
   onImportAction?: (provider: "linkedin" | "github") => void;
 }) {
+  const { sources, defaultSource } = useNewDocumentSources();
+  const [picked, setPicked] = useState<NewDocumentSource | null>(null);
+
+  const source = picked && sources.includes(picked) ? picked : defaultSource;
+
   if (!open) return null;
 
   return (
@@ -91,7 +145,8 @@ export function NewDocumentModal({
             </h2>
 
             <p id="new-document-description" className="text-muted mt-1 text-sm">
-              Choose document type. Template comes next in editor.
+              Pick what it starts from, then the type. Templates are in the editor&apos;s style
+              settings.
             </p>
           </div>
 
@@ -105,7 +160,34 @@ export function NewDocumentModal({
           </button>
         </div>
 
-        <Modal.Body className="grid max-h-[70vh] gap-3 p-4 sm:grid-cols-2 sm:p-5">
+        <Modal.Body className="grid max-h-[70vh] gap-3 overflow-y-auto p-4 sm:grid-cols-2 sm:p-5">
+          <div
+            role="radiogroup"
+            aria-label="Start from"
+            className="grid gap-2 sm:col-span-2 sm:grid-cols-3"
+          >
+            {sources.map((option) => (
+              <button
+                key={option}
+                type="button"
+                role="radio"
+                aria-checked={source === option}
+                onClick={() => setPicked(option)}
+                className={cn(
+                  "focus-visible:ring-accent/25 rounded-xl border p-3 text-left transition outline-none focus-visible:ring-2",
+                  source === option
+                    ? "border-accent bg-accent/10"
+                    : "border-border bg-background/70 hover:border-accent/50",
+                )}
+              >
+                <span className="block text-sm font-bold">{SOURCE_COPY[option].label}</span>
+                <span className="text-muted mt-1 block text-xs leading-5">
+                  {SOURCE_COPY[option].description}
+                </span>
+              </button>
+            ))}
+          </div>
+
           {DOCUMENT_TYPES.map((type) => {
             const Icon = getDocumentIcon(type);
             const definition = getDocumentDefinition(type);
@@ -117,7 +199,7 @@ export function NewDocumentModal({
                 className="border-border bg-background/70 hover:border-accent/50 hover:bg-card focus-visible:border-accent focus-visible:ring-accent/25 group rounded-xl border p-4 text-left transition outline-none focus-visible:ring-2"
                 onClick={() => {
                   onClose();
-                  onCreate(type);
+                  onCreate(type, source);
                 }}
               >
                 <span className="flex items-start justify-between gap-4">
@@ -131,7 +213,7 @@ export function NewDocumentModal({
                 <span className="mt-5 block text-base font-black">{definition.label}</span>
 
                 <span className="text-muted mt-1 block text-sm leading-6">
-                  Start a clean {definition.label.toLowerCase()} with saved local workspace state.
+                  Start a new {definition.label.toLowerCase()}.
                 </span>
               </button>
             );
@@ -140,7 +222,7 @@ export function NewDocumentModal({
 
         <div className="border-border/70 bg-card/10 border-t p-4 sm:p-5">
           <p className="text-accent mb-3 text-[10px] font-bold tracking-[0.2em] uppercase">
-            Import from profile
+            Import from LinkedIn or GitHub
           </p>
           <div className="grid grid-cols-2 gap-3">
             <button

@@ -3,6 +3,7 @@
 import {
   Copy,
   Edit2,
+  Files,
   Cloud,
   Share2,
   Trash2,
@@ -21,6 +22,7 @@ import { getDocumentEditorPath } from "@/features/documents/core/routes";
 import type { DocumentLibraryItem } from "@/features/documents/services/document-library";
 
 import { useUserStore } from "@/store/useUserStore";
+import { useCreateDocument } from "@/components/dashboard/hooks/useCreateDocument";
 
 export interface DocumentActionsMenuProps {
   doc: DocumentLibraryItem;
@@ -46,6 +48,7 @@ export function DocumentActionsMenu({
   triggerClassName,
 }: DocumentActionsMenuProps) {
   const router = useRouter();
+  const { duplicateDocument } = useCreateDocument();
 
   const editorPath = getDocumentEditorPath(doc.type, doc.id);
   const isLoggedIn = useUserStore((state) => state.isLoggedIn);
@@ -107,6 +110,17 @@ export function DocumentActionsMenu({
             </MenuItem>
 
             <MenuItem
+              className="h-8 rounded-lg text-xs"
+              onClick={() => {
+                close();
+                void duplicateDocument(doc.type, doc.id);
+              }}
+            >
+              <Files className="h-4 w-4" />
+              Duplicate
+            </MenuItem>
+
+            <MenuItem
               className={cn(
                 "h-8 rounded-lg text-xs",
                 !isLoggedIn && "opacity-50 hover:bg-transparent focus-visible:bg-transparent",
@@ -139,7 +153,7 @@ export function DocumentActionsMenu({
                 if (!isLoggedIn) {
                   e.preventDefault();
                   e.stopPropagation();
-                  toast.error("Please log in to sync documents.");
+                  toast.error("Please log in to back up documents.");
                   return;
                 }
                 close();
@@ -147,7 +161,7 @@ export function DocumentActionsMenu({
               }}
             >
               <RefreshCw className="h-4 w-4" />
-              {syncing ? "Syncing..." : hasCloudId ? "Sync Again" : "Upload to Cloud"}
+              {syncing ? "Backing up..." : "Back up now"}
             </MenuItem>
 
             <MenuItem
@@ -160,13 +174,13 @@ export function DocumentActionsMenu({
                 if (!isLoggedIn) {
                   e.preventDefault();
                   e.stopPropagation();
-                  toast.error("Please log in to view sync details.");
+                  toast.error("Please log in to see backup details.");
                   return;
                 }
                 if (!hasCloudId) {
                   e.preventDefault();
                   e.stopPropagation();
-                  toast.error("This document is not synced to the cloud yet.");
+                  toast.error("This document is not backed up yet.");
                   return;
                 }
                 close();
@@ -174,7 +188,7 @@ export function DocumentActionsMenu({
               }}
             >
               <Cloud className="h-4 w-4" />
-              View sync details
+              Backup details
             </MenuItem>
 
             <MenuItem

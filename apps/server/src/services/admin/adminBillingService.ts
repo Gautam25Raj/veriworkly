@@ -46,7 +46,6 @@ export async function getBillingSummary() {
     creditsGranted30,
     creditsSpent30,
     webhooksByStatus,
-    failedWebhooks,
     activeEntitlements,
   ] = await Promise.all([
     prisma.subscription.groupBy({ by: ["status"], _count: { _all: true } }),
@@ -73,7 +72,6 @@ export async function getBillingSummary() {
       _sum: { amount: true },
     }),
     prisma.billingWebhookEvent.groupBy({ by: ["status"], _count: { _all: true } }),
-    prisma.billingWebhookEvent.count({ where: { status: "FAILED" } }),
     prisma.entitlementGrant.count({
       where: {
         revokedAt: null,
@@ -84,6 +82,9 @@ export async function getBillingSummary() {
   ]);
 
   const statusCounts = Object.fromEntries(byStatus.map((row) => [row.status, row._count._all]));
+  const webhookCounts = Object.fromEntries(
+    webhooksByStatus.map((row) => [row.status, row._count._all]),
+  );
 
   return {
     subscriptions: {
@@ -103,8 +104,9 @@ export async function getBillingSummary() {
       spentLast30Days: Math.abs(creditsSpent30._sum.amount ?? 0),
     },
     webhooks: {
-      byStatus: Object.fromEntries(webhooksByStatus.map((row) => [row.status, row._count._all])),
-      failed: failedWebhooks,
+      byStatus: webhookCounts,
+      // Read off the groupBy above, not a second `count(status = FAILED)` query (V-069).
+      failed: webhookCounts.FAILED ?? 0,
     },
     activeEntitlements,
   };

@@ -4,33 +4,65 @@ import type { z } from "zod";
 import { prisma } from "#lib/prisma";
 import { logger } from "#lib/logger";
 import { cacheDelByPrefix, getRedis } from "#lib/redis";
-import { toCreatedAtFilter } from "#validators/admin/adminCommonValidator";
+import { bumpGeneration } from "#lib/cacheGeneration";
+import { PUBLIC_LIST_CACHE_NAMESPACE } from "#utils/portfolioPublicationCache";
 
 import { getAdminDashboardMetrics, getUsageSnapshotForDate } from "#services/analyticsService";
 import { getGitHubStats, syncGitHubStatsFromGitHub } from "#services/github/index";
+import { CHANGELOG_CACHE_KEYS } from "#services/changelog/cache";
+import { ROADMAP_CACHE_NAMESPACES } from "#services/roadmapService";
 
 import type {
   adminCacheFlushSchema,
   adminUsageMetricsQuerySchema,
 } from "#validators/admin/adminSystemValidator";
-import type { adminRequestLogQuerySchema } from "#validators/admin/adminAuditValidator";
+import {
+  encodeRequestLogCursor,
+  type adminRequestLogQuerySchema,
+} from "#validators/admin/adminAuditValidator";
 
 type UsageMetricsQuery = z.infer<typeof adminUsageMetricsQuerySchema>;
 type RequestLogQuery = z.infer<typeof adminRequestLogQuerySchema>;
+
+/** The request-log list's window when the caller gives no `from`. */
+const REQUEST_LOG_DEFAULT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 type CacheFlushInput = z.infer<typeof adminCacheFlushSchema>;
 
+type FlushTarget = { kind: "generation"; namespace: string } | { kind: "prefix"; prefix: string };
+
 /**
- * Redis key prefixes an operator is allowed to flush, mapped from the friendly name exposed by
- * the API. Anything not listed here — session records above all — is unreachable, so a cache
- * flush can never sign every user out.
+ * What each friendly name flushes. Anything not listed here — session records above all — is
+ * unreachable, so a cache flush can never sign every user out.
+ *
+ * Generation namespaces are flushed with one INCR. The remaining entries are exact sub-prefixes
+ * ending in `:`, so they cannot reach a lock, a marker or a dedupe claim that shares the family
+ * name (V-072: `changelog` used to match `changelog:release-sync:lock`, `affiliate` the click
+ * claims). These prefix deletes walk the keyspace, which is acceptable only because this is an
+ * operator button, never a request-path side effect.
  */
-const FLUSHABLE_PREFIXES: Record<CacheFlushInput["prefix"], string[]> = {
-  "portfolio:public": ["portfolio:public"],
-  "user:profile": ["user:profile"],
-  affiliate: ["affiliate"],
-  credits: ["credits"],
-  changelog: ["changelog"],
-  roadmap: ["roadmap"],
+const FLUSH_TARGETS: Record<CacheFlushInput["prefix"], FlushTarget[]> = {
+  "portfolio:public": [
+    { kind: "generation", namespace: PUBLIC_LIST_CACHE_NAMESPACE },
+    { kind: "prefix", prefix: "portfolio:public:site:" },
+  ],
+  "user:profile": [{ kind: "prefix", prefix: "user:profile:" }],
+  affiliate: [
+    { kind: "prefix", prefix: "affiliate:dashboard:" },
+    { kind: "prefix", prefix: "affiliate:leaderboard:" },
+  ],
+  credits: [
+    { kind: "prefix", prefix: "credits:summary:" },
+    { kind: "prefix", prefix: "credits:history:" },
+  ],
+  changelog: [
+    { kind: "generation", namespace: CHANGELOG_CACHE_KEYS.LIST_NAMESPACE },
+    { kind: "generation", namespace: CHANGELOG_CACHE_KEYS.ENTRY_NAMESPACE },
+    { kind: "generation", namespace: CHANGELOG_CACHE_KEYS.STATS_NAMESPACE },
+  ],
+  roadmap: Object.values(ROADMAP_CACHE_NAMESPACES).map((namespace) => ({
+    kind: "generation" as const,
+    namespace,
+  })),
 };
 
 /**
@@ -192,26 +224,59 @@ export async function listRequestLogs(query: RequestLogQuery) {
     ...(query.path ? { path: { contains: query.path, mode: "insensitive" } } : {}),
     ...statusRange,
     ...(query.errorsOnly ? { error: { not: null } } : {}),
-    ...(toCreatedAtFilter(query) ?? {}),
+    createdAt: {
+      // `AuditLog` is one row per API request; an unbounded window scans all of it (V-078).
+      gte: query.from ? new Date(query.from) : new Date(Date.now() - REQUEST_LOG_DEFAULT_WINDOW_MS),
+      ...(query.to ? { lte: new Date(query.to) } : {}),
+    },
+    // Keyset: strictly after the previous page's last row in `(createdAt DESC, id DESC)` order.
+    ...(query.cursor
+      ? {
+          OR: [
+            { createdAt: { lt: query.cursor.createdAt } },
+            { createdAt: query.cursor.createdAt, id: { lt: query.cursor.id } },
+          ],
+        }
+      : {}),
   };
 
-  const [items, total] = await Promise.all([
-    prisma.auditLog.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      take: query.limit,
-      skip: query.offset,
-    }),
-    prisma.auditLog.count({ where }),
-  ]);
+  // One extra row answers "is there a next page" without an exact `count(*)` over the table.
+  const rows = await prisma.auditLog.findMany({
+    where,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: query.limit + 1,
+    skip: query.cursor ? 0 : query.offset,
+  });
 
-  return { items, total, limit: query.limit, offset: query.offset };
+  const hasMore = rows.length > query.limit;
+  const items = hasMore ? rows.slice(0, query.limit) : rows;
+  const last = items.at(-1);
+
+  return {
+    items,
+    /** Not counted (V-078): page with `hasMore` / `nextCursor`. */
+    total: null,
+    limit: query.limit,
+    offset: query.cursor ? 0 : query.offset,
+    hasMore,
+    nextCursor: hasMore && last ? encodeRequestLogCursor(last) : null,
+  };
 }
 
 export async function flushCache(prefix: CacheFlushInput["prefix"]) {
-  const targets = FLUSHABLE_PREFIXES[prefix];
+  const flush = FLUSH_TARGETS[prefix];
 
-  await Promise.all(targets.map((target) => cacheDelByPrefix(target)));
+  await Promise.all(
+    flush.map((target) =>
+      target.kind === "generation"
+        ? bumpGeneration(target.namespace)
+        : cacheDelByPrefix(target.prefix),
+    ),
+  );
+
+  const targets = flush.map((target) =>
+    target.kind === "generation" ? target.namespace : target.prefix,
+  );
 
   logger.info("Admin flushed cache prefix", { prefix, targets });
 

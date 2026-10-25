@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { json, Router } from "express";
 
 import { authMiddleware } from "#middleware/auth";
 import { flexibleAuth } from "#middleware/flexibleAuth";
@@ -21,7 +21,8 @@ router.post(
 );
 
 router.get("/me", authMiddleware, PortfolioController.getMe);
-router.put("/draft", authMiddleware, PortfolioController.saveDraft);
+// V-098: the draft is a whole portfolio; `app.ts` leaves this path unparsed for this.
+router.put("/draft", authMiddleware, json({ limit: "4mb" }), PortfolioController.saveDraft);
 
 router.get(
   "/subdomains/:slug/availability",

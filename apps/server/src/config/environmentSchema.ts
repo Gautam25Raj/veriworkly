@@ -51,6 +51,7 @@ const INTEGER_VARIABLES: Record<string, { min: number; max?: number }> = {
 
   RATE_LIMIT_WINDOW_MS: { min: 1 },
   RATE_LIMIT_MAX_REQUESTS: { min: 1 },
+  RATE_LIMIT_REDIS_TIMEOUT_MS: { min: 1 },
   AUTH_RATE_LIMIT_WINDOW_MS: { min: 1 },
   AUTH_RATE_LIMIT_MAX_REQUESTS: { min: 1 },
   GLOBAL_RATE_LIMIT_WINDOW_MS: { min: 1 },

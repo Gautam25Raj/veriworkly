@@ -18,7 +18,45 @@ type BucketResult = { count: number; ttl: number };
 
 // Strict parse: `MAX_MEMORY_ENTRIES=abc` used to give NaN, which made the fallback map unbounded.
 const MAX_MEMORY_ENTRIES = parseIntegerEnv(process.env.MAX_MEMORY_ENTRIES, 15000);
+/**
+ * V-095: the limiter's EVAL sits in front of every request, so a connected but stalled Redis
+ * must not stall the API. Past this the request is counted in memory (or 503 for the
+ * fail-closed classes). node-redis's own `timeout` option only covers the write queue, not the
+ * wait for a reply, hence the race below.
+ */
+const REDIS_TIMEOUT_MS = parseIntegerEnv(process.env.RATE_LIMIT_REDIS_TIMEOUT_MS, 400);
+/** After this many timeouts in a row the limiter stops asking Redis for `BREAKER_OPEN_MS`. */
+const BREAKER_TIMEOUT_THRESHOLD = 3;
+const BREAKER_OPEN_MS = 5_000;
 const bucket = new Map<string, RateLimitEntry>();
+
+/**
+ * V-130: the studio autosaves with `PATCH /documents/:id` and `PUT /profiles/master`. Those take
+ * their own class, counted per user after authentication by `autosaveRateLimit`, instead of the
+ * generic 100 per 15 min per IP; the IP middleware only counts them in the global bucket.
+ */
+const AUTOSAVE_WINDOW_MS = 15 * 60 * 1000;
+const AUTOSAVE_MAX_REQUESTS = 600;
+
+function isAutosaveRequest(method: string, path: string): boolean {
+  return (
+    (method === "PATCH" && /^\/api\/v1\/documents\/[^/]+$/.test(path)) ||
+    (method === "PUT" && path === "/api/v1/profiles/master")
+  );
+}
+
+class RedisTimeoutError extends Error {}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new RedisTimeoutError(`Redis did not answer within ${ms} ms`)),
+      ms,
+    );
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
 
 /**
  * Paths that must never be rate limited by client IP. The billing webhook arrives from a small
@@ -182,13 +220,13 @@ function noteRedisRecovery() {
 }
 
 /**
- * Increments the per-route and global buckets in one round trip. Returning both counters from a
- * single script keeps the two windows consistent with each other and avoids paying two RTTs on
- * every request.
+ * Increments the given buckets (per-route and global, or one) in one round trip. Returning the
+ * counters from a single script keeps the windows consistent with each other and avoids paying
+ * one RTT per bucket on every request.
  */
 const INCREMENT_WITH_EXPIRY_SCRIPT = `
   local results = {}
-  for i = 1, 2 do
+  for i = 1, #KEYS do
     local count = redis.call("INCR", KEYS[i])
     if count == 1 then
       redis.call("PEXPIRE", KEYS[i], ARGV[i])
@@ -234,6 +272,99 @@ function incrementMemoryBucket(key: string, windowMs: number, now: number): Buck
 }
 
 /**
+ * Counts one hit in each bucket: Redis first (bounded by `REDIS_TIMEOUT_MS`), else this
+ * process's memory. `null` when the class fails closed and Redis is unavailable.
+ */
+/**
+ * Circuit breaker (V-095): a Redis that keeps timing out would otherwise cost every request the
+ * full timeout. After `BREAKER_TIMEOUT_THRESHOLD` timeouts in a row the limiter skips Redis for
+ * `BREAKER_OPEN_MS`, then tries again; each open and close is logged once.
+ */
+let consecutiveTimeouts = 0;
+let breakerOpenUntil = 0;
+let breakerOpen = false;
+
+function noteRedisTimeout() {
+  consecutiveTimeouts += 1;
+  if (consecutiveTimeouts < BREAKER_TIMEOUT_THRESHOLD) return;
+  breakerOpenUntil = Date.now() + BREAKER_OPEN_MS;
+  if (breakerOpen) return;
+  breakerOpen = true;
+  logger.warn("Rate limiter: Redis keeps timing out; skipping it for a few seconds at a time", {
+    timeoutMs: REDIS_TIMEOUT_MS,
+    pauseMs: BREAKER_OPEN_MS,
+  });
+}
+
+function noteRedisAnswered() {
+  consecutiveTimeouts = 0;
+  if (!breakerOpen) return;
+  breakerOpen = false;
+  logger.warn("Rate limiter: Redis answering in time again");
+}
+
+async function countBuckets(
+  buckets: Array<{ key: string; windowMs: number }>,
+  failClosed: boolean,
+): Promise<BucketResult[] | null> {
+  try {
+    if (Date.now() < breakerOpenUntil) throw new Error("Redis skipped: rate limiter breaker open");
+
+    const counts = (await withTimeout(
+      getRedis().eval(INCREMENT_WITH_EXPIRY_SCRIPT, {
+        keys: buckets.map((b) => b.key),
+        arguments: buckets.map((b) => String(b.windowMs)),
+      }),
+      REDIS_TIMEOUT_MS,
+    )) as number[];
+
+    noteRedisAnswered();
+    noteRedisRecovery();
+    return buckets.map((_, i) => ({ count: counts[i * 2]!, ttl: counts[i * 2 + 1]! }));
+  } catch (error) {
+    if (error instanceof RedisTimeoutError) noteRedisTimeout();
+    noteRedisFailure(error);
+    if (failClosed) return null;
+    const now = Date.now();
+    return buckets.map((b) => incrementMemoryBucket(b.key, b.windowMs, now));
+  }
+}
+
+function retryAfterSeconds({ ttl }: BucketResult, windowMs: number): number {
+  return ttl > 0 ? Math.ceil(ttl / 1000) : Math.ceil(windowMs / 1000);
+}
+
+/** Every 429 from the limiter carries `Retry-After`. */
+function sendTooManyRequests(res: Response, retryAfter: number) {
+  res.set("Retry-After", String(retryAfter));
+  res.status(429).json(createErrorResponse(429, "Too many requests. Please try again later."));
+}
+
+/**
+ * The autosave class (V-130): 600 per 15 min, keyed on the authenticated user. Mounted on the
+ * routes after `flexibleAuth`, because the IP limiter runs before authentication and has no user
+ * to key on; a request that reaches it without one (not expected on these routes) is keyed on
+ * its IP instead. Fails open to the per-process count like the generic class.
+ */
+export const autosaveRateLimit = async (req: Request, res: Response, next: NextFunction) => {
+  if (config.nodeEnv === "development") return next();
+
+  const userId = req.authUser?.id ?? req.apiKey?.userId;
+  const key = `rate-limit:autosave:${userId ? `user:${userId}` : `ip:${getClientKey(req)}`}`;
+
+  try {
+    const [counted] = (await countBuckets([{ key, windowMs: AUTOSAVE_WINDOW_MS }], false))!;
+    if (counted!.count <= AUTOSAVE_MAX_REQUESTS) return next();
+
+    logger.warn("Autosave rate limit exceeded", { key, path: req.path });
+    sendTooManyRequests(res, retryAfterSeconds(counted!, AUTOSAVE_WINDOW_MS));
+  } catch (error) {
+    logger.error("Autosave rate limit failure", error);
+    next();
+  }
+};
+
+/**
  * Fixed-window counter for limits that live inside a handler (share verify, OTP and contact mail
  * throttles): `INCR` and `EXPIRE … NX` in one `MULTI`, so the window starts at the first hit and
  * later hits never extend it. Throws when Redis is unavailable; each caller decides whether that
@@ -268,6 +399,8 @@ const AI_IN_FLIGHT_TTL_SECONDS =
   Math.ceil((AI_REQUEST_DEADLINE_MS + JOB_FETCH_WORST_MS) / 1000) + 5;
 
 let slotCountWarned = false;
+/** A slot frees when a call finishes; there is no exact time to give, so suggest a short wait. */
+const AI_SLOT_RETRY_AFTER_SECONDS = 10;
 
 /** Drops the slot and the key with it once no call is left, so an idle user has no key at all. */
 const RELEASE_AI_SLOT_SCRIPT = `
@@ -318,6 +451,7 @@ export async function withAiSlot<T>(userId: string, work: () => Promise<T>): Pro
       throw new ApiError(
         429,
         "Too many AI requests in progress. Wait for one to finish and try again.",
+        { retryAfterSeconds: AI_SLOT_RETRY_AFTER_SECONDS },
       );
     }
   } catch (error) {
@@ -343,8 +477,6 @@ export const rateLimitMiddleware = async (req: Request, res: Response, next: Nex
   if (config.nodeEnv === "development") return next();
   if (isRateLimitExempt(req.path)) return next();
 
-  const now = Date.now();
-
   const path = normalizePath(req.path);
   const { windowMs, maxRequests, failClosed } = getRouteLimitConfig(
     path,
@@ -356,37 +488,8 @@ export const rateLimitMiddleware = async (req: Request, res: Response, next: Nex
   const sanitizedPath = getSanitizedPath(path);
   const routeKey = `rate-limit:${req.method}:${sanitizedPath}:${key}`;
   const globalKey = `rate-limit:global:${key}`;
-
-  /** `null` when the class fails closed and Redis is unavailable. */
-  const checkWithFallback = async (): Promise<{
-    route: BucketResult;
-    global: BucketResult;
-  } | null> => {
-    try {
-      const redis = getRedis();
-
-      const [routeCount, routeTtl, globalCount, globalTtl] = (await redis.eval(
-        INCREMENT_WITH_EXPIRY_SCRIPT,
-        {
-          keys: [routeKey, globalKey],
-          arguments: [String(windowMs), String(globalWindowMs)],
-        },
-      )) as [number, number, number, number];
-
-      noteRedisRecovery();
-      return {
-        route: { count: routeCount, ttl: routeTtl },
-        global: { count: globalCount, ttl: globalTtl },
-      };
-    } catch (error) {
-      noteRedisFailure(error);
-      if (failClosed) return null;
-      return {
-        route: incrementMemoryBucket(routeKey, windowMs, now),
-        global: incrementMemoryBucket(globalKey, globalWindowMs, now),
-      };
-    }
-  };
+  // The autosave class is counted per user after auth (`autosaveRateLimit`); here only globally.
+  const autosave = isAutosaveRequest(req.method, path);
 
   let shouldContinue = false;
   let isLimitExceeded = false;
@@ -395,23 +498,30 @@ export const rateLimitMiddleware = async (req: Request, res: Response, next: Nex
   let exceededScope: "route" | "global" = "route";
 
   try {
-    const counted = await checkWithFallback();
+    const counted = await countBuckets(
+      autosave
+        ? [{ key: globalKey, windowMs: globalWindowMs }]
+        : [
+            { key: routeKey, windowMs },
+            { key: globalKey, windowMs: globalWindowMs },
+          ],
+      failClosed,
+    );
 
     if (!counted) isUnavailable = true;
     else {
-      const { route, global } = counted;
-      const routeExceeded = route.count > maxRequests;
+      const global = counted[counted.length - 1]!;
+      const route = autosave ? undefined : counted[0]!;
+      const routeExceeded = route !== undefined && route.count > maxRequests;
       const globalExceeded = global.count > globalMaxRequests;
 
       if (!routeExceeded && !globalExceeded) shouldContinue = true;
       else {
         isLimitExceeded = true;
         exceededScope = routeExceeded ? "route" : "global";
-
-        const { ttl } = routeExceeded ? route : global;
-        const fallbackWindowMs = routeExceeded ? windowMs : globalWindowMs;
-
-        retryAfter = ttl > 0 ? Math.ceil(ttl / 1000) : Math.ceil(fallbackWindowMs / 1000);
+        retryAfter = routeExceeded
+          ? retryAfterSeconds(route, windowMs)
+          : retryAfterSeconds(global, globalWindowMs);
       }
     }
   } catch (err) {
@@ -429,8 +539,6 @@ export const rateLimitMiddleware = async (req: Request, res: Response, next: Nex
       );
   } else if (isLimitExceeded) {
     logger.warn(`Rate limit exceeded for IP: ${key}`, { scope: exceededScope, path: req.path });
-
-    res.set("Retry-After", String(retryAfter));
-    res.status(429).json(createErrorResponse(429, "Too many requests. Please try again later."));
+    sendTooManyRequests(res, retryAfter);
   }
 };

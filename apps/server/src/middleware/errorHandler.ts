@@ -179,6 +179,12 @@ export function errorHandler(error: unknown, req: Request, res: Response, next: 
     logger.warn(`API Error [${req.method} ${req.path}]: ${error.message}`, error.details);
     recordAuditError(res, error.message);
 
+    // A 429 that knows when to come back says so, like the limiter's own 429s.
+    const retryAfter = (error.details as { retryAfterSeconds?: unknown } | undefined)
+      ?.retryAfterSeconds;
+    if (error.statusCode === 429 && typeof retryAfter === "number" && retryAfter > 0)
+      res.set("Retry-After", String(Math.ceil(retryAfter)));
+
     return res
       .status(error.statusCode)
       .json(createErrorResponse(error.statusCode, error.message, error.details));

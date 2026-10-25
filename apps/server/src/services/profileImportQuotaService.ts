@@ -103,10 +103,12 @@ export class ProfileImportQuotaService {
     const dayKey = new Date().toISOString().slice(0, 10);
     const redisKey = `import:paid-github:${userId}:${dayKey}`;
 
-    const count = await redis.incr(redisKey);
-    if (count === 1) {
-      await redis.expire(redisKey, 24 * 60 * 60);
-    }
+    // One MULTI (V-114): a crash between INCR and EXPIRE can no longer leave a key with no TTL.
+    const [count] = (await redis
+      .multi()
+      .incr(redisKey)
+      .expire(redisKey, 24 * 60 * 60, "NX")
+      .exec()) as unknown as [number, number];
 
     if (count > PAID_GITHUB_IMPORT_DAILY_LIMIT) {
       throw new ApiError(

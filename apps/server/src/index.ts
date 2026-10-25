@@ -8,6 +8,7 @@ import { config, isDevelopment } from "#config";
 import { logger } from "#lib/logger";
 import { closePrisma, poolMax, clusterWorkerCount } from "#lib/prisma";
 import { initRedis, closeRedis } from "#lib/redis";
+import { flushAuditLogs } from "#middleware/logging";
 
 import { stopExtractPool } from "#services/ats/extractPool";
 import { validateAiRuntimeConfig } from "#services/aiPolicy";
@@ -26,6 +27,7 @@ import { startChangelogSyncJob, stopChangelogSyncJob } from "#jobs/changelogSync
 import { startViewsFlushJob, stopViewsFlushJob } from "#jobs/viewsFlushJob";
 import { startUsageMetricsJob, stopUsageMetricsJob } from "#jobs/usageMetricsJob";
 import { startPortfolioAccessJob, stopPortfolioAccessJob } from "#jobs/portfolioAccessJob";
+import { startCreditSweepJob, stopCreditSweepJob } from "#jobs/creditSweepJob";
 
 const SHUTDOWN_HTTP_GRACE_MS = 10_000;
 
@@ -71,10 +73,13 @@ async function shutdownWorker(id: number, disconnect: () => void) {
     stopViewsFlushJob();
     stopUsageMetricsJob();
     stopPortfolioAccessJob();
+    stopCreditSweepJob();
 
     stopExtractPool();
 
     await closeRedis();
+    // Buffered request audit rows (V-109) go out before the pool closes.
+    await flushAuditLogs();
     await closePrisma();
 
     logger.info(`Worker ${id}: Disconnecting worker.`);
@@ -137,6 +142,7 @@ async function startWorker(id: number, disconnect: () => void) {
       startViewsFlushJob();
       startUsageMetricsJob();
       startPortfolioAccessJob();
+      startCreditSweepJob();
     }
 
     // One line per worker; per-job scheduling and lock-held skips log at debug.

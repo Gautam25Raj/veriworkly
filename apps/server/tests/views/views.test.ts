@@ -26,7 +26,10 @@ const prismaMock = {
     create: vi.fn(),
   },
 
-  $transaction: vi.fn((cb) => cb(prismaMock)),
+  $executeRaw: vi.fn(() => Promise.resolve(0)),
+
+  // The flushes run batch (array) transactions; anything else still gets the callback form.
+  $transaction: vi.fn((arg) => (Array.isArray(arg) ? Promise.all(arg) : arg(prismaMock))),
 };
 
 vi.mock("#lib/prisma", () => ({
@@ -66,9 +69,29 @@ const mockRedis = {
     return mockRedisStore.get(key) || {};
   }),
 
-  exists: vi.fn((key: string) => {
-    return mockRedisStore.has(key) ? 1 : 0;
+  exists: vi.fn((keys: string | string[]) => {
+    return (Array.isArray(keys) ? keys : [keys]).filter((key) => mockRedisStore.has(key)).length;
   }),
+
+  // Stands in for the two scripts the view code runs: the portfolio view buffer and the
+  // compare-and-delete lock release.
+  eval: vi.fn(
+    (_script: string, { keys, arguments: args }: { keys: string[]; arguments: string[] }) => {
+      if (keys.length === 3) {
+        const [buffer, pending, dedup] = keys as [string, string, string];
+        if (dedup && mockRedisStore.has(dedup)) return Promise.resolve(0);
+        if (dedup) mockRedisStore.set(dedup, "1");
+        const [field, fallback, cap, dateKey] = args as [string, string, string, string];
+        const hash = mockRedisStore.get(buffer) ?? {};
+        const target = field in hash || Object.keys(hash).length < Number(cap) ? field : fallback;
+        mockRedis.hIncrBy(buffer, target, 1);
+        mockRedis.hIncrBy(pending, dateKey, 1);
+        return Promise.resolve(1);
+      }
+      if (mockRedisStore.get(keys[0]!) === args[0]) mockRedisStore.delete(keys[0]!);
+      return Promise.resolve(1);
+    },
+  ),
 
   rename: vi.fn((oldKey: string, newKey: string) => {
     if (!mockRedisStore.has(oldKey)) {
@@ -106,10 +129,20 @@ const mockRedis = {
   expire: vi.fn(),
 
   multi: vi.fn(() => {
+    // Applies each queued command to the store at once, through the single-command mocks.
+    const queue =
+      (name: "lPush" | "lTrim" | "hIncrBy" | "hSet" | "set") =>
+      (...args: unknown[]) => {
+        (mockRedis[name] as (...a: unknown[]) => unknown)(...args);
+        return chain;
+      };
     const chain = {
       expire: vi.fn(() => chain),
-      hIncrBy: vi.fn(() => chain),
-      set: vi.fn(() => chain),
+      lPush: vi.fn(queue("lPush")),
+      lTrim: vi.fn(queue("lTrim")),
+      hIncrBy: vi.fn(queue("hIncrBy")),
+      hSet: vi.fn(queue("hSet")),
+      set: vi.fn(queue("set")),
       exec: vi.fn(),
     };
     return chain;
@@ -185,6 +218,7 @@ describe("Views tracking buffering and flushing", () => {
     prismaMock.shareLink.findMany.mockReset();
     prismaMock.shareLink.update.mockReset();
     prismaMock.viewFlushBatch.create.mockReset();
+    prismaMock.$executeRaw.mockClear();
     prismaMock.portfolioPublication.findMany.mockImplementation(({ where }) =>
       where.id.in.map((id: string) => ({ id })),
     );
@@ -235,25 +269,14 @@ describe("Views tracking buffering and flushing", () => {
       const result = await PortfolioService.flushViewsForDate(dateKey);
       expect(result.flushedCount).toBe(8);
 
-      expect(prismaMock.portfolioViewDaily.upsert).toHaveBeenCalledTimes(2);
-      expect(prismaMock.portfolioViewDaily.upsert).toHaveBeenCalledWith({
-        where: {
-          publicationId_date_referrerHost: {
-            publicationId: "pub_123",
-            date: new Date("2026-05-31T00:00:00.000Z"),
-            referrerHost: "google.com",
-          },
-        },
-        create: {
-          publicationId: "pub_123",
-          date: new Date("2026-05-31T00:00:00.000Z"),
-          referrerHost: "google.com",
-          count: 5,
-        },
-        update: {
-          count: { increment: 5 },
-        },
-      });
+      // One INSERT … ON CONFLICT for the day (V-103); the SQL itself is covered by
+      // tests/integration/flushes-and-limits.test.ts against a real Postgres.
+      expect(prismaMock.portfolioViewDaily.upsert).not.toHaveBeenCalled();
+      expect(prismaMock.$executeRaw).toHaveBeenCalledTimes(1);
+      const [, , publicationIds, hosts, counts] = prismaMock.$executeRaw.mock.calls[0] as unknown[];
+      expect(publicationIds).toEqual(["pub_123", "pub_123"]);
+      expect(hosts).toEqual(["google.com", "linkedin.com"]);
+      expect(counts).toEqual([5, 3]);
 
       // Verify Redis buffer is cleared
       expect(mockRedisStore.has(redisKey)).toBe(false);
@@ -323,19 +346,14 @@ describe("Views tracking buffering and flushing", () => {
         ],
       });
 
-      expect(prismaMock.shareLink.update).toHaveBeenCalledWith({
-        where: { id: "link_456" },
-        data: {
-          viewCount: { increment: 2 },
-          lastViewedAt: new Date(timestamp),
-        },
-      });
-
-      expect(prismaMock.shareView.deleteMany).toHaveBeenCalledWith({
-        where: {
-          createdAt: { lt: expect.any(Date) },
-        },
-      });
+      // One UPDATE … FROM unnest(…) for every link (V-110); retention is no longer part of the
+      // flush (`pruneShareViews`).
+      expect(prismaMock.shareLink.update).not.toHaveBeenCalled();
+      const [, ids, counts, lastViewedAtMs] = prismaMock.$executeRaw.mock.calls.at(-1) as unknown[];
+      expect(ids).toEqual(["link_456"]);
+      expect(counts).toEqual([2]);
+      expect(lastViewedAtMs).toEqual([timestamp]);
+      expect(prismaMock.shareView.deleteMany).not.toHaveBeenCalled();
 
       expect(mockRedisStore.has("share:views:buffer")).toBe(false);
       expect(mockRedisStore.has("share:links:view_count")).toBe(false);

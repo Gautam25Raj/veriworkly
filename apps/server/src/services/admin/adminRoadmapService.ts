@@ -2,11 +2,10 @@ import { randomUUID } from "node:crypto";
 
 import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
-import { cacheDelByPrefix } from "#lib/redis";
 
 import { Prisma } from "@prisma/client";
 
-import { RoadmapStatus } from "#services/roadmapService";
+import { RoadmapStatus, invalidateRoadmapReadCaches } from "#services/roadmapService";
 
 interface RoadmapAdminCreateInput {
   id?: string;
@@ -55,7 +54,7 @@ function calculateQuarter(date: Date): string {
 
 async function invalidateRoadmapCache(): Promise<void> {
   try {
-    await cacheDelByPrefix("roadmap:");
+    await invalidateRoadmapReadCaches();
   } catch {
     // Cache invalidation is best-effort and should not fail write operations.
   }

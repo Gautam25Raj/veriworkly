@@ -158,9 +158,25 @@ function isExpired(expiresAt: string | Date | null | undefined) {
   return new Date(expiresAt).getTime() <= Date.now();
 }
 
+/**
+ * Negative cache: a well-formed key with no valid row is remembered for a minute, so a client
+ * retrying a dead key (or a scanner) costs one Postgres lookup per minute, not one per request.
+ * Read in the same round trip as the revoked marker. Dropped by `invalidateAuthCache` (admin
+ * reactivation) and on create; a fresh random key cannot already have one, but it costs nothing.
+ */
+const INVALID_KEY_TTL_SECONDS = 60;
+
+function invalidKeyMarkerKey(keyHash: string) {
+  return `apikey:invalid:${keyHash}`;
+}
+
+async function markKeyInvalid(keyHash: string) {
+  await cacheSet(invalidKeyMarkerKey(keyHash), 1, INVALID_KEY_TTL_SECONDS);
+}
+
 async function invalidateAuthCache(keyHash: string) {
   try {
-    await cacheDel(`apikey:auth:${keyHash}`);
+    await getRedis().unlink([`apikey:auth:${keyHash}`, invalidKeyMarkerKey(keyHash)]);
   } catch (error) {
     logger.warn("Failed to invalidate API key auth cache", error);
   }
@@ -193,9 +209,14 @@ async function markKeyRevoked(keyHash: string) {
   await invalidateAuthCache(keyHash);
 }
 
+/** True when the key is revoked or known invalid; one MGET for both markers. */
 async function isKeyMarkedRevoked(keyHash: string) {
   try {
-    return (await cacheGet<number>(revokedMarkerKey(keyHash))) != null;
+    const markers = await getRedis().mGet([
+      revokedMarkerKey(keyHash),
+      invalidKeyMarkerKey(keyHash),
+    ]);
+    return markers.some((marker) => marker != null);
   } catch (error) {
     logger.warn("Failed to read API key revoked marker", error);
     return false;
@@ -264,7 +285,7 @@ export class ApiKeyService {
       },
     });
 
-    await invalidateProfileCache(userId);
+    await Promise.all([invalidateProfileCache(userId), invalidateAuthCache(hashedKey)]);
     return { ...created, key: rawKey } satisfies ApiKeyCreateResult;
   }
 
@@ -307,6 +328,7 @@ export class ApiKeyService {
     });
 
     if (!apiKey) {
+      await markKeyInvalid(keyHash);
       return null;
     }
 
@@ -539,7 +561,7 @@ export class ApiKeyService {
     // After commit only: a marker written before the rollback of a lost race would lock a key
     // that is still live.
     await markKeyRevoked(rotated.previousKeyHash);
-    await invalidateProfileCache(userId);
+    await Promise.all([invalidateProfileCache(userId), invalidateAuthCache(hashedKey)]);
 
     return { ...rotated.created, key: rawKey, rotatedFromId: rotated.previousId };
   }
@@ -557,6 +579,18 @@ export class ApiKeyService {
     });
 
     await Promise.all(keys.map((key) => invalidateAuthCache(key.keyHash)));
+
+    // A validateKey() that read the row just before an admin reactivation committed can write
+    // the negative marker after the delete above; drop it once more shortly afterwards.
+    if (keys.length > 0) {
+      setTimeout(async () => {
+        try {
+          await getRedis().unlink(keys.map((key) => invalidKeyMarkerKey(key.keyHash)));
+        } catch (error) {
+          logger.warn("Delayed API key negative-marker delete failed", error);
+        }
+      }, 1000).unref();
+    }
   }
 
   /**

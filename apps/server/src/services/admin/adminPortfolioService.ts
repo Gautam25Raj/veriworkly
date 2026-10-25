@@ -3,8 +3,8 @@ import type { z } from "zod";
 
 import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
-import { cacheDel, cacheDelByPrefix } from "#lib/redis";
-import { documentListCachePrefix } from "#lib/cacheKeys";
+import { bumpGeneration } from "#lib/cacheGeneration";
+import { documentCacheNamespaces } from "#lib/cacheKeys";
 
 import {
   invalidatePublicPortfolioCaches,
@@ -199,8 +199,7 @@ export async function getPublicationDetail(publicationId: string, days = 30) {
 async function propagatePublicationChange(subdomain: string, userId: string, documentId: string) {
   await Promise.all([
     invalidatePublicPortfolioCaches([subdomain]),
-    cacheDel(`document:${userId}:${documentId}`),
-    cacheDelByPrefix(documentListCachePrefix(userId)),
+    bumpGeneration(...documentCacheNamespaces(userId, documentId)),
   ]);
 
   void revalidatePublicPortfolios([subdomain]);

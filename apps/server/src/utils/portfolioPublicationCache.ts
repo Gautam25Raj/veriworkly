@@ -1,23 +1,26 @@
 import { config } from "#config";
 
 import { logger } from "#lib/logger";
-import { cacheDel, cacheDelByPrefix } from "#lib/redis";
+import { cacheDel } from "#lib/redis";
+import { bumpGeneration, resolveGenerationalKey } from "#lib/cacheGeneration";
 
 /**
  * The two public caches live in separate namespaces under `portfolio:public:` (the prefix the
- * admin cache flush knows). Sites are keyed `...:site:<subdomain>` and the list `...:list[:l:o]`,
- * so no subdomain (not even `list`, which is also reserved) can read or poison the other.
+ * admin cache flush knows). Sites are keyed `...:site:<subdomain>` and the list
+ * `...:list:g<generation>[:l:o]`, so no subdomain (not even `list`, which is also reserved) can
+ * read or poison the other. The list is a generation namespace: one INCR drops every page.
  */
-const PUBLIC_LIST_CACHE_PREFIX = "portfolio:public:list";
+export const PUBLIC_LIST_CACHE_NAMESPACE = "portfolio:public:list";
 
 export function publicPortfolioCacheKey(subdomain: string) {
   return `portfolio:public:site:${subdomain}`;
 }
 
+/** Reads the list generation; call before the DB query. `null` means skip the cache. */
 export function publicPortfolioListCacheKey(limit?: number, offset?: number) {
   return limit !== undefined || offset !== undefined
-    ? `${PUBLIC_LIST_CACHE_PREFIX}:${limit || 0}:${offset || 0}`
-    : PUBLIC_LIST_CACHE_PREFIX;
+    ? resolveGenerationalKey(PUBLIC_LIST_CACHE_NAMESPACE, String(limit || 0), String(offset || 0))
+    : resolveGenerationalKey(PUBLIC_LIST_CACHE_NAMESPACE);
 }
 
 function uniqueSubdomains(subdomains: string[]) {
@@ -28,7 +31,7 @@ export async function invalidatePublicPortfolioCaches(subdomains: string[]) {
   const unique = uniqueSubdomains(subdomains);
 
   await Promise.all([
-    cacheDelByPrefix(PUBLIC_LIST_CACHE_PREFIX),
+    bumpGeneration(PUBLIC_LIST_CACHE_NAMESPACE),
     ...unique.map((subdomain) => cacheDel(publicPortfolioCacheKey(subdomain))),
   ]);
 }

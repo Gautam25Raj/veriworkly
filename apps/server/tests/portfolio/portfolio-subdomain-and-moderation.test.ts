@@ -1,4 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("#lib/cacheGeneration", () => ({
+  resolveGenerationalKey: vi.fn(async (namespace: string, ...parts: string[]) =>
+    [namespace, "g7", ...parts].join(":"),
+  ),
+  bumpGeneration: vi.fn(async () => undefined),
+}));
 
 import {
   normalizePortfolioSubdomain,
@@ -50,10 +57,11 @@ describe("normalizePortfolioSubdomain", () => {
 });
 
 describe("public cache keys", () => {
-  it("keeps the list and a site called 'list' in separate namespaces", () => {
-    expect(publicPortfolioListCacheKey()).not.toBe(publicPortfolioCacheKey("list"));
-    expect(publicPortfolioCacheKey("list").startsWith(publicPortfolioListCacheKey())).toBe(false);
-    expect(publicPortfolioListCacheKey(10, 20)).toBe("portfolio:public:list:10:20");
+  it("keeps the list and a site called 'list' in separate namespaces", async () => {
+    const listKey = await publicPortfolioListCacheKey();
+    expect(listKey).not.toBe(publicPortfolioCacheKey("list"));
+    expect(publicPortfolioCacheKey("list").startsWith(listKey!)).toBe(false);
+    expect(await publicPortfolioListCacheKey(10, 20)).toBe("portfolio:public:list:g7:10:20");
   });
 });
 

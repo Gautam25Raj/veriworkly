@@ -6,7 +6,8 @@ import type { GitHubStatsResponse } from "#types/api";
 
 import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
-import { cacheDel, cacheDelByPrefix, cacheGet, cacheSet, getRedis } from "#lib/redis";
+import { cacheDel, cacheGet, cacheSet, getRedis } from "#lib/redis";
+import { bumpGeneration, resolveGenerationalKey } from "#lib/cacheGeneration";
 import { logger } from "#lib/logger";
 
 import { MAX_CACHED_OFFSET } from "#utils/pagination";
@@ -22,7 +23,8 @@ import type {
 
 const PROJECT_URL = config.github.projectUrl;
 const REDIS_STATS_KEY = `github:stats:${PROJECT_URL}`;
-const ISSUES_CACHE_PREFIX = `github:issues:${encodeURIComponent(PROJECT_URL)}:`;
+/** Generation namespace: a sync invalidates every query variant with one INCR, not a SCAN. */
+const ISSUES_CACHE_NAMESPACE = `github:issues:${encodeURIComponent(PROJECT_URL)}`;
 const STATS_CACHE_TTL = 43200; // 12 hours
 const ISSUES_CACHE_TTL = 300; // 5 minutes
 
@@ -200,7 +202,9 @@ export async function getGitHubIssues(query: GitHubIssuesQuery): Promise<GitHubI
   // Date-filtered and deep-offset queries are not cached: each distinct value would be its own
   // Redis key, a key space any caller can grow (V-061).
   const cacheable = !query.createdAt && !query.updatedAt && query.offset <= MAX_CACHED_OFFSET;
-  const queryKey = cacheable ? `${ISSUES_CACHE_PREFIX}${sortedQuery.toString()}` : null;
+  const queryKey = cacheable
+    ? await resolveGenerationalKey(ISSUES_CACHE_NAMESPACE, sortedQuery.toString())
+    : null;
 
   const cached = queryKey ? await cacheGet<GitHubIssuesResult>(queryKey) : null;
 
@@ -489,7 +493,7 @@ export async function syncGitHubStatsFromGitHub(forceFullSync = false) {
     );
 
     await cacheDel(REDIS_STATS_KEY);
-    await cacheDelByPrefix(ISSUES_CACHE_PREFIX);
+    await bumpGeneration(ISSUES_CACHE_NAMESPACE);
 
     return syncRecord;
   } finally {

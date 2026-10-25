@@ -25,6 +25,8 @@ const txMock = {
 const prismaMock = {
   creditReservation: {
     count: vi.fn().mockResolvedValue(0),
+    // `consume` releases overdue reservations before it expires grants.
+    findMany: vi.fn().mockResolvedValue([]),
   },
   creditWallet: {
     upsert: vi.fn(),

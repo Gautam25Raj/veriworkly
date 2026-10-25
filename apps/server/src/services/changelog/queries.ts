@@ -5,9 +5,9 @@ import { cacheGet, cacheSet } from "#lib/redis";
 import { MAX_CACHED_OFFSET } from "#utils/pagination";
 
 import {
-  CHANGELOG_CACHE_KEYS,
   buildChangelogListCacheKey,
   buildChangelogEntryCacheKey,
+  buildChangelogStatsCacheKey,
 } from "./cache.js";
 import { computeContributorStats } from "./contributors.js";
 import type {
@@ -31,7 +31,7 @@ export async function getChangelogEntries(
   const cacheKey =
     search || tag || offset > MAX_CACHED_OFFSET
       ? null
-      : buildChangelogListCacheKey(type, tag, search, limit, offset);
+      : await buildChangelogListCacheKey(type, tag, search, limit, offset);
   const cached = cacheKey ? await cacheGet<ChangelogListResult>(cacheKey) : null;
 
   if (cached) return cached;
@@ -116,8 +116,8 @@ export async function getChangelogEntries(
  * Fetch a single changelog entry by id (version slug).
  */
 export async function getChangelogEntryById(id: string) {
-  const cacheKey = buildChangelogEntryCacheKey(id);
-  const cached = await cacheGet(cacheKey);
+  const cacheKey = await buildChangelogEntryCacheKey(id);
+  const cached = cacheKey ? await cacheGet(cacheKey) : null;
 
   if (cached) return cached;
 
@@ -125,7 +125,7 @@ export async function getChangelogEntryById(id: string) {
 
   if (!entry) throw new ApiError(404, "Changelog entry not found");
 
-  await cacheSet(cacheKey, entry, config.cache.changelogTtlSeconds);
+  if (cacheKey) await cacheSet(cacheKey, entry, config.cache.changelogTtlSeconds);
 
   return entry;
 }
@@ -135,8 +135,8 @@ export async function getChangelogEntryById(id: string) {
  * Cached to reduce database load.
  */
 export async function getChangelogStats(): Promise<ChangelogStatsResult> {
-  const cacheKey = CHANGELOG_CACHE_KEYS.STATS_KEY;
-  const cached = await cacheGet<ChangelogStatsResult>(cacheKey);
+  const cacheKey = await buildChangelogStatsCacheKey();
+  const cached = cacheKey ? await cacheGet<ChangelogStatsResult>(cacheKey) : null;
 
   if (cached) return cached;
 
@@ -168,7 +168,7 @@ export async function getChangelogStats(): Promise<ChangelogStatsResult> {
     topContributors: contributorStats.topContributors,
   };
 
-  await cacheSet(cacheKey, stats, config.cache.changelogTtlSeconds);
+  if (cacheKey) await cacheSet(cacheKey, stats, config.cache.changelogTtlSeconds);
 
   return stats;
 }

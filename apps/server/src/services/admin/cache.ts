@@ -1,4 +1,4 @@
-import { cacheDelByPrefix } from "#lib/redis";
+import { bumpGeneration, resolveGenerationalKey } from "#lib/cacheGeneration";
 
 /**
  * Redis caching for the admin overview surface.
@@ -27,36 +27,36 @@ export const ADMIN_OVERVIEW_TTL_SECONDS = 60;
 export const ADMIN_TIME_SERIES_TTL_SECONDS = 300;
 
 /**
- * Versioned so a change to any cached payload's shape cannot be served from a stale entry
- * written by the previous deploy. Bump it when one of these return types changes.
+ * A generation namespace (`#lib/cacheGeneration`). Versioned so a change to any cached payload's
+ * shape cannot be served from a stale entry written by the previous deploy; bump the version
+ * when one of these return types changes.
+ *
+ * Each key builder reads the current generation, so call it before building the value: a write
+ * that lands during the build strands the result under the old generation.
  */
-export const ADMIN_CACHE_PREFIX = "admin:overview:v1:";
+export const ADMIN_CACHE_NAMESPACE = "admin:overview:v1";
 
 export function adminOverviewCacheKey(days: number) {
-  return `${ADMIN_CACHE_PREFIX}summary:${days}`;
+  return resolveGenerationalKey(ADMIN_CACHE_NAMESPACE, "summary", String(days));
 }
 
 export function adminActionQueueCacheKey() {
-  return `${ADMIN_CACHE_PREFIX}queue`;
+  return resolveGenerationalKey(ADMIN_CACHE_NAMESPACE, "queue");
 }
 
 export function adminRecentActivityCacheKey() {
-  return `${ADMIN_CACHE_PREFIX}activity`;
+  return resolveGenerationalKey(ADMIN_CACHE_NAMESPACE, "activity");
 }
 
 export function adminTimeSeriesCacheKey(days: number) {
-  return `${ADMIN_CACHE_PREFIX}series:${days}`;
+  return resolveGenerationalKey(ADMIN_CACHE_NAMESPACE, "series", String(days));
 }
 
 /**
- * Drops every cached admin read in one call.
- *
- * A prefix delete rather than a list of `cacheDel`s because the overview and series keys are
- * parameterised by `days` (1–365 and 7–180 respectively, both clamped by the query validators),
- * so there is no fixed set of keys to enumerate. It is also the reason these keys share a
- * dedicated prefix instead of being scattered under `admin:*`, which would also match unrelated
- * entries such as `admin:dashboard:stats`.
+ * Drops every cached admin read in one call: one INCR of the namespace generation. The overview
+ * and series keys are parameterised by `days`, so there is no fixed set of keys to enumerate;
+ * the generation makes that irrelevant and costs no keyspace SCAN (V-079).
  */
 export async function invalidateAdminCaches() {
-  await cacheDelByPrefix(ADMIN_CACHE_PREFIX);
+  await bumpGeneration(ADMIN_CACHE_NAMESPACE);
 }

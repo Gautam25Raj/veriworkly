@@ -28,7 +28,13 @@ vi.mock("#lib/redis", () => ({
   cacheGet: cacheGetMock,
   cacheSet: cacheSetMock,
   cacheDel: vi.fn(async () => undefined),
-  cacheDelByPrefix: vi.fn(async () => undefined),
+}));
+
+vi.mock("#lib/cacheGeneration", () => ({
+  resolveGenerationalKey: vi.fn(async (namespace: string, ...parts: string[]) =>
+    [namespace, "g0", ...parts].join(":"),
+  ),
+  bumpGeneration: vi.fn(async () => undefined),
 }));
 
 vi.mock("#services/entitlementService", () => ({

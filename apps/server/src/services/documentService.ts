@@ -16,8 +16,9 @@ import { prisma } from "#lib/prisma";
 import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
 import { buildUniqueSlugHelper } from "#utils/slugs";
-import { cacheGet, cacheSet, cacheDel, cacheDelByPrefix } from "#lib/redis";
-import { documentListCachePrefix, userProfileCacheKey } from "#lib/cacheKeys";
+import { cacheGet, cacheSet, cacheDel } from "#lib/redis";
+import { bumpGeneration, resolveGenerationalKey } from "#lib/cacheGeneration";
+import { cacheNamespaces, documentCacheNamespaces, userProfileCacheKey } from "#lib/cacheKeys";
 import {
   invalidatePublicPortfolioCaches,
   revalidatePublicPortfolios,
@@ -165,8 +166,8 @@ export class DocumentService {
    *
    * `content` is only included when `includeContent` is set. The client's document
    * library renders from metadata alone, and `content` is by far the largest column —
-   * shipping it for every document made a 50-resume list a ~600KB response that was then
-   * held in Redis for 30 minutes. Full bodies come from `getDocument` instead.
+   * shipping it for every document made a 50-resume list a ~600KB response. Full bodies come
+   * from `getDocument` instead, and a list that includes them is never cached.
    *
    * `updatedSince` lets the client pull only what changed since its last hydrate. The cursor
    * is server-authoritative: every response carries `serverTime`, read on this clock before
@@ -188,9 +189,13 @@ export class DocumentService {
   }> {
     const includeContent = options?.includeContent ?? false;
     const since = options?.updatedSince;
-    const cacheKey = since
-      ? null
-      : `documents:list:${userId}:${type || "all"}:${includeContent ? "full" : "meta"}:v2`;
+    // Only the plain metadata list is cached (V-027/V-104): full bodies are too large for one
+    // Redis value and incremental cursors would mint a new key per call. The generation is
+    // read before the query, so a write that lands mid-read strands this value (V-122).
+    const cacheKey =
+      since || includeContent
+        ? null
+        : await resolveGenerationalKey(cacheNamespaces.documentList(userId), type || "all", "v3");
 
     if (cacheKey) {
       const cached = await cacheGet<{ documents: DocumentListItem[]; serverTime: string }>(
@@ -231,9 +236,8 @@ export class DocumentService {
         content: includeContent,
       },
       orderBy: { updatedAt: "desc" },
-      // Bounded because the full result is serialized into a single Redis value for 30 minutes;
-      // an account with hundreds of documents would otherwise produce a multi-megabyte cache
-      // entry and response body.
+      // Bounded so an account with hundreds of documents cannot produce a multi-megabyte
+      // response body (or, for the metadata list, cache entry).
       take: MAX_DOCUMENTS_PER_LIST,
     });
 
@@ -242,7 +246,7 @@ export class DocumentService {
       includeContent ? documents.map((document) => withMigratedContent(document)) : documents
     ) as DocumentListItem[];
 
-    if (!cacheKey) {
+    if (since) {
       const deleted = await prisma.document.findMany({
         where: { userId, type, deletedAt: { gte: since } },
         select: { id: true, deletedAt: true },
@@ -257,7 +261,7 @@ export class DocumentService {
       };
     }
 
-    await cacheSet(cacheKey, { documents: migrated, serverTime }, 1800);
+    if (cacheKey) await cacheSet(cacheKey, { documents: migrated, serverTime }, 1800);
 
     return { documents: migrated, deleted: [], serverTime };
   }
@@ -268,8 +272,9 @@ export class DocumentService {
    */
 
   static async getDocument(userId: string, documentId: string) {
-    const cacheKey = `document:${userId}:${documentId}`;
-    const cached = await cacheGet(cacheKey);
+    // Generation read before the DB load, so a write that lands in between strands this value.
+    const cacheKey = await resolveGenerationalKey(cacheNamespaces.document(userId, documentId));
+    const cached = cacheKey ? await cacheGet(cacheKey) : null;
 
     if (cached) return cached;
 
@@ -283,7 +288,7 @@ export class DocumentService {
 
     const migrated = withMigratedContent(document);
 
-    if (migrated) await cacheSet(cacheKey, migrated, 3600);
+    if (migrated && cacheKey) await cacheSet(cacheKey, migrated, 3600);
 
     return migrated;
   }
@@ -383,7 +388,7 @@ export class DocumentService {
       : await this.insertDocumentWithRetry(userId, input, prepared);
 
     if (result.created) {
-      await cacheDelByPrefix(documentListCachePrefix(userId));
+      await bumpGeneration(cacheNamespaces.documentList(userId));
       await cacheDel(userProfileCacheKey(userId));
     }
 
@@ -559,7 +564,7 @@ export class DocumentService {
     const { revision, updateShareSlug, ...data } = input;
     const updateData = { ...data };
 
-    const readableShareCacheKeys = new Set<string>();
+    let publicShareUsername: string | null = null;
 
     let shareLinkSlugUpdate: {
       id: string;
@@ -603,16 +608,12 @@ export class DocumentService {
         });
 
         if (shareLink) {
-          readableShareCacheKeys.add(`share:public-readable:${user.username}:${shareLink.slug}`);
+          publicShareUsername = user.username;
 
           shareLinkSlugUpdate = {
             id: shareLink.id,
             slug: await ShareService.buildUniqueShareSlug(userId, updateData.slug, shareLink.id),
           };
-
-          readableShareCacheKeys.add(
-            `share:public-readable:${user.username}:${shareLinkSlugUpdate.slug}`,
-          );
         }
       }
     }
@@ -666,13 +667,11 @@ export class DocumentService {
         return doc;
       });
 
-      await cacheDel(`document:${userId}:${documentId}`);
-      await cacheDelByPrefix(documentListCachePrefix(userId));
-
-      await Promise.all([
-        ...[...readableShareCacheKeys].map((cacheKey) => cacheDel(cacheKey)),
-        ...(shareLinkSlugUpdate ? [cacheDelByPrefix(`share:list:${userId}:${documentId}:`)] : []),
-      ]);
+      await bumpGeneration(
+        ...documentCacheNamespaces(userId, documentId),
+        ...(publicShareUsername ? [cacheNamespaces.publicShare(publicShareUsername)] : []),
+        ...(shareLinkSlugUpdate ? [cacheNamespaces.shareList(userId)] : []),
+      );
 
       return withMigratedContent(updated);
     } catch (error) {
@@ -766,17 +765,13 @@ export class DocumentService {
       throw error;
     }
 
-    await cacheDel(`document:${userId}:${documentId}`);
-    await cacheDelByPrefix(documentListCachePrefix(userId));
-    await cacheDelByPrefix(`share:shared-document-ids:${userId}:`);
-
-    if (existing.user?.username) {
-      const username = existing.user.username;
-
-      for (const share of existing.shareLinks) {
-        await cacheDel(`share:public-readable:${username}:${share.slug}`);
-      }
-    }
+    await bumpGeneration(
+      ...documentCacheNamespaces(userId, documentId),
+      cacheNamespaces.sharedDocumentIds(userId),
+      ...(existing.user?.username && existing.shareLinks.length > 0
+        ? [cacheNamespaces.publicShare(existing.user.username)]
+        : []),
+    );
 
     if (livePublication) {
       await invalidatePublicPortfolioCaches([livePublication.subdomain]);
@@ -811,17 +806,13 @@ export class DocumentService {
       throw error;
     }
 
-    await cacheDel(`document:${userId}:${documentId}`);
-    await cacheDelByPrefix(documentListCachePrefix(userId));
-    await cacheDelByPrefix(`share:shared-document-ids:${userId}:`);
-
-    if (docWithShares?.user?.username) {
-      const username = docWithShares.user.username;
-
-      for (const share of docWithShares.shareLinks) {
-        await cacheDel(`share:public-readable:${username}:${share.slug}`);
-      }
-    }
+    await bumpGeneration(
+      ...documentCacheNamespaces(userId, documentId),
+      cacheNamespaces.sharedDocumentIds(userId),
+      ...(docWithShares?.user?.username && docWithShares.shareLinks.length > 0
+        ? [cacheNamespaces.publicShare(docWithShares.user.username)]
+        : []),
+    );
 
     return document;
   }
@@ -850,18 +841,14 @@ export class DocumentService {
       throw error;
     }
 
-    await cacheDel(`document:${userId}:${documentId}`);
-    await cacheDelByPrefix(documentListCachePrefix(userId));
-    await cacheDelByPrefix(`share:shared-document-ids:${userId}:`);
+    await bumpGeneration(
+      ...documentCacheNamespaces(userId, documentId),
+      cacheNamespaces.sharedDocumentIds(userId),
+      ...(docWithShares?.user?.username && docWithShares.shareLinks.length > 0
+        ? [cacheNamespaces.publicShare(docWithShares.user.username)]
+        : []),
+    );
     await cacheDel(userProfileCacheKey(userId));
-
-    if (docWithShares?.user?.username) {
-      const username = docWithShares.user.username;
-
-      for (const share of docWithShares.shareLinks) {
-        await cacheDel(`share:public-readable:${username}:${share.slug}`);
-      }
-    }
 
     return document;
   }

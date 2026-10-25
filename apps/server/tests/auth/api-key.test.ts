@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const cacheGetMock = vi.fn();
 const cacheSetMock = vi.fn();
+const mGetMock = vi.fn();
 vi.mock("#config", () => ({
   config: {
     apiKeys: {
@@ -20,6 +21,7 @@ vi.mock("#lib/redis", () => ({
   cacheSet: cacheSetMock,
   getRedis: () => ({
     set: vi.fn(),
+    mGet: mGetMock,
   }),
 }));
 
@@ -37,6 +39,8 @@ describe("API Key Service Validation", () => {
     cacheGetMock.mockReset();
     cacheSetMock.mockReset();
     prismaFindMock.mockReset();
+    mGetMock.mockReset();
+    mGetMock.mockResolvedValue([null, null]);
   });
 
   it("permits validation if user has an active subscription or no subscription", async () => {
@@ -107,15 +111,29 @@ describe("API Key Service Validation", () => {
   });
 
   it("refuses a key that carries the revoked marker before touching the cache or the database", async () => {
-    // Marker read first, then (never reached) the auth cache.
-    cacheGetMock.mockResolvedValueOnce(1);
+    // Markers (revoked, known-invalid) read first in one MGET; the auth cache is never reached.
+    mGetMock.mockResolvedValueOnce(["1", null]);
 
     const { ApiKeyService } = await import("../../src/services/apiKeyService");
     const result = await ApiKeyService.validateKey("vw_3234567890");
 
     expect(result).toBeNull();
-    expect(cacheGetMock).toHaveBeenCalledTimes(1);
-    expect(cacheGetMock.mock.calls[0][0]).toMatch(/^apikey:revoked:/);
+    expect(mGetMock.mock.calls[0][0][0]).toMatch(/^apikey:revoked:/);
+    expect(mGetMock.mock.calls[0][0][1]).toMatch(/^apikey:invalid:/);
+    expect(cacheGetMock).not.toHaveBeenCalled();
     expect(prismaFindMock).not.toHaveBeenCalled();
+  });
+
+  it("remembers a key with no valid row so the next attempt skips the database", async () => {
+    cacheGetMock.mockResolvedValue(null);
+    prismaFindMock.mockResolvedValue(null);
+
+    const { ApiKeyService } = await import("../../src/services/apiKeyService");
+    expect(await ApiKeyService.validateKey("vw_4234567890")).toBeNull();
+
+    const negative = cacheSetMock.mock.calls.find(([key]) =>
+      String(key).startsWith("apikey:invalid:"),
+    );
+    expect(negative?.[2]).toBe(60);
   });
 });

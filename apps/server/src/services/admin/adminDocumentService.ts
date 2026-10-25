@@ -3,8 +3,8 @@ import type { z } from "zod";
 
 import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
-import { cacheDel, cacheDelByPrefix } from "#lib/redis";
-import { documentListCachePrefix } from "#lib/cacheKeys";
+import { bumpGeneration } from "#lib/cacheGeneration";
+import { cacheNamespaces, documentCacheNamespaces } from "#lib/cacheKeys";
 
 import { isModerationLocked, MODERATION_SUSPENSION_PREFIX } from "#services/portfolioService";
 import {
@@ -159,14 +159,11 @@ async function invalidateOwnerDocumentCaches(
   username: string | null,
   shareSlugs: string[],
 ) {
-  await Promise.all([
-    cacheDel(`document:${userId}:${documentId}`),
-    cacheDelByPrefix(documentListCachePrefix(userId)),
-    cacheDelByPrefix(`share:shared-document-ids:${userId}:`),
-    ...(username
-      ? shareSlugs.map((slug) => cacheDel(`share:public-readable:${username}:${slug}`))
-      : []),
-  ]);
+  await bumpGeneration(
+    ...documentCacheNamespaces(userId, documentId),
+    cacheNamespaces.sharedDocumentIds(userId),
+    ...(username && shareSlugs.length > 0 ? [cacheNamespaces.publicShare(username)] : []),
+  );
 }
 
 /**
@@ -362,7 +359,7 @@ export async function revokeShareLink(shareLinkId: string) {
     [share.slug],
   );
 
-  await cacheDelByPrefix(`share:list:${share.userId}:${share.documentId}:`);
+  await bumpGeneration(cacheNamespaces.shareList(share.userId));
 
   return { id: shareLinkId, slug: share.slug };
 }

@@ -3,7 +3,23 @@ import { config } from "#config";
 import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
 import { cacheGet, cacheSet } from "#lib/redis";
+import { bumpGeneration, resolveGenerationalKey } from "#lib/cacheGeneration";
+
 import { MAX_CACHED_OFFSET } from "#utils/pagination";
+
+/**
+ * Generation namespaces for the public roadmap reads: one INCR each invalidates every variant,
+ * with no keyspace SCAN (and no prefix that could match anything else under `roadmap:`).
+ */
+export const ROADMAP_CACHE_NAMESPACES = {
+  list: "roadmap:list",
+  feature: "roadmap:feature",
+  stats: "roadmap:stats",
+} as const;
+
+export async function invalidateRoadmapReadCaches(): Promise<void> {
+  await bumpGeneration(...Object.values(ROADMAP_CACHE_NAMESPACES));
+}
 
 export type RoadmapStatus = "todo" | "in-progress" | "done";
 export type RoadmapSort = "newest" | "oldest" | "recently-completed";
@@ -70,7 +86,13 @@ const getRoadmapFeatures = async (query: RoadmapQuery = {}): Promise<RoadmapList
   const cacheKey =
     excludeId || offset > MAX_CACHED_OFFSET
       ? null
-      : `roadmap:list:${status || "all"}:${sort}:${limit}:${offset}`;
+      : await resolveGenerationalKey(
+          ROADMAP_CACHE_NAMESPACES.list,
+          status || "all",
+          sort,
+          String(limit),
+          String(offset),
+        );
   const cached = cacheKey ? await cacheGet<RoadmapListResult>(cacheKey) : null;
 
   if (cached) return cached;
@@ -137,8 +159,8 @@ const getRoadmapFeatures = async (query: RoadmapQuery = {}): Promise<RoadmapList
  */
 
 const getRoadmapFeatureById = async (id: string) => {
-  const cacheKey = `roadmap:feature:${id}`;
-  const cached = await cacheGet(cacheKey);
+  const cacheKey = await resolveGenerationalKey(ROADMAP_CACHE_NAMESPACES.feature, id);
+  const cached = cacheKey ? await cacheGet(cacheKey) : null;
 
   if (cached) return cached;
 
@@ -165,7 +187,7 @@ const getRoadmapFeatureById = async (id: string) => {
 
   if (!feature) throw new ApiError(404, "Roadmap feature not found");
 
-  await cacheSet(cacheKey, feature, config.cache.roadmapTtlSeconds);
+  if (cacheKey) await cacheSet(cacheKey, feature, config.cache.roadmapTtlSeconds);
 
   return feature;
 };
@@ -176,8 +198,8 @@ const getRoadmapFeatureById = async (id: string) => {
  */
 
 const getRoadmapStats = async () => {
-  const cacheKey = "roadmap:stats";
-  const cached = await cacheGet(cacheKey);
+  const cacheKey = await resolveGenerationalKey(ROADMAP_CACHE_NAMESPACES.stats);
+  const cached = cacheKey ? await cacheGet(cacheKey) : null;
 
   if (cached) return cached;
 
@@ -206,7 +228,7 @@ const getRoadmapStats = async () => {
     completionRate: totalFeatures === 0 ? "0.00" : ((doneCount / totalFeatures) * 100).toFixed(2),
   };
 
-  await cacheSet(cacheKey, stats, config.cache.roadmapStatsTtlSeconds);
+  if (cacheKey) await cacheSet(cacheKey, stats, config.cache.roadmapStatsTtlSeconds);
 
   return stats;
 };

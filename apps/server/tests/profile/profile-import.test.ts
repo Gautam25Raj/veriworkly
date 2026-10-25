@@ -11,10 +11,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * valid profile content, and the service refuses to persist content that is not.
  */
 
-const { prismaMock, entitlementHas } = vi.hoisted(() => ({
-  prismaMock: {
+const { prismaMock, entitlementHas } = vi.hoisted(() => {
+  const prismaMock = {
     masterProfile: {
       findUnique: vi.fn(async () => null),
+      create: vi.fn(async () => ({ id: "profile-1", updatedAt: new Date() })),
+      updateManyAndReturn: vi.fn(async () => []),
       upsert: vi.fn(async () => ({ id: "profile-1", updatedAt: new Date() })),
     },
     document: {
@@ -24,9 +26,14 @@ const { prismaMock, entitlementHas } = vi.hoisted(() => ({
       findFirst: vi.fn(async () => null),
     },
     user: { findUnique: vi.fn(async () => ({ username: "tester" })) },
-  },
-  entitlementHas: vi.fn(async () => true),
-}));
+    // The create runs in an interactive transaction under a per-user advisory lock; the mock
+    // hands the same delegates back as the transaction client and swallows the lock.
+    $executeRaw: vi.fn(async () => 1),
+    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn(prismaMock)),
+  };
+
+  return { prismaMock, entitlementHas: vi.fn(async () => true) };
+});
 
 vi.mock("#lib/prisma", () => ({ prisma: prismaMock }));
 
@@ -127,19 +134,24 @@ describe("ProfileService.updateMasterProfile validation", () => {
     mapGithubToResumeData(githubProfile({ email: "mona@example.com", location: "SF" }), []);
 
   beforeEach(() => {
-    prismaMock.masterProfile.upsert.mockClear();
+    prismaMock.masterProfile.create.mockClear();
+    prismaMock.masterProfile.updateManyAndReturn.mockClear();
     prismaMock.masterProfile.findUnique.mockClear();
+    prismaMock.masterProfile.findUnique.mockResolvedValue(null);
   });
 
-  it("refuses invalid content with a 422 and never reaches the database", async () => {
+  it("refuses invalid content with a 400 of [{ path, message }] and never reaches the database", async () => {
     const invalid = validProfile();
     invalid.basics.phone = "123";
 
-    await expect(ProfileService.updateMasterProfile("user-1", invalid)).rejects.toMatchObject({
-      statusCode: 422,
-    });
+    const error = await ProfileService.updateMasterProfile("user-1", invalid).catch((e) => e);
 
-    expect(prismaMock.masterProfile.upsert).not.toHaveBeenCalled();
+    expect(error).toMatchObject({ statusCode: 400 });
+    expect(Array.isArray(error.details)).toBe(true);
+    expect(error.details[0]).toEqual({ path: expect.any(String), message: expect.any(String) });
+
+    expect(prismaMock.masterProfile.create).not.toHaveBeenCalled();
+    expect(prismaMock.masterProfile.updateManyAndReturn).not.toHaveBeenCalled();
   });
 
   /*
@@ -152,13 +164,13 @@ describe("ProfileService.updateMasterProfile validation", () => {
 
     await ProfileService.updateMasterProfile("user-1", withSync);
 
-    expect(prismaMock.masterProfile.upsert).toHaveBeenCalledTimes(1);
+    expect(prismaMock.masterProfile.create).toHaveBeenCalledTimes(1);
 
-    const persisted = prismaMock.masterProfile.upsert.mock.calls[0][0] as {
-      create: { content: Record<string, unknown> };
+    const persisted = prismaMock.masterProfile.create.mock.calls[0][0] as {
+      data: { content: Record<string, unknown> };
     };
 
-    expect("sync" in persisted.create.content).toBe(false);
+    expect("sync" in persisted.data.content).toBe(false);
   });
 });
 

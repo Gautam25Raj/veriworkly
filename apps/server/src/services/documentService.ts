@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { DocumentType, Visibility, Prisma } from "@prisma/client";
+import { DocumentType, Visibility, Prisma, type Document } from "@prisma/client";
 import {
   projectToResume,
   parseMasterProfile,
@@ -18,10 +18,23 @@ import { ApiError } from "#lib/errors";
 import { buildUniqueSlugHelper } from "#utils/slugs";
 import { cacheGet, cacheSet, cacheDel, cacheDelByPrefix } from "#lib/redis";
 import { documentListCachePrefix, userProfileCacheKey } from "#lib/cacheKeys";
+import {
+  invalidatePublicPortfolioCaches,
+  revalidatePublicPortfolios,
+} from "#utils/portfolioPublicationCache";
 
 import { EntitlementService } from "#services/entitlementService";
 
 const MAX_DOCUMENTS_PER_LIST = 500;
+
+/**
+ * How far behind the query start the reported sync cursor sits. `@updatedAt` is stamped when
+ * the statement runs, not when its transaction commits, so a write that commits just after
+ * our snapshot can carry an `updatedAt` earlier than a cursor taken at query start and would
+ * never be returned. Backing the cursor off and comparing with `>=` turns that gap into a
+ * harmless overlap: the client sees such a document twice instead of never.
+ */
+const SYNC_CURSOR_SLACK_MS = 5_000;
 
 export type DocumentCreateInput = {
   id?: string;
@@ -45,6 +58,31 @@ export type DocumentUpdateInput = {
   templateId?: string;
   visibility?: Visibility;
   revision: number;
+};
+
+export type DocumentListItem = {
+  id: string;
+  type: DocumentType;
+  title: string;
+  slug: string;
+  tags: string[];
+  metadata: Prisma.JsonValue;
+  templateId: string;
+  visibility: Visibility;
+  revision: number;
+  lastSyncedAt: Date | null;
+  updatedAt: Date;
+  createdAt: Date;
+  /** Present only when the list was requested with `includeContent`. */
+  content?: unknown;
+};
+
+type PreparedCreate = {
+  title: string;
+  slugSource: string;
+  initialContent: Prisma.InputJsonValue | undefined;
+  resolvedTemplateId: string;
+  seededDocumentId: string | undefined;
 };
 
 const MAX_DOCUMENT_PAYLOAD_BYTES = 1_000_000;
@@ -102,9 +140,14 @@ function withMigratedContent<
 }
 
 export class DocumentService {
-  private static async buildUniqueSlug(userId: string, title: string, documentId?: string) {
+  private static async buildUniqueSlug(
+    userId: string,
+    title: string,
+    documentId?: string,
+    client: Prisma.TransactionClient = prisma,
+  ) {
     return buildUniqueSlugHelper(title, async (candidate) => {
-      const existing = await prisma.document.findFirst({
+      const existing = await client.document.findFirst({
         where: {
           userId,
           slug: candidate,
@@ -125,32 +168,52 @@ export class DocumentService {
    * shipping it for every document made a 50-resume list a ~600KB response that was then
    * held in Redis for 30 minutes. Full bodies come from `getDocument` instead.
    *
-   * `updatedSince` lets the client pull only what changed since its last hydrate. It is
-   * part of the cache key: omitting it would let a narrow incremental response be served
-   * as if it were the full list.
+   * `updatedSince` lets the client pull only what changed since its last hydrate. The cursor
+   * is server-authoritative: every response carries `serverTime`, read on this clock before
+   * the query, and the client sends it back as the next `updatedSince`. The comparison is
+   * `updatedAt >= since` (a write stamped at exactly the cursor is returned twice rather than
+   * never). Documents soft-deleted at or after the cursor come back as `{ id, deletedAt }`
+   * tombstones so the other device can drop them. Incremental responses are never cached:
+   * they are small, and a cached one would hand the same cursor out twice.
    */
 
   static async listDocuments(
     userId: string,
     type?: DocumentType,
     options?: { updatedSince?: Date; includeContent?: boolean },
-  ) {
+  ): Promise<{
+    documents: DocumentListItem[];
+    deleted: Array<{ id: string; deletedAt: Date }>;
+    serverTime: Date;
+  }> {
     const includeContent = options?.includeContent ?? false;
-    const sinceKey = options?.updatedSince ? options.updatedSince.toISOString() : "all";
-    const cacheKey = `documents:list:${userId}:${type || "all"}:${sinceKey}:${
-      includeContent ? "full" : "meta"
-    }`;
+    const since = options?.updatedSince;
+    const cacheKey = since
+      ? null
+      : `documents:list:${userId}:${type || "all"}:${includeContent ? "full" : "meta"}:v2`;
 
-    const cached = await cacheGet(cacheKey);
+    if (cacheKey) {
+      const cached = await cacheGet<{ documents: DocumentListItem[]; serverTime: string }>(
+        cacheKey,
+      );
 
-    if (cached) return cached;
+      if (cached) {
+        return {
+          documents: cached.documents,
+          deleted: [],
+          serverTime: new Date(cached.serverTime),
+        };
+      }
+    }
+
+    const serverTime = new Date(Date.now() - SYNC_CURSOR_SLACK_MS);
 
     const documents = await prisma.document.findMany({
       where: {
         userId,
         type,
         deletedAt: null,
-        ...(options?.updatedSince ? { updatedAt: { gt: options.updatedSince } } : {}),
+        ...(since ? { updatedAt: { gte: since } } : {}),
       },
       select: {
         id: true,
@@ -175,13 +238,28 @@ export class DocumentService {
     });
 
     // Migrated before the value is cached, so a cache hit serves the same shape a miss does.
-    const migrated = includeContent
-      ? documents.map((document) => withMigratedContent(document))
-      : documents;
+    const migrated = (
+      includeContent ? documents.map((document) => withMigratedContent(document)) : documents
+    ) as DocumentListItem[];
 
-    await cacheSet(cacheKey, migrated, 1800);
+    if (!cacheKey) {
+      const deleted = await prisma.document.findMany({
+        where: { userId, type, deletedAt: { gte: since } },
+        select: { id: true, deletedAt: true },
+        orderBy: { deletedAt: "desc" },
+        take: MAX_DOCUMENTS_PER_LIST,
+      });
 
-    return migrated;
+      return {
+        documents: migrated,
+        deleted: deleted as Array<{ id: string; deletedAt: Date }>,
+        serverTime,
+      };
+    }
+
+    await cacheSet(cacheKey, { documents: migrated, serverTime }, 1800);
+
+    return { documents: migrated, deleted: [], serverTime };
   }
 
   /**
@@ -215,29 +293,172 @@ export class DocumentService {
    * If content is not provided, it attempts to seed from MasterProfile.
    */
 
-  static async createDocument(userId: string, input: DocumentCreateInput) {
-    // Enforce 1 active document per type limit for free users
-    const isPaid =
-      (await EntitlementService.has(userId, "ai_credits")) ||
-      (await EntitlementService.has(userId, "portfolio_publish"));
+  /** `client` keeps the entitlement count on the caller's transaction connection. */
+  static async isPaidUser(userId: string, client: Prisma.TransactionClient = prisma) {
+    const at = new Date();
 
-    if (!isPaid) {
-      const activeCount = await prisma.document.count({
-        where: {
-          userId,
-          type: input.type,
-          deletedAt: null,
-        },
+    return (
+      (await EntitlementService.has(userId, "ai_credits", at, client)) ||
+      (await EntitlementService.has(userId, "portfolio_publish", at, client))
+    );
+  }
+
+  /**
+   * Free users keep one active document per type. Callers that do expensive work before the
+   * insert (the imports) use this as a pre-check; the authoritative check runs again inside the
+   * create transaction under the per-user lock, so two concurrent creates cannot both pass it.
+   */
+  static async assertFreeTierCapacity(
+    userId: string,
+    type: DocumentType,
+    client: Prisma.TransactionClient = prisma,
+  ) {
+    if (await this.isPaidUser(userId, client)) return;
+
+    const activeCount = await client.document.count({
+      where: { userId, type, deletedAt: null },
+    });
+
+    if (activeCount >= 1) {
+      throw new ApiError(
+        402,
+        `Free users can only have 1 active ${type.toLowerCase().replace("_", " ")} at a time. Upgrade to Creator Pro for unlimited documents.`,
+      );
+    }
+  }
+
+  /**
+   * What a create with a client-supplied id does when that id is already a row.
+   *
+   * The same user's live document is adopted: the stored row comes back unchanged and the
+   * caller answers 200, so a double sync (S-002) or a retry that lost the first response
+   * settles on the server's revision instead of retrying for ever. A soft-deleted row is a
+   * 409 carrying `deletedAt`: the client must not silently resurrect what the user deleted on
+   * another device. Another user's id is a bare 409.
+   */
+  private static adoptOrConflict(
+    userId: string,
+    existing: Document,
+  ): { document: Document; created: false } {
+    if (existing.userId !== userId) throw new ApiError(409, "Document ID already in use");
+
+    if (existing.deletedAt) {
+      throw new ApiError(409, "Document was deleted", {
+        id: existing.id,
+        deletedAt: existing.deletedAt,
       });
-
-      if (activeCount >= 1) {
-        throw new ApiError(
-          403,
-          `Free users can only have 1 active ${input.type.toLowerCase().replace("_", " ")} at a time. Upgrade to Creator Pro for unlimited documents.`,
-        );
-      }
     }
 
+    return { document: existing, created: false };
+  }
+
+  /**
+   * Create a new document, or adopt the one this user already stored under `input.id`.
+   * If content is not provided, it attempts to seed from MasterProfile.
+   *
+   * The insert itself runs under `pg_advisory_xact_lock(hashtext(userId))`, the same per-user
+   * lock `billingService` uses, so the id check, the free-tier count, the slug probe and the
+   * insert are serialised per user. An advisory lock rather than Serializable isolation because
+   * every writer here is the same user (two tabs, a double sync), the lock costs one round trip,
+   * and there is no retry loop to get wrong: a Serializable failure (P2034) would have to be
+   * retried from the top, seeding included.
+   *
+   * `tx` lets the imports run the insert inside their own transaction (quota + profile +
+   * document commit together). A P2002 inside a caller-supplied transaction is the caller's to
+   * handle, because the aborted transaction cannot be retried from here.
+   *
+   * `created` is false when an existing row was adopted; nothing was written and no cache
+   * needs clearing.
+   */
+
+  static async createDocument(
+    userId: string,
+    input: DocumentCreateInput,
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ document: Document; created: boolean }> {
+    const prepared = await this.prepareCreate(userId, input);
+
+    const result = tx
+      ? await this.insertDocument(tx, userId, input, prepared)
+      : await this.insertDocumentWithRetry(userId, input, prepared);
+
+    if (result.created) {
+      await cacheDelByPrefix(documentListCachePrefix(userId));
+      await cacheDel(userProfileCacheKey(userId));
+    }
+
+    return { document: withMigratedContent(result.document)!, created: result.created };
+  }
+
+  private static async insertDocumentWithRetry(
+    userId: string,
+    input: DocumentCreateInput,
+    prepared: PreparedCreate,
+  ): Promise<{ document: Document; created: boolean }> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await prisma.$transaction((tx) => this.insertDocument(tx, userId, input, prepared));
+      } catch (error) {
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"))
+          throw error;
+
+        // Another user inserted this id between our check and our insert (the per-user lock
+        // does not cover them). Same-user duplicates are caught before the insert.
+        if (input.id) {
+          const existing = await prisma.document.findUnique({ where: { id: input.id } });
+
+          if (existing) return this.adoptOrConflict(userId, existing);
+        }
+
+        // Otherwise the slug: rebuilt on the next attempt, where the probe sees the new row.
+        if (attempt >= 2) throw new ApiError(409, "Document slug is already in use");
+      }
+    }
+  }
+
+  private static async insertDocument(
+    client: Prisma.TransactionClient,
+    userId: string,
+    input: DocumentCreateInput,
+    prepared: PreparedCreate,
+  ): Promise<{ document: Document; created: boolean }> {
+    await client.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`;
+
+    if (input.id) {
+      const existing = await client.document.findUnique({ where: { id: input.id } });
+
+      if (existing) return this.adoptOrConflict(userId, existing);
+    }
+
+    await this.assertFreeTierCapacity(userId, input.type, client);
+
+    const slug = await this.buildUniqueSlug(userId, prepared.slugSource, undefined, client);
+
+    const document = await client.document.create({
+      data: {
+        slug,
+        title: prepared.title,
+        userId,
+        // `undefined` unless we seeded, which leaves prisma's own `@default(cuid())` in charge.
+        id: input.id ?? prepared.seededDocumentId,
+        type: input.type,
+        tags: input.tags || [],
+        lastSyncedAt: new Date(),
+        content: prepared.initialContent || {},
+        metadata: input.metadata || {},
+        templateId: prepared.resolvedTemplateId,
+        visibility: input.visibility || "PRIVATE",
+      },
+    });
+
+    return { document, created: true };
+  }
+
+  /** Everything about a create that needs no lock: seeding, size checks, title and template. */
+  private static async prepareCreate(
+    userId: string,
+    input: DocumentCreateInput,
+  ): Promise<PreparedCreate> {
     let initialContent = input.content;
 
     /*
@@ -294,22 +515,6 @@ export class DocumentService {
 
     const title = input.title || `Untitled ${input.type.toLowerCase().replace("_", " ")}`;
 
-    if (input.id) {
-      const existing = await prisma.document.findUnique({
-        where: { id: input.id },
-      });
-
-      if (existing) {
-        if (existing.userId !== userId) throw new ApiError(400, "Document ID already in use");
-
-        logger.info(`Document ${input.id} already exists for user ${userId}. Returning existing.`);
-
-        return existing;
-      }
-    }
-
-    const slug = await this.buildUniqueSlug(userId, input.slug || title);
-
     /*
      * The row's `templateId` column and the body's must agree: the client reads the column in
      * preference to the body, so a seeded resume left at the column's "modern" default would
@@ -334,27 +539,13 @@ export class DocumentService {
       } as unknown as Prisma.InputJsonValue;
     }
 
-    const document = await prisma.document.create({
-      data: {
-        slug,
-        title,
-        userId,
-        // `undefined` unless we seeded, which leaves prisma's own `@default(cuid())` in charge.
-        id: input.id ?? seededDocumentId,
-        type: input.type,
-        tags: input.tags || [],
-        lastSyncedAt: new Date(),
-        content: initialContent || {},
-        metadata: input.metadata || {},
-        templateId: resolvedTemplateId,
-        visibility: input.visibility || "PRIVATE",
-      },
-    });
-
-    await cacheDelByPrefix(documentListCachePrefix(userId));
-    await cacheDel(userProfileCacheKey(userId));
-
-    return withMigratedContent(document)!;
+    return {
+      title,
+      slugSource: input.slug || title,
+      initialContent,
+      resolvedTemplateId,
+      seededDocumentId,
+    };
   }
 
   /**
@@ -375,18 +566,35 @@ export class DocumentService {
       slug: string;
     } | null = null;
 
-    const shouldUpdateDocumentSlug = Boolean(input.slug || input.title);
+    /*
+     * The slug follows the title, but only when the title actually changed. Every autosave
+     * from the editor carries the title, and recomputing on each one rewrote a slug the user
+     * had set by hand (and, with `updateShareSlug`, the public share URL) on every keystroke.
+     */
+    let nextSlugSource: string | undefined;
 
-    if (shouldUpdateDocumentSlug) {
+    if (input.slug || input.title) {
+      const current = await prisma.document.findFirst({
+        where: { id: documentId, userId, deletedAt: null },
+        select: { title: true, slug: true },
+      });
+
+      if (!current) throw new ApiError(404, "Document not found");
+
+      if (input.slug) {
+        if (input.slug !== current.slug) nextSlugSource = input.slug;
+      } else if (input.title && input.title !== current.title) {
+        nextSlugSource = input.title;
+      }
+    }
+
+    if (nextSlugSource) {
       const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { username: true },
       });
 
-      const nextSlugSource = input.slug || input.title;
-
-      if (nextSlugSource)
-        updateData.slug = await this.buildUniqueSlug(userId, nextSlugSource, documentId);
+      updateData.slug = await this.buildUniqueSlug(userId, nextSlugSource, documentId);
 
       if (user?.username && updateData.slug && updateShareSlug) {
         const shareLink = await prisma.shareLink.findUnique({
@@ -438,6 +646,7 @@ export class DocumentService {
             id: documentId,
             userId,
             revision: revision,
+            deletedAt: null,
           },
 
           data: {
@@ -468,7 +677,10 @@ export class DocumentService {
       return withMigratedContent(updated);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
-        const current = await prisma.document.findFirst({ where: { id: documentId, userId } });
+        // A soft-deleted document is "not found" to a writer, whatever revision it carries.
+        const current = await prisma.document.findFirst({
+          where: { id: documentId, userId, deletedAt: null },
+        });
 
         if (!current) throw new ApiError(404, "Document not found");
 
@@ -488,23 +700,65 @@ export class DocumentService {
   }
 
   /**
-   * Soft delete a document
+   * Soft delete a document. Deleting one this user already soft-deleted is idempotent: the
+   * stored row comes back with 200, because the studio deletes cloud-first and could otherwise
+   * never drop its local copy after a lost response. An unknown or foreign id is 404.
+   *
+   * A PORTFOLIO document that is the live publication is unpublished in the same transaction.
+   * `PortfolioService.unpublish` is not reused here: it is keyed by user rather than document,
+   * opens its own transaction (so it could not be atomic with the soft delete), and pulling
+   * portfolioService into this module would drag billing along with it. The three fields it
+   * sets are written here instead, and its cache invalidation helpers are called after commit.
    */
 
   static async deleteDocument(userId: string, documentId: string) {
-    const docWithShares = await prisma.document.findFirst({
+    const existing = await prisma.document.findFirst({
       where: { id: documentId, userId },
       select: {
+        type: true,
+        deletedAt: true,
         user: { select: { username: true } },
         shareLinks: { select: { slug: true } },
+        portfolioPublication: { select: { id: true, subdomain: true, status: true } },
       },
     });
 
+    if (!existing) throw new ApiError(404, "Document not found");
+
+    if (existing.deletedAt) {
+      return prisma.document.findUniqueOrThrow({ where: { id: documentId } });
+    }
+
+    const livePublication =
+      existing.type === "PORTFOLIO" &&
+      existing.portfolioPublication &&
+      existing.portfolioPublication.status !== "SUSPENDED"
+        ? existing.portfolioPublication
+        : null;
+
     let document;
     try {
-      document = await prisma.document.update({
-        where: { id: documentId, userId },
-        data: { deletedAt: new Date() },
+      document = await prisma.$transaction(async (tx) => {
+        const row = await tx.document.update({
+          where: { id: documentId, userId, deletedAt: null },
+          data: {
+            deletedAt: new Date(),
+            ...(livePublication ? { visibility: "PRIVATE" as const } : {}),
+          },
+        });
+
+        if (livePublication) {
+          await tx.portfolioPublication.update({
+            where: { id: livePublication.id },
+            data: {
+              status: "SUSPENDED",
+              suspensionReason: "user_unpublished",
+              suspendedAt: new Date(),
+            },
+          });
+        }
+
+        return row;
       });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025")
@@ -516,12 +770,17 @@ export class DocumentService {
     await cacheDelByPrefix(documentListCachePrefix(userId));
     await cacheDelByPrefix(`share:shared-document-ids:${userId}:`);
 
-    if (docWithShares?.user?.username) {
-      const username = docWithShares.user.username;
+    if (existing.user?.username) {
+      const username = existing.user.username;
 
-      for (const share of docWithShares.shareLinks) {
+      for (const share of existing.shareLinks) {
         await cacheDel(`share:public-readable:${username}:${share.slug}`);
       }
+    }
+
+    if (livePublication) {
+      await invalidatePublicPortfolioCaches([livePublication.subdomain]);
+      void revalidatePublicPortfolios([livePublication.subdomain]);
     }
 
     return document;

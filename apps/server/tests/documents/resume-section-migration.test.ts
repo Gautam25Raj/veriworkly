@@ -172,9 +172,10 @@ describe("stored resume documents migrate to the typed section model on read", (
   it("migrates list results only when content was requested", async () => {
     prismaMock.document.findMany.mockResolvedValue([legacyResumeDocument()]);
 
-    const [withContent] = (await DocumentService.listDocuments("user-1", undefined, {
+    const { documents } = await DocumentService.listDocuments("user-1", undefined, {
       includeContent: true,
-    })) as Array<{ content: { references: unknown[] } }>;
+    });
+    const [withContent] = documents as Array<{ content: { references: unknown[] } }>;
 
     expect(withContent.content.references).toHaveLength(1);
   });

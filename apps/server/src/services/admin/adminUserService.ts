@@ -7,6 +7,7 @@ import { isAdminUser } from "#lib/isAdminUser";
 import { userProfileCacheKey } from "#lib/cacheKeys";
 import { revokeAllSessionsForUser, revokeAllSessionsForUserSafely } from "#auth/sessions";
 import { ApiKeyService } from "#services/apiKeyService";
+import { PortfolioAssetService } from "#services/portfolioAssetService";
 import {
   deleteUserCascade,
   purgeDeletedUserCaches,
@@ -350,6 +351,12 @@ export async function deleteUser(userId: string, confirmEmail: string) {
   // Read while the rows still exist: the exact cache keys are named after them.
   const cacheTargets = await readDeletedUserCacheTargets(userId);
 
+  // Same for the R2 keys: `PortfolioAsset.user` cascades, so after the commit nothing says
+  // which objects were this user's (V-018).
+  const assetKeys = (
+    await prisma.portfolioAsset.findMany({ where: { userId }, select: { key: true } })
+  ).map((asset) => asset.key);
+
   // Both caches must be purged *before* the cascade removes the rows they are found through —
   // otherwise the API keys' `apikey:auth:*` entries and the sessions' better-auth Redis entries
   // outlive the account and keep authenticating. The keys get the revoked marker, not a plain
@@ -361,7 +368,11 @@ export async function deleteUser(userId: string, confirmEmail: string) {
   // Same transaction body as self-service deletion (allocation pre-delete + user cascade).
   await prisma.$transaction((tx) => deleteUserCascade(tx, userId));
 
-  if (cacheTargets) await purgeDeletedUserCaches(cacheTargets);
+  // Best effort from here on: the account is gone, so neither may throw back to the admin.
+  await Promise.allSettled([
+    PortfolioAssetService.deleteAssetKeys(assetKeys),
+    ...(cacheTargets ? [purgeDeletedUserCaches(cacheTargets)] : []),
+  ]);
 
   return { id: userId, email: target.email };
 }

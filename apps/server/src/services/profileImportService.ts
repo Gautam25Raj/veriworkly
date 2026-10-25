@@ -9,6 +9,8 @@ import { prisma } from "#lib/prisma";
 import { config } from "#config";
 import { ApiError } from "#lib/errors";
 import { logger } from "#lib/logger";
+import { cacheDel, cacheDelByPrefix } from "#lib/redis";
+import { documentListCachePrefix } from "#lib/cacheKeys";
 import { masterProfileContentSchema } from "#validators/masterProfileValidator";
 import { getAtsAiPolicy } from "#services/ats/aiPolicy";
 import { aiFailure, createServerAtsAi, taskRoute } from "#services/ats/atsAi";
@@ -17,20 +19,41 @@ import { ProfileService } from "#services/profileService";
 import { ProfileImportQuotaService } from "#services/profileImportQuotaService";
 import { EntitlementService } from "#services/entitlementService";
 
-function cleanGithubUsername(input: string): string {
+/** GitHub's own rule: 1–39 alphanumerics or hyphens, not starting with a hyphen. */
+const GITHUB_USERNAME = /^[a-z\d](?:[a-z\d-]{0,38})$/i;
+
+/**
+ * A username from either a bare name or a github.com profile URL, or null when the input
+ * cannot be one. The URL path segment and bare input are held to the same rule, GitHub's own,
+ * before they are interpolated into an API URL (V-144): a URL segment used to be returned
+ * verbatim, and bare input was silently stripped of whatever did not fit.
+ */
+export function parseGithubUsername(input: string): string | null {
   const cleaned = input.trim();
-  if (cleaned.startsWith("http://") || cleaned.startsWith("https://")) {
+  let candidate = cleaned;
+
+  if (/^https?:\/\//i.test(cleaned)) {
+    let url: URL;
     try {
-      const url = new URL(cleaned);
-      if (url.hostname.includes("github.com")) {
-        const parts = url.pathname.split("/").filter(Boolean);
-        if (parts.length > 0) return parts[0];
-      }
+      url = new URL(cleaned);
     } catch {
-      // ignore url parse failures
+      return null;
     }
+
+    if (url.hostname !== "github.com" && url.hostname !== "www.github.com") return null;
+
+    const parts = url.pathname.split("/").filter(Boolean);
+    if (parts.length === 0) return null;
+
+    candidate = parts[0];
   }
-  return cleaned.replace(/[^a-zA-Z0-9-]/g, "");
+
+  // Anything the old filter would have silently dropped is a rejection now: "octo%20cat" is
+  // not a request for "octo20cat", and a name GitHub would refuse is not worth a round trip.
+  const sanitised = candidate.replace(/[^a-zA-Z0-9-]/g, "");
+  if (sanitised !== candidate) return null;
+
+  return GITHUB_USERNAME.test(candidate) ? candidate : null;
 }
 
 /**
@@ -244,15 +267,70 @@ function mapParsedToResumeData(parsed: any) {
 
 export class ProfileImportService {
   /**
+   * The one place an import writes. Quota consumption, the master-profile replacement and the
+   * document insert commit together (V-022): a failure in any of them rolls back the others,
+   * so a user is never left with a replaced profile and no document, or a spent quota and
+   * nothing to show for it. The free-tier and quota checks that guard the expensive work ran
+   * before the fetch/parse; the authoritative ones run again here, inside the transaction.
+   */
+  private static async commitImport(
+    userId: string,
+    input: {
+      isPaid: boolean;
+      provider: "linkedin" | "github";
+      title: string;
+      content: any;
+      replaceMaster: boolean;
+    },
+  ) {
+    const document = await prisma.$transaction(async (tx) => {
+      if (!input.isPaid) {
+        await ProfileImportQuotaService.consumeFreeQuota(userId, input.provider, tx);
+      }
+
+      if (input.replaceMaster) {
+        await ProfileService.replaceMasterProfile(userId, input.content, tx);
+      }
+
+      const created = await DocumentService.createDocument(
+        userId,
+        { type: "RESUME", title: input.title, content: input.content },
+        tx,
+      );
+
+      return created.document;
+    });
+
+    // After commit: the list cache was cleared inside createDocument, but a reader between
+    // that clear and the commit could have re-cached the pre-import state.
+    await Promise.all([
+      cacheDel(`profile:${userId}`),
+      cacheDelByPrefix(documentListCachePrefix(userId)),
+    ]);
+
+    return document;
+  }
+
+  /**
    * Import GitHub profile data and compile into resume format without AI.
    */
   static async importFromGithub(userId: string, usernameOrUrl: string, replaceMaster: boolean) {
+    const requestedUsername = parseGithubUsername(usernameOrUrl);
+
+    if (!requestedUsername) {
+      throw new ApiError(400, "Enter a valid GitHub username or profile URL.");
+    }
+
     const isPaid =
       (await EntitlementService.has(userId, "ai_credits")) ||
       (await EntitlementService.has(userId, "portfolio_publish"));
 
+    // Limits first: nothing below runs for a user who could not keep the result.
+    await ProfileImportQuotaService.assertQuotaAvailable(userId, "github");
+    await DocumentService.assertFreeTierCapacity(userId, "RESUME");
+
     let token: string | undefined = undefined;
-    let targetUsername = cleanGithubUsername(usernameOrUrl);
+    let targetUsername = requestedUsername;
 
     if (!isPaid) {
       // Free users can only import their own connected account data
@@ -286,12 +364,12 @@ export class ProfileImportService {
       const meData = await meResponse.json();
       targetUsername = meData.login;
     } else {
-      // Paid users can fetch any user profile using the server token
+      // Paid users can fetch any user profile using the server token. The shared API-budget
+      // cap counts calls, so it is taken before the calls it protects, whether or not they
+      // succeed; the free quota below is consumed only once the import commits.
       token = config.github.token || undefined;
+      await ProfileImportQuotaService.consumePaidGithubImportQuota(userId);
     }
-
-    // Enforce rate limits (database backed, once a day for free users)
-    await ProfileImportQuotaService.consumeQuota(userId, "github");
 
     // Fetch user details
     const headers: HeadersInit = {
@@ -323,16 +401,12 @@ export class ProfileImportService {
     // Map GitHub response directly without AI
     const resumeJson = mapGithubToResumeData(profileData, reposData);
 
-    // Save master profile if requested
-    if (replaceMaster) {
-      await ProfileService.updateMasterProfile(userId, resumeJson);
-    }
-
-    // Create document
-    return DocumentService.createDocument(userId, {
-      type: "RESUME",
+    return this.commitImport(userId, {
+      isPaid,
+      provider: "github",
       title: `GitHub Import (${targetUsername})`,
       content: resumeJson,
+      replaceMaster,
     });
   }
 
@@ -340,21 +414,22 @@ export class ProfileImportService {
    * Import LinkedIn profile from raw copy-pasted text/PDF content (still needs AI).
    */
   static async importFromLinkedin(userId: string, profileText: string, replaceMaster: boolean) {
-    // Enforce rate limits (database backed, once a month for free users)
-    await ProfileImportQuotaService.consumeQuota(userId, "linkedin");
+    const isPaid =
+      (await EntitlementService.has(userId, "ai_credits")) ||
+      (await EntitlementService.has(userId, "portfolio_publish"));
+
+    // Limits first: the AI call costs money and the quota must not be spent on a 402.
+    await ProfileImportQuotaService.assertQuotaAvailable(userId, "linkedin");
+    await DocumentService.assertFreeTierCapacity(userId, "RESUME");
 
     const resumeJson = await this.parseTextToResumeSchema(profileText);
 
-    // Save master profile if requested
-    if (replaceMaster) {
-      await ProfileService.updateMasterProfile(userId, resumeJson);
-    }
-
-    // Create document
-    return DocumentService.createDocument(userId, {
-      type: "RESUME",
+    return this.commitImport(userId, {
+      isPaid,
+      provider: "linkedin",
       title: "LinkedIn Import",
       content: resumeJson,
+      replaceMaster,
     });
   }
 

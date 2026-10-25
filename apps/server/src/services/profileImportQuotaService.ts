@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+
 import { prisma } from "#lib/prisma";
 import { getRedis } from "#lib/redis";
 import { EntitlementService } from "#services/entitlementService";
@@ -115,19 +117,58 @@ export class ProfileImportQuotaService {
     }
   }
 
+  private static quotaExceeded(provider: "linkedin" | "github", resetsInSeconds: number) {
+    const providerLabel = provider === "linkedin" ? "LinkedIn" : "GitHub";
+    const timeframe = provider === "linkedin" ? "once a month" : "once a day";
+
+    return new ApiError(
+      429,
+      `Free users can only import from ${providerLabel} ${timeframe}. Upgrade to Creator Pro for unlimited imports.`,
+      { resetsInSeconds },
+    );
+  }
+
   /**
-   * Consume user quota. Throws ApiError if quota is exceeded.
+   * Read-only eligibility check for a free user, run BEFORE the import does anything that
+   * costs money or hits a provider. Consumption happens later, inside the import transaction
+   * (`consumeFreeQuota`), so a failed fetch or AI call never burns the month's import.
    */
-  static async consumeQuota(userId: string, provider: "linkedin" | "github") {
+  static async assertQuotaAvailable(userId: string, provider: "linkedin" | "github") {
     const isPaid =
       (await EntitlementService.has(userId, "ai_credits")) ||
       (await EntitlementService.has(userId, "portfolio_publish"));
 
-    if (isPaid) {
-      if (provider === "github") await this.consumePaidGithubImportQuota(userId);
-      return;
-    }
+    if (isPaid) return;
 
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { lastLinkedinImportAt: true, lastGithubImportAt: true },
+    });
+
+    const lastImport =
+      provider === "linkedin" ? user?.lastLinkedinImportAt : user?.lastGithubImportAt;
+    const limitDuration = provider === "linkedin" ? THIRTY_DAYS_MS : ONE_DAY_MS;
+
+    if (!lastImport) return;
+
+    const elapsed = Date.now() - new Date(lastImport).getTime();
+
+    if (elapsed < limitDuration) {
+      throw this.quotaExceeded(provider, Math.ceil((limitDuration - elapsed) / 1000));
+    }
+  }
+
+  /**
+   * Consume a free user's quota. Throws ApiError if quota is exceeded. Takes the import's
+   * transaction client so the consumption commits (or rolls back) with the rest of the import.
+   * Paid users do not come through here: the GitHub API-budget cap is
+   * `consumePaidGithubImportQuota`, taken before the fetch it protects.
+   */
+  static async consumeFreeQuota(
+    userId: string,
+    provider: "linkedin" | "github",
+    client: Prisma.TransactionClient = prisma,
+  ) {
     const now = new Date();
     const limitDuration = provider === "linkedin" ? THIRTY_DAYS_MS : ONE_DAY_MS;
     const cutoff = new Date(now.getTime() - limitDuration);
@@ -138,14 +179,14 @@ export class ProfileImportQuotaService {
     // updateMany + affected-row-count pattern CreditService uses for balance mutations.
     const result =
       provider === "linkedin"
-        ? await prisma.user.updateMany({
+        ? await client.user.updateMany({
             where: {
               id: userId,
               OR: [{ lastLinkedinImportAt: null }, { lastLinkedinImportAt: { lt: cutoff } }],
             },
             data: { lastLinkedinImportAt: now },
           })
-        : await prisma.user.updateMany({
+        : await client.user.updateMany({
             where: {
               id: userId,
               OR: [{ lastGithubImportAt: null }, { lastGithubImportAt: { lt: cutoff } }],
@@ -155,13 +196,7 @@ export class ProfileImportQuotaService {
 
     if (result.count === 0) {
       const status = await this.checkQuota(userId, provider);
-      const providerLabel = provider === "linkedin" ? "LinkedIn" : "GitHub";
-      const timeframe = provider === "linkedin" ? "once a month" : "once a day";
-      throw new ApiError(
-        429,
-        `Free users can only import from ${providerLabel} ${timeframe}. Upgrade to Creator Pro for unlimited imports.`,
-        { resetsInSeconds: status.resetsInSeconds },
-      );
+      throw this.quotaExceeded(provider, status.resetsInSeconds);
     }
   }
 }

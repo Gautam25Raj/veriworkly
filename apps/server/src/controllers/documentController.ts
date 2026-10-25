@@ -47,12 +47,18 @@ export class DocumentController {
 
       const { type, updatedSince, includeContent } = listQuerySchema.parse(req.query);
 
-      const documents = await DocumentService.listDocuments(user.id, type, {
-        updatedSince,
-        includeContent,
-      });
+      const { documents, deleted, serverTime } = await DocumentService.listDocuments(
+        user.id,
+        type,
+        { updatedSince, includeContent },
+      );
 
-      res.json(createSuccessResponse(documents, "Documents fetched successfully"));
+      // `data` keeps its shape (the list); the sync cursor and tombstones ride beside it.
+      res.json({
+        ...createSuccessResponse(documents, "Documents fetched successfully"),
+        serverTime: serverTime.toISOString(),
+        deleted,
+      });
     } catch (error) {
       if (error instanceof z.ZodError) return next(handleValidationError(error));
       next(error);
@@ -100,9 +106,18 @@ export class DocumentController {
 
       const data = documentCreateSchema.parse(req.body);
 
-      const document = await DocumentService.createDocument(user.id, data);
+      const { document, created } = await DocumentService.createDocument(user.id, data);
 
-      res.status(201).json(createSuccessResponse(document, "Document created successfully"));
+      // Idempotent on the client's own id: an id this user already stored comes back 200 with
+      // the stored row, so a retried or doubled sync adopts the server's revision.
+      res
+        .status(created ? 201 : 200)
+        .json(
+          createSuccessResponse(
+            document,
+            created ? "Document created successfully" : "Document already exists",
+          ),
+        );
     } catch (error) {
       if (error instanceof z.ZodError) return next(handleValidationError(error));
       next(error);

@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+
 import { ApiError } from "#lib/errors";
 import { prisma } from "#lib/prisma";
 
@@ -20,9 +22,15 @@ export class EntitlementService {
     return [...new Set(grants.map((grant) => grant.key))];
   }
 
-  static async has(userId: string, key: EntitlementKey, at = new Date()) {
+  /** `client` lets a caller inside a transaction count on that connection instead of the pool. */
+  static async has(
+    userId: string,
+    key: EntitlementKey,
+    at = new Date(),
+    client: Prisma.TransactionClient = prisma,
+  ) {
     return (
-      (await prisma.entitlementGrant.count({
+      (await client.entitlementGrant.count({
         where: { userId, key, ...activeGrantWhere(at) },
       })) > 0
     );

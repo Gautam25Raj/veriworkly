@@ -263,6 +263,12 @@ export class UserService {
     // snapshot or published portfolio would keep serving a deleted user's page.
     const cacheTargets = await readDeletedUserCacheTargets(userId);
 
+    // Same reason for the R2 keys: `PortfolioAsset.user` cascades, so once the transaction
+    // commits there is no row left to say which objects were this user's (V-018).
+    const assetKeys = (
+      await prisma.portfolioAsset.findMany({ where: { userId }, select: { key: true } })
+    ).map((asset) => asset.key);
+
     /**
      * Refuse to delete while billing is live at the provider.
      *
@@ -340,7 +346,7 @@ export class UserService {
     const subdomain = cacheTargets?.subdomain ?? null;
 
     await Promise.allSettled([
-      PortfolioAssetService.deleteAllUserAssets(userId),
+      PortfolioAssetService.deleteAssetKeys(assetKeys),
       ...(cacheTargets ? [purgeDeletedUserCaches(cacheTargets)] : []),
     ]);
 

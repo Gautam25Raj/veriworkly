@@ -645,7 +645,7 @@ paths:
             minimum: 0
             default: 0
           required: false
-          description: Number of items to skip. Mutually redundant with `page` — `page` wins if both are sent.
+          description: Number of items to skip. An alternative to `page`; sending both is rejected with `400`.
         - name: page
           in: query
           schema:
@@ -667,6 +667,7 @@ paths:
           schema:
             type: string
             minLength: 1
+            maxLength: 100
           required: false
           description: Omit one feature from the results — useful for "related features" lists.
       responses:
@@ -844,6 +845,7 @@ paths:
           schema:
             type: string
             minLength: 1
+            maxLength: 60
           description: Return only entries carrying this tag.
         - name: search
           in: query
@@ -869,7 +871,7 @@ paths:
             type: integer
             minimum: 0
             default: 0
-          description: Number of items to skip. Redundant with `page` — `page` wins if both are sent.
+          description: Number of items to skip. An alternative to `page`; sending both is rejected with `400`.
         - name: page
           in: query
           required: false
@@ -1133,6 +1135,7 @@ paths:
             Derived at sync time — closed items and items labelled `done` map to `done`; items
             labelled `in-progress`, `in progress`, or `active` map to `in-progress`; everything else
             is `todo`.
+          required: false
         - in: query
           name: kind
           schema:
@@ -1142,6 +1145,7 @@ paths:
               - pull-request
               - all
           description: "`all` is equivalent to omitting the filter."
+          required: false
         - in: query
           name: limit
           schema:
@@ -1150,12 +1154,14 @@ paths:
             maximum: 50
             default: 20
           description: Items per page. Values above 50 are rejected with `400`.
+          required: false
         - in: query
           name: offset
           schema:
             type: integer
             minimum: 0
             default: 0
+          required: false
         - in: query
           name: page
           schema:
@@ -1163,6 +1169,7 @@ paths:
             minimum: 1
             default: 1
           description: 1-based page index. An alternative to `offset`.
+          required: false
         - in: query
           name: pageSize
           schema:
@@ -1170,6 +1177,43 @@ paths:
             minimum: 1
             maximum: 50
           description: Alternative spelling of `limit`. Takes precedence over `limit` when both are sent.
+          required: false
+        - name: createdFrom
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+                format: date
+              - type: string
+                format: date-time
+        - name: createdTo
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+                format: date
+              - type: string
+                format: date-time
+        - name: updatedFrom
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+                format: date
+              - type: string
+                format: date-time
+        - name: updatedTo
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+                format: date
+              - type: string
+                format: date-time
       responses:
         "200":
           description: GitHub issues fetched successfully
@@ -1224,29 +1268,24 @@ paths:
 
         Incremental by default: only issues updated since the last sync are refetched. The run is
         guarded by a 10-minute Redis lock, so a concurrent attempt fails with `409` rather than
-        double-syncing. The response is the updated sync record.
+        double-syncing.
+
+        A sync can take minutes, so it runs in the background: the response is `202` as soon as
+        the lock is taken. `GET /github/stats` shows the new `syncedAt` once it has finished; a
+        failed run leaves the previous data in place.
       responses:
-        "200":
-          description: Manual GitHub sync completed successfully
+        "202":
+          description: The sync started and is running in the background.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/GenericSuccessResponse"
               example:
                 success: true
-                message: Manual GitHub sync completed successfully
+                message: GitHub sync started
                 data:
-                  id: sync_123
-                  projectName: owner/repo
-                  projectUrl: https://github.com/owner/repo
-                  issueCount: 120
-                  onlyIssueCount: 70
-                  prCount: 50
-                  todoCount: 40
-                  inProgressCount: 30
-                  doneCount: 50
-                  syncedAt: 2026-04-26T10:00:00.000Z
-                  nextSyncAt: 2026-04-26T22:00:00.000Z
+                  status: started
+                  statusUrl: /api/v1/admin/system/github
         "401":
           $ref: "#/components/responses/UnauthorizedError"
         "403":
@@ -1269,16 +1308,18 @@ paths:
                 success: false
                 statusCode: 409
                 message: GitHub sync is already in progress
-        "502":
-          description: The GitHub API could not be reached, or kept returning a retryable error.
+        "503":
+          description: |
+            The sync cannot start: Redis, which holds its lock, is unreachable, or
+            `GITHUB_OWNER`/`GITHUB_REPO` are not configured.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
               example:
                 success: false
-                statusCode: 502
-                message: GitHub API communication failed
+                statusCode: 503
+                message: Syncing is unavailable right now. Try again shortly.
   /api/v1/auth/email-otp/send-verification-otp:
     post:
       tags:
@@ -1594,6 +1635,7 @@ paths:
                   minLength: 1
                   description: A descriptive name for the API key.
                   example: My Documentation Key
+                  maxLength: 100
                 scopes:
                   type: array
                   description: |
@@ -1610,11 +1652,15 @@ paths:
                     silently clamped down to 20 rather than rejected.
                   example: 20
                 expiresAt:
-                  type: string
-                  format: date-time
                   description: |
                     ISO timestamp for expiry. Defaults to 365 days from creation when omitted — keys
                     are never issued without an expiry.
+                  anyOf:
+                    - type: string
+                      const: ""
+                    - type: string
+                      format: date-time
+                    - type: "null"
             example:
               name: My Documentation Key
               scopes:
@@ -1701,8 +1747,12 @@ paths:
               type: object
               properties:
                 name:
-                  type: string
                   description: Replacement name. Carried over from the old key when omitted or blank.
+                  anyOf:
+                    - type: string
+                      minLength: 1
+                      maxLength: 100
+                    - type: "null"
                 scopes:
                   type: array
                   description: Scopes for the replacement key. Carried over from the old key when omitted.
@@ -1716,11 +1766,15 @@ paths:
                     Requests allowed per 15-minute window. Carried over when omitted; values above 20
                     are silently clamped down to 20.
                 expiresAt:
-                  type: string
-                  format: date-time
                   description: |
                     New expiry. Carried over from the old key when omitted, falling back to 365 days
                     from now if the old key had none.
+                  anyOf:
+                    - type: string
+                      const: ""
+                    - type: string
+                      format: date-time
+                    - type: "null"
             example: {}
       responses:
         "201":
@@ -2480,6 +2534,9 @@ paths:
       description: |
         Updates a document using optimistic concurrency control: `revision` must match the
         document's current revision or the request fails with `409`.
+
+        The response is the updated document without `content` and `metadata` (the body you sent
+        is not echoed back); keep the returned `revision` for the next update.
       parameters:
         - name: id
           in: path
@@ -2501,7 +2558,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DocumentResponse"
+                $ref: "#/components/schemas/DocumentUpdateResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -3264,6 +3321,11 @@ paths:
 
         No user session is required, but the request must carry an API key or originate from a
         whitelisted first-party origin; otherwise it is rejected with `401`.
+
+        The body may also be sent as `text/plain` holding the same JSON, which is what
+        `navigator.sendBeacon(url, JSON.stringify(body))` sends: a CORS-safelisted type, so a
+        published portfolio's subdomain can send it without a preflight. A `text/plain` body is
+        limited to 2 KB.
       security:
         - ApiKeyAuth: []
         - {}
@@ -3283,8 +3345,16 @@ paths:
                 referrer:
                   type: string
                   description: |
-                    Full referring URL. Only its hostname is stored, lowercased and truncated to 255
-                    characters; an unparseable value is recorded as an empty host.
+                    Full referring URL. One longer than 2048 characters is cut to that length rather
+                    than refused, so the view still counts. Only its hostname is stored,
+                    lowercased and truncated to 255 characters; an unparseable URL is recorded as an
+                    empty host.
+          text/plain:
+            schema:
+              type: string
+              maxLength: 5120
+              description: The same object as the JSON body, serialized as JSON. A body over 5 KB is refused with `413`.
+            example: '{"referrer":"https://news.ycombinator.com/"}'
       responses:
         "202":
           description: View accepted
@@ -3296,6 +3366,8 @@ paths:
                 success: true
                 message: Success
                 data: null
+        "400":
+          $ref: "#/components/responses/ValidationError"
         "404":
           description: No live portfolio exists at this subdomain.
           content:
@@ -3391,6 +3463,8 @@ paths:
           required: true
           schema:
             type: string
+            minLength: 1
+            maxLength: 63
       responses:
         "200":
           description: Availability checked successfully
@@ -5435,7 +5509,6 @@ components:
         expectedUpdatedAt:
           type: string
           format: date-time
-          nullable: true
           description: Pass the `updatedAt` value from your last read. Omit only when creating the profile for the first time.
         profile:
           $ref: "#/components/schemas/MasterProfileContent"
@@ -5496,6 +5569,7 @@ components:
             A GitHub username or profile URL. Free users may only import their own OAuth-connected
             account (this value is ignored server-side and the caller's authenticated GitHub login is
             used instead); paid users may import any public username.
+          minLength: 1
         replaceMaster:
           type: boolean
           default: false
@@ -6354,6 +6428,84 @@ components:
           type: string
         data:
           $ref: "#/components/schemas/Document"
+    DocumentUpdateResponse:
+      type: object
+      required:
+        - success
+        - message
+        - data
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          $ref: "#/components/schemas/DocumentUpdateResult"
+    DocumentUpdateResult:
+      type: object
+      description: |
+        The updated document without `content` and `metadata`: an update sends the whole body, so it
+        is not echoed back. `GET /documents/{id}` returns them.
+      required:
+        - id
+        - userId
+        - type
+        - title
+        - slug
+        - tags
+        - templateId
+        - schemaVersion
+        - revision
+        - visibility
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        type:
+          type: string
+          enum:
+            - RESUME
+            - COVER_LETTER
+            - PORTFOLIO
+            - LINK_IN_BIO
+        title:
+          type: string
+        slug:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        templateId:
+          type: string
+        schemaVersion:
+          type: integer
+        revision:
+          type: integer
+          description: The new revision. Send it with the next update.
+        visibility:
+          type: string
+          enum:
+            - PRIVATE
+            - UNLISTED
+            - PUBLIC
+        lastSyncedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
     DocumentCreateRequest:
       type: object
       required:
@@ -6371,21 +6523,30 @@ components:
             - LINK_IN_BIO
         title:
           type: string
+          minLength: 1
+          maxLength: 255
         slug:
           type: string
+          minLength: 1
+          maxLength: 255
         tags:
           type: array
           items:
             type: string
+            minLength: 1
+            maxLength: 40
+          maxItems: 20
         content:
           type: object
-          additionalProperties: true
+          additionalProperties: {}
           description: If omitted for RESUME/COVER_LETTER, content is auto-seeded from the user's MasterProfile when one exists.
         metadata:
           type: object
-          additionalProperties: true
+          additionalProperties: {}
         templateId:
           type: string
+          minLength: 1
+          maxLength: 64
         visibility:
           type: string
           enum:
@@ -6399,8 +6560,12 @@ components:
       properties:
         title:
           type: string
+          minLength: 1
+          maxLength: 255
         slug:
           type: string
+          minLength: 1
+          maxLength: 255
         updateShareSlug:
           type: boolean
           description: When true and an active share link exists, its slug is updated to track the new document slug.
@@ -6408,14 +6573,19 @@ components:
           type: array
           items:
             type: string
+            minLength: 1
+            maxLength: 40
+          maxItems: 20
         content:
           type: object
-          additionalProperties: true
+          additionalProperties: {}
         metadata:
           type: object
-          additionalProperties: true
+          additionalProperties: {}
         templateId:
           type: string
+          minLength: 1
+          maxLength: 64
         visibility:
           type: string
           enum:
@@ -6425,6 +6595,7 @@ components:
         revision:
           type: integer
           description: Must match the document's current revision. Mismatch returns 409.
+          minimum: 1
     AtsRuleResult:
       type: object
       properties:
@@ -7129,6 +7300,7 @@ components:
         jobDescription:
           type: string
           description: Optional plain-text job description to compute a jobMatchScore against.
+          maxLength: 20000
         layout:
           $ref: "#/components/schemas/AtsLayoutSignals"
         file:
@@ -7167,10 +7339,12 @@ components:
           $ref: "#/components/schemas/AtsResumeInput"
         jobDescription:
           type: string
+          maxLength: 20000
         jobUrl:
           type: string
           format: uri
           description: Required when fetchJobUrl is true. Fetched server-side through an SSRF-hardened HTTPS-only fetcher (blocks localhost/private/link-local IPs, pins the resolved IP for the whole request, caps redirects to 3, response size to 2MB, and timeout to 8s).
+          maxLength: 2048
         fetchJobUrl:
           type: boolean
           default: false
@@ -7178,6 +7352,7 @@ components:
           type: string
           minLength: 8
           description: Client-generated idempotency key for the underlying AI credit reservation.
+          maxLength: 128
         layout:
           $ref: "#/components/schemas/AtsLayoutSignals"
         file:
@@ -7277,9 +7452,11 @@ components:
           type: string
           minLength: 1
           description: Raw resume text to convert into structured JSON Resume fields.
+          maxLength: 50000
         requestId:
           type: string
           minLength: 8
+          maxLength: 128
     AtsConvertedResume:
       type: object
       description: AI-extracted resume fields. Every field defaults to an empty string/array when not explicitly present in the source text — nothing is invented.
@@ -7791,16 +7968,270 @@ components:
         documentId:
           type: string
           description: Omit to create (or continue) the user's single PORTFOLIO document.
+          minLength: 1
         subdomain:
           type: string
           maxLength: 63
+          minLength: 1
         revision:
           type: integer
           description: Required once a draft already exists, for optimistic concurrency (409 on mismatch).
+          minimum: 1
         snapshot:
           type: object
-          additionalProperties: true
           description: Portfolio content. The draft schema is more permissive than the publish schema (empty strings allowed) so incomplete drafts can still be saved.
+          properties:
+            schemaVersion:
+              type: number
+              const: 1
+            templateId:
+              type: string
+              enum:
+                - signal
+                - atelier
+                - nimbus
+                - cipher
+            identity:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 120
+                headline:
+                  type: string
+                  maxLength: 240
+                bio:
+                  type: string
+                  maxLength: 1600
+                location:
+                  type: string
+                  maxLength: 120
+                email:
+                  anyOf:
+                    - type: string
+                      const: ""
+                    - type: string
+                      maxLength: 254
+                      format: email
+                availability:
+                  type: string
+                  maxLength: 160
+                avatar:
+                  anyOf:
+                    - type: object
+                      properties:
+                        id:
+                          type: string
+                          minLength: 1
+                          maxLength: 128
+                        url:
+                          type: string
+                          maxLength: 2048
+                          format: uri
+                      required:
+                        - id
+                        - url
+                    - type: "null"
+              required:
+                - name
+                - headline
+                - bio
+                - location
+                - email
+                - availability
+                - avatar
+            seo:
+              type: object
+              properties:
+                title:
+                  type: string
+                  maxLength: 120
+                description:
+                  type: string
+                  maxLength: 300
+                socialImage:
+                  anyOf:
+                    - type: object
+                      properties:
+                        id:
+                          type: string
+                          minLength: 1
+                          maxLength: 128
+                        url:
+                          type: string
+                          maxLength: 2048
+                          format: uri
+                      required:
+                        - id
+                        - url
+                    - type: "null"
+              required:
+                - title
+                - description
+                - socialImage
+            socialLinks:
+              maxItems: 12
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    minLength: 1
+                    maxLength: 128
+                  label:
+                    type: string
+                    maxLength: 80
+                  url:
+                    anyOf:
+                      - type: string
+                        const: ""
+                      - type: string
+                        maxLength: 2048
+                        format: uri
+                required:
+                  - id
+                  - label
+                  - url
+            sections:
+              maxItems: 24
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    minLength: 1
+                    maxLength: 128
+                  type:
+                    type: string
+                    enum:
+                      - projects
+                      - experience
+                      - services
+                      - skills
+                      - education
+                      - writing
+                      - testimonials
+                      - awards
+                      - certifications
+                      - languages
+                      - interests
+                      - publications
+                      - patents
+                      - testScores
+                      - achievements
+                      - volunteer
+                      - custom
+                      - contact
+                  title:
+                    type: string
+                    maxLength: 120
+                  subtitle:
+                    type: string
+                    maxLength: 240
+                  visible:
+                    type: boolean
+                  items:
+                    maxItems: 24
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: {}
+                  settings:
+                    type: object
+                    additionalProperties: {}
+                required:
+                  - id
+                  - type
+                  - title
+                  - visible
+                  - items
+            pages:
+              maxItems: 10
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    minLength: 1
+                    maxLength: 128
+                  slug:
+                    type: string
+                    minLength: 1
+                    maxLength: 63
+                  title:
+                    type: string
+                    maxLength: 120
+                  sections:
+                    maxItems: 24
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          minLength: 1
+                          maxLength: 128
+                        type:
+                          type: string
+                          enum:
+                            - projects
+                            - experience
+                            - services
+                            - skills
+                            - education
+                            - writing
+                            - testimonials
+                            - awards
+                            - certifications
+                            - languages
+                            - interests
+                            - publications
+                            - patents
+                            - testScores
+                            - achievements
+                            - volunteer
+                            - custom
+                            - contact
+                        title:
+                          type: string
+                          maxLength: 120
+                        subtitle:
+                          type: string
+                          maxLength: 240
+                        visible:
+                          type: boolean
+                        items:
+                          maxItems: 24
+                          type: array
+                          items:
+                            type: object
+                            additionalProperties: {}
+                        settings:
+                          type: object
+                          additionalProperties: {}
+                      required:
+                        - id
+                        - type
+                        - title
+                        - visible
+                        - items
+                required:
+                  - id
+                  - slug
+                  - title
+                  - sections
+            removeWatermark:
+              type: boolean
+          required:
+            - schemaVersion
+            - templateId
+            - identity
+            - seo
+            - socialLinks
+            - sections
     PortfolioPublishRequest:
       type: object
       required:
@@ -7810,12 +8241,15 @@ components:
       properties:
         documentId:
           type: string
+          minLength: 1
         subdomain:
           type: string
           maxLength: 63
+          minLength: 1
         revision:
           type: integer
           description: Must match the draft's current revision (save the latest draft first).
+          minimum: 1
     PortfolioAnalytics:
       type: object
       properties:
@@ -7886,14 +8320,11 @@ components:
             - SOCIAL_IMAGE
         mimeType:
           type: string
-          enum:
-            - image/jpeg
-            - image/png
-            - image/webp
+          minLength: 1
         sizeBytes:
           type: integer
-          maximum: 5242880
           description: Must be greater than 0 and no more than 5 MB.
+          exclusiveMinimum: 0
     PortfolioAssetUploadResponse:
       type: object
       required:
@@ -7924,9 +8355,11 @@ components:
       properties:
         assetId:
           type: string
+          minLength: 1
         checksum:
           type: string
           description: Optional ETag to verify against the uploaded object.
+          maxLength: 256
     PortfolioAssetCompleteResponse:
       type: object
       required:
@@ -8161,6 +8594,7 @@ components:
         redirectUrl:
           type: string
           description: Relative path (must start with a single `/`) to return to after checkout.
+          pattern: ^\/(?!\/)
     CheckoutResponse:
       type: object
       required:
@@ -8224,6 +8658,7 @@ components:
         redirectUrl:
           type: string
           description: Relative path (must start with a single `/`) to return to after checkout.
+          pattern: ^\/(?!\/)
     CreditPackCheckoutResponse:
       type: object
       required:
@@ -8296,17 +8731,20 @@ components:
       properties:
         documentId:
           type: string
+          minLength: 1
         snapshot:
           type: object
-          additionalProperties: true
+          additionalProperties: {}
           description: Static content snapshot captured at share time.
         password:
           type: string
           description: When provided, the link is scrypt-hashed and requires this password to view.
+          minLength: 1
         expiresAt:
-          type: string
-          format: date-time
-          nullable: true
+          anyOf:
+            - type: string
+              format: date-time
+            - type: "null"
         noExpiry:
           type: boolean
         updateSlug:
@@ -8414,8 +8852,10 @@ components:
           type: string
           minLength: 4
           maxLength: 32
+          pattern: ^[a-z0-9-]+$
         referrerHost:
           type: string
+          maxLength: 255
     AffiliateClickResponse:
       type: object
       required:
@@ -8597,6 +9037,7 @@ components:
           minLength: 4
           maxLength: 32
           description: Another affiliate's code. Self-referrals are rejected.
+          pattern: ^[a-z0-9-]+$
     AffiliateReferralResponse:
       type: object
       required:
@@ -8648,10 +9089,10 @@ components:
         collegeName:
           type: string
           minLength: 2
-          maxLength: 160
+          maxLength: 120
         graduationYear:
           type: string
-          pattern: ^(19|20)\d{2}$
+          pattern: ^\d{4}$
           description: A real 4-digit year, validated both client- and server-side.
         whyJoin:
           type: string
@@ -8660,17 +9101,17 @@ components:
         superpower:
           type: string
           minLength: 2
-          maxLength: 300
+          maxLength: 160
         funFact:
           type: string
           minLength: 2
-          maxLength: 300
+          maxLength: 200
         vibeCheck:
           type: string
           maxLength: 80
         socialHandle:
           type: string
-          maxLength: 120
+          maxLength: 100
     AmbassadorApplicationResponse:
       type: object
       required:
@@ -8734,11 +9175,20 @@ components:
           $ref: "#/components/schemas/AmbassadorStatus"
   responses:
     ValidationError:
-      description: Bad Request - The request body or parameters are invalid.
+      description: |
+        Bad Request - The request body or parameters are invalid. `details` lists every failing
+        field as `{ path, message }`, `path` being the dotted field path.
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            statusCode: 400
+            message: Validation failed
+            details:
+              - path: profile.basics.email
+                message: Invalid email
     UnauthorizedError:
       description: Unauthorized - Authentication failed or session expired.
       content:

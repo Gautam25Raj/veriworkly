@@ -161,29 +161,24 @@ syncGitHubStats:
 
       Incremental by default: only issues updated since the last sync are refetched. The run is
       guarded by a 10-minute Redis lock, so a concurrent attempt fails with `409` rather than
-      double-syncing. The response is the updated sync record.
+      double-syncing.
+
+      A sync can take minutes, so it runs in the background: the response is `202` as soon as
+      the lock is taken. `GET /github/stats` shows the new `syncedAt` once it has finished; a
+      failed run leaves the previous data in place.
     responses:
-      "200":
-        description: Manual GitHub sync completed successfully
+      "202":
+        description: The sync started and is running in the background.
         content:
           application/json:
             schema:
               $ref: "../components/schemas.yaml#/GenericSuccessResponse"
             example:
               success: true
-              message: "Manual GitHub sync completed successfully"
+              message: "GitHub sync started"
               data:
-                id: "sync_123"
-                projectName: "owner/repo"
-                projectUrl: "https://github.com/owner/repo"
-                issueCount: 120
-                onlyIssueCount: 70
-                prCount: 50
-                todoCount: 40
-                inProgressCount: 30
-                doneCount: 50
-                syncedAt: "2026-04-26T10:00:00.000Z"
-                nextSyncAt: "2026-04-26T22:00:00.000Z"
+                status: "started"
+                statusUrl: "/api/v1/admin/system/github"
       "401":
         $ref: "../components/responses.yaml#/UnauthorizedError"
       "403":
@@ -206,13 +201,15 @@ syncGitHubStats:
               success: false
               statusCode: 409
               message: "GitHub sync is already in progress"
-      "502":
-        description: The GitHub API could not be reached, or kept returning a retryable error.
+      "503":
+        description: |
+          The sync cannot start: Redis, which holds its lock, is unreachable, or
+          `GITHUB_OWNER`/`GITHUB_REPO` are not configured.
         content:
           application/json:
             schema:
               $ref: "../components/schemas.yaml#/ErrorResponse"
             example:
               success: false
-              statusCode: 502
-              message: "GitHub API communication failed"
+              statusCode: 503
+              message: "Syncing is unavailable right now. Try again shortly."

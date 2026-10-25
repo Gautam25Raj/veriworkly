@@ -168,6 +168,9 @@ documentItem:
     description: |
       Updates a document using optimistic concurrency control: `revision` must match the
       document's current revision or the request fails with `409`.
+
+      The response is the updated document without `content` and `metadata` (the body you sent
+      is not echoed back); keep the returned `revision` for the next update.
     parameters:
       - name: id
         in: path
@@ -189,7 +192,7 @@ documentItem:
         content:
           application/json:
             schema:
-              $ref: "../components/schemas.yaml#/DocumentResponse"
+              $ref: "../components/schemas.yaml#/DocumentUpdateResponse"
       "400":
         $ref: "../components/responses.yaml#/ValidationError"
       "401":

@@ -168,7 +168,229 @@ function assertRefsResolve(document) {
   }
 }
 
+/* ------------------------------------------------- request schemas (zod) */
+
+// Request shapes come from the server's zod validators (IMPROVEMENTS 14): the server writes
+// `specs/generated/requests.json` (`npm run generate:openapi -w @veriworkly/server`), and it is
+// merged here over the hand-written spec. The generated JSON Schema supplies types, constraints,
+// enums and `required`; the hand-written spec keeps summaries, descriptions, examples, responses
+// and any `default` the code applies. A documented field the validator does not accept fails the
+// build, so the reference can no longer promise a parameter or body field the server drops.
+const generatedRequestsPath = path.join(specsDir, "generated/requests.json");
+
+const HTTP_METHODS = ["get", "put", "post", "patch", "delete"];
+const ANNOTATIONS = ["title", "description", "example", "examples", "deprecated", "externalDocs"];
+
+/** Hand-written component refs kept as written inside generated request schemas. */
+const keptRequestRefs = new Set();
+
+/** A schema that accepts anything: the hand-written one says more, so it is kept. */
+const acceptsAnything = (schema) =>
+  Object.keys(schema).every((key) => ANNOTATIONS.includes(key) || key === "default");
+
+const withoutAnnotations = (schema) =>
+  Object.fromEntries(Object.entries(schema).filter(([key]) => !ANNOTATIONS.includes(key)));
+
+function mergeSchema(generated, written, at, problems, readOutside = []) {
+  if (!written || typeof written !== "object") return generated;
+
+  // A shared component (the master profile, the ATS resume) is also used by responses, so it
+  // stays hand-written rather than being replaced by one route's input shape.
+  if (written.$ref || written.allOf) {
+    keptRequestRefs.add(`${at} -> ${written.$ref ?? "allOf"}`);
+    return written;
+  }
+
+  if (acceptsAnything(generated)) return written;
+
+  const merged = { ...generated };
+  for (const key of ANNOTATIONS) if (written[key] !== undefined) merged[key] = written[key];
+  if (merged.default === undefined && written.default !== undefined) {
+    merged.default = written.default;
+  }
+
+  if (generated.properties) {
+    const writtenProperties = written.properties ?? {};
+    merged.properties = {};
+
+    for (const [name, schema] of Object.entries(generated.properties)) {
+      merged.properties[name] = mergeSchema(
+        schema,
+        writtenProperties[name],
+        `${at}.${name}`,
+        problems,
+      );
+    }
+
+    for (const [name, schema] of Object.entries(writtenProperties)) {
+      if (name in generated.properties) continue;
+      if (readOutside.includes(name)) merged.properties[name] = schema;
+      else problems.push(`${at}.${name} is documented, but the zod schema does not accept it`);
+    }
+  }
+
+  if (generated.items && written.items) {
+    merged.items = mergeSchema(generated.items, written.items, `${at}[]`, problems);
+  }
+
+  if (
+    typeof generated.additionalProperties === "object" &&
+    typeof written.additionalProperties === "object"
+  ) {
+    merged.additionalProperties = mergeSchema(
+      generated.additionalProperties,
+      written.additionalProperties,
+      `${at}{}`,
+      problems,
+    );
+  }
+
+  if (Array.isArray(generated.anyOf)) {
+    const writtenBranches = written.anyOf ?? written.oneOf;
+    const pairwise = writtenBranches?.length === generated.anyOf.length;
+
+    merged.anyOf = generated.anyOf.map((branch, index) => {
+      if (pairwise) return mergeSchema(branch, writtenBranches[index], `${at}|${index}`, problems);
+      // `nullable` / single-type docs describe the non-null branch of the same type.
+      if (branch.type && branch.type !== "null" && branch.type === written.type) {
+        return mergeSchema(branch, withoutAnnotations(written), `${at}|${index}`, problems);
+      }
+      return branch;
+    });
+  }
+
+  // Keep the hand-written key and property order, so the reference reads as it was written.
+  if (merged.properties && written.properties) {
+    merged.properties = inWrittenOrder(merged.properties, written.properties);
+  }
+  return inWrittenOrder(merged, written);
+}
+
+function inWrittenOrder(merged, written) {
+  const keys = [
+    ...Object.keys(written).filter((key) => key in merged),
+    ...Object.keys(merged).filter((key) => !(key in written)),
+  ];
+  return Object.fromEntries(keys.map((key) => [key, merged[key]]));
+}
+
+function applyGeneratedRequests(document) {
+  const generated = JSON.parse(fs.readFileSync(generatedRequestsPath, "utf8"));
+  const problems = [];
+  const replacedComponents = new Map();
+
+  const documented = new Map();
+  for (const [route, item] of Object.entries(document.paths ?? {})) {
+    for (const method of HTTP_METHODS) {
+      if (item[method]) documented.set(`${method.toUpperCase()} ${route}`, item[method]);
+    }
+  }
+
+  for (const [key, entry] of Object.entries(generated.operations)) {
+    const operation = documented.get(key);
+    if (!operation) {
+      problems.push(`${key} is in the server's request registry but not in specs/paths`);
+      continue;
+    }
+
+    if (entry.parameters) {
+      operation.parameters ??= [];
+
+      for (const parameter of entry.parameters) {
+        const written = operation.parameters.find(
+          (candidate) => candidate.name === parameter.name && candidate.in === parameter.in,
+        );
+
+        if (written) {
+          written.required = parameter.required;
+          written.schema = mergeSchema(
+            parameter.schema,
+            written.schema,
+            `${key} ${parameter.in}:${parameter.name}`,
+            problems,
+          );
+        } else {
+          operation.parameters.push({ ...parameter });
+        }
+      }
+
+      const covered = new Set(entry.parameters.map((parameter) => parameter.in));
+      const outside = entry.readOutsideSchema?.query ?? [];
+      for (const written of operation.parameters) {
+        const known = entry.parameters.some(
+          (parameter) => parameter.name === written.name && parameter.in === written.in,
+        );
+        if (covered.has(written.in) && !known && !outside.includes(written.name)) {
+          problems.push(
+            `${key} ${written.in}:${written.name} is documented, but the zod schema does not accept it`,
+          );
+        }
+      }
+    }
+
+    if (entry.requestBody) {
+      const media = operation.requestBody?.content?.["application/json"];
+      const outside = entry.readOutsideSchema?.body ?? [];
+
+      if (!media) {
+        problems.push(`${key} validates a JSON body that the spec does not document`);
+      } else if (typeof media.schema?.$ref === "string") {
+        const name = media.schema.$ref.split("/").pop();
+        const component = document.components?.schemas?.[name];
+
+        if (replacedComponents.has(name)) {
+          problems.push(
+            `${key} and ${replacedComponents.get(name)} share request component ${name}`,
+          );
+        } else {
+          replacedComponents.set(name, key);
+          document.components.schemas[name] = mergeSchema(
+            entry.requestBody.schema,
+            component,
+            name,
+            problems,
+            outside,
+          );
+        }
+      } else {
+        media.schema = mergeSchema(
+          entry.requestBody.schema,
+          media.schema,
+          `${key} body`,
+          problems,
+          outside,
+        );
+      }
+    }
+  }
+
+  for (const [key, operation] of documented) {
+    if (key in generated.operations || key in generated.handWritten) continue;
+
+    const hasQuery = (operation.parameters ?? []).some((parameter) => parameter.in === "query");
+    if (hasQuery || operation.requestBody?.content?.["application/json"]) {
+      problems.push(
+        `${key} documents query parameters or a JSON body but is in neither OPENAPI_REQUEST_REGISTRY nor HAND_WRITTEN_REQUESTS (apps/server/src/openapi/registry.ts)`,
+      );
+    }
+  }
+
+  for (const key of Object.keys(generated.handWritten)) {
+    if (!documented.has(key))
+      problems.push(`${key} is listed as hand-written but not in specs/paths`);
+  }
+
+  if (problems.length > 0) {
+    throw new Error(
+      `The spec and the server's zod validators disagree (${problems.length}):\n  ${problems.join("\n  ")}`,
+    );
+  }
+
+  return Object.keys(generated.operations).length;
+}
+
 const bundled = resolve(load(path.join(specsDir, "openapi.yaml")), specsDir, null);
+const zodOperationCount = applyGeneratedRequests(bundled);
 assertRefsResolve(bundled);
 
 const bundledYaml = YAML.stringify(bundled, { lineWidth: 0 });
@@ -196,6 +418,12 @@ const pathCount = Object.keys(bundled.paths ?? {}).length;
 const schemaCount = Object.keys(bundled.components?.schemas ?? {}).length;
 console.log(
   `[api-docs] bundled ${pathCount} paths and ${schemaCount} schemas -> openapi.yaml, public/openapi.{json,yaml}`,
+);
+console.log(
+  `[api-docs] request schemas of ${zodOperationCount} operations taken from the server's zod validators` +
+    (keptRequestRefs.size > 0
+      ? `; hand-written components kept inside them: ${[...keptRequestRefs].join(", ")}`
+      : ""),
 );
 
 /* ---------------------------------------------------------------- generate */

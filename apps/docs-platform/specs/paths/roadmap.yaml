@@ -49,7 +49,7 @@ getRoadmap:
           minimum: 0
           default: 0
         required: false
-        description: Number of items to skip. Mutually redundant with `page` — `page` wins if both are sent.
+        description: Number of items to skip. An alternative to `page`; sending both is rejected with `400`.
 
       - name: page
         in: query

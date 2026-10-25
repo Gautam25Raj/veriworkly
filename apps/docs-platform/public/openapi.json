@@ -570,7 +570,7 @@
             "in": "query",
             "schema": { "type": "integer", "minimum": 0, "default": 0 },
             "required": false,
-            "description": "Number of items to skip. Mutually redundant with `page` — `page` wins if both are sent."
+            "description": "Number of items to skip. An alternative to `page`; sending both is rejected with `400`."
           },
           {
             "name": "page",
@@ -589,7 +589,7 @@
           {
             "name": "excludeId",
             "in": "query",
-            "schema": { "type": "string", "minLength": 1 },
+            "schema": { "type": "string", "minLength": 1, "maxLength": 100 },
             "required": false,
             "description": "Omit one feature from the results — useful for \"related features\" lists."
           }
@@ -770,7 +770,7 @@
             "name": "tag",
             "in": "query",
             "required": false,
-            "schema": { "type": "string", "minLength": 1 },
+            "schema": { "type": "string", "minLength": 1, "maxLength": 60 },
             "description": "Return only entries carrying this tag."
           },
           {
@@ -792,7 +792,7 @@
             "in": "query",
             "required": false,
             "schema": { "type": "integer", "minimum": 0, "default": 0 },
-            "description": "Number of items to skip. Redundant with `page` — `page` wins if both are sent."
+            "description": "Number of items to skip. An alternative to `page`; sending both is rejected with `400`."
           },
           {
             "name": "page",
@@ -1053,36 +1053,86 @@
             "in": "query",
             "name": "status",
             "schema": { "type": "string", "enum": ["todo", "in-progress", "done"] },
-            "description": "Derived at sync time — closed items and items labelled `done` map to `done`; items\nlabelled `in-progress`, `in progress`, or `active` map to `in-progress`; everything else\nis `todo`.\n"
+            "description": "Derived at sync time — closed items and items labelled `done` map to `done`; items\nlabelled `in-progress`, `in progress`, or `active` map to `in-progress`; everything else\nis `todo`.\n",
+            "required": false
           },
           {
             "in": "query",
             "name": "kind",
             "schema": { "type": "string", "enum": ["issue", "pull-request", "all"] },
-            "description": "`all` is equivalent to omitting the filter."
+            "description": "`all` is equivalent to omitting the filter.",
+            "required": false
           },
           {
             "in": "query",
             "name": "limit",
             "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 20 },
-            "description": "Items per page. Values above 50 are rejected with `400`."
+            "description": "Items per page. Values above 50 are rejected with `400`.",
+            "required": false
           },
           {
             "in": "query",
             "name": "offset",
-            "schema": { "type": "integer", "minimum": 0, "default": 0 }
+            "schema": { "type": "integer", "minimum": 0, "default": 0 },
+            "required": false
           },
           {
             "in": "query",
             "name": "page",
             "schema": { "type": "integer", "minimum": 1, "default": 1 },
-            "description": "1-based page index. An alternative to `offset`."
+            "description": "1-based page index. An alternative to `offset`.",
+            "required": false
           },
           {
             "in": "query",
             "name": "pageSize",
             "schema": { "type": "integer", "minimum": 1, "maximum": 50 },
-            "description": "Alternative spelling of `limit`. Takes precedence over `limit` when both are sent."
+            "description": "Alternative spelling of `limit`. Takes precedence over `limit` when both are sent.",
+            "required": false
+          },
+          {
+            "name": "createdFrom",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                { "type": "string", "format": "date" },
+                { "type": "string", "format": "date-time" }
+              ]
+            }
+          },
+          {
+            "name": "createdTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                { "type": "string", "format": "date" },
+                { "type": "string", "format": "date-time" }
+              ]
+            }
+          },
+          {
+            "name": "updatedFrom",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                { "type": "string", "format": "date" },
+                { "type": "string", "format": "date-time" }
+              ]
+            }
+          },
+          {
+            "name": "updatedTo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                { "type": "string", "format": "date" },
+                { "type": "string", "format": "date-time" }
+              ]
+            }
           }
         ],
         "responses": {
@@ -1133,29 +1183,17 @@
         "operationId": "syncGitHubStats",
         "security": [{ "LocalSession": [] }, { "ProdSession": [] }],
         "summary": "(Admin) Sync GitHub",
-        "description": "Manually triggers a GitHub sync. **Administrators only** — the caller's session email must\nmatch the configured `ADMIN_EMAIL`; an API key cannot reach this route.\n\nIncremental by default: only issues updated since the last sync are refetched. The run is\nguarded by a 10-minute Redis lock, so a concurrent attempt fails with `409` rather than\ndouble-syncing. The response is the updated sync record.\n",
+        "description": "Manually triggers a GitHub sync. **Administrators only** — the caller's session email must\nmatch the configured `ADMIN_EMAIL`; an API key cannot reach this route.\n\nIncremental by default: only issues updated since the last sync are refetched. The run is\nguarded by a 10-minute Redis lock, so a concurrent attempt fails with `409` rather than\ndouble-syncing.\n\nA sync can take minutes, so it runs in the background: the response is `202` as soon as\nthe lock is taken. `GET /github/stats` shows the new `syncedAt` once it has finished; a\nfailed run leaves the previous data in place.\n",
         "responses": {
-          "200": {
-            "description": "Manual GitHub sync completed successfully",
+          "202": {
+            "description": "The sync started and is running in the background.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/GenericSuccessResponse" },
                 "example": {
                   "success": true,
-                  "message": "Manual GitHub sync completed successfully",
-                  "data": {
-                    "id": "sync_123",
-                    "projectName": "owner/repo",
-                    "projectUrl": "https://github.com/owner/repo",
-                    "issueCount": 120,
-                    "onlyIssueCount": 70,
-                    "prCount": 50,
-                    "todoCount": 40,
-                    "inProgressCount": 30,
-                    "doneCount": 50,
-                    "syncedAt": "2026-04-26T10:00:00.000Z",
-                    "nextSyncAt": "2026-04-26T22:00:00.000Z"
-                  }
+                  "message": "GitHub sync started",
+                  "data": { "status": "started", "statusUrl": "/api/v1/admin/system/github" }
                 }
               }
             }
@@ -1183,15 +1221,15 @@
               }
             }
           },
-          "502": {
-            "description": "The GitHub API could not be reached, or kept returning a retryable error.",
+          "503": {
+            "description": "The sync cannot start: Redis, which holds its lock, is unreachable, or\n`GITHUB_OWNER`/`GITHUB_REPO` are not configured.\n",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" },
                 "example": {
                   "success": false,
-                  "statusCode": 502,
-                  "message": "GitHub API communication failed"
+                  "statusCode": 503,
+                  "message": "Syncing is unavailable right now. Try again shortly."
                 }
               }
             }
@@ -1459,7 +1497,8 @@
                     "type": "string",
                     "minLength": 1,
                     "description": "A descriptive name for the API key.",
-                    "example": "My Documentation Key"
+                    "example": "My Documentation Key",
+                    "maxLength": 100
                   },
                   "scopes": {
                     "type": "array",
@@ -1474,9 +1513,12 @@
                     "example": 20
                   },
                   "expiresAt": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "ISO timestamp for expiry. Defaults to 365 days from creation when omitted — keys\nare never issued without an expiry.\n"
+                    "description": "ISO timestamp for expiry. Defaults to 365 days from creation when omitted — keys\nare never issued without an expiry.\n",
+                    "anyOf": [
+                      { "type": "string", "const": "" },
+                      { "type": "string", "format": "date-time" },
+                      { "type": "null" }
+                    ]
                   }
                 }
               },
@@ -1567,8 +1609,11 @@
                 "type": "object",
                 "properties": {
                   "name": {
-                    "type": "string",
-                    "description": "Replacement name. Carried over from the old key when omitted or blank."
+                    "description": "Replacement name. Carried over from the old key when omitted or blank.",
+                    "anyOf": [
+                      { "type": "string", "minLength": 1, "maxLength": 100 },
+                      { "type": "null" }
+                    ]
                   },
                   "scopes": {
                     "type": "array",
@@ -1582,9 +1627,12 @@
                     "description": "Requests allowed per 15-minute window. Carried over when omitted; values above 20\nare silently clamped down to 20.\n"
                   },
                   "expiresAt": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "New expiry. Carried over from the old key when omitted, falling back to 365 days\nfrom now if the old key had none.\n"
+                    "description": "New expiry. Carried over from the old key when omitted, falling back to 365 days\nfrom now if the old key had none.\n",
+                    "anyOf": [
+                      { "type": "string", "const": "" },
+                      { "type": "string", "format": "date-time" },
+                      { "type": "null" }
+                    ]
                   }
                 }
               },
@@ -2330,7 +2378,7 @@
         "operationId": "updateDocument",
         "security": [{ "ApiKeyAuth": [] }, { "LocalSession": [] }, { "ProdSession": [] }],
         "summary": "Update Document",
-        "description": "Updates a document using optimistic concurrency control: `revision` must match the\ndocument's current revision or the request fails with `409`.\n",
+        "description": "Updates a document using optimistic concurrency control: `revision` must match the\ndocument's current revision or the request fails with `409`.\n\nThe response is the updated document without `content` and `metadata` (the body you sent\nis not echoed back); keep the returned `revision` for the next update.\n",
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
         ],
@@ -2347,7 +2395,9 @@
           "200": {
             "description": "Document updated successfully",
             "content": {
-              "application/json": { "schema": { "$ref": "#/components/schemas/DocumentResponse" } }
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DocumentUpdateResponse" }
+              }
             }
           },
           "400": { "$ref": "#/components/responses/ValidationError" },
@@ -3115,7 +3165,7 @@
         "tags": ["Portfolios"],
         "operationId": "recordPortfolioView",
         "summary": "Record Portfolio View",
-        "description": "Records an analytics view for a published portfolio. Responds `202 Accepted` with\n`data: null` — the count is not persisted synchronously.\n\nViews are buffered in Redis, deduplicated per viewer IP for 30 minutes, and flushed to\nPostgres by a scheduled job. A repeat view inside that window is accepted and silently\ndropped, so a `202` does not guarantee the count increased.\n\nNo user session is required, but the request must carry an API key or originate from a\nwhitelisted first-party origin; otherwise it is rejected with `401`.\n",
+        "description": "Records an analytics view for a published portfolio. Responds `202 Accepted` with\n`data: null` — the count is not persisted synchronously.\n\nViews are buffered in Redis, deduplicated per viewer IP for 30 minutes, and flushed to\nPostgres by a scheduled job. A repeat view inside that window is accepted and silently\ndropped, so a `202` does not guarantee the count increased.\n\nNo user session is required, but the request must carry an API key or originate from a\nwhitelisted first-party origin; otherwise it is rejected with `401`.\n\nThe body may also be sent as `text/plain` holding the same JSON, which is what\n`navigator.sendBeacon(url, JSON.stringify(body))` sends: a CORS-safelisted type, so a\npublished portfolio's subdomain can send it without a preflight. A `text/plain` body is\nlimited to 2 KB.\n",
         "security": [{ "ApiKeyAuth": [] }, {}],
         "parameters": [
           { "name": "subdomain", "in": "path", "required": true, "schema": { "type": "string" } }
@@ -3129,10 +3179,18 @@
                 "properties": {
                   "referrer": {
                     "type": "string",
-                    "description": "Full referring URL. Only its hostname is stored, lowercased and truncated to 255\ncharacters; an unparseable value is recorded as an empty host.\n"
+                    "description": "Full referring URL. One longer than 2048 characters is cut to that length rather\nthan refused, so the view still counts. Only its hostname is stored,\nlowercased and truncated to 255 characters; an unparseable URL is recorded as an\nempty host.\n"
                   }
                 }
               }
+            },
+            "text/plain": {
+              "schema": {
+                "type": "string",
+                "maxLength": 5120,
+                "description": "The same object as the JSON body, serialized as JSON. A body over 5 KB is refused with `413`."
+              },
+              "example": "{\"referrer\":\"https://news.ycombinator.com/\"}"
             }
           }
         },
@@ -3146,6 +3204,7 @@
               }
             }
           },
+          "400": { "$ref": "#/components/responses/ValidationError" },
           "404": {
             "description": "No live portfolio exists at this subdomain.",
             "content": {
@@ -3233,7 +3292,12 @@
         "security": [{ "LocalSession": [] }, { "ProdSession": [] }],
         "summary": "Check Portfolio Subdomain Availability",
         "parameters": [
-          { "name": "slug", "in": "path", "required": true, "schema": { "type": "string" } }
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "minLength": 1, "maxLength": 63 }
+          }
         ],
         "responses": {
           "200": {
@@ -5049,7 +5113,6 @@
           "expectedUpdatedAt": {
             "type": "string",
             "format": "date-time",
-            "nullable": true,
             "description": "Pass the `updatedAt` value from your last read. Omit only when creating the profile for the first time."
           },
           "profile": { "$ref": "#/components/schemas/MasterProfileContent" }
@@ -5099,7 +5162,8 @@
         "properties": {
           "usernameOrUrl": {
             "type": "string",
-            "description": "A GitHub username or profile URL. Free users may only import their own OAuth-connected\naccount (this value is ignored server-side and the caller's authenticated GitHub login is\nused instead); paid users may import any public username.\n"
+            "description": "A GitHub username or profile URL. Free users may only import their own OAuth-connected\naccount (this value is ignored server-side and the caller's authenticated GitHub login is\nused instead); paid users may import any public username.\n",
+            "minLength": 1
           },
           "replaceMaster": {
             "type": "boolean",
@@ -5730,6 +5794,55 @@
           "data": { "$ref": "#/components/schemas/Document" }
         }
       },
+      "DocumentUpdateResponse": {
+        "type": "object",
+        "required": ["success", "message", "data"],
+        "properties": {
+          "success": { "type": "boolean" },
+          "message": { "type": "string" },
+          "data": { "$ref": "#/components/schemas/DocumentUpdateResult" }
+        }
+      },
+      "DocumentUpdateResult": {
+        "type": "object",
+        "description": "The updated document without `content` and `metadata`: an update sends the whole body, so it\nis not echoed back. `GET /documents/{id}` returns them.\n",
+        "required": [
+          "id",
+          "userId",
+          "type",
+          "title",
+          "slug",
+          "tags",
+          "templateId",
+          "schemaVersion",
+          "revision",
+          "visibility",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "userId": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": ["RESUME", "COVER_LETTER", "PORTFOLIO", "LINK_IN_BIO"]
+          },
+          "title": { "type": "string" },
+          "slug": { "type": "string" },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "templateId": { "type": "string" },
+          "schemaVersion": { "type": "integer" },
+          "revision": {
+            "type": "integer",
+            "description": "The new revision. Send it with the next update."
+          },
+          "visibility": { "type": "string", "enum": ["PRIVATE", "UNLISTED", "PUBLIC"] },
+          "lastSyncedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "deletedAt": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
       "DocumentCreateRequest": {
         "type": "object",
         "required": ["type"],
@@ -5742,16 +5855,20 @@
             "type": "string",
             "enum": ["RESUME", "COVER_LETTER", "PORTFOLIO", "LINK_IN_BIO"]
           },
-          "title": { "type": "string" },
-          "slug": { "type": "string" },
-          "tags": { "type": "array", "items": { "type": "string" } },
+          "title": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "slug": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1, "maxLength": 40 },
+            "maxItems": 20
+          },
           "content": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": {},
             "description": "If omitted for RESUME/COVER_LETTER, content is auto-seeded from the user's MasterProfile when one exists."
           },
-          "metadata": { "type": "object", "additionalProperties": true },
-          "templateId": { "type": "string" },
+          "metadata": { "type": "object", "additionalProperties": {} },
+          "templateId": { "type": "string", "minLength": 1, "maxLength": 64 },
           "visibility": { "type": "string", "enum": ["PRIVATE", "UNLISTED", "PUBLIC"] }
         }
       },
@@ -5759,20 +5876,25 @@
         "type": "object",
         "required": ["revision"],
         "properties": {
-          "title": { "type": "string" },
-          "slug": { "type": "string" },
+          "title": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "slug": { "type": "string", "minLength": 1, "maxLength": 255 },
           "updateShareSlug": {
             "type": "boolean",
             "description": "When true and an active share link exists, its slug is updated to track the new document slug."
           },
-          "tags": { "type": "array", "items": { "type": "string" } },
-          "content": { "type": "object", "additionalProperties": true },
-          "metadata": { "type": "object", "additionalProperties": true },
-          "templateId": { "type": "string" },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1, "maxLength": 40 },
+            "maxItems": 20
+          },
+          "content": { "type": "object", "additionalProperties": {} },
+          "metadata": { "type": "object", "additionalProperties": {} },
+          "templateId": { "type": "string", "minLength": 1, "maxLength": 64 },
           "visibility": { "type": "string", "enum": ["PRIVATE", "UNLISTED", "PUBLIC"] },
           "revision": {
             "type": "integer",
-            "description": "Must match the document's current revision. Mismatch returns 409."
+            "description": "Must match the document's current revision. Mismatch returns 409.",
+            "minimum": 1
           }
         }
       },
@@ -6264,7 +6386,8 @@
           "resume": { "$ref": "#/components/schemas/AtsResumeInput" },
           "jobDescription": {
             "type": "string",
-            "description": "Optional plain-text job description to compute a jobMatchScore against."
+            "description": "Optional plain-text job description to compute a jobMatchScore against.",
+            "maxLength": 20000
           },
           "layout": { "$ref": "#/components/schemas/AtsLayoutSignals" },
           "file": { "$ref": "#/components/schemas/AtsFileInfo" }
@@ -6292,17 +6415,19 @@
         "required": ["resume", "requestId"],
         "properties": {
           "resume": { "$ref": "#/components/schemas/AtsResumeInput" },
-          "jobDescription": { "type": "string" },
+          "jobDescription": { "type": "string", "maxLength": 20000 },
           "jobUrl": {
             "type": "string",
             "format": "uri",
-            "description": "Required when fetchJobUrl is true. Fetched server-side through an SSRF-hardened HTTPS-only fetcher (blocks localhost/private/link-local IPs, pins the resolved IP for the whole request, caps redirects to 3, response size to 2MB, and timeout to 8s)."
+            "description": "Required when fetchJobUrl is true. Fetched server-side through an SSRF-hardened HTTPS-only fetcher (blocks localhost/private/link-local IPs, pins the resolved IP for the whole request, caps redirects to 3, response size to 2MB, and timeout to 8s).",
+            "maxLength": 2048
           },
           "fetchJobUrl": { "type": "boolean", "default": false },
           "requestId": {
             "type": "string",
             "minLength": 8,
-            "description": "Client-generated idempotency key for the underlying AI credit reservation."
+            "description": "Client-generated idempotency key for the underlying AI credit reservation.",
+            "maxLength": 128
           },
           "layout": { "$ref": "#/components/schemas/AtsLayoutSignals" },
           "file": {
@@ -6378,9 +6503,10 @@
           "resume": {
             "type": "string",
             "minLength": 1,
-            "description": "Raw resume text to convert into structured JSON Resume fields."
+            "description": "Raw resume text to convert into structured JSON Resume fields.",
+            "maxLength": 50000
           },
-          "requestId": { "type": "string", "minLength": 8 }
+          "requestId": { "type": "string", "minLength": 8, "maxLength": 128 }
         }
       },
       "AtsConvertedResume": {
@@ -6763,17 +6889,207 @@
         "properties": {
           "documentId": {
             "type": "string",
-            "description": "Omit to create (or continue) the user's single PORTFOLIO document."
+            "description": "Omit to create (or continue) the user's single PORTFOLIO document.",
+            "minLength": 1
           },
-          "subdomain": { "type": "string", "maxLength": 63 },
+          "subdomain": { "type": "string", "maxLength": 63, "minLength": 1 },
           "revision": {
             "type": "integer",
-            "description": "Required once a draft already exists, for optimistic concurrency (409 on mismatch)."
+            "description": "Required once a draft already exists, for optimistic concurrency (409 on mismatch).",
+            "minimum": 1
           },
           "snapshot": {
             "type": "object",
-            "additionalProperties": true,
-            "description": "Portfolio content. The draft schema is more permissive than the publish schema (empty strings allowed) so incomplete drafts can still be saved."
+            "description": "Portfolio content. The draft schema is more permissive than the publish schema (empty strings allowed) so incomplete drafts can still be saved.",
+            "properties": {
+              "schemaVersion": { "type": "number", "const": 1 },
+              "templateId": { "type": "string", "enum": ["signal", "atelier", "nimbus", "cipher"] },
+              "identity": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string", "maxLength": 120 },
+                  "headline": { "type": "string", "maxLength": 240 },
+                  "bio": { "type": "string", "maxLength": 1600 },
+                  "location": { "type": "string", "maxLength": 120 },
+                  "email": {
+                    "anyOf": [
+                      { "type": "string", "const": "" },
+                      { "type": "string", "maxLength": 254, "format": "email" }
+                    ]
+                  },
+                  "availability": { "type": "string", "maxLength": 160 },
+                  "avatar": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                          "url": { "type": "string", "maxLength": 2048, "format": "uri" }
+                        },
+                        "required": ["id", "url"]
+                      },
+                      { "type": "null" }
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "headline",
+                  "bio",
+                  "location",
+                  "email",
+                  "availability",
+                  "avatar"
+                ]
+              },
+              "seo": {
+                "type": "object",
+                "properties": {
+                  "title": { "type": "string", "maxLength": 120 },
+                  "description": { "type": "string", "maxLength": 300 },
+                  "socialImage": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                          "url": { "type": "string", "maxLength": 2048, "format": "uri" }
+                        },
+                        "required": ["id", "url"]
+                      },
+                      { "type": "null" }
+                    ]
+                  }
+                },
+                "required": ["title", "description", "socialImage"]
+              },
+              "socialLinks": {
+                "maxItems": 12,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                    "label": { "type": "string", "maxLength": 80 },
+                    "url": {
+                      "anyOf": [
+                        { "type": "string", "const": "" },
+                        { "type": "string", "maxLength": 2048, "format": "uri" }
+                      ]
+                    }
+                  },
+                  "required": ["id", "label", "url"]
+                }
+              },
+              "sections": {
+                "maxItems": 24,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "projects",
+                        "experience",
+                        "services",
+                        "skills",
+                        "education",
+                        "writing",
+                        "testimonials",
+                        "awards",
+                        "certifications",
+                        "languages",
+                        "interests",
+                        "publications",
+                        "patents",
+                        "testScores",
+                        "achievements",
+                        "volunteer",
+                        "custom",
+                        "contact"
+                      ]
+                    },
+                    "title": { "type": "string", "maxLength": 120 },
+                    "subtitle": { "type": "string", "maxLength": 240 },
+                    "visible": { "type": "boolean" },
+                    "items": {
+                      "maxItems": 24,
+                      "type": "array",
+                      "items": { "type": "object", "additionalProperties": {} }
+                    },
+                    "settings": { "type": "object", "additionalProperties": {} }
+                  },
+                  "required": ["id", "type", "title", "visible", "items"]
+                }
+              },
+              "pages": {
+                "maxItems": 10,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                    "slug": { "type": "string", "minLength": 1, "maxLength": 63 },
+                    "title": { "type": "string", "maxLength": 120 },
+                    "sections": {
+                      "maxItems": 24,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "projects",
+                              "experience",
+                              "services",
+                              "skills",
+                              "education",
+                              "writing",
+                              "testimonials",
+                              "awards",
+                              "certifications",
+                              "languages",
+                              "interests",
+                              "publications",
+                              "patents",
+                              "testScores",
+                              "achievements",
+                              "volunteer",
+                              "custom",
+                              "contact"
+                            ]
+                          },
+                          "title": { "type": "string", "maxLength": 120 },
+                          "subtitle": { "type": "string", "maxLength": 240 },
+                          "visible": { "type": "boolean" },
+                          "items": {
+                            "maxItems": 24,
+                            "type": "array",
+                            "items": { "type": "object", "additionalProperties": {} }
+                          },
+                          "settings": { "type": "object", "additionalProperties": {} }
+                        },
+                        "required": ["id", "type", "title", "visible", "items"]
+                      }
+                    }
+                  },
+                  "required": ["id", "slug", "title", "sections"]
+                }
+              },
+              "removeWatermark": { "type": "boolean" }
+            },
+            "required": [
+              "schemaVersion",
+              "templateId",
+              "identity",
+              "seo",
+              "socialLinks",
+              "sections"
+            ]
           }
         }
       },
@@ -6781,11 +7097,12 @@
         "type": "object",
         "required": ["documentId", "subdomain", "revision"],
         "properties": {
-          "documentId": { "type": "string" },
-          "subdomain": { "type": "string", "maxLength": 63 },
+          "documentId": { "type": "string", "minLength": 1 },
+          "subdomain": { "type": "string", "maxLength": 63, "minLength": 1 },
           "revision": {
             "type": "integer",
-            "description": "Must match the draft's current revision (save the latest draft first)."
+            "description": "Must match the draft's current revision (save the latest draft first).",
+            "minimum": 1
           }
         }
       },
@@ -6838,11 +7155,11 @@
         "required": ["kind", "mimeType", "sizeBytes"],
         "properties": {
           "kind": { "type": "string", "enum": ["AVATAR", "PROJECT_COVER", "SOCIAL_IMAGE"] },
-          "mimeType": { "type": "string", "enum": ["image/jpeg", "image/png", "image/webp"] },
+          "mimeType": { "type": "string", "minLength": 1 },
           "sizeBytes": {
             "type": "integer",
-            "maximum": 5242880,
-            "description": "Must be greater than 0 and no more than 5 MB."
+            "description": "Must be greater than 0 and no more than 5 MB.",
+            "exclusiveMinimum": 0
           }
         }
       },
@@ -6869,10 +7186,11 @@
         "type": "object",
         "required": ["assetId"],
         "properties": {
-          "assetId": { "type": "string" },
+          "assetId": { "type": "string", "minLength": 1 },
           "checksum": {
             "type": "string",
-            "description": "Optional ETag to verify against the uploaded object."
+            "description": "Optional ETag to verify against the uploaded object.",
+            "maxLength": 256
           }
         }
       },
@@ -7031,7 +7349,8 @@
           "interval": { "type": "string", "enum": ["one_day", "seven_day", "monthly", "annual"] },
           "redirectUrl": {
             "type": "string",
-            "description": "Relative path (must start with a single `/`) to return to after checkout."
+            "description": "Relative path (must start with a single `/`) to return to after checkout.",
+            "pattern": "^\\/(?!\\/)"
           }
         }
       },
@@ -7082,7 +7401,8 @@
           "packKey": { "type": "string", "enum": ["credit_pack_250", "credit_pack_500"] },
           "redirectUrl": {
             "type": "string",
-            "description": "Relative path (must start with a single `/`) to return to after checkout."
+            "description": "Relative path (must start with a single `/`) to return to after checkout.",
+            "pattern": "^\\/(?!\\/)"
           }
         }
       },
@@ -7141,17 +7461,20 @@
         "type": "object",
         "required": ["documentId", "snapshot"],
         "properties": {
-          "documentId": { "type": "string" },
+          "documentId": { "type": "string", "minLength": 1 },
           "snapshot": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": {},
             "description": "Static content snapshot captured at share time."
           },
           "password": {
             "type": "string",
-            "description": "When provided, the link is scrypt-hashed and requires this password to view."
+            "description": "When provided, the link is scrypt-hashed and requires this password to view.",
+            "minLength": 1
           },
-          "expiresAt": { "type": "string", "format": "date-time", "nullable": true },
+          "expiresAt": {
+            "anyOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }]
+          },
           "noExpiry": { "type": "boolean" },
           "updateSlug": {
             "type": "boolean",
@@ -7236,8 +7559,8 @@
         "type": "object",
         "required": ["code"],
         "properties": {
-          "code": { "type": "string", "minLength": 4, "maxLength": 32 },
-          "referrerHost": { "type": "string" }
+          "code": { "type": "string", "minLength": 4, "maxLength": 32, "pattern": "^[a-z0-9-]+$" },
+          "referrerHost": { "type": "string", "maxLength": 255 }
         }
       },
       "AffiliateClickResponse": {
@@ -7362,7 +7685,8 @@
             "type": "string",
             "minLength": 4,
             "maxLength": 32,
-            "description": "Another affiliate's code. Self-referrals are rejected."
+            "description": "Another affiliate's code. Self-referrals are rejected.",
+            "pattern": "^[a-z0-9-]+$"
           }
         }
       },
@@ -7404,17 +7728,17 @@
         "type": "object",
         "required": ["collegeName", "graduationYear", "whyJoin", "superpower", "funFact"],
         "properties": {
-          "collegeName": { "type": "string", "minLength": 2, "maxLength": 160 },
+          "collegeName": { "type": "string", "minLength": 2, "maxLength": 120 },
           "graduationYear": {
             "type": "string",
-            "pattern": "^(19|20)\\d{2}$",
+            "pattern": "^\\d{4}$",
             "description": "A real 4-digit year, validated both client- and server-side."
           },
           "whyJoin": { "type": "string", "minLength": 20, "maxLength": 1000 },
-          "superpower": { "type": "string", "minLength": 2, "maxLength": 300 },
-          "funFact": { "type": "string", "minLength": 2, "maxLength": 300 },
+          "superpower": { "type": "string", "minLength": 2, "maxLength": 160 },
+          "funFact": { "type": "string", "minLength": 2, "maxLength": 200 },
           "vibeCheck": { "type": "string", "maxLength": 80 },
-          "socialHandle": { "type": "string", "maxLength": 120 }
+          "socialHandle": { "type": "string", "maxLength": 100 }
         }
       },
       "AmbassadorApplicationResponse": {
@@ -7462,9 +7786,17 @@
     },
     "responses": {
       "ValidationError": {
-        "description": "Bad Request - The request body or parameters are invalid.",
+        "description": "Bad Request - The request body or parameters are invalid. `details` lists every failing\nfield as `{ path, message }`, `path` being the dotted field path.\n",
         "content": {
-          "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } }
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": {
+              "success": false,
+              "statusCode": 400,
+              "message": "Validation failed",
+              "details": [{ "path": "profile.basics.email", "message": "Invalid email" }]
+            }
+          }
         }
       },
       "UnauthorizedError": {

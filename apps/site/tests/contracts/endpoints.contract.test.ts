@@ -42,7 +42,7 @@ describe("site fetchers send only keys the server accepts", () => {
 
   it("GET /github/issues", () => {
     // The fetcher forwards every key of its query object, so its declared keys are what it sends.
-    const accepted = schemaKeys("controllers/githubController.ts", "githubQuerySchema");
+    const accepted = schemaKeys("validators/githubValidator.ts", "githubQuerySchema");
     const source = readFileSync(
       join(__dirname, "..", "..", "features", "github", "services", "github-backend.ts"),
       "utf8",

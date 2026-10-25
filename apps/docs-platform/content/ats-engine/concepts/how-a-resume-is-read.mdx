@@ -7,7 +7,7 @@ description: The steps check() takes from raw input to a report, how each recove
 
 ## The pipeline
 
-1. **Prepare the input.** The input becomes one text, and a validated document when it was structured. Size guards apply here: resume text is cut at 50,000 characters. Invisible characters are counted before they are removed.
+1. **Prepare the input.** The input becomes one text, and a validated document when it was structured. Size guards apply here: resume text is cut at 50,000 characters, and `parsingWarnings` says so. Invisible characters are counted before they are removed.
 2. **Localise the policy.** With locale packs attached (`withLocales`), the languages, the region and the date order are detected or taken from your `languages` and `region` options.
 3. **Read the resume.** Text is normalised once (NFKC, digits of every script, invisible characters). Wrapped lines are rejoined and letter-spaced words are read back. Headings split the text into sections. The parser then recovers the record, and the text-level checks run: integrity, timeline, skills and writing.
 4. **Score the rules.** Rules whose evidence exists are evaluated. Rules without evidence are dropped. See [Scoring](/ats-engine/concepts/scoring).

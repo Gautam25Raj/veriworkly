@@ -18,23 +18,25 @@ The step runs the published [command line](/ats-engine/tools/cli) with `npx`, at
     min-score: 80 # optional
 ```
 
-<Callout type="info" title="Pin the action to a commit SHA">
-  `version` fixes the engine, so your score only moves when you change it. `@main` still follows the
-  action's own code. To fix that too, replace `@main` with a full commit SHA of the [ats-engine
-  repository](https://github.com/VeriWorkly/ats-engine).
+<Callout type="info" title="Pin a version or a commit SHA">
+  `@main` takes each new release, and its default `version` moves with it. Set `version`, or pin the
+  action to a full commit SHA of the [ats-engine
+  repository](https://github.com/VeriWorkly/ats-engine), so your score only moves when you change
+  it. A SHA fixes the action's code and its default `version` together.
 </Callout>
 
 ## Inputs
 
-| Input       | Required | Default  | What it does                                                                                                                                                                                 |
-| ----------- | -------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `resume`    | Yes      |          | Path to the resume: `.pdf`, `.docx`, `.html`, `.txt`, `.md`, or a `.json` resume document.                                                                                                   |
-| `job`       | No       | none     | Path to a job posting to match against: `.txt`, `.md`, `.pdf`, `.docx`, or a saved `.html` page.                                                                                             |
-| `min-score` | No       | none     | Fail the step when the readiness score is below this number, 0 to 100. Empty means never fail on the score.                                                                                  |
-| `region`    | No       | inferred | Read the resume as from this country: `US`, `GB`, `DE`, `FR` or `IN`.                                                                                                                        |
-| `version`   | No       | `0.17.0` | Version of `@veriworkly/ats-engine` to run. Defaults to the engine release the action ships with, so a later release cannot change your score until you move to it. A version or a dist-tag. |
-| `ats`       | No       | none     | The ATS you are applying through: `greenhouse`, `lever` or `taleo`. Adds its documented notes to the advice, which is never scored. Needs `version` 0.3.0 or later.                          |
-| `summary`   | No       | `true`   | Write the report to the job summary. `false` leaves it out.                                                                                                                                  |
+| Input       | Required | Default  | What it does                                                                                                                                                                                  |
+| ----------- | -------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resume`    | Yes      |          | Path to the resume: `.pdf`, `.docx`, `.html`, `.txt`, `.md`, or a `.json` resume document.                                                                                                    |
+| `job`       | No       | none     | Path to a job posting to match against: `.txt`, `.md`, `.pdf`, `.docx`, or a saved `.html` page.                                                                                              |
+| `min-score` | No       | none     | Fail the step when the readiness score is below this number, 0 to 100. Empty means never fail on the score.                                                                                   |
+| `language`  | No       | detected | Read the resume in this language: `en`, `de`, `fr`, `hi`, `es` or `pt`. Needs `version` 0.19.0 or later.                                                                                      |
+| `region`    | No       | inferred | Read the resume as from this country: `US`, `GB`, `DE`, `FR`, `IN`, `ES`, `BR`, `PT`, `MX`, `AR`, `CO` or `CL`.                                                                               |
+| `version`   | No       | `0.21.0` | Version of `@veriworkly/ats-engine` to run: a version or a dist-tag. Defaults to the engine release the action ships with, which changes when `@main` moves. Set it to keep your score fixed. |
+| `ats`       | No       | none     | The ATS you are applying through: `greenhouse`, `lever` or `taleo`. Adds its documented notes to the advice, which is never scored. Needs `version` 0.3.0 or later.                           |
+| `summary`   | No       | `true`   | Write the report to the job summary. `false` leaves it out.                                                                                                                                   |
 
 The action has no input for `--job-url` or `--ai`. For those, run the command line in a `run` step.
 
@@ -49,11 +51,14 @@ The action has no input for `--job-url` or `--ai`. For those, run the command li
 
 The outputs are written before the step fails on `min-score`, so a later step can read them with `if: always()`.
 
+The step fails if the engine has not finished within 10 minutes. It then stops the engine and every process it started.
+
 ## Job summary
 
 Unless `summary` is `false`, the run's job summary shows:
 
 - the readiness score, the job match when there is a posting, and the minimum with whether it was met;
+- a line saying so when the resume is in a language no pack reads;
 - each failed check with its severity, finding and fix, or a line saying every check passed;
 - each job requirement and its status;
 - the missing keywords, and the missing soft skills, which weigh less;

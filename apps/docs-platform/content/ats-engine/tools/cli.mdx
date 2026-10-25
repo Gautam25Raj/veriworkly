@@ -49,13 +49,14 @@ Give exactly one resume file. A job posting is optional.
 | `--policy <file>` | Engine policy JSON, in place of the bundled default. The bundled language and region packs are attached to it. See [Custom policy](/ats-engine/guides/custom-policy). |
 | `--json`          | Print the full report as JSON, advice included, and nothing else on stdout.                                                                                           |
 | `--min-score <n>` | Exit with code 2 when the readiness score is below `n`. A number from 0 to 100.                                                                                       |
-| `--region <code>` | Read the resume as from this country: `US`, `GB`, `DE`, `FR` or `IN`. Case-insensitive. Default: inferred from the resume.                                            |
+| `--lang <code>`   | Read the resume and the posting in `de`, `fr`, `hi`, `es` or `pt`, or `en` for English only, instead of detecting the language.                                       |
+| `--region <code>` | Read the resume as from this country: `US`, `GB`, `DE`, `FR`, `IN`, `ES`, `BR`, `PT`, `MX`, `AR`, `CO` or `CL`. Case-insensitive. Default: inferred from the resume.  |
 | `--text`          | Also print the text as an ATS reads it, line by line. With `--json` the lines are the report's `lines` member.                                                        |
 | `--ats <name>`    | Add one ATS's documented notes to the advice, each with its source: `greenhouse`, `lever` or `taleo`. Advice only; the score does not change.                         |
 | `-h`, `--help`    | Show the help.                                                                                                                                                        |
 | `-v`, `--version` | Print the engine version.                                                                                                                                             |
 
-An unknown `--region` or `--ats` is a usage error that lists the accepted values. The accepted values come from the policy in use, so a custom `--policy` can define others.
+An unknown `--lang`, `--region` or `--ats` is a usage error that lists the accepted values. The accepted values come from the policy in use, so a custom `--policy` can define others. Use `--lang` when the resume was read in the wrong language. An English resume with a posting in another language reads best without it.
 
 ### AI analysis
 
@@ -70,7 +71,11 @@ An unknown `--region` or `--ats` is a usage error that lists the accepted values
 | `--max-tokens <n>`  | Output budget, thinking included. A positive whole number. Default 8000.                                                      |
 | `--timeout <s>`     | Longest wait for the answer in seconds, retries included. More than 0 and at most 3600. Default 120.                          |
 
-Before anything leaves the machine, the CLI prints a notice on stderr naming the provider, host and model, and says that your name, email, phone number and links are replaced with placeholders first. Keyword suggestions are checked against the posting and the engine's keywords, and any that are not found there are dropped. The explanation, the fix order, the recommended improvements and the missing evidence are the model's own text and are not checked. See [AI features](/ats-engine/guides/ai).
+Before anything leaves the machine, the CLI prints a notice on stderr naming the provider, host and model. Your email and phone number, and the name and links the check read, are replaced with placeholders first; the notice says when no name or link was read. Keyword suggestions are checked against the posting and the engine's keywords, and any that are not found there are dropped. The explanation, the fix order, the recommended improvements and the missing evidence are the model's own text and are not checked. See [AI features](/ats-engine/guides/ai).
+
+#### A resume in a language with no pack
+
+A resume the engine names as unsupported (Italian, Dutch, Russian, Japanese and others) is first read with AI help when you pass `--ai`. The whole resume, contact details included, goes to the model, which returns its fields (`convertResume`). Every name, employer, title, school, skill, email, link, bullet and summary must appear in the file, or it is dropped. The engine then scores what is left as a structured document, and the analysis runs on that report. The output says "Read with AI help" above the report, and `--json` adds `readWithAi` with the provider, model, language and how many values were dropped. If the model fails, the engine's own reading stands and the exit code is 1. A resume in English or in a language with a pack is read by the engine alone.
 
 ## Environment variables
 
@@ -133,11 +138,11 @@ With `--json --ai`, the report gains an `ai` member:
 
 ## Exit codes
 
-| Code | Meaning                                                                                      |
-| ---- | -------------------------------------------------------------------------------------------- |
-| 0    | Done.                                                                                        |
-| 1    | Error: a usage mistake, an unreadable file, a failed job fetch, or a failed `--ai` analysis. |
-| 2    | The readiness score is below `--min-score`.                                                  |
+| Code | Meaning                                                                                  |
+| ---- | ---------------------------------------------------------------------------------------- |
+| 0    | Done.                                                                                    |
+| 1    | Error: a usage mistake, an unreadable file, a failed job fetch, or a failed `--ai` call. |
+| 2    | The readiness score is below `--min-score`.                                              |
 
 Code 2 wins over code 1 when both happen: a failed `--ai` analysis does not hide the gate's answer. The CLI prints `Readiness N is below --min-score M.` on stderr.
 

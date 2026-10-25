@@ -31,16 +31,17 @@ No extra fields. Thrown by `readResumeFile` and `readJobFile` for a missing file
 
 ### AtsAiError
 
-Fields: `code`, `status` (the provider's HTTP status, when there was one), `usage`, `attempts` (what was spent before it failed), and `cause`.
+Fields: `code`, `status` (the provider's HTTP status, when there was one), `usage`, `attempts` (what was spent before it failed), `rejected` (for `unusable`, the values the reply gave that were dropped as not in the input), and `cause`.
 
-| `code`           | Meaning                                                                                                   |
-| ---------------- | --------------------------------------------------------------------------------------------------------- |
-| `config`         | The task has no model, `maxTokens` is not a positive integer, or `retries` is not an integer from 0 to 5. |
-| `provider`       | The provider call failed. `status` holds the HTTP status when there was one.                              |
-| `refused`        | The model declined.                                                                                       |
-| `truncated`      | The reply hit `maxTokens` before it was complete. Not retried: raise `maxTokens`.                         |
-| `invalid_output` | The reply was empty, not valid JSON, or did not match the schema.                                         |
-| `aborted`        | Your own `signal` aborted the request, including an `AbortSignal.timeout` you passed.                     |
+| `code`           | Meaning                                                                                                                                                                 |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config`         | The task has no model, `maxTokens` is not a positive integer, or `retries` is not an integer from 0 to 5.                                                               |
+| `provider`       | The provider call failed. `status` holds the HTTP status when there was one.                                                                                            |
+| `refused`        | The model declined.                                                                                                                                                     |
+| `truncated`      | The reply hit `maxTokens` before it was complete. Not retried: raise `maxTokens`.                                                                                       |
+| `invalid_output` | The reply was empty, not valid JSON, or did not match the schema.                                                                                                       |
+| `unusable`       | `repairParse` filled no field the parse left empty: the reply gave none, or only values not in the resume or already parsed. Not retried, since each attempt is billed. |
+| `aborted`        | Your own `signal` aborted the request, including an `AbortSignal.timeout` you passed.                                                                                   |
 
 ### LlmProviderError
 
@@ -76,16 +77,16 @@ Limits marked "cut" shorten the input and continue. Limits marked "refuse" stop 
 
 ### Text and postings
 
-| Limit                           | Value             | What happens                                                                                                                                                            |
-| ------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Resume text                     | 50,000 characters | Cut. Applies to text, a structured document's rendered text, and text extracted from a file (`MAX_EXTRACTED_CHARS`).                                                    |
-| Job description in `check`      | 20,000 characters | Cut, with a note in `parsingWarnings`.                                                                                                                                  |
-| `MAX_JOB_TEXT_CHARS` in `./job` | 20,000 characters | The cut `check` and `analyze` apply, the same for a file, a page and a paste. `normalizeJobText`, `jobHtmlToText` and `jobTextFromHtml` cut only when given `maxChars`. |
-| Requirements                    | 25                | At most 25 requirements are judged per posting.                                                                                                                         |
-| Keyword groups                  | 12                | Each of the matched and missing keyword lists is at most 12.                                                                                                            |
-| `prioritizedFixes`              | 6                 | The report keeps the six failed checks that cost the most.                                                                                                              |
-| `strengths`                     | 5                 | The report keeps five.                                                                                                                                                  |
-| `lines`                         | 500               | With `includeLines`, the report holds at most 500 lines.                                                                                                                |
+| Limit                           | Value             | What happens                                                                                                                                                                        |
+| ------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Resume text                     | 50,000 characters | Cut, with a note in `parsingWarnings`. Applies to text, a structured document's rendered text, and text extracted from a file (`MAX_EXTRACTED_CHARS`, which sets `layout.textCut`). |
+| Job description in `check`      | 20,000 characters | Cut, with a note in `parsingWarnings`.                                                                                                                                              |
+| `MAX_JOB_TEXT_CHARS` in `./job` | 20,000 characters | The cut `check` and `analyze` apply, the same for a file, a page and a paste. `normalizeJobText`, `jobHtmlToText` and `jobTextFromHtml` cut only when given `maxChars`.             |
+| Requirements                    | 25                | At most 25 requirements are judged per posting. When a posting lists more, `parsingWarnings` says the rest were not judged.                                                         |
+| Keyword groups                  | 12                | Each of the matched and missing keyword lists is at most 12. `keywordCounts` holds the full counts.                                                                                 |
+| `prioritizedFixes`              | 6                 | The report keeps the six failed checks that cost the most.                                                                                                                          |
+| `strengths`                     | 5                 | The report keeps five.                                                                                                                                                              |
+| `lines`                         | 500               | With `includeLines`, the report holds at most 500 lines.                                                                                                                            |
 
 ### Files
 
@@ -132,7 +133,7 @@ A JSON Resume is cut to the same limits when it is converted instead of refused.
 | Provider request timeout      | 120 seconds per attempt      | Default of the HTTP adapters; set `timeoutMs`. It holds even when a `fetch` you pass ignores the abort signal.                                  |
 | Retry waits                   | 1, 2, 4, 8 and 16 seconds    | Before each retry of a rate limit, server fault, timeout or network error, or the provider's `retry-after`; one over 60 seconds is not retried. |
 | Provider answer               | 4 MB, an error's too         | Refused before it is parsed, as `LlmProviderError`.                                                                                             |
-| MCP PDF or DOCX reading       | 60 seconds a file            | Its child process is stopped; the call is refused.                                                                                              |
+| MCP PDF, DOCX or job page     | 60 seconds a file            | Its child process is stopped; the call is refused.                                                                                              |
 | MCP files read at once        | As many as the CPU has cores | Further calls wait their turn. A cancelled call stops its reading process.                                                                      |
 | MCP `text` and `job_text`     | 200,000 characters           | The tool call is refused.                                                                                                                       |
 | MCP and CLI files             | 20 MB                        | Refused, as above.                                                                                                                              |

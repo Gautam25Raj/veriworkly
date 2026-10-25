@@ -22,6 +22,35 @@ The package ships a JSON Schema of the full policy (draft 2020-12, generated fro
 
 `keywordMatch` and `resumeParse` are required. The other sections have defaults, so a policy written before a field existed still parses.
 
+### Parser word lists
+
+These lists shape how names, roles, dates and schools are read. Each defaults to empty or to the English base, so an older policy still parses. A language or region pack can add to each of them, except `notNames` and `text.otherLanguages`.
+
+| Field                                      | Holds                                                                                                                                             |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `resumeParse.leaveWords`                   | Time off dated like a role, which adds no months and no title: "Parental leave", "Sabbatical", "Elternzeit".                                      |
+| `resumeParse.notNames`                     | Taglines that are never the name, even when an email or link spells them: "Machine Learning", "Full Stack". Read only to find the name.           |
+| `resumeParse.namePrefixes`                 | Honorifics cut from the front of a name: "Dr", "Prof", "Dra.", "डॉ.". A prefix is cut only while two name words remain.                           |
+| `resumeParse.cityNames`                    | Larger cities. A city after the employer is where the role is worked, not part of the employer: "Firma GmbH, Berlin" reads employer "Firma GmbH". |
+| `resumeParse.rangeOpeners`                 | Words that open a date range and leave the employer: "from", "von", "desde".                                                                      |
+| `resumeParse.monthYearJoiners`             | Words between a month and its year: "de" in "marzo de 2020".                                                                                      |
+| `resumeParse.layoutEmployerWords`          | Words that join title and employer once a role in the resume shows that layout: Spanish "en", Portuguese "na".                                    |
+| `resumeParse.fieldTitleWords`              | Titles that take a field after them: "Ingeniero en Sistemas" stays one title.                                                                     |
+| `resumeParse.universityWords`              | Words for a university where a program named by its field alone is the first degree: "universidad", "universidade". English sets none.            |
+| `resumeParse.courseWords`                  | A course or a term abroad, never a degree: "curso", "intercambio".                                                                                |
+| `resumeParse.credentialWords.expiresAfter` | Expiry words that follow their date: Hindi "2027 तक वैध".                                                                                         |
+| `text.otherLanguages[].id`                 | The ISO 639 code of a language the policy recognises but no pack reads, such as `it`. A report names it in `locale.unsupported`.                  |
+| `text.otherLanguages[].openEnded`          | That language's words for a role still held ("oggi", "heden"), so an AI reading's "current" is checked against the file.                          |
+
+### What `parseAtsPolicy` refuses
+
+Besides a wrong type or a missing required field, a policy is refused, with the path of the problem, when:
+
+- two rules share an id;
+- a years or language pattern has no capturing group;
+- a synonym's key has a space;
+- a region pack's rule id is one or two letters off a real one. The issue suggests the id it meant. Other unknown rule ids are ignored.
+
 ## Rules
 
 Each rule has a `kind`. There are seven.
@@ -97,7 +126,7 @@ If no rule has that id, the edit is skipped. The default policy's ids look like 
 | `policyFingerprint(policy)` | `version+hash`, where the hash covers the policy as applied, after locale packs. A report carries it in `engine.policy`. The same fingerprint and engine version, input and reference date give an identical report. |
 | `policyRubric(policy)`      | One `AtsRubricEntry` per rule: `id`, `category`, `severity`, `measures`, `points`, `deduction`, `passes` and `fix`. The [rubric page](/ats-engine/reference/rubric) is generated from it.                            |
 | `DEFAULT_POLICY`            | The bundled community policy.                                                                                                                                                                                        |
-| `ENGINE_VERSION`            | The engine version, such as `0.17.0`.                                                                                                                                                                                |
+| `ENGINE_VERSION`            | The engine version, such as `0.21.0`.                                                                                                                                                                                |
 
 ```ts
 import { AtsPolicyError, parseAtsPolicy } from "@veriworkly/ats-engine";

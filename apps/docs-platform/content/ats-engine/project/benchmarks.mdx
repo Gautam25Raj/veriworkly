@@ -1,6 +1,6 @@
 ---
 title: Benchmarks
-description: What npm run bench measures for the VeriWorkly ATS Engine, its 0.17.0 results on synthetic resumes, bundle sizes, and the limits of those numbers.
+description: What npm run bench measures for the VeriWorkly ATS Engine, its 0.21.0 results on synthetic resumes in six languages, bundle sizes, and the limits of those numbers.
 ---
 
 `npm run bench` in the engine repository measures how accurately the parser recovers fields from resumes, and how long a parse takes. The corpora are invented resumes. There is no third-party or real-world benchmark yet.
@@ -12,22 +12,27 @@ description: What npm run bench measures for the VeriWorkly ATS Engine, its 0.17
 
 ## What it measures
 
-Field accuracy: for each labelled resume, whether the parser recovered each field correctly. Two corpora:
+Field accuracy: for each labelled resume, whether the parser recovered each field correctly. The corpora:
 
 - **Hand-written fixtures.** The resumes in the repository's test fixtures, read as text. This is a regression check, since the engine was built against them.
-- **Generated resumes.** 30 seeded invented resumes with varied separators, date forms, city placement, headings and section order. Each is rendered four ways: as text, as a PDF, as a two-column PDF and as a DOCX. They are labelled from their inputs and never from what the engine reads, and they are not tuned to the engine.
+- **Generated English resumes.** 30 seeded invented resumes with varied separators, date forms, city placement, headings and section order. Each is rendered four ways: as text, as a PDF, as a two-column PDF and as a DOCX. They are labelled from their inputs and never from what the engine reads, and they are not tuned to the engine.
+- **Generated resumes in other languages.** 30 in each of German, French, Hindi, Spanish and Portuguese, read as text, as a DOCX and as a PDF in a Unicode font.
+- **Reviewer-written resumes.** Resumes an independent reviewer wrote for each of those five languages, in their own layouts and labels (stacked, employer first, dates first, pipe tables, LinkedIn exports, headings in capitals), read as text, DOCX and PDF, with the language detected and with it given.
 
-`bench/baseline.json` lists every field each corpus misses today. The run fails on a miss that is not listed, so one field read better cannot hide another read worse.
+`bench/baseline.json` lists every field each corpus misses. The run fails on a miss that is not listed, so one field read better cannot hide another read worse.
 
-## Results on 0.17.0
+## Results on 0.21.0
 
-| Corpus                                   | Field accuracy |
-| ---------------------------------------- | -------------- |
-| Hand-written fixtures (regression check) | 99.7%          |
-| Generated, as text                       | 100.0%         |
-| Generated, as PDF                        | 100.0%         |
-| Generated, as two-column PDF             | 99.9%          |
-| Generated, as DOCX                       | 100.0%         |
+`bench/baseline.json` is empty: every corpus above is read in full, 100% of its fields, in every language and format.
+
+| Corpus                                                                      | Field accuracy |
+| --------------------------------------------------------------------------- | -------------- |
+| Hand-written fixtures (regression check)                                    | 100%           |
+| Generated English, text, PDF, two-column PDF and DOCX                       | 100%           |
+| Generated German, French, Hindi, Spanish and Portuguese, text, DOCX and PDF | 100%           |
+| Reviewer-written, all five languages                                        | 100%           |
+
+On the reviewer-written resumes, 0.20.0 read German 99.2%, Hindi 99.2%, Spanish 99.3%, Portuguese 99.3% and French 100%.
 
 Timing over 142 parses, after one warm-up: median 3.2 ms, p95 24.2 ms, measured on 0.15.0. These were taken on a developer machine, and timing varies with the machine and the load: over three runs the median was 3.1 to 3.5 ms and the p95 24.2 to 31.1 ms.
 

@@ -1,4 +1,5 @@
 import type {
+  MasterProfileData,
   ResumeAward,
   ResumeSection,
   ResumeLanguage,
@@ -20,8 +21,8 @@ import { createId } from "@veriworkly/profile-core";
 import { fontOptions } from "@/features/documents/constants/fonts";
 
 /*
- * What is left here is the master editor UI: the option lists the selects render, the
- * line-splitting the textareas do, and the empty-item factories the "Add" buttons call.
+ * What is left here is the master editor UI: the option lists the selects render and the
+ * empty-item factories the "Add" buttons call.
  *
  * Everything that describes the *profile itself* — the save validator, the save sanitiser,
  * the id normalisers, the URL and email predicates — moved to `@veriworkly/profile-core`,
@@ -71,17 +72,6 @@ export const sectionLabels: Record<ResumeSection["id"], string> = {
   achievements: "Achievements",
   custom: "Custom",
 };
-
-export function splitLines(value: string) {
-  return value
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
-
-export function joinLines(values: string[]) {
-  return values.join("\n");
-}
 
 export function emptyExperience(): ResumeExperienceItem {
   return {
@@ -238,4 +228,86 @@ export function updateItem<T extends { id: string }>(
 
 export function removeItem<T extends { id: string }>(items: T[], id: string) {
   return items.filter((item) => item.id !== id);
+}
+
+/**
+ * The Master Profile's GitHub / LinkedIn / Portfolio fields edit the first link of that
+ * type: typing updates it (or adds one), clearing the field removes it.
+ */
+export function setLinkByType(
+  links: MasterProfileData["links"],
+  type: MasterProfileData["links"]["items"][number]["type"],
+  url: string,
+): MasterProfileData["links"] {
+  const index = links.items.findIndex((item) => item.type === type);
+
+  if (!url.trim()) {
+    return index === -1 ? links : { ...links, items: links.items.filter((_, i) => i !== index) };
+  }
+
+  if (index === -1) {
+    return { ...links, items: [...links.items, { id: createId("link"), type, label: "", url }] };
+  }
+
+  return {
+    ...links,
+    items: links.items.map((item, i) => (i === index ? { ...item, url } : item)),
+  };
+}
+
+/** Identifies a visibility row: every custom section shares the id "custom". */
+export function sectionRowKey(section: Pick<ResumeSection, "id" | "customSectionId">) {
+  return section.customSectionId ? `${section.id}:${section.customSectionId}` : section.id;
+}
+
+/**
+ * One "custom" visibility row per custom section, matched on `customSectionId`, the way the
+ * resume normalises its own sections. Rows for removed sections and duplicate rows are
+ * dropped, a row without `customSectionId` (older profiles) is claimed by the first custom
+ * section, and a section without a row gets a visible one at the end. Returns `profile`
+ * itself when nothing needed fixing, so an already-consistent profile never looks edited.
+ */
+export function withCustomSectionRows(profile: MasterProfileData): MasterProfileData {
+  const customIds = new Set(profile.customSections.map((section) => section.id));
+  const firstCustomId = profile.customSections[0]?.id;
+  const claimed = new Set<string>();
+  let changed = false;
+
+  const kept = profile.sections.flatMap((section) => {
+    if (section.id !== "custom") return [section];
+
+    const target = section.customSectionId
+      ? customIds.has(section.customSectionId)
+        ? section.customSectionId
+        : undefined
+      : firstCustomId;
+
+    if (!target || claimed.has(target)) {
+      changed = true;
+      return [];
+    }
+
+    claimed.add(target);
+
+    if (target === section.customSectionId) return [section];
+
+    changed = true;
+    return [{ ...section, customSectionId: target }];
+  });
+
+  let order = Math.max(0, ...profile.sections.map((section) => section.order));
+
+  const added = profile.customSections
+    .filter((section) => !claimed.has(section.id))
+    .map((section) => ({
+      id: "custom" as const,
+      label: section.title || "Custom",
+      visible: true,
+      order: (order += 1),
+      customSectionId: section.id,
+    }));
+
+  if (!changed && added.length === 0) return profile;
+
+  return { ...profile, sections: [...kept, ...added] };
 }

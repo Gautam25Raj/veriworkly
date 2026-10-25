@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button, TextArea } from "@veriworkly/ui";
 import { Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 
 import {
+  canRetryWithSameRequestId,
+  createRequestId,
   generateAiContent,
   getAiActions,
   type AiAction,
@@ -14,16 +16,25 @@ import {
   type AiMode,
 } from "@/features/ai/ai-api";
 
+/**
+ * Callers render this with `key` set to the entry it edits, so the open panel, the draft and
+ * any in-flight request belong to that entry and are dropped when the user switches to
+ * another one.
+ */
 export function AiFieldAssist({
   action,
   text,
-  context = "",
+  getContext,
   documentId,
   onApply,
 }: {
   action: AiAction;
   text: string;
-  context?: string;
+  /**
+   * Read only when a draft is generated. Context can be the whole document, and serialising
+   * it on every keystroke elsewhere in the editor would cost far more than the request.
+   */
+  getContext?: () => string;
   documentId?: string;
   onApply: (content: string) => void;
 }) {
@@ -33,44 +44,75 @@ export function AiFieldAssist({
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
   const [actions, setActions] = useState<AiActionPolicy | null>(null);
+  const [actionsError, setActionsError] = useState("");
 
-  useEffect(() => {
-    if (!open || actions) return;
-    void getAiActions()
+  const abortRef = useRef<AbortController | null>(null);
+
+  // One idempotency key per distinct request. A retry reuses it only after a lost response
+  // (see `canRetryWithSameRequestId`), so the server recognises it instead of charging again;
+  // a success or any answered error starts a fresh one.
+  const pendingRequestRef = useRef<{ fingerprint: string; requestId: string } | null>(null);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const loadActions = useCallback(() => {
+    setActionsError("");
+
+    getAiActions()
       .then(setActions)
-      .catch(() => undefined);
-  }, [actions, open]);
+      .catch((error: unknown) => {
+        setActionsError(error instanceof Error ? error.message : "AI pricing could not be loaded.");
+      });
+  }, []);
 
-  const cost = actions?.[action]?.costs[mode];
+  function openPanel() {
+    setOpen(true);
+    if (!actions) loadActions();
+  }
+
+  const costFor = (option: AiMode) => actions?.[action]?.costs[option];
+  const cost = costFor(mode);
 
   async function generate() {
+    const input = { text, context: getContext?.() ?? "", instructions };
+    const fingerprint = JSON.stringify([action, mode, input]);
+
+    if (pendingRequestRef.current?.fingerprint !== fingerprint) {
+      pendingRequestRef.current = { fingerprint, requestId: createRequestId() };
+    }
+
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
+
     try {
-      const response = await generateAiContent({
-        action,
-        mode,
-        input: { text, context, instructions },
-        requestId: crypto.randomUUID(),
-        documentId,
-      });
+      const response = await generateAiContent(
+        {
+          action,
+          mode,
+          input,
+          requestId: pendingRequestRef.current.requestId,
+          documentId,
+        },
+        controller.signal,
+      );
+
+      pendingRequestRef.current = null;
       setResult(response.content);
       toast.success(`Draft generated. ${response.credits.spent} credits reserved and used.`);
     } catch (error) {
+      if (!canRetryWithSameRequestId(error)) pendingRequestRef.current = null;
+      if (controller.signal.aborted) return;
       toast.error(error instanceof Error ? error.message : "AI generation failed.");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }
 
   if (!open) {
     return (
-      <Button
-        className="mt-2 justify-self-start"
-        onClick={() => setOpen(true)}
-        size="sm"
-        variant="ghost"
-      >
-        <Sparkles className="h-3.5 w-3.5" /> Improve with AI
+      <Button className="mt-2 justify-self-start" onClick={openPanel} size="sm" variant="ghost">
+        <Sparkles className="h-3.5 w-3.5" /> {text.trim() ? "Improve with AI" : "Write with AI"}
       </Button>
     );
   }
@@ -89,19 +131,37 @@ export function AiFieldAssist({
         </button>
       </div>
       <div className="flex gap-2">
-        {(["standard", "expert"] as const).map((option) => (
-          <Button
-            key={option}
-            onClick={() => setMode(option)}
-            size="sm"
-            variant={mode === option ? "primary" : "secondary"}
-          >
-            {option === "standard" ? "Standard" : "Expert"}
-            {actions ? ` · ${actions[action].costs[option]} cr` : ""}
-          </Button>
-        ))}
+        {(["standard", "expert"] as const).map((option) => {
+          const optionCost = costFor(option);
+
+          return (
+            <Button
+              aria-pressed={mode === option}
+              key={option}
+              onClick={() => setMode(option)}
+              size="sm"
+              variant={mode === option ? "primary" : "secondary"}
+            >
+              {option === "standard" ? "Standard" : "Expert"}
+              {optionCost == null ? "" : ` · ${optionCost} cr`}
+            </Button>
+          );
+        })}
       </div>
+      {actionsError ? (
+        <div className="flex flex-wrap items-center gap-2" role="alert">
+          <p className="text-xs text-red-500">AI is unavailable right now: {actionsError}</p>
+          <Button onClick={loadActions} size="sm" variant="secondary">
+            Retry
+          </Button>
+        </div>
+      ) : actions && !actions[action] ? (
+        <p className="text-xs text-red-500" role="alert">
+          This AI action is not available on the server.
+        </p>
+      ) : null}
       <input
+        aria-label="Instructions for the AI draft (optional)"
         className="border-border bg-background text-foreground focus:border-accent h-10 w-full rounded-lg border px-3 text-sm outline-none"
         maxLength={500}
         onChange={(event) => setInstructions(event.target.value)}

@@ -1,9 +1,9 @@
 import { Input } from "@veriworkly/ui";
 import { Select } from "@veriworkly/ui";
-import type { MasterProfileData, ResumeSection } from "@/types/resume";
+import type { MasterProfileData } from "@/types/resume";
 
 import { ColorField, SectionCard } from "./master-shared";
-import { fontFamilies, sectionLabels } from "./master-utils";
+import { fontFamilies, sectionLabels, sectionRowKey } from "./master-utils";
 
 type AppearanceAndVisibilitySectionsProps = {
   localProfile: MasterProfileData;
@@ -11,7 +11,8 @@ type AppearanceAndVisibilitySectionsProps = {
     key: keyof MasterProfileData["customization"],
     value: string | number,
   ) => void;
-  updateSectionVisibility: (sectionId: ResumeSection["id"], visible: boolean) => void;
+  /** Takes {@link sectionRowKey}, so each custom section toggles on its own. */
+  updateSectionVisibility: (rowKey: string, visible: boolean) => void;
 };
 
 export function AppearanceAndVisibilitySections({
@@ -139,17 +140,25 @@ export function AppearanceAndVisibilitySections({
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {localProfile.sections.map((section) => (
             <label
-              key={section.id}
+              key={sectionRowKey(section)}
               className="border-border/60 bg-card/40 flex items-center justify-between gap-4 rounded-xl border px-4 py-3"
             >
               <div>
-                <p className="text-foreground text-sm font-semibold">{sectionLabels[section.id]}</p>
+                <p className="text-foreground text-sm font-semibold">
+                  {section.customSectionId
+                    ? localProfile.customSections.find(
+                        (custom) => custom.id === section.customSectionId,
+                      )?.title || sectionLabels.custom
+                    : sectionLabels[section.id]}
+                </p>
                 <p className="text-muted text-xs">Order {section.order}</p>
               </div>
               <input
                 type="checkbox"
                 checked={section.visible}
-                onChange={(event) => updateSectionVisibility(section.id, event.target.checked)}
+                onChange={(event) =>
+                  updateSectionVisibility(sectionRowKey(section), event.target.checked)
+                }
               />
             </label>
           ))}

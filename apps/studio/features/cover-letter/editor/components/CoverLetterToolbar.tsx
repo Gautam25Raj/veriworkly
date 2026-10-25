@@ -1,7 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
-import { memo, useRef } from "react";
+import { memo } from "react";
 import { useRouter } from "next/navigation";
 
 import ToolbarHeader from "@/features/documents/editor/toolbar/ToolbarHeader";
@@ -10,6 +10,7 @@ import ToolbarActionsMenu from "@/features/documents/editor/toolbar/ToolbarActio
 import ToolbarDownloadMenu from "@/features/documents/editor/toolbar/ToolbarDownloadMenu";
 import { useDocumentDownloads } from "@/features/documents/editor/toolbar/useDocumentDownloads";
 import { useDocumentJsonImport } from "@/features/documents/editor/toolbar/useDocumentJsonImport";
+import { useHiddenFileInput } from "@/features/documents/editor/toolbar/useHiddenFileInput";
 
 import { useUserStore } from "@/store/useUserStore";
 
@@ -44,9 +45,6 @@ export const CoverLetterToolbar = memo(function CoverLetterToolbar({
   onOpenDelete,
 }: CoverLetterToolbarProps) {
   const router = useRouter();
-
-  const jsonInputRef = useRef<HTMLInputElement>(null);
-  const markdownInputRef = useRef<HTMLInputElement>(null);
 
   const isLoggedIn = useUserStore((state) => state.isLoggedIn);
 
@@ -98,6 +96,9 @@ export const CoverLetterToolbar = memo(function CoverLetterToolbar({
 
   const onImportJson = useDocumentJsonImport("COVER_LETTER", onSetMessage);
 
+  const jsonInput = useHiddenFileInput(onImportJson);
+  const markdownInput = useHiddenFileInput(onImportMarkdown);
+
   return (
     <div className="flex min-h-11 flex-wrap items-center justify-between gap-2">
       <ToolbarHeader
@@ -113,25 +114,17 @@ export const CoverLetterToolbar = memo(function CoverLetterToolbar({
         <input
           type="file"
           className="hidden"
-          ref={jsonInputRef}
+          ref={jsonInput.ref}
           accept="application/json"
-          onChange={(event) => {
-            void onImportJson(event.target.files?.[0]).finally(() => {
-              event.currentTarget.value = "";
-            });
-          }}
+          onChange={jsonInput.onChange}
         />
 
         <input
           type="file"
           className="hidden"
-          ref={markdownInputRef}
+          ref={markdownInput.ref}
           accept="text/markdown,.md,.markdown"
-          onChange={(event) => {
-            void onImportMarkdown(event.target.files?.[0]).finally(() => {
-              event.currentTarget.value = "";
-            });
-          }}
+          onChange={markdownInput.onChange}
         />
 
         <ToolbarDownloadMenu
@@ -148,8 +141,8 @@ export const CoverLetterToolbar = memo(function CoverLetterToolbar({
           documentLabel="cover letter"
           onShare={onOpenShare}
           onDelete={onOpenDelete}
-          onImportJson={() => jsonInputRef.current?.click()}
-          onImportMarkdown={() => markdownInputRef.current?.click()}
+          onImportJson={jsonInput.open}
+          onImportMarkdown={markdownInput.open}
           onReset={async () => {
             // Reset means "back to a new letter", and a new letter is seeded from the
             // profile — so the identity block has to be re-fetched, not re-hardcoded.

@@ -46,6 +46,7 @@ import type {
 import { toAtsDocument } from "@/features/ats/resume-document";
 import { buildResumeFromConversion } from "@/features/ats/converted-resume";
 import { getDocumentEditorPath } from "@/features/documents/core/routes";
+import { useHiddenFileInput } from "@/features/documents/editor/toolbar/useHiddenFileInput";
 import {
   DOCUMENT_LIBRARY_SERVER_SNAPSHOT,
   getDocumentLibrarySnapshot,
@@ -57,6 +58,7 @@ import {
 } from "@/features/documents/services/document-workspace-service";
 import { saveResume, readResumeById } from "@/features/resume/services/resume-service";
 import { describeSaveResult } from "@/features/documents/services/save-failure-message";
+import { createRequestId } from "@/features/ai/ai-api";
 import { cn } from "@/lib/utils";
 
 export function AtsWorkspace() {
@@ -121,7 +123,7 @@ export function AtsWorkspace() {
             jobDescription: jobDescription || undefined,
             jobUrl: useJobUrl ? jobUrl || undefined : undefined,
             fetchJobUrl: useJobUrl,
-            requestId: crypto.randomUUID(),
+            requestId: createRequestId(),
             layout,
             repairParse: repairParse && !resumeDocument,
           })
@@ -148,7 +150,7 @@ export function AtsWorkspace() {
     setBusy("convert");
     setError("");
     try {
-      const response = await convertResumeWithAi({ resume, requestId: crypto.randomUUID() });
+      const response = await convertResumeWithAi({ resume, requestId: createRequestId() });
       setConverted(response.resume);
       toast.success(`Resume draft prepared. ${response.creditsSpent} credits used.`);
     } catch (cause) {
@@ -517,8 +519,10 @@ function FileInput({
 }: {
   busy: boolean;
   disabled: boolean;
-  onFile: (file: File) => void;
+  onFile: (file: File) => Promise<void> | void;
 }) {
+  const input = useHiddenFileInput(onFile);
+
   return (
     <label
       className={cn(
@@ -536,10 +540,7 @@ function FileInput({
         accept=".pdf,.docx,.txt,.md,.json"
         className="sr-only"
         disabled={disabled}
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) onFile(file);
-        }}
+        onChange={input.onChange}
       />
     </label>
   );

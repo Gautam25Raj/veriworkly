@@ -115,12 +115,15 @@ const ExperienceSection = ({ isOpen, onToggle }: BaseSectionProps) => {
             />
 
             <AiFieldAssist
+              key={activeExperience.id}
               action={activeExperience.summary ? "rewrite_section" : "generate_section"}
-              context={JSON.stringify({
-                role: activeExperience.role,
-                company: activeExperience.company,
-                highlights: activeExperience.highlights,
-              })}
+              getContext={() =>
+                JSON.stringify({
+                  role: activeExperience.role,
+                  company: activeExperience.company,
+                  highlights: activeExperience.highlights,
+                })
+              }
               documentId={resumeId}
               onApply={(summary) => updateExperience(list.index, { summary })}
               text={activeExperience.summary}
@@ -128,8 +131,9 @@ const ExperienceSection = ({ isOpen, onToggle }: BaseSectionProps) => {
 
             {/* Children-based `Field`: DelimitedTextArea keeps a local draft string and so
                 cannot take the value/onChange contract the `*Field` wrappers impose. */}
-            <Field label="Highlights (comma separated)">
+            <Field label="Highlights (one per line)">
               <DelimitedTextArea
+                delimiter="newline"
                 key={activeExperience.id}
                 onChange={(highlights) => updateExperience(list.index, { highlights })}
                 value={activeExperience.highlights}

@@ -169,6 +169,14 @@ export function CoverLetterContentPanel({ documentId }: CoverLetterContentPanelP
             value={content.date}
             onValueChange={(date) => onUpdateContent({ date })}
           />
+
+          <TextAreaField
+            label="Job post (optional)"
+            value={content.jobPost ?? ""}
+            className="min-h-32 text-[13px]"
+            placeholder="Paste the job post. AI uses it to write the letter; it is not printed."
+            onValueChange={(jobPost) => onUpdateContent({ jobPost })}
+          />
         </EditorBlock>
       </SectionAccordion>
 
@@ -206,7 +214,7 @@ export function CoverLetterContentPanel({ documentId }: CoverLetterContentPanelP
           />
           <AiFieldAssist
             action="generate_cover_letter"
-            context={JSON.stringify(content)}
+            getContext={() => JSON.stringify(content)}
             documentId={documentId}
             onApply={(body) => onUpdateContent({ body })}
             text={content.body}

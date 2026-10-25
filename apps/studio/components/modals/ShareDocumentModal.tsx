@@ -36,6 +36,8 @@ import { loadDocumentById } from "@/features/documents/services/document-workspa
 
 import { useUserStore } from "@/store/useUserStore";
 
+import ConfirmationModal from "./ConfirmationModal";
+
 interface ShareDocumentModalProps {
   documentId: string | null;
   documentTitle?: string;
@@ -199,6 +201,7 @@ const ShareDocumentModal = ({
 
   const [shareLinks, setShareLinks] = useState<ShareLinkItem[]>([]);
   const [revokingLinkId, setRevokingLinkId] = useState<string | null>(null);
+  const [confirmRevokeId, setConfirmRevokeId] = useState<string | null>(null);
 
   const documentId = document?.id ?? fallbackDocumentId;
   const documentType = document?.type ?? fallbackDocumentType;
@@ -585,7 +588,7 @@ const ShareDocumentModal = ({
                         link={link}
                         key={link.id}
                         isRevoking={revokingLinkId === link.id}
-                        onRevoke={() => handleRevoke(link.id)}
+                        onRevoke={() => setConfirmRevokeId(link.id)}
                       />
                     ))
                   )}
@@ -607,6 +610,21 @@ const ShareDocumentModal = ({
           </Button>
         </Modal.Footer>
       </Modal.Content>
+
+      <ConfirmationModal
+        open={confirmRevokeId !== null}
+        onClose={() => setConfirmRevokeId(null)}
+        onConfirm={() => {
+          const linkId = confirmRevokeId;
+
+          setConfirmRevokeId(null);
+          if (linkId) void handleRevoke(linkId);
+        }}
+        title="Revoke this share link?"
+        description="Anyone opening this link will no longer see the document. This cannot be undone."
+        confirmText="Revoke link"
+        variant="destructive"
+      />
     </Modal>
   );
 };

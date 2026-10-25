@@ -31,9 +31,9 @@ export function describeSaveResult(result: SaveDocumentResult): string | null {
  * thing.
  *
  * A debounced save returns `{ ok: true, queued: true }` immediately — the write itself
- * happens `debounceMs` later. Reporting "Saved locally" at that point claims a persisted
+ * happens `debounceMs` later. Reporting "Saved on this device" at that point claims a persisted
  * write that has not happened yet (and that may still fail on quota), so the queued state
  * gets its own wording and only `onFlush` may promote it.
  */
 export const SAVE_QUEUED_MESSAGE = "Saving...";
-export const SAVE_PERSISTED_MESSAGE = "Saved locally";
+export const SAVE_PERSISTED_MESSAGE = "Saved on this device";

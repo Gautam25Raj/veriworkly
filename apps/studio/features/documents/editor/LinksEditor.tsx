@@ -1,6 +1,10 @@
 "use client";
 
+import { useState } from "react";
+
 import { Button, Select } from "@veriworkly/ui";
+
+import ConfirmationModal from "@/components/modals/ConfirmationModal";
 
 import type {
   DocumentLinks,
@@ -49,6 +53,10 @@ export function LinksEditor({
   onRemoveLink,
   emptyMessage,
 }: LinksEditorProps) {
+  // By id rather than index: the list can change while the dialog is open.
+  const [pendingRemovalId, setPendingRemovalId] = useState<string | null>(null);
+  const pendingRemoval = links.items.find((item) => item.id === pendingRemovalId);
+
   return (
     <>
       <Field label="Display style">
@@ -110,7 +118,7 @@ export function LinksEditor({
                   size="sm"
                   variant="ghost"
                   className="justify-self-start"
-                  onClick={() => onRemoveLink(index)}
+                  onClick={() => setPendingRemovalId(item.id)}
                 >
                   Remove link
                 </Button>
@@ -125,6 +133,25 @@ export function LinksEditor({
       <Button className="mt-3" size="sm" variant="secondary" onClick={onAddLink}>
         Add link
       </Button>
+
+      <ConfirmationModal
+        open={Boolean(pendingRemoval)}
+        onClose={() => setPendingRemovalId(null)}
+        onConfirm={() => {
+          const index = links.items.findIndex((item) => item.id === pendingRemovalId);
+
+          if (index !== -1) onRemoveLink(index);
+          setPendingRemovalId(null);
+        }}
+        title="Remove this link?"
+        description={
+          pendingRemoval?.url
+            ? `${pendingRemoval.url} will be removed.`
+            : "This link will be removed."
+        }
+        confirmText="Remove link"
+        variant="destructive"
+      />
     </>
   );
 }

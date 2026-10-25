@@ -24,10 +24,18 @@ import { AppearanceAndVisibilitySections } from "./AppearanceAndVisibilitySectio
 import {
   updateItem,
   removeItem,
+  sectionRowKey,
+  setLinkByType,
   normalizeProfileIds,
+  withCustomSectionRows,
   sanitizeMasterProfileForSave,
   validateMasterProfileForSave,
 } from "./master-utils";
+
+/** Every profile the editor holds or compares against has one visibility row per custom section. */
+function prepareProfile(profile: MasterProfileData) {
+  return withCustomSectionRows(normalizeProfileIds(profile));
+}
 
 type ProfileMasterProps = {
   profile: MasterProfileData;
@@ -37,7 +45,7 @@ type ProfileMasterProps = {
 
 const ProfileMaster = ({ profile, onSave, isSaving }: ProfileMasterProps) => {
   const [localProfile, setLocalProfile] = useState<MasterProfileData>(() =>
-    normalizeProfileIds(profile),
+    prepareProfile(profile),
   );
 
   const [status, setStatus] = useState<{
@@ -47,11 +55,11 @@ const ProfileMaster = ({ profile, onSave, isSaving }: ProfileMasterProps) => {
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  const initialFingerprint = useMemo(() => JSON.stringify(normalizeProfileIds(profile)), [profile]);
+  const initialFingerprint = useMemo(() => JSON.stringify(prepareProfile(profile)), [profile]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      const currentFingerprint = JSON.stringify(normalizeProfileIds(localProfile));
+      const currentFingerprint = JSON.stringify(prepareProfile(localProfile));
 
       setHasUnsavedChanges(initialFingerprint !== currentFingerprint);
     }, 150);
@@ -61,11 +69,11 @@ const ProfileMaster = ({ profile, onSave, isSaving }: ProfileMasterProps) => {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLocalProfile(normalizeProfileIds(profile));
+    setLocalProfile(prepareProfile(profile));
   }, [profile]);
 
   const updateProfile: UpdateProfile = useCallback((updater) => {
-    setLocalProfile((prev) => updater(prev));
+    setLocalProfile((prev) => withCustomSectionRows(updater(prev)));
     setStatus(null);
   }, []);
 
@@ -133,7 +141,7 @@ const ProfileMaster = ({ profile, onSave, isSaving }: ProfileMasterProps) => {
     }
   }, [hasUnsavedChanges, isSaving, localProfile, onSave]);
 
-  const handleReset = () => setLocalProfile(normalizeProfileIds(profile));
+  const handleReset = () => setLocalProfile(prepareProfile(profile));
 
   return (
     <div className="relative flex flex-col gap-12">
@@ -144,7 +152,9 @@ const ProfileMaster = ({ profile, onSave, isSaving }: ProfileMasterProps) => {
           setBasicField={(k, v) =>
             updateProfile((p) => ({ ...p, basics: { ...p.basics, [k]: v } }))
           }
-          updateLink={() => {}}
+          updateLink={(type, url) =>
+            updateProfile((p) => ({ ...p, links: setLinkByType(p.links, type, url) }))
+          }
           updateLinkDisplayMode={(mode) =>
             updateProfile((p) => ({
               ...p,
@@ -161,10 +171,12 @@ const ProfileMaster = ({ profile, onSave, isSaving }: ProfileMasterProps) => {
               customization: { ...p.customization, [k]: v },
             }))
           }
-          updateSectionVisibility={(id, visible) =>
+          updateSectionVisibility={(rowKey, visible) =>
             updateProfile((p) => ({
               ...p,
-              sections: p.sections.map((s) => (s.id === id ? { ...s, visible } : s)),
+              sections: p.sections.map((s) =>
+                sectionRowKey(s) === rowKey ? { ...s, visible } : s,
+              ),
             }))
           }
         />
@@ -248,7 +260,7 @@ const ProfileMaster = ({ profile, onSave, isSaving }: ProfileMasterProps) => {
                 <Save className="mr-2 h-4 w-4" />
               )}
 
-              {isSaving ? "Syncing..." : "Save Master"}
+              {isSaving ? "Saving..." : "Save Master Profile"}
             </Button>
           </div>
         </Card>

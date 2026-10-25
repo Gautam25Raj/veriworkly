@@ -15,10 +15,9 @@ import {
   emptyVolunteer,
   isValidAbsoluteUrl,
   isValidEmail,
-  joinLines,
-  splitLines,
   updateItem,
 } from "./master-utils";
+import { LinesTextArea } from "./CoreSections";
 import type { AddRepeatableItem, RemoveRepeatableItem, UpdateRepeatableItem } from "./types";
 
 type AdditionalSectionsProps = {
@@ -743,14 +742,14 @@ export function AdditionalSections({
                         </div>
                         <div className="space-y-2 md:col-span-2">
                           <label className="text-sm font-medium">Details</label>
-                          <TextArea
-                            value={joinLines(customItem.details)}
-                            onChange={(event) =>
+                          <LinesTextArea
+                            value={customItem.details}
+                            onChange={(lines) =>
                               updateRepeatableItem("customSections", item.id, (current) => ({
                                 ...current,
                                 items: updateItem(current.items, customItem.id, (currentItem) => ({
                                   ...currentItem,
-                                  details: splitLines(event.target.value),
+                                  details: lines,
                                 })),
                               }))
                             }

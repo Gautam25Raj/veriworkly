@@ -21,6 +21,8 @@ export interface CoverLetterAppearance extends Omit<CoverLetterAppearanceCore, "
 
 export interface CoverLetterContent extends Omit<CoverLetterContentCore, "appearance"> {
   appearance: CoverLetterAppearance;
+  /** The pasted job post: context for writing the letter with AI, never printed on it. */
+  jobPost?: string;
 }
 
 export type CoverLetterTemplateId =

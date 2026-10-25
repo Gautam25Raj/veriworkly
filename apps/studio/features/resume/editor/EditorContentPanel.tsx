@@ -2,6 +2,9 @@
 
 import { memo, useCallback, useMemo, useState } from "react";
 
+import { Button } from "@veriworkly/ui";
+import { Plus } from "lucide-react";
+
 import type { ResumeSection, ResumeSectionId } from "@/types/resume";
 
 import { useResumeStore } from "@/features/resume/store/resume-store";
@@ -26,6 +29,7 @@ import CertificationsSection from "./content/sections/CertificationsSection";
 
 const EditorContentPanel = memo(function EditorContentPanel() {
   const sections = useResumeStore((state) => state.resume.sections);
+  const addCustomSection = useResumeStore((state) => state.addCustomSection);
 
   /*
    * Tracked by section KEY, not section id: every custom section reports the id "custom",
@@ -37,13 +41,6 @@ const EditorContentPanel = memo(function EditorContentPanel() {
     () => sections.slice().sort((left, right) => left.order - right.order),
     [sections],
   );
-
-  const lastCustomKey = useMemo(() => {
-    const customSections = sortedSections.filter((section) => section.id === "custom");
-    const last = customSections[customSections.length - 1];
-
-    return last ? getResumeSectionKey(last) : null;
-  }, [sortedSections]);
 
   const handleToggleSection = useCallback((sectionKey: string) => {
     setOpenSectionKey((currentKey) => (currentKey === sectionKey ? null : sectionKey));
@@ -64,12 +61,20 @@ const EditorContentPanel = memo(function EditorContentPanel() {
             <EditorSectionItem
               key={key}
               section={section}
-              isLastCustom={key === lastCustomKey}
               isOpen={openSectionKey === key}
               onToggle={handleToggleSection}
             />
           );
         })}
+      </div>
+
+      {/* In the panel, not on a section: it has to stay reachable after the last custom
+          section is removed. */}
+      <div className="border-border/70 border-t p-3">
+        <Button onClick={addCustomSection} size="sm" variant="secondary">
+          <Plus className="mr-2 h-4 w-4" />
+          Add custom section
+        </Button>
       </div>
     </div>
   );
@@ -77,14 +82,12 @@ const EditorContentPanel = memo(function EditorContentPanel() {
 
 interface EditorSectionItemProps {
   section: ResumeSection;
-  isLastCustom: boolean;
   isOpen: boolean;
   onToggle: (sectionKey: string) => void;
 }
 
 const EditorSectionItem = memo(function EditorSectionItem({
   section,
-  isLastCustom,
   isOpen,
   onToggle,
 }: EditorSectionItemProps) {
@@ -100,13 +103,7 @@ const EditorSectionItem = memo(function EditorSectionItem({
     // assigns one on read, so this only guards a store mutated by hand.
     if (!section.customSectionId) return null;
 
-    return (
-      <CustomSection
-        {...sectionProps}
-        customSectionId={section.customSectionId}
-        isLast={isLastCustom}
-      />
-    );
+    return <CustomSection {...sectionProps} customSectionId={section.customSectionId} />;
   }
 
   if (section.id === "basics") return <BasicsSection {...sectionProps} />;

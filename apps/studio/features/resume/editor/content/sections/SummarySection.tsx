@@ -12,7 +12,7 @@ import { TextAreaField } from "@/features/documents/editor/form";
 
 const SummarySection = ({ isOpen, onToggle }: BaseSectionProps) => {
   const summary = useResumeStore((state) => state.resume.summary);
-  const resume = useResumeStore((state) => state.resume);
+  const resumeId = useResumeStore((state) => state.resume.id);
   const updateSummary = useResumeStore((state) => state.updateSummary);
 
   const summaryErrors = validateSummary(summary);
@@ -33,12 +33,12 @@ const SummarySection = ({ isOpen, onToggle }: BaseSectionProps) => {
       />
       <AiFieldAssist
         action={summary ? "rewrite_section" : "generate_section"}
-        context={JSON.stringify({
-          basics: resume.basics,
-          experience: resume.experience,
-          skills: resume.skills,
-        })}
-        documentId={resume.id}
+        getContext={() => {
+          const { basics, experience, skills } = useResumeStore.getState().resume;
+
+          return JSON.stringify({ basics, experience, skills });
+        }}
+        documentId={resumeId}
         onApply={updateSummary}
         text={summary}
       />

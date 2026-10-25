@@ -37,14 +37,17 @@ See [Billing & Credits](/docs/product/billing-and-credits) for the full credit-w
 ## Where costs come from
 
 Per-action prompts, model selection, token limits, and **credit costs for both modes** live in a
-private AI policy loaded from configuration at boot (`AI_ACTIONS_POLICY_PATH` or
-`AI_ACTIONS_POLICY_JSON`), not in application code. `GET /api/v1/ai/actions` exposes only the public
+private AI policy loaded from configuration at boot, not in application code:
+`AI_ACTIONS_POLICY_PATH` points at a file named `ai-actions-policy.json`, or
+`AI_ACTIONS_POLICY_JSON` holds the same JSON inline. `GET /api/v1/ai/actions` exposes only the public
 slice of that policy — the Standard and Expert credit cost of each action — which is what the editor
 renders on the mode buttons.
 
 The ATS feature keeps its own separate policies (`ATS_AI_POLICY_*` for the analysis prompts and
-pricing, `ATS_ENGINE_POLICY_*` for the deterministic scoring rules), so AI writing and ATS scoring
-can be configured and rotated independently. See
+pricing, in `ats-ai-policy.json`; `ATS_ENGINE_POLICY_*` for the deterministic scoring rules, in
+`ats-engine-policy.json`), so AI writing and ATS scoring can be configured and rotated
+independently. The engine policy must be built for the engine version the server runs: the server
+refuses to start with a policy its engine rejects. See
 [Environment Variables](/docs/operations/environment-variables#private-ai-policies).
 
 In production the server validates at boot that a policy exists and defines both a `standard` and an

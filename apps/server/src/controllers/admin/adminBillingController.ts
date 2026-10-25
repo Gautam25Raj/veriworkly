@@ -1,4 +1,4 @@
-import { adminHandler } from "#controllers/admin/adminRequestHandler";
+import { adminHandler, deleteRequestInput } from "#controllers/admin/adminRequestHandler";
 
 import * as AdminBillingService from "#services/admin/adminBillingService";
 import { ADMIN_AUDIT_ACTIONS, recordAdminAudit } from "#services/admin/adminAuditService";
@@ -64,24 +64,31 @@ export const AdminBillingController = {
     return AdminBillingService.listCreditWallets(query);
   }, "Credit wallets fetched successfully"),
 
-  /** POST /admin/billing/credits — grant (positive) or claw back (negative) credits. */
+  /**
+   * POST /admin/billing/credits — grant (positive) or claw back (negative) credits. An optional
+   * `Idempotency-Key` header makes a retried submit a no-op instead of a second adjustment.
+   */
   adjustCredits: adminHandler(async ({ req, actorId }) => {
     const input = adminCreditAdjustmentSchema.parse(req.body);
+    const idempotencyKey = req.get("Idempotency-Key")?.trim().slice(0, 128) || undefined;
 
-    const transaction = await AdminBillingService.adjustCredits(
+    const { transaction, replayed } = await AdminBillingService.adjustCredits(
       input.userId,
       input.amount,
       input.reason,
+      { actorId, idempotencyKey },
     );
 
-    await recordAdminAudit({
-      actorId,
-      action: ADMIN_AUDIT_ACTIONS.creditGrant,
-      targetType: "User",
-      targetId: input.userId,
-      reason: input.reason,
-      metadata: { amount: input.amount },
-    });
+    // A replayed key changed nothing, so it earns no second audit entry.
+    if (!replayed)
+      await recordAdminAudit({
+        actorId,
+        action: ADMIN_AUDIT_ACTIONS.creditGrant,
+        targetType: "User",
+        targetId: input.userId,
+        reason: input.reason,
+        metadata: { amount: input.amount },
+      });
 
     return transaction;
   }, "Credits adjusted successfully"),
@@ -113,7 +120,7 @@ export const AdminBillingController = {
   /** DELETE /admin/billing/entitlements/:id */
   revokeEntitlement: adminHandler(async ({ req, actorId }) => {
     const { id } = adminIdParamSchema.parse(req.params);
-    const input = adminEntitlementRevokeSchema.parse(req.body);
+    const input = adminEntitlementRevokeSchema.parse(deleteRequestInput(req));
 
     const grant = await AdminBillingService.revokeEntitlement(id, input.reason, actorId);
 

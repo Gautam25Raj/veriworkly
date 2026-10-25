@@ -2,39 +2,112 @@ import { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 
 import { config } from "#config";
-import { BillingService } from "#services/billingService";
+import { BILLING_SUSPENSION_REASONS, BillingService } from "#services/billingService";
 import { EntitlementService } from "#services/entitlementService";
 import { ENTITLEMENT_KEYS } from "#services/productCatalog";
 
 import {
   invalidatePublicPortfolioCaches,
+  publicPortfolioCacheKey,
+  publicPortfolioListCacheKey,
   revalidatePublicPortfolios,
 } from "#utils/portfolioPublicationCache";
 
 import { prisma } from "#lib/prisma";
 import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
-import { normalizeSlug, RESERVED_USERNAMES } from "#utils/slugs";
+import { normalizePortfolioSubdomain, portfolioSubdomainLookupKey } from "#utils/slugs";
 import { cacheGet, cacheSet, cacheDel, cacheDelByPrefix, getRedis } from "#lib/redis";
 import { documentListCachePrefix, userProfileCacheKey } from "#lib/cacheKeys";
 import { hashForAnalytics } from "#utils/analyticsHash";
 import { sendPortfolioUpdatedEmail } from "#services/mail/portfolioMail";
 
-import { portfolioContentSchema, type PortfolioContentInput } from "#validators/portfolioValidator";
+import {
+  isPremiumPortfolioTemplate,
+  portfolioContentSchema,
+  type PortfolioContentInput,
+} from "#validators/portfolioValidator";
 
 const VIEW_BUFFER_TTL_SECONDS = 14 * 24 * 60 * 60;
 const MAX_VIEW_BUFFER_FIELDS = 10_000;
 // A vanity metric doesn't need per-request precision, but trivially repeatable POSTs shouldn't be
 // able to inflate it either — collapse repeat views from the same viewer within this window.
 const VIEW_DEDUP_WINDOW_SECONDS = 30 * 60;
+// The sitemap asks for everything; a bound keeps one unparameterised GET from streaming the table.
+const PUBLIC_LIST_MAX = 1000;
 
-function normalizeSubdomain(value: string) {
-  const subdomain = normalizeSlug(value, "").replace(/_/g, "-").slice(0, 63);
+/**
+ * `suspensionReason` values that make a suspension sticky. An admin takedown is stored as
+ * `moderation:<free text>`; `user_unpublished` is the user's own takedown and billing's own
+ * reasons are listed in `BILLING_SUSPENSION_REASONS`. Anything else on a SUSPENDED row is
+ * treated as moderation too, so an unknown reason fails closed. A locked row is left alone by
+ * the user's Publish/Unpublish and by billing; only an admin setting the status back to LIVE
+ * (`adminPortfolioService.updatePublicationStatus`) lifts it.
+ */
+export const MODERATION_SUSPENSION_PREFIX = "moderation:";
+export const USER_UNPUBLISHED_REASON = "user_unpublished";
 
-  if (!subdomain || RESERVED_USERNAMES.has(subdomain))
-    throw new ApiError(400, "Choose a valid portfolio subdomain.");
+export function isModerationLocked(publication: {
+  status: string;
+  suspensionReason: string | null;
+}) {
+  if (publication.status !== "SUSPENDED") return false;
+
+  const reason = publication.suspensionReason;
+
+  return (
+    reason !== null &&
+    reason !== USER_UNPUBLISHED_REASON &&
+    !(BILLING_SUSPENSION_REASONS as readonly string[]).includes(reason)
+  );
+}
+
+/** Owner-facing: `keep` lists the names this user already holds (see `ownedSubdomains`). */
+function normalizeSubdomain(value: string, keep: Iterable<string> = []) {
+  const subdomain = normalizePortfolioSubdomain(value, keep);
+
+  if (!subdomain) throw new ApiError(400, "Choose a valid portfolio subdomain.");
 
   return subdomain;
+}
+
+/**
+ * The subdomains a user already holds: their publication's and their draft's stored slug.
+ * Re-saving or re-publishing one of these skips the new-name rules (reserved list, punycode,
+ * trailing dash), so a site published before a name was reserved keeps working for its owner.
+ */
+async function ownedSubdomains(userId: string, documentId?: string) {
+  const [publication, document] = await Promise.all([
+    prisma.portfolioPublication.findUnique({ where: { userId }, select: { subdomain: true } }),
+    prisma.document.findFirst({
+      where: {
+        userId,
+        type: "PORTFOLIO",
+        deletedAt: null,
+        ...(documentId ? { id: documentId } : {}),
+      },
+      orderBy: { updatedAt: "desc" },
+      select: { slug: true },
+    }),
+  ]);
+
+  return [publication?.subdomain, document?.slug].filter((name): name is string => Boolean(name));
+}
+
+/** A subscription that still pays for premium publishing, or whose grace window is running. */
+function governsPublication(
+  subscription: { status: string; currentPeriodEnd: Date | null; graceEndsAt: Date | null },
+  now: Date,
+) {
+  const inPeriod = !subscription.currentPeriodEnd || subscription.currentPeriodEnd > now;
+
+  return (
+    (subscription.status === "ACTIVE" && inPeriod) ||
+    (subscription.status === "CANCELED" &&
+      subscription.currentPeriodEnd !== null &&
+      subscription.currentPeriodEnd > now) ||
+    (subscription.graceEndsAt !== null && subscription.graceEndsAt > now)
+  );
 }
 
 function utcDay(date = new Date()) {
@@ -93,10 +166,7 @@ function collectAssetIds(content: PortfolioContentInput) {
 
 export class PortfolioService {
   static async listPublicPortfolios(limit?: number, offset?: number) {
-    const cacheKey =
-      limit !== undefined || offset !== undefined
-        ? `portfolio:public:list:${limit || 0}:${offset || 0}`
-        : "portfolio:public:list";
+    const cacheKey = publicPortfolioListCacheKey(limit, offset);
     const cached = await cacheGet<Array<{ subdomain: string; updatedAt: string }>>(cacheKey);
 
     if (cached) return cached;
@@ -105,7 +175,7 @@ export class PortfolioService {
       where: { status: { in: ["LIVE", "GRACE"] } },
       select: { subdomain: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
-      take: limit,
+      take: limit ?? PUBLIC_LIST_MAX,
       skip: offset,
     });
 
@@ -114,9 +184,19 @@ export class PortfolioService {
     return result;
   }
 
+  /**
+   * Read-only: rows are looked up by their stored key, so a reserved name is simply one with no
+   * publication behind it (404) while a site published before the name was reserved still
+   * serves. A GRACE row whose subscription grace has lapsed is hidden here but suspended only
+   * by `jobs/portfolioAccessJob` — a public GET never writes.
+   */
   static async getPublicPortfolio(subdomain: string) {
-    const normalized = normalizeSubdomain(subdomain);
-    const cacheKey = `portfolio:public:${normalized}`;
+    const normalized = portfolioSubdomainLookupKey(subdomain);
+
+    if (!normalized) return null;
+
+    const cacheKey = publicPortfolioCacheKey(normalized);
+    const now = new Date();
 
     const cached = await cacheGet<{
       id: string;
@@ -125,6 +205,7 @@ export class PortfolioService {
       snapshot: unknown;
       status: string;
       updatedAt: string;
+      isPremium: boolean;
     }>(cacheKey);
 
     if (cached) return cached;
@@ -140,19 +221,25 @@ export class PortfolioService {
         updatedAt: true,
         user: {
           select: {
+            // The latest portfolio subscription, whatever its state: a GRACE row is hidden once
+            // that subscription's grace has lapsed. A GRACE row with no subscription at all (an
+            // expired pass) has no provider clock and serves until the job suspends it.
             subscriptions: {
-              where: {
-                productKey: { in: ["portfolio_pro", "bundle"] },
-                OR: [
-                  {
-                    status: { in: ["ACTIVE"] },
-                    OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: new Date() } }],
-                  },
-                  { graceEndsAt: { gt: new Date() } },
-                ],
-              },
-              select: { status: true, graceEndsAt: true },
+              where: { productKey: { in: ["portfolio_pro", "bundle"] } },
+              select: { status: true, currentPeriodEnd: true, graceEndsAt: true },
               orderBy: [{ graceEndsAt: "desc" }, { updatedAt: "desc" }],
+              take: 1,
+            },
+            // Premium rendering follows the publish grant whatever its source (subscription,
+            // pass, MANUAL comp), the same predicate `canPublish` uses.
+            entitlementGrants: {
+              where: {
+                key: ENTITLEMENT_KEYS.PORTFOLIO_PUBLISH,
+                startsAt: { lte: now },
+                revokedAt: null,
+                OR: [{ endsAt: null }, { endsAt: { gt: now } }],
+              },
+              select: { id: true },
               take: 1,
             },
           },
@@ -162,23 +249,19 @@ export class PortfolioService {
 
     if (!publication || publication.status === "SUSPENDED") return null;
 
-    const accessSubscription = publication.user.subscriptions[0];
+    const subscription = publication.user.subscriptions[0];
+    const subscriptionGoverns = subscription ? governsPublication(subscription, now) : false;
     const graceEndsAt =
-      accessSubscription?.status === "ACTIVE" ? null : (accessSubscription?.graceEndsAt ?? null);
+      subscription && subscription.status !== "ACTIVE" ? subscription.graceEndsAt : null;
 
-    if (publication.status === "GRACE" && !accessSubscription) {
-      await prisma.portfolioPublication.update({
-        where: { id: publication.id },
-        data: { status: "SUSPENDED", suspendedAt: new Date(), suspensionReason: "grace_expired" },
-      });
+    if (publication.status === "GRACE" && subscription && !subscriptionGoverns) return null;
 
-      await invalidatePublicPortfolioCaches([normalized]);
-      void revalidatePublicPortfolios([normalized]);
-
-      return null;
-    }
-
-    const isPremium = !!accessSubscription;
+    // Premium rendering is for premium templates only, while a publish grant is in effect
+    // (any source: subscription, pass, MANUAL comp) or during the GRACE courtesy window, when
+    // the grant is already gone but the site still renders as paid until the job suspends it.
+    const isPremium =
+      isPremiumPortfolioTemplate(publication.templateId) &&
+      (publication.user.entitlementGrants.length > 0 || publication.status === "GRACE");
 
     const result = {
       id: publication.id,
@@ -253,7 +336,7 @@ export class PortfolioService {
   }
 
   static async isSubdomainAvailable(userId: string, value: string) {
-    const subdomain = normalizeSubdomain(value);
+    const subdomain = normalizeSubdomain(value, await ownedSubdomains(userId));
 
     const existing = await prisma.portfolioPublication.findUnique({
       where: { subdomain },
@@ -272,7 +355,10 @@ export class PortfolioService {
       snapshot: PortfolioContentInput;
     },
   ) {
-    const subdomain = normalizeSubdomain(input.subdomain);
+    const subdomain = normalizeSubdomain(
+      input.subdomain,
+      await ownedSubdomains(userId, input.documentId),
+    );
 
     const existing = input.documentId
       ? await prisma.document.findFirst({
@@ -364,11 +450,9 @@ export class PortfolioService {
 
     if (!document) throw new ApiError(404, "Portfolio draft not found.");
 
-    const isPremiumTemplate = document.templateId === "nimbus" || document.templateId === "cipher";
-
-    if (isPremiumTemplate && !hasSubscription) {
+    if (isPremiumPortfolioTemplate(document.templateId) && !hasSubscription) {
       throw new ApiError(
-        403,
+        402,
         `Publishing the premium template "${document.templateId}" requires an active Creator Pro subscription.`,
       );
     }
@@ -377,7 +461,17 @@ export class PortfolioService {
       throw new ApiError(409, "Save the latest draft before publishing.");
     }
 
-    const subdomain = normalizeSubdomain(input.subdomain);
+    const existingPublication = await prisma.portfolioPublication.findUnique({
+      where: { userId },
+      select: { documentId: true, subdomain: true, status: true, suspensionReason: true },
+    });
+
+    const subdomain = normalizeSubdomain(
+      input.subdomain,
+      [existingPublication?.subdomain, document.slug].filter((name): name is string =>
+        Boolean(name),
+      ),
+    );
 
     const publishable = portfolioContentSchema.safeParse(document.content);
 
@@ -409,10 +503,8 @@ export class PortfolioService {
       removeWatermark: resolveWatermarkFlag(publishable.data.removeWatermark, canRemoveWatermark),
     };
 
-    const existingPublication = await prisma.portfolioPublication.findUnique({
-      where: { userId },
-      select: { documentId: true, subdomain: true, status: true },
-    });
+    if (existingPublication && isModerationLocked(existingPublication))
+      throw new ApiError(403, "This portfolio was taken down by a moderator.");
 
     try {
       const publication = await prisma.$transaction(async (tx) => {
@@ -497,7 +589,7 @@ export class PortfolioService {
   static async unpublish(userId: string) {
     const publication = await prisma.portfolioPublication.findUnique({ where: { userId } });
 
-    if (!publication) return null;
+    if (!publication) throw new ApiError(404, "Portfolio is not published.");
 
     const result = await prisma.$transaction(async (tx) => {
       await tx.document.update({
@@ -505,11 +597,15 @@ export class PortfolioService {
         data: { visibility: "PRIVATE" },
       });
 
+      // A moderated row keeps its moderation reason: rewriting it as the user's own takedown
+      // would let the next Publish lift the lock.
+      if (isModerationLocked(publication)) return publication;
+
       return tx.portfolioPublication.update({
         where: { userId },
         data: {
           status: "SUSPENDED",
-          suspensionReason: "user_unpublished",
+          suspensionReason: USER_UNPUBLISHED_REASON,
           suspendedAt: new Date(),
         },
       });

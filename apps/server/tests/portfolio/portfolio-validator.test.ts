@@ -48,6 +48,26 @@ describe("portfolio validator", () => {
     ).not.toThrow();
   });
 
+  it("accepts every profile-core section type and keeps subtitle and settings", () => {
+    const section = {
+      id: "certs",
+      type: "certifications",
+      title: "Certifications",
+      subtitle: "Verified",
+      visible: true,
+      items: [],
+      settings: { layout: "grid" },
+    };
+    const parsed = portfolioContentSchema.parse({ ...validPortfolio, sections: [section] });
+    expect(parsed.sections[0]).toEqual(section);
+
+    for (const type of ["languages", "publications", "testScores", "volunteer", "custom"]) {
+      expect(() =>
+        portfolioContentSchema.parse({ ...validPortfolio, sections: [{ ...section, type }] }),
+      ).not.toThrow();
+    }
+  });
+
   it("rejects non-web links in public snapshots", () => {
     expect(() =>
       portfolioContentSchema.parse({

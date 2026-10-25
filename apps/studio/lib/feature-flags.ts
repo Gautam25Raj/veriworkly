@@ -1,8 +1,10 @@
 import "server-only";
 
+// An empty value (`AFFILIATE_PROGRAM_ENABLED=`) means unset, so the environment default applies.
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
-  if (value == null) return fallback;
-  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) return fallback;
+  return ["1", "true", "yes", "on"].includes(normalized);
 }
 
 const isProductionRuntime = process.env.NODE_ENV === "production";

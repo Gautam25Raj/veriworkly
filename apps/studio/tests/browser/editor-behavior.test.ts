@@ -116,7 +116,7 @@ async function anyVisible(namePattern: RegExp): Promise<boolean> {
 }
 
 async function openTab(label: string) {
-  await page.getByRole("button", { name: new RegExp(`^${label}$`) }).click();
+  await page.getByRole("tab", { name: new RegExp(`^${label}$`) }).click();
   await page.waitForTimeout(300);
 }
 

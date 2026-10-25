@@ -31,8 +31,6 @@
     "components/**/*.tsx",
     "features/**/*.ts",
     "features/**/*.tsx",
-    "hooks/**/*.ts",
-    "hooks/**/*.tsx",
     "lib/**/*.ts",
     "config/**/*.ts",
     "providers/**/*.ts",
@@ -49,7 +47,8 @@
     "next.config.ts",
     "postcss.config.mjs",
     "vitest.config.ts",
-    "playwright.config.ts",
+    "vitest.browser.config.ts",
+    "vitest.parity.config.ts",
     ".next/dev/dev/types/**/*.ts"
   ],
   "exclude": ["node_modules"]

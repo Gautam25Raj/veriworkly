@@ -1,0 +1,44 @@
+name: Studio Browser Tests
+
+# The browser and parity suites boot `next dev` and drive Chrome, so they take minutes. They run
+# nightly and on demand instead of on every pull request.
+on:
+  schedule:
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  NEXT_PUBLIC_BACKEND_URL: "http://localhost:8080/api/v1"
+  BACKEND_INTERNAL_URL: "http://localhost:8080/api/v1"
+  SITE_URL: "http://localhost:3000"
+  NEXT_PUBLIC_APP_URL: "http://localhost:4311"
+
+jobs:
+  studio-browser:
+    name: Studio ${{ matrix.suite }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [browser, parity]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install Dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build Shared Packages
+        run: npm run build -w @veriworkly/profile-core --if-present
+
+      # The harness launches the runner's preinstalled Google Chrome (channel "chrome").
+      - name: Run Studio ${{ matrix.suite }} suite
+        run: npm run test:${{ matrix.suite }} -w @veriworkly/studio

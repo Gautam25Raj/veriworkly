@@ -7,12 +7,12 @@ VeriWorkly Studio (`app.veriworkly.com`) is engineered around a **local-first st
 ## Machine-Readable Resources
 - **Agent Card**: `https://app.veriworkly.com/.well-known/agent.json`
 - **OpenAPI Spec**: `https://docs.veriworkly.com/openapi.json`
-- **Pricing & Credit Ledger**: `https://app.veriworkly.com/pricing.md`
+- **Pricing**: `https://veriworkly.com/pricing.md`
 - **API Reference**: `https://docs.veriworkly.com/docs/api-reference`
 
 ## Application Modules & Key Routes
 - **Document Dashboard** (`https://app.veriworkly.com/` & `/documents`): List and grid views of resumes and cover letters with recency sorting, tag filtering, sync status indicators (local/pending/synced/conflicted), and global `Cmd/Ctrl+K` command palette.
-- **Resume Editor** (`https://app.veriworkly.com/editor/[id]`): Section-based document canvas with live paged PDF preview. Supports 7 templates:
+- **Resume Editor** (`https://app.veriworkly.com/editor/resume/[id]`): Section-based document canvas with live paged PDF preview. Supports 7 templates:
   - `executive-clarity` (Executive Clarity)
   - `precision-ats` (Precision ATS)
   - `modern-minimal` (Modern Minimal)
@@ -20,7 +20,7 @@ VeriWorkly Studio (`app.veriworkly.com`) is engineered around a **local-first st
   - `corporate-brief` (Corporate Brief)
   - `bold-impact` (Bold Impact)
   - `veriworkly-special` (VeriWorkly Special)
-- **Cover Letter Editor**: Dedicated cover letter canvas supporting 5 templates: `professional`, `veriworkly-special`, `minimalist`, `executive`, and `ats-essential`.
+- **Cover Letter Editor** (`https://app.veriworkly.com/editor/cover-letter/[id]`): Dedicated cover letter canvas supporting 5 templates: `professional`, `veriworkly-special`, `minimalist`, `executive`, and `ats-essential`.
 - **Master Profile Store** (`https://app.veriworkly.com/profile/master` & `/profile/advanced`): Single canonical career profile holding all career facts. New documents seed automatically from Master Profile without overwriting canonical data.
 - **ATS Checker Workspace** (`https://app.veriworkly.com/ats`): Rule-based ATS readiness scoring (length, structure, action verbs, formatting risks) and AI-powered job description keyword match analysis.
 - **Import Hub**: OAuth-based GitHub profile/repository ingestor (maps repos to projects deterministically) and AI-parsed LinkedIn profile text ingestor.

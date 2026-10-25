@@ -155,6 +155,10 @@ jobs:
       - name: Build Shared Packages
         run: npm run build -w @veriworkly/profile-core --if-present
 
+      # `next build` type-checks only what the routes import; this also covers tests and configs.
+      - name: Type-check Studio
+        run: npx tsc --noEmit --incremental false -p apps/studio/tsconfig.json
+
       - name: Run Studio Tests
         run: npm run test:contracts -w @veriworkly/studio --if-present
 

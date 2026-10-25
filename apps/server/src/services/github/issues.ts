@@ -1,12 +1,13 @@
 import cron from "node-cron";
-import { v4 as uuidv4 } from "uuid";
 import type { Prisma } from "@prisma/client";
 import { config } from "#config";
 import type { GitHubStatsResponse } from "#types/api";
 
 import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
-import { cacheDel, cacheGet, cacheSet, getRedis } from "#lib/redis";
+import { cacheDel, cacheGet, cacheSet } from "#lib/redis";
+import { acquireJobLock } from "#lib/jobLock";
+import { recordJobSuccess } from "#lib/metrics";
 import { bumpGeneration, resolveGenerationalKey } from "#lib/cacheGeneration";
 import { logger } from "#lib/logger";
 
@@ -27,14 +28,6 @@ const REDIS_STATS_KEY = `github:stats:${PROJECT_URL}`;
 const ISSUES_CACHE_NAMESPACE = `github:issues:${encodeURIComponent(PROJECT_URL)}`;
 const STATS_CACHE_TTL = 43200; // 12 hours
 const ISSUES_CACHE_TTL = 300; // 5 minutes
-
-const RELEASE_LOCK_LUA_SCRIPT = `
-  if redis.call("get", KEYS[1]) == ARGV[1] then
-      return redis.call("del", KEYS[1])
-  else
-      return 0
-  end
-`;
 
 /**
  * When the cron (`GITHUB_SYNC_CRON` in `GITHUB_SYNC_TIMEZONE`) next fires, so `nextSyncAt` on
@@ -105,6 +98,8 @@ export async function fetchAllGitHubIssues(
   repo: string,
   token: string,
   since?: Date,
+  /** Awaited before every page after the first; throw from it to stop paging. */
+  beforeNextPage?: () => Promise<void>,
 ): Promise<GitHubIssuePayload[]> {
   const collected: GitHubIssuePayload[] = [];
 
@@ -134,6 +129,7 @@ export async function fetchAllGitHubIssues(
 
     if (hasNextPage) {
       page += 1;
+      await beforeNextPage?.();
     }
   }
 
@@ -292,48 +288,143 @@ export function isGitHubIssueSyncConfigured(): boolean {
 }
 
 /**
- * Sync GitHub issues from GitHub API into DB and refresh caches.
+ * Say on the sync row, and in the log with the upstream status and URL, why a sync failed (V-059).
+ * `syncedAt` is written back unchanged: a failure is not freshness, so the startup check retries.
  */
-export async function syncGitHubStatsFromGitHub(forceFullSync = false) {
+async function recordSyncFailure(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  logger.error("GitHub issue sync failed", {
+    message,
+    details: error instanceof ApiError ? error.details : undefined,
+  });
+
+  try {
+    const row = await prisma.gitHubSync.findUnique({
+      where: { projectUrl: PROJECT_URL },
+      select: { syncedAt: true },
+    });
+
+    if (!row) return;
+
+    await prisma.gitHubSync.update({
+      where: { projectUrl: PROJECT_URL },
+      data: { lastSyncStatus: "error", lastError: message.slice(0, 500), syncedAt: row.syncedAt },
+    });
+  } catch (recordError) {
+    logger.error("Could not record the GitHub sync failure", recordError);
+  }
+}
+
+/** Subtracted from the stored `since` cursor: covers clock skew with GitHub; upserts are idempotent. */
+const SINCE_OVERLAP_MS = 5 * 60 * 1000;
+
+/** Start of the UTC day `at` falls in, in epoch ms. */
+function utcDayStart(at: Date): number {
+  return Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate());
+}
+
+/** When the last full sync started (`data.lastFullSyncAt`), or null when none is recorded. */
+function lastFullSyncAt(data: Prisma.JsonValue | undefined): Date | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const raw = (data as Record<string, unknown>).lastFullSyncAt;
+  const at = typeof raw === "string" ? new Date(raw) : null;
+  return at && !Number.isNaN(at.getTime()) ? at : null;
+}
+
+/**
+ * Sync GitHub issues from GitHub API into DB and refresh caches.
+ *
+ * Only a full sync can drop issues deleted or transferred on GitHub (an incremental `since` fetch
+ * never returns them), so `fullSync`:
+ * - `true`: always full (admin "force").
+ * - `"daily"`: full when no full sync has started yet in the current UTC day, else incremental.
+ *   The cron uses this, so the first run of each day reconciles deletions and the rest are cheap.
+ * - `false`: incremental whenever a cursor exists.
+ */
+export async function syncGitHubStatsFromGitHub(fullSync: boolean | "daily" = false) {
   // Without these the request is repos///issues, a 404 on every run.
   if (!isGitHubIssueSyncConfigured()) {
     throw new ApiError(503, "GitHub sync is not configured (GITHUB_OWNER/GITHUB_REPO)");
   }
 
-  const redis = getRedis();
-  const lockKey = "github:sync:lock";
-  const lockValue = uuidv4();
-  const lockTTL = 600; // 10 minutes
+  // Renewed while the sync runs (V-127); the CLI, the admin button and the cron share it.
+  const lock = await acquireJobLock("github:sync:lock", { ttlMs: 600_000 });
 
-  const lockResult = await redis.set(lockKey, lockValue, {
-    NX: true,
-    EX: lockTTL,
-  });
-
-  if (lockResult !== "OK") {
+  if (!lock) {
     throw new ApiError(409, "GitHub sync is already in progress");
   }
+
+  // Checked between pages and before the write: a sync that lost its lock stops instead of
+  // writing beside the runner that now holds it.
+  // Kept so the catch below can tell "the runner that now holds the lock owns the row" from a
+  // real failure: losing the lock must not write an error over the other runner's result.
+  let lostLockError: ApiError | null = null;
+  const ensureStillOwner = async () => {
+    if (!(await lock.stillOwner())) {
+      lostLockError = new ApiError(
+        409,
+        "GitHub sync stopped: its lock was taken by another runner",
+      );
+      throw lostLockError;
+    }
+  };
 
   try {
     const { owner, repo, token } = config.github;
 
     const existingSync = await prisma.gitHubSync.findUnique({
       where: { projectUrl: PROJECT_URL },
-      select: { syncedAt: true, id: true },
+      select: { etag: true, id: true, data: true },
     });
 
-    const sinceDate =
-      existingSync?.syncedAt && !forceFullSync ? new Date(existingSync.syncedAt) : undefined;
+    const fetchStartedAt = new Date();
+    const lastFull = lastFullSyncAt(existingSync?.data);
+    const forceFull =
+      fullSync === true ||
+      (fullSync === "daily" && (!lastFull || lastFull.getTime() < utcDayStart(fetchStartedAt)));
 
-    const rawIssues = await fetchAllGitHubIssues(owner, repo, token, sinceDate);
+    // `since` is when the previous fetch started, kept in the otherwise unused `etag` column
+    // (syncedAt is when it finished, so issues changed during a slow fetch would be skipped,
+    // V-056), minus a small overlap. A row without it, such as one from before this, gets a
+    // full sync.
+    const previousFetchStartedAt = existingSync?.etag ? new Date(existingSync.etag) : null;
+    const sinceDate =
+      previousFetchStartedAt && !Number.isNaN(previousFetchStartedAt.getTime()) && !forceFull
+        ? new Date(previousFetchStartedAt.getTime() - SINCE_OVERLAP_MS)
+        : undefined;
+
+    // A full sync that reconciled records when it started, for the "daily" mode above. Written
+    // only with the reconcile below: the empty-result shortcut skips it, so the next cron run
+    // tries the full sync again.
+    const existingData =
+      existingSync?.data &&
+      typeof existingSync.data === "object" &&
+      !Array.isArray(existingSync.data)
+        ? (existingSync.data as Prisma.InputJsonObject)
+        : { lastSyncedBy: "System" };
+    const syncData: Prisma.InputJsonObject = sinceDate
+      ? existingData
+      : { ...existingData, lastFullSyncAt: fetchStartedAt.toISOString() };
+
+    const syncOutcome = {
+      etag: fetchStartedAt.toISOString(),
+      lastSyncStatus: "ok",
+      lastError: null,
+    };
+
+    const rawIssues = await fetchAllGitHubIssues(owner, repo, token, sinceDate, ensureStillOwner);
+
+    await ensureStillOwner();
 
     if (rawIssues.length === 0 && existingSync) {
       const updatedSync = await prisma.gitHubSync.update({
         where: { id: existingSync.id },
-        data: { syncedAt: new Date(), nextSyncAt: nextScheduledSyncAt() },
+        data: { syncedAt: new Date(), nextSyncAt: nextScheduledSyncAt(), ...syncOutcome },
       });
 
       await cacheDel(REDIS_STATS_KEY);
+      recordJobSuccess("github-sync");
 
       return updatedSync;
     }
@@ -351,12 +442,15 @@ export async function syncGitHubStatsFromGitHub(forceFullSync = false) {
             todoCount: 0,
             inProgressCount: 0,
             doneCount: 0,
-            data: { lastSyncedBy: "System" },
+            data: syncData,
             nextSyncAt: nextScheduledSyncAt(),
+            ...syncOutcome,
           },
           update: {
             syncedAt: new Date(),
             nextSyncAt: nextScheduledSyncAt(),
+            data: syncData,
+            ...syncOutcome,
           },
         });
 
@@ -494,16 +588,17 @@ export async function syncGitHubStatsFromGitHub(forceFullSync = false) {
 
     await cacheDel(REDIS_STATS_KEY);
     await bumpGeneration(ISSUES_CACHE_NAMESPACE);
+    recordJobSuccess("github-sync");
 
     return syncRecord;
-  } finally {
-    try {
-      await redis.eval(RELEASE_LOCK_LUA_SCRIPT, {
-        keys: [lockKey],
-        arguments: [lockValue],
-      });
-    } catch (err) {
-      logger.error("Failed to release GitHub sync lock", err);
+  } catch (error) {
+    if (error === lostLockError) {
+      logger.debug("GitHub issue sync stopped: lock lost to another runner; sync row left as is");
+    } else {
+      await recordSyncFailure(error);
     }
+    throw error;
+  } finally {
+    await lock.release();
   }
 }

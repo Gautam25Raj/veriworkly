@@ -4,10 +4,16 @@ import { config } from "#config";
 import { logger } from "#lib/logger";
 import { ApiError } from "#lib/errors";
 import { getRedis } from "#lib/redis";
+import { createRunTracker } from "#lib/jobLock";
 
-import { shouldSyncGitHubStats, syncGitHubStatsFromGitHub } from "#services/github/index";
+import {
+  isGitHubIssueSyncConfigured,
+  shouldSyncGitHubStats,
+  syncGitHubStatsFromGitHub,
+} from "#services/github/index";
 
 let job: ScheduledTask | null = null;
+const runs = createRunTracker();
 let warnedNotConfigured = false;
 
 /** Never rejects; a Redis blip is a skipped tick logged at warn, not an error (V-101). */
@@ -29,7 +35,9 @@ export async function runGitHubSync(reason: "startup" | "cron"): Promise<void> {
       return;
     }
 
-    const result = await syncGitHubStatsFromGitHub(reason === "cron");
+    // The cron's first run of each UTC day is a full sync (the only kind that drops issues deleted
+    // or transferred on GitHub); its other runs, and the startup run, are incremental.
+    const result = await syncGitHubStatsFromGitHub(reason === "cron" ? "daily" : false);
 
     logger.info(`GitHub sync (${reason}) success`, {
       itemsSynced:
@@ -56,6 +64,11 @@ export async function runGitHubSync(reason: "startup" | "cron"): Promise<void> {
   }
 }
 
+/** Whether startGitHubSyncJob schedules anything; `/health/jobs` reports the job disabled otherwise. */
+export function isGitHubSyncJobEnabled(): boolean {
+  return config.github.syncEnabled && isGitHubIssueSyncConfigured();
+}
+
 export function startGitHubSyncJob() {
   const { syncEnabled, syncCron, syncTimezone } = config.github;
 
@@ -64,21 +77,31 @@ export function startGitHubSyncJob() {
     return;
   }
 
+  // GITHUB_OWNER/GITHUB_REPO unset: every tick would fail the same way (V-058).
+  if (!isGitHubSyncJobEnabled()) {
+    logger.warn("GitHub sync is not scheduled: GITHUB_OWNER/GITHUB_REPO are not configured.");
+    return;
+  }
+
   if (job) return;
 
-  job = cron.schedule(syncCron, () => void runGitHubSync("cron"), { timezone: syncTimezone });
+  job = cron.schedule(syncCron, () => runs.track(runGitHubSync("cron")), {
+    timezone: syncTimezone,
+  });
 
   logger.debug("GitHub sync cron started", { schedule: syncCron });
 
-  void runGitHubSync("startup");
+  runs.track(runGitHubSync("startup"));
 }
 
-// Stops scheduling only; an in-flight sync is not tracked or awaited (Phase 4 item 1).
-export function stopGitHubSyncJob() {
+/** Stops scheduling and resolves once the sync in progress, if any, has finished. */
+export function stopGitHubSyncJob(): Promise<void> {
   if (job) {
     job.stop();
     job = null;
 
     logger.info("GitHub sync cron stopped.");
   }
+
+  return runs.idle();
 }

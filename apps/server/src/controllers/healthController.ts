@@ -1,9 +1,15 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 
-import prisma from "#lib/prisma";
+import { config } from "#config";
+
+import prisma, { pool } from "#lib/prisma";
 import { logger } from "#lib/logger";
 import { getRedis } from "#lib/redis";
+import { getJobLastSuccess, getJobsBaseline, jobStatuses, renderMetrics } from "#lib/metrics";
 import { createErrorResponse, createSuccessResponse } from "#lib/errors";
+import { getExtractQueueStats } from "#services/ats/extractPool";
+import { matchesSharedSecret } from "#utils/requestIp";
+import { enabledJobs } from "#jobs/scheduledJobs";
 
 /** Per-dependency bound for `/ready` (V-096): a probe must fail fast, not wait on the pool's 30 s. */
 const READY_CHECK_TIMEOUT_MS = 2_000;
@@ -98,5 +104,70 @@ export class HealthController {
     }
 
     res.status(503).json(createErrorResponse(503, "Service Unavailable", { database, redis }));
+  }
+
+  /**
+   * Gate for the operator endpoints: `x-internal-key` must equal INTERNAL_API_KEY (compared in
+   * constant time). With no key configured the endpoints do not exist (404).
+   */
+  static requireInternalKey(req: Request, res: Response, next: NextFunction) {
+    if (!config.internal.apiKey) {
+      res.status(404).json(createErrorResponse(404, "Not Found"));
+      return;
+    }
+    if (!matchesSharedSecret(req.headers["x-internal-key"], config.internal.apiKey)) {
+      res.status(401).json(createErrorResponse(401, "Unauthorized"));
+      return;
+    }
+    next();
+  }
+
+  /** Prometheus text for this worker only; a scraper sees one worker per request. */
+  static metrics(_req: Request, res: Response) {
+    const extract = getExtractQueueStats();
+    const body = renderMetrics([
+      {
+        name: "db_pool_connections",
+        help: "This worker's pg pool: open connections, idle ones, and callers waiting for one.",
+        samples: [
+          ['state="total"', pool.totalCount],
+          ['state="idle"', pool.idleCount],
+          ['state="waiting"', pool.waitingCount],
+        ],
+      },
+      {
+        name: "ats_extract_queue_depth",
+        help: "Resume extractions queued behind the running one; new ones get 503 at the max.",
+        samples: [["", extract.depth]],
+      },
+      {
+        name: "ats_extract_queue_max",
+        help: "Queue depth at which resume extractions are refused.",
+        samples: [["", extract.max]],
+      },
+      {
+        name: "ats_extract_in_flight",
+        help: "Resume extractions running now (0 or 1 per worker).",
+        samples: [["", extract.inFlight]],
+      },
+      {
+        name: "process_uptime_seconds",
+        help: "Seconds since this worker started.",
+        samples: [["", Math.round(process.uptime())]],
+      },
+    ]);
+    res.type("text/plain; version=0.0.4; charset=utf-8").send(body);
+  }
+
+  /**
+   * Last success per background job (V-059), shared across workers through Redis. A job is stale
+   * when it has not succeeded within twice its schedule interval, or has never succeeded and twice
+   * the interval has passed since the jobs baseline (the first boot). A job the
+   * configuration does not schedule is reported `enabled: false` and never counts as stale.
+   */
+  static async jobs(_req: Request, res: Response) {
+    const [lastSuccess, baseline] = await Promise.all([getJobLastSuccess(), getJobsBaseline()]);
+    const jobs = jobStatuses(lastSuccess, enabledJobs(), baseline);
+    res.json(createSuccessResponse({ stale: jobs.some((job) => job.stale), jobs }, "Job status"));
   }
 }

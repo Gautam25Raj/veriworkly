@@ -1,0 +1,185 @@
+# Load test for @veriworkly/server (Express API, default local port 8080).
+#
+# The first five scenarios are unauthenticated GETs and run with zero setup. The last four need
+# env vars (see README.md): SESSION_COOKIE for autosave, ADMIN_SESSION_COOKIE (or an admin
+# SESSION_COOKIE) for the admin overview, SHARE_USERNAME + SHARE_SLUG for a real share link.
+# Every request sends an Origin (ORIGIN) and, when set, X-API-Key (API_KEY).
+#
+# Usage:
+#   npx artillery run --dotenv load-testing/.env --environment local load-testing/scenarios/server-api.yml
+#   npm run loadtest:server -- --environment staging
+config:
+  target: "{{ $processEnvironment.LOCAL_SERVER_URL }}"
+  processor: "../processors/helpers.cjs"
+
+  environments:
+    local:
+      target: "{{ $processEnvironment.LOCAL_SERVER_URL }}"
+    staging:
+      target: "{{ $processEnvironment.STAGING_SERVER_URL }}"
+    production:
+      target: "{{ $processEnvironment.PRODUCTION_SERVER_URL }}"
+    # Any other deployment: TARGET=https://api.staging.example.com
+    target:
+      target: "{{ $processEnvironment.TARGET }}"
+
+  http:
+    timeout: 10
+
+  defaults:
+    headers:
+      user-agent: "veriworkly-load-test/1.0"
+
+  # Mirrors a prod traffic curve: quiet baseline, gradual ramp to typical
+  # load, a sustained peak, then a short spike to see how the API degrades
+  # (latency, error rate, rate-limit 429s) before cooling back down.
+  phases:
+    - duration: 30
+      arrivalRate: 1
+      name: "Warm up"
+    - duration: 60
+      arrivalRate: 1
+      rampTo: 10
+      name: "Ramp to typical load"
+    - duration: 120
+      arrivalRate: 10
+      name: "Sustained typical load"
+    - duration: 60
+      arrivalRate: 10
+      rampTo: 40
+      name: "Ramp to peak load"
+    - duration: 120
+      arrivalRate: 40
+      name: "Sustained peak load"
+    - duration: 30
+      arrivalRate: 40
+      rampTo: 80
+      name: "Spike"
+    - duration: 30
+      arrivalRate: 80
+      name: "Spike hold"
+    - duration: 60
+      arrivalRate: 80
+      rampTo: 1
+      name: "Cool down"
+
+scenarios:
+  - name: "Health checks"
+    weight: 15
+    flow:
+      - get:
+          url: "/api/v1/health"
+          beforeRequest: "setServerHeaders"
+          afterResponse: "logUnexpectedStatus"
+      - get:
+          url: "/api/v1/health/ready"
+          beforeRequest: "setServerHeaders"
+          afterResponse: "logUnexpectedStatus"
+
+  - name: "Public portfolio listing"
+    weight: 30
+    flow:
+      - get:
+          url: "/api/v1/portfolios/public"
+          beforeRequest: "setServerHeaders"
+          afterResponse: "logUnexpectedStatus"
+
+  - name: "Affiliate leaderboard"
+    weight: 15
+    flow:
+      - get:
+          url: "/api/v1/affiliates/leaderboard"
+          beforeRequest: "setServerHeaders"
+          afterResponse: "logUnexpectedStatus"
+
+  - name: "Username availability check"
+    weight: 30
+    flow:
+      - function: "setRandomUsername"
+      - get:
+          url: "/api/v1/users/{{ randomUsername }}/availability"
+          beforeRequest: "setServerHeaders"
+          afterResponse: "logUnexpectedStatus"
+
+  - name: "Root status endpoint"
+    weight: 10
+    flow:
+      - get:
+          url: "/"
+          beforeRequest: "setServerHeaders"
+          afterResponse: "logUnexpectedStatus"
+
+  # --- Authenticated and heavier flows (skipped without the matching env vars) ---
+
+  - name: "Document autosave"
+    weight: 15
+    flow:
+      - function: "initServerVars"
+      - post:
+          ifTrue: "hasSession"
+          url: "/api/v1/documents"
+          beforeRequest: "setSessionHeaders"
+          afterResponse: "logUnexpectedStatus"
+          json:
+            type: "RESUME"
+            title: "{{ docTitle }}"
+            content:
+              basics:
+                name: "Load Test"
+          capture:
+            - json: "$.data.id"
+              as: "docId"
+            - json: "$.data.revision"
+              as: "revision"
+      - loop:
+          - patch:
+              ifTrue: "hasSession"
+              url: "/api/v1/documents/{{ docId }}"
+              beforeRequest: "setSessionHeaders"
+              afterResponse: "logUnexpectedStatus"
+              json:
+                revision: "{{ revision }}"
+                content:
+                  basics:
+                    name: "Load Test"
+                    summary: "autosave {{ $loopCount }}"
+              capture:
+                json: "$.data.revision"
+                as: "revision"
+          - think: 2
+        count: 10
+      - delete:
+          ifTrue: "hasSession"
+          url: "/api/v1/documents/{{ docId }}"
+          beforeRequest: "setSessionHeaders"
+          afterResponse: "logUnexpectedStatus"
+
+  - name: "Public share read"
+    weight: 10
+    flow:
+      - function: "initServerVars"
+      - get:
+          url: "/api/v1/shares/public/{{ shareUsername }}/{{ shareSlug }}"
+          beforeRequest: "setServerHeaders"
+          afterResponse: "logUnexpectedStatus"
+
+  - name: "ATS extract"
+    weight: 3
+    flow:
+      - post:
+          url: "/api/v1/ats/extract"
+          beforeRequest: "setServerHeaders"
+          afterResponse: "logUnexpectedStatus"
+          formData:
+            resume:
+              fromFile: "fixtures/resume.pdf"
+
+  - name: "Admin overview"
+    weight: 2
+    flow:
+      - function: "initServerVars"
+      - get:
+          ifTrue: "hasAdminSession"
+          url: "/api/v1/admin/overview"
+          beforeRequest: "setAdminHeaders"
+          afterResponse: "logUnexpectedStatus"

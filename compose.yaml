@@ -56,6 +56,9 @@ services:
       PORT: 8080
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       DB_POOL_MAX_TOTAL: ${DB_POOL_MAX_TOTAL:-80}
+      # DB_IDLE_IN_TRANSACTION_TIMEOUT_MS is opt-in and deliberately absent: it is sent as a
+      # startup parameter, which a pooler such as Neon's PgBouncer refuses. Add it here only for
+      # a direct Postgres connection; behind a pooler, set it on the role (server README).
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?ALLOWED_ORIGINS is required (comma-separated https origins)}
 
       # Proxy / process model. The API port is bound to 127.0.0.1 below, so the host's nginx is
@@ -182,6 +185,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    # Graceful shutdown drains HTTP and running jobs for up to 20 s, and the cluster master
+    # force-kills workers at 35 s; Compose's default 10 s would SIGKILL a run mid-flush.
+    stop_grace_period: 40s
     restart: unless-stopped
 
   # One-shot: applies pending migrations before `api` starts (V-106). Runs from the `build`

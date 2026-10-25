@@ -5,6 +5,7 @@ import express, { raw, NextFunction, Request, Response, RequestHandler } from "e
 import { config } from "#config";
 
 import { ApiError, createSuccessResponse } from "#lib/errors";
+import { httpMetricsMiddleware } from "#lib/metrics";
 
 import { corsMiddleware } from "#middleware/cors";
 import { loggingMiddleware } from "#middleware/logging";
@@ -39,6 +40,9 @@ import { hasWellFormedHostAndProto } from "#utils/requestOrigin";
 import { authNodeHandler, authRequestContext } from "#auth/index";
 
 const app = express();
+
+// Request duration by route pattern for `/health/metrics`; first, so 429s and CORS refusals count.
+app.use(httpMetricsMiddleware);
 
 // Security middleware
 app.use(helmet());

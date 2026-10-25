@@ -233,6 +233,11 @@ export function extractInChildProcess(
   });
 }
 
+/** For `/health/metrics`: jobs waiting (new ones are refused at `max`) and whether one is running. */
+export function getExtractQueueStats() {
+  return { depth: queue.length, max: MAX_QUEUE_DEPTH, inFlight: current ? 1 : 0 };
+}
+
 /** Called from the shutdown path so a live child does not keep the worker from exiting. */
 export function stopExtractPool() {
   recycleChild("shutdown", new ApiError(503, "Server is shutting down."), true);

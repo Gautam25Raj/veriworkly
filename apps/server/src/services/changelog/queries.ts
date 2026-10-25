@@ -9,7 +9,7 @@ import {
   buildChangelogEntryCacheKey,
   buildChangelogStatsCacheKey,
 } from "./cache.js";
-import { computeContributorStats } from "./contributors.js";
+import { getContributorStats } from "./contributors.js";
 import type {
   ChangelogType,
   ChangelogQuery,
@@ -130,6 +130,8 @@ export async function getChangelogEntryById(id: string) {
   return entry;
 }
 
+const FALLBACK_STATS_TTL_SECONDS = 300;
+
 /**
  * Compute aggregate changelog statistics (counts by type, latest version, contributor stats).
  * Cached to reduce database load.
@@ -150,7 +152,7 @@ export async function getChangelogStats(): Promise<ChangelogStatsResult> {
       orderBy: [{ publishedAt: "desc" }, { id: "asc" }],
       select: { version: true, publishedAt: true, title: true },
     }),
-    computeContributorStats(),
+    getContributorStats(),
   ]);
 
   const typeCounts = groupedByType.reduce<Record<string, number>>((acc, row) => {
@@ -168,7 +170,14 @@ export async function getChangelogStats(): Promise<ChangelogStatsResult> {
     topContributors: contributorStats.topContributors,
   };
 
-  if (cacheKey) await cacheSet(cacheKey, stats, config.cache.changelogTtlSeconds);
+  // Without the sync's contributor list the stats are a fallback; cache them briefly, not 30 days.
+  if (cacheKey) {
+    await cacheSet(
+      cacheKey,
+      stats,
+      contributorStats.complete ? config.cache.changelogTtlSeconds : FALLBACK_STATS_TTL_SECONDS,
+    );
+  }
 
   return stats;
 }

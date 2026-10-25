@@ -55,6 +55,7 @@ vi.mock("#services/portfolioAssetService", () => ({
 // Both sync services mirror the real code: the freshness checks pass, then the sync itself calls
 // getRedis() for its lock before doing anything else.
 vi.mock("#services/github/index", () => ({
+  isGitHubIssueSyncConfigured: vi.fn(() => true),
   shouldSyncGitHubStats: vi.fn(async () => true),
   syncGitHubStatsFromGitHub: vi.fn(async () => {
     mocks.getRedis();

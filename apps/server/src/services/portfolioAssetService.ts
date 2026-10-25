@@ -12,7 +12,6 @@ import { config } from "#config";
 import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
 import { logger } from "#lib/logger";
-import { getRedis } from "#lib/redis";
 
 const allowedTypes = new Map([
   ["image/jpeg", "jpg"],
@@ -23,12 +22,6 @@ const allowedTypes = new Map([
 const maxBytes = 5 * 1024 * 1024;
 const MAX_PENDING_UPLOADS_PER_USER = 20;
 const PENDING_UPLOAD_WINDOW_MS = 60 * 60 * 1000;
-const releaseLockLuaScript = `
-  if redis.call("get", KEYS[1]) == ARGV[1] then
-    return redis.call("del", KEYS[1])
-  end
-  return 0
-`;
 let client: S3Client | null = null;
 
 function getClient() {
@@ -142,52 +135,44 @@ export class PortfolioAssetService {
     return { id: updated.id, url: `${config.r2.publicBaseUrl}/${updated.key}` };
   }
 
+  /**
+   * Deletes PENDING uploads abandoned for a day. Takes no lock and throws on failure: the hourly
+   * portfolio access sweep runs it under its own job lock and reports a failure to `/health/jobs`.
+   * An R2 delete that fails keeps the row for the next run and is not a failure.
+   */
   static async cleanupStaleAssets() {
-    const redis = getRedis();
-    const lockKey = "portfolio:assets:cleanup:lock";
-    const lockValue = randomUUID();
-    const lockAcquired = (await redis.set(lockKey, lockValue, { NX: true, EX: 300 })) === "OK";
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const staleAssets = await prisma.portfolioAsset.findMany({
+      where: {
+        status: "PENDING",
+        createdAt: { lt: oneDayAgo },
+      },
+      // Bounded so one run can't try to issue an unbounded number of sequential R2 deletes;
+      // the job runs on a schedule and drains any remainder on the next tick.
+      take: 500,
+    });
 
-    if (!lockAcquired) return;
+    if (staleAssets.length === 0) return;
 
-    try {
-      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      const staleAssets = await prisma.portfolioAsset.findMany({
-        where: {
-          status: "PENDING",
-          createdAt: { lt: oneDayAgo },
-        },
-        // Bounded so one run can't try to issue an unbounded number of sequential R2 deletes;
-        // the job runs on a schedule and drains any remainder on the next tick.
-        take: 500,
-      });
-
-      if (staleAssets.length === 0) return;
-
-      const s3 = getClient();
-      const deletedIds: string[] = [];
-      for (const asset of staleAssets) {
-        try {
-          await s3.send(new DeleteObjectCommand({ Bucket: config.r2.bucket, Key: asset.key }));
-          deletedIds.push(asset.id);
-        } catch (error) {
-          logger.warn("Failed to delete stale R2 asset; retaining metadata for retry", {
-            assetId: asset.id,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
+    const s3 = getClient();
+    const deletedIds: string[] = [];
+    for (const asset of staleAssets) {
+      try {
+        await s3.send(new DeleteObjectCommand({ Bucket: config.r2.bucket, Key: asset.key }));
+        deletedIds.push(asset.id);
+      } catch (error) {
+        logger.warn("Failed to delete stale R2 asset; retaining metadata for retry", {
+          assetId: asset.id,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
-
-      if (deletedIds.length === 0) return;
-
-      await prisma.portfolioAsset.deleteMany({
-        where: { id: { in: deletedIds } },
-      });
-    } finally {
-      await redis
-        .eval(releaseLockLuaScript, { keys: [lockKey], arguments: [lockValue] })
-        .catch((error) => logger.warn("Failed to release portfolio asset cleanup lock", error));
     }
+
+    if (deletedIds.length === 0) return;
+
+    await prisma.portfolioAsset.deleteMany({
+      where: { id: { in: deletedIds } },
+    });
   }
 
   static async delete(userId: string, assetId: string) {

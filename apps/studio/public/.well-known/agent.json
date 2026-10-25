@@ -5,7 +5,7 @@
   "contact_email": "info@veriworkly.com",
   "site_url": "https://app.veriworkly.com",
   "llms_txt": "https://app.veriworkly.com/llms.txt",
-  "pricing_md": "https://app.veriworkly.com/pricing.md",
+  "pricing_md": "https://veriworkly.com/pricing.md",
   "openapi_spec": "https://docs.veriworkly.com/openapi.json",
 
   "api": {

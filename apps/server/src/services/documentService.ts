@@ -24,7 +24,7 @@ import {
   revalidatePublicPortfolios,
 } from "#utils/portfolioPublicationCache";
 
-import { EntitlementService, PAID_ACCESS_PHRASE } from "#services/entitlementService";
+import { assertFreeTierCapacity } from "#services/documentCapacity";
 import { isModerationLocked } from "#services/portfolioService";
 
 const MAX_DOCUMENTS_PER_LIST = 500;
@@ -299,29 +299,13 @@ export class DocumentService {
    * If content is not provided, it attempts to seed from MasterProfile.
    */
 
-  /**
-   * Free users keep one active document per type. Callers that do expensive work before the
-   * insert (the imports) use this as a pre-check; the authoritative check runs again inside the
-   * create transaction under the per-user lock, so two concurrent creates cannot both pass it.
-   */
+  /** See `services/documentCapacity`; kept here for the existing callers. */
   static async assertFreeTierCapacity(
     userId: string,
     type: DocumentType,
     client: Prisma.TransactionClient = prisma,
   ) {
-    // `client` keeps the entitlement count on the caller's transaction connection.
-    if (await EntitlementService.isPaid(userId, new Date(), client)) return;
-
-    const activeCount = await client.document.count({
-      where: { userId, type, deletedAt: null },
-    });
-
-    if (activeCount >= 1) {
-      throw new ApiError(
-        402,
-        `Free accounts can keep 1 active ${type.toLowerCase().replace("_", " ")} at a time. Unlimited documents come with ${PAID_ACCESS_PHRASE}; credit packs add AI credits only.`,
-      );
-    }
+    await assertFreeTierCapacity(userId, type, client);
   }
 
   /**

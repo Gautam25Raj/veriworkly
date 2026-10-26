@@ -15,5 +15,11 @@ router.post("/portal", authMiddleware, BillingController.portal);
 router.post("/checkout", authMiddleware, BillingController.checkout);
 router.post("/checkout/cancel", authMiddleware, BillingController.cancelCheckout);
 router.post("/credits/checkout", authMiddleware, BillingController.creditPackCheckout);
+router.post(
+  "/subscription/change-plan/preview",
+  authMiddleware,
+  BillingController.previewPlanChange,
+);
+router.post("/subscription/change-plan", authMiddleware, BillingController.changePlan);
 
 export default router;

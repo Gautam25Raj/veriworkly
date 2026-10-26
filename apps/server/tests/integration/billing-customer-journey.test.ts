@@ -449,7 +449,7 @@ describe("V-176 summary and overlapping checkouts", () => {
     expect(new Date(me.currentPeriodEnd).getTime()).toBeGreaterThan(Date.now());
   });
 
-  it("refuses Creator Pro for an AI Credits subscriber and points at the bundle", async () => {
+  it("refuses Creator Pro for an AI Credits subscriber and points at the bundle upgrade (V-202)", async () => {
     const user = await createUserWithSession();
     await seedSubscription(user.id, { productKey: "ai_credits" });
 
@@ -462,9 +462,10 @@ describe("V-176 summary and overlapping checkouts", () => {
     expect(response.body.message).toContain("AI Credits");
     expect(response.body.message).toContain("Job Hunter Bundle");
     expect(response.body.details).toMatchObject({
-      code: "SUBSCRIPTION_OVERLAP",
+      code: "UPGRADE_AVAILABLE",
       activeProductKey: "ai_credits",
       suggestedProductKey: "bundle",
+      upgrade: { productKey: "bundle", interval: "monthly" },
     });
     expect(dodoMock.checkoutCreate).not.toHaveBeenCalled();
   });

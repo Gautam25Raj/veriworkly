@@ -8,6 +8,7 @@ import { assertDocumentNotPurged, PURGED_DOCUMENT_CONTENT } from "#jobs/retentio
 import { cacheNamespaces, documentCacheNamespaces } from "#lib/cacheKeys";
 
 import { isModerationLocked, MODERATION_SUSPENSION_PREFIX } from "#services/portfolioService";
+import { moderatorPrivateDocumentIds } from "#services/moderationRecord";
 import {
   invalidatePublicPortfolioCaches,
   revalidatePublicPortfolios,
@@ -104,7 +105,17 @@ export async function listDocuments(query: AdminDocumentListQuery) {
     prisma.document.count({ where }),
   ]);
 
-  return listPage(items, total, query);
+  // V-199: whether a moderator made each row private, so "Lift takedown" shows only where it
+  // applies. Only a PRIVATE row can be under a takedown; the rest skip the lookup.
+  const moderated = await moderatorPrivateDocumentIds(
+    items.filter((item) => item.visibility === "PRIVATE").map((item) => item.id),
+  );
+
+  return listPage(
+    items.map((item) => ({ ...item, moderatorPrivate: moderated.has(item.id) })),
+    total,
+    query,
+  );
 }
 
 export async function getDocumentDetail(documentId: string) {
@@ -134,11 +145,17 @@ export async function getDocumentDetail(documentId: string) {
 
   if (!document) throw new ApiError(404, "Document not found.");
 
-  const auditEntries = await getAuditHistory("Document", documentId);
+  const [auditEntries, moderated] = await Promise.all([
+    getAuditHistory("Document", documentId),
+    document.visibility === "PRIVATE"
+      ? moderatorPrivateDocumentIds([documentId])
+      : Promise.resolve(new Set<string>()),
+  ]);
 
   return {
     document: {
       ...document,
+      moderatorPrivate: moderated.has(documentId),
       // Never leak the hash itself — the operator only needs to know a password exists.
       shareLinks: document.shareLinks.map(({ passwordHash, ...share }) => ({
         ...share,

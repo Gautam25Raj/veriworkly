@@ -76,8 +76,41 @@ function summaryCacheKey(userId: string) {
 }
 
 function historyCacheKey(userId: string) {
-  return `credits:history:${userId}`;
+  // v2: rows are the user-facing shape (V-200). A list cached as v1 still carries the admin's
+  // id in its metadata and must never be served after the deploy.
+  return `credits:history:v2:${userId}`;
 }
+
+/** Metadata keys that name an admin: an adjustment records who made it (`withActor`). */
+const ADMIN_METADATA_KEY = /actor/i;
+
+/**
+ * A ledger row as its owner sees it (V-200): what the credits page shows, without the admin who
+ * made an adjustment. The request id is left out as well (an admin adjustment's embeds the admin's
+ * id), and so are the wallet and user ids the owner has no use for.
+ */
+function toUserHistoryRow(row: CreditTransaction) {
+  const metadata =
+    row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+      ? Object.fromEntries(
+          Object.entries(row.metadata).filter(([key]) => !ADMIN_METADATA_KEY.test(key)),
+        )
+      : null;
+  return {
+    id: row.id,
+    type: row.type,
+    amount: row.amount,
+    balanceAfter: row.balanceAfter,
+    action: row.action,
+    documentId: row.documentId,
+    referenceId: row.referenceId,
+    reason: row.reason,
+    metadata: metadata && Object.keys(metadata).length > 0 ? metadata : null,
+    createdAt: row.createdAt,
+  };
+}
+
+type UserHistoryRow = ReturnType<typeof toUserHistoryRow>;
 
 /**
  * Every ledger mutation starts by locking the wallet row, so reserve, commit, release, consume
@@ -577,18 +610,18 @@ export class CreditService {
     return released;
   }
 
+  /** The owner's ledger, newest first, in the user-facing shape (`toUserHistoryRow`). */
   static async getHistory(userId: string, take = CREDIT_HISTORY_LIMIT) {
     if (take === CREDIT_HISTORY_LIMIT) {
-      const cached = await cacheGet<Awaited<ReturnType<typeof prisma.creditTransaction.findMany>>>(
-        historyCacheKey(userId),
-      );
+      const cached = await cacheGet<UserHistoryRow[]>(historyCacheKey(userId));
       if (cached) return cached;
     }
-    const result = await prisma.creditTransaction.findMany({
+    const rows = await prisma.creditTransaction.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
       take: Math.min(Math.max(take, 1), 100),
     });
+    const result = rows.map(toUserHistoryRow);
     if (take === CREDIT_HISTORY_LIMIT)
       await cacheSet(historyCacheKey(userId), result, CREDIT_HISTORY_TTL_SECONDS);
     return result;

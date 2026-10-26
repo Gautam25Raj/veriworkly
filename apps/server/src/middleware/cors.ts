@@ -36,8 +36,9 @@ export const corsMiddleware = cors((req, callback) => {
     },
     credentials: explicitlyAllowedOrigin,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    // Idempotency-Key: the admin credit-adjust route reads it (or the `idempotencyKey` body
-    // field), and a browser cannot send a header the preflight does not allow (V-194).
+    // Idempotency-Key: the admin credit-adjust and plan-change routes read it (or the
+    // `idempotencyKey` body field), and a browser cannot send a header the preflight does not
+    // allow (V-194).
     allowedHeaders: ["Content-Type", "Authorization", "X-API-KEY", "Idempotency-Key"],
     maxAge: 86400,
   });

@@ -5,7 +5,6 @@ import { Text, View } from "@react-pdf/renderer";
 
 import type { ResumePdfContext } from "../shared/pdf";
 
-import { cleanResumeText } from "@/features/documents/rendering/resume-rendering";
 import { pxToPt } from "@/features/resume/constants/resume-layout";
 import { PdfContactRow, PdfLinkRow, createResumePdfTemplate } from "../shared/pdf";
 import {
@@ -16,20 +15,18 @@ import {
 } from "./skin";
 
 function Header(ctx: ResumePdfContext) {
-  const { model, resume, style, styles } = ctx;
+  const { model, style, styles } = ctx;
 
   return (
     <View style={{ marginBottom: pxToPt(geometry.headerGap) }}>
       {model.showBasics && (
         <>
           {/* Minimal keeps the identity quiet: body colour, not accent. */}
-          <Text style={[styles.name, { color: style.textColor }]}>
-            {cleanResumeText(resume.basics.fullName) || "Your Name"}
-          </Text>
+          <Text style={[styles.name, { color: style.textColor }]}>{model.name}</Text>
 
-          {(resume.basics.headline || resume.basics.role) && (
+          {model.headline && (
             <Text style={[styles.role, { fontWeight: 400, marginTop: pxToPt(geometry.roleTop) }]}>
-              {cleanResumeText(resume.basics.headline || resume.basics.role)}
+              {model.headline}
             </Text>
           )}
 

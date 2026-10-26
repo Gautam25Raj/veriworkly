@@ -20,13 +20,8 @@ import { pdfTemplateIds } from "@/templates/resume/pdf";
 import { buildCoverLetterHtml } from "@/templates/cover-letter/web";
 import { coverLetterTemplateRegistry } from "@/templates/cover-letter/registry";
 
-const COVER_LETTER_TEMPLATE_IDS = [
-  "professional",
-  "veriworkly-special",
-  "minimalist",
-  "executive",
-  "ats-essential",
-];
+/** From the registry, so a new template is tested the day it is registered (S-035). */
+const COVER_LETTER_TEMPLATE_IDS = coverLetterTemplateRegistry.ids;
 
 const SHIPPED_RESUME_TEMPLATE_IDS = [
   "executive-clarity",
@@ -44,6 +39,13 @@ describe("template render contract", () => {
 
     expect(uniqueTemplateIds.size).toBe(templateIds.length);
     expect(templateIds).toEqual(expect.arrayContaining(SHIPPED_RESUME_TEMPLATE_IDS));
+  });
+
+  it("S-035: keeps the cover letter registry and picker catalog in sync", () => {
+    const catalogIds = templateCatalogByType.COVER_LETTER.map((template) => template.id).sort();
+
+    expect([...COVER_LETTER_TEMPLATE_IDS].sort()).toEqual(catalogIds);
+    expect(COVER_LETTER_TEMPLATE_IDS.length).toBeGreaterThan(0);
   });
 
   it("keeps the web registry, picker catalog and PDF registry in sync", () => {
@@ -211,20 +213,20 @@ describe("template render contract", () => {
     }
   });
 
-  it("omits custom sections when custom section is hidden", async () => {
-    const hiddenCustomResume = {
+  it("S-036: omits a custom section when it is hidden, and prints it when it is not", async () => {
+    const withCustomSection = (visible: boolean) => ({
       ...defaultResume,
       customSections: [
         {
-          id: "certifications-default",
-          kind: "certifications" as const,
-          title: "Certifications",
-          editableTitle: false,
+          id: "custom-default",
+          kind: "custom" as const,
+          title: "Speaking",
+          editableTitle: true,
           items: [
             {
-              id: "cert-1",
-              name: "AWS Certified Developer",
-              issuer: "Amazon",
+              id: "talk-1",
+              name: "Keynote at RenderConf",
+              issuer: "RenderConf",
               date: "2024",
               link: "",
               referenceId: "",
@@ -235,18 +237,20 @@ describe("template render contract", () => {
         },
       ],
       sections: defaultResume.sections.map((section) =>
-        section.id === "certifications" ? { ...section, visible: false } : section,
+        section.customSectionId === "custom-default" ? { ...section, visible } : section,
       ),
-    };
+    });
 
     for (const template of templateRegistry) {
       const TemplateComponent = await loadTemplateComponentById(template.id);
+      const render = (visible: boolean) =>
+        renderToStaticMarkup(
+          <TemplateComponent resume={{ ...withCustomSection(visible), templateId: template.id }} />,
+        );
 
-      const html = renderToStaticMarkup(
-        <TemplateComponent resume={{ ...hiddenCustomResume, templateId: template.id }} />,
-      );
-
-      expect(html).not.toContain("AWS Certified Developer");
+      // The control: without it, a section that never renders passes the hidden case too.
+      expect(render(true), template.id).toContain("Keynote at RenderConf");
+      expect(render(false), template.id).not.toContain("Keynote at RenderConf");
     }
   });
 

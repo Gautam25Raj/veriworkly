@@ -1,4 +1,4 @@
-import { Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx";
+import { Document, ExternalHyperlink, HeadingLevel, Packer, Paragraph, TextRun } from "docx";
 
 import type { BaseDocument } from "@/features/documents/core/types";
 import type { CoverLetterContent } from "@/features/cover-letter/types";
@@ -6,84 +6,74 @@ import {
   getLinkDisplayText,
   normalizeLinkHref,
 } from "@/features/documents/rendering/resume-rendering";
-import { splitMarkdownLines, splitRichTextBlocks } from "@/templates/cover-letter/web";
+import {
+  buildProfessionalFlowItems,
+  getCoverLetterDocumentTitle,
+  getCoverLetterState,
+} from "@/templates/cover-letter/shared";
 
 import { downloadBlob } from "../download";
 import { createDocxParagraph } from "./docx-paragraph";
 import { getDocumentFileBaseName } from "../export-file-names";
 
-function buildCoverLetterDocx(content: CoverLetterContent): Promise<Blob> {
-  const senderName = content.senderName || content.signature || "Your Name";
-  const contact = [
-    content.senderTitle,
-    content.senderEmail,
-    content.senderPhone,
-    content.senderLocation,
-    content.senderWebsite,
-  ]
-    .filter(Boolean)
-    .join(" | ");
-  const storedLinks = content.links?.items?.filter((link) => normalizeLinkHref(link.url)) ?? [];
-  const linkDisplayMode =
-    content.links?.displayMode && content.links.displayMode !== "url"
-      ? content.links.displayMode
-      : "icon-username";
-  const recipient = [
-    content.recipientName,
-    content.recipientTitle,
-    content.companyName,
-    content.companyLocation,
-  ].filter(Boolean);
-  const bodyBlocks = splitRichTextBlocks(content.body);
-  const highlights = splitMarkdownLines(content.highlights);
+function bullet(text: string): Paragraph {
+  return new Paragraph({ bullet: { level: 0 }, children: [new TextRun(text)] });
+}
 
-  const children: Paragraph[] = [
-    new Paragraph({
-      heading: HeadingLevel.TITLE,
-      children: [new TextRun(senderName)],
-    }),
-  ];
+/**
+ * The Word copy of a letter, built from the same render state as the preview and the PDF:
+ * hidden sections (the letter and its signature included) are absent, empty fields print
+ * nothing, and the body is the template flow, in the same order.
+ */
+export function buildCoverLetterDocx(content: CoverLetterContent): Promise<Blob> {
+  const state = getCoverLetterState(content);
+  const children: Paragraph[] = [];
+
+  if (state.senderName) {
+    children.push(
+      new Paragraph({ heading: HeadingLevel.TITLE, children: [new TextRun(state.senderName)] }),
+    );
+  }
+
+  const contact = [state.senderTitle, ...state.contact].filter(Boolean).join(" | ");
 
   if (contact) children.push(createDocxParagraph(contact));
-  storedLinks.forEach((link) =>
-    children.push(createDocxParagraph(getLinkDisplayText(link, linkDisplayMode))),
-  );
-  if (content.date) children.push(createDocxParagraph(content.date));
-  recipient.forEach((line) => children.push(createDocxParagraph(line)));
-  if (content.subject || content.jobTitle) {
-    children.push(createDocxParagraph(`Subject: ${content.subject || content.jobTitle}`));
-  }
-  if (content.greeting) children.push(createDocxParagraph(content.greeting));
-  if (content.opening) children.push(createDocxParagraph(content.opening));
-  bodyBlocks.forEach((block) => {
-    if (block.type === "list") {
-      block.items.forEach((item) => {
-        children.push(
-          new Paragraph({
-            bullet: { level: 0 },
-            children: [new TextRun(item)],
-          }),
-        );
-      });
-      return;
-    }
 
-    children.push(createDocxParagraph(block.text));
-  });
-  highlights.forEach((highlight) => {
+  state.renderedLinks.forEach((link) =>
     children.push(
       new Paragraph({
-        bullet: { level: 0 },
-        children: [new TextRun(highlight)],
+        children: [
+          new ExternalHyperlink({
+            link: normalizeLinkHref(link.url),
+            children: [
+              new TextRun({
+                text: getLinkDisplayText(link, state.linkDisplayMode),
+                style: "Hyperlink",
+              }),
+            ],
+          }),
+        ],
       }),
-    );
-  });
-  if (content.closing) children.push(createDocxParagraph(content.closing));
-  children.push(createDocxParagraph(content.signature || senderName));
-  if (content.postscript) children.push(createDocxParagraph(`P.S. ${content.postscript}`));
+    ),
+  );
+
+  if (state.date) children.push(createDocxParagraph(state.date));
+  state.recipient.forEach((line) => children.push(createDocxParagraph(line)));
+  if (state.subject) children.push(createDocxParagraph(`Subject: ${state.subject}`));
+
+  for (const item of buildProfessionalFlowItems(state.flow)) {
+    if (item.type === "body-list" || item.type === "proof-list") {
+      item.items.forEach((line) => children.push(bullet(line)));
+      continue;
+    }
+
+    children.push(createDocxParagraph(item.text));
+  }
 
   return Packer.toBlob(
     new Document({
+      title: getCoverLetterDocumentTitle(state),
+      creator: state.senderName || "VeriWorkly",
       sections: [{ properties: {}, children }],
     }),
   );

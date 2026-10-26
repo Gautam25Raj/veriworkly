@@ -10,7 +10,6 @@ import { buildCoverLetterMarkdown, buildCoverLetterText } from "./shared";
 import { coverLetterTemplateRegistry, loadCoverLetterHtmlBuilder } from "./registry";
 
 export { buildCoverLetterMarkdown, buildCoverLetterText };
-export { splitContactLinks, splitMarkdownLines, splitRichTextBlocks } from "./shared";
 
 interface CoverLetterPreviewProps {
   content: CoverLetterContent;

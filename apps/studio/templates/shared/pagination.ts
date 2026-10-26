@@ -1,4 +1,16 @@
 /**
+ * Marks a block the PDF lets flow across pages (see `createResumeKeepTogether`), so the paged
+ * preview splits it at the page edge too instead of moving it whole.
+ */
+export const SPLIT_ATTRIBUTE = "data-split";
+
+/**
+ * Body lines that must follow a section heading on its page when the section flows rather
+ * than moving whole; with less room the heading moves to the next page with its content.
+ */
+export const HEADING_PRESENCE_LINES = 2;
+
+/**
  * A page under construction that can be measured after each addition.
  *
  * Implementations own the measuring surface (an off-screen DOM probe for web
@@ -22,6 +34,11 @@ export interface IncrementalPageProbe<T> {
   undo(): void;
   /** Discards the page under construction and starts an empty one. */
   reset(): void;
+  /**
+   * Breaks the most recent {@link append} at the page edge: the part that stays on this
+   * page and the part that continues on the next. Null when none of it fits.
+   */
+  split?(): [T, T] | null;
 }
 
 /**
@@ -39,22 +56,26 @@ export interface IncrementalPageProbe<T> {
  * on a page (a section heading immediately followed by its first row, say) and the pair
  * will be required to fit together.
  *
- * An item that cannot fit an empty page is kept on its own page rather than dropped, so
- * oversized content overflows visibly instead of disappearing.
+ * An item `canSplit` accepts is not moved when it overflows: it is broken at the page edge
+ * by `probe.split` and continues on the next page, the way the PDF flows it. Any other item
+ * that cannot fit an empty page is kept on its own page rather than dropped, so oversized
+ * content overflows visibly instead of disappearing.
  */
 export function paginateIncremental<T>(
   items: T[],
   probe: IncrementalPageProbe<T>,
   keepWithNext?: (item: T, nextItem: T | undefined) => boolean,
+  canSplit?: (item: T) => boolean,
 ): T[][] {
   const pages: T[][] = [];
+  const queue = [...items];
   let current: T[] = [];
 
   probe.reset();
 
-  for (let index = 0; index < items.length; index += 1) {
-    const item = items[index];
-    const nextItem = items[index + 1];
+  while (queue.length > 0) {
+    const item = queue.shift() as T;
+    const nextItem = queue[0];
 
     probe.append(item);
 
@@ -66,6 +87,18 @@ export function paginateIncremental<T>(
       probe.undo();
     }
 
+    if (!fits && probe.split && canSplit?.(item)) {
+      const parts = probe.split();
+
+      if (parts) {
+        pages.push([...current, parts[0]]);
+        current = [];
+        probe.reset();
+        queue.unshift(parts[1]);
+        continue;
+      }
+    }
+
     if (fits || current.length === 0) {
       current.push(item);
       continue;
@@ -74,9 +107,9 @@ export function paginateIncremental<T>(
     probe.undo();
     pages.push(current);
 
-    current = [item];
+    current = [];
     probe.reset();
-    probe.append(item);
+    queue.unshift(item);
   }
 
   if (current.length > 0) pages.push(current);

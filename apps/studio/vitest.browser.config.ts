@@ -23,6 +23,10 @@ export default defineConfig({
     environment: "node",
     include: ["tests/browser/**/*.test.ts"],
     globals: false,
+    // Every test starts from the real implementations and globals, whatever the last one stubbed.
+    restoreMocks: true,
+    unstubGlobals: true,
+    unstubEnvs: true,
     fileParallelism: false,
     testTimeout: 180_000,
     hookTimeout: 300_000,

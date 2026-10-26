@@ -2,6 +2,9 @@
 
 import type {
   ResumeData,
+  ResumeLanguage,
+  ResumeSection,
+  ResumeCustomSection,
   ResumeLinkItem,
   ResumeSkillGroup,
   ResumeProjectItem,
@@ -11,20 +14,55 @@ import type {
 
 import { blankResume } from "@/features/resume/constants/default-resume";
 import { normalizeResumeData } from "@/features/resume/utils/normalize-data";
+import { getResumeSectionKey } from "@/features/documents/rendering/resume-rendering";
+import { FLUENCY_LABELS } from "@/features/documents/rendering/resume-render-items";
+
+/*
+ * Reads the Markdown `export-markdown.ts` writes:
+ *
+ *   # Name / headline / contact "a | b | c" / links "[text](url) | …"
+ *   ## Section
+ *   ### Item title          one item per block of lines, blocks split by a blank line
+ *   **subtitle**            company | location, school, or a project's stack
+ *   _meta_                  the date column
+ *   [link text](url)
+ *   summary lines
+ *   - bullet
+ */
 
 function createImportedResumeId(): string {
   return `resume-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function cloneBlankResume(): ResumeData {
-  return structuredClone(blankResume);
+/** Reverses `escapeMarkdown` in the exporter. */
+function unescapeMarkdown(value: string): string {
+  return value.replace(/\\([\\`*_{}[\]()#+.!|>~-])/g, "$1").trim();
 }
 
-function cleanMarkdown(value: string): string {
-  return value
-    .replace(/\*\*(.*?)\*\*/g, "$1")
-    .replace(/^_(.*)_$/g, "$1")
-    .trim();
+/** The fields the renderer joined with " | " (company | location). */
+function splitFields(value: string): string[] {
+  return unescapeMarkdown(value).split(" | ");
+}
+
+/**
+ * Reverses only what the exporter encodes in a link destination. `decodeURI` would throw on
+ * a "%" a hand-written file leaves bare, and would rewrite escapes the user typed.
+ */
+const LINK_ESCAPES: Record<string, string> = { "%20": " ", "%25": "%", "%28": "(", "%29": ")" };
+
+/** `[text](url)` → its parts, or null for any other line. */
+function parseLink(value: string): { text: string; url: string } | null {
+  const match = value.match(/^\[(.*)\]\(([^()\s]*)\)$/);
+
+  return match
+    ? {
+        text: unescapeMarkdown(match[1]),
+        url: match[2].replace(
+          /%2[0589]/gi,
+          (escape) => LINK_ESCAPES[escape.toUpperCase()] ?? escape,
+        ),
+      }
+    : null;
 }
 
 function parseDateRange(value: string) {
@@ -38,204 +76,338 @@ function parseDateRange(value: string) {
   };
 }
 
+/** Each `## heading` with its lines, in the order the file has them. */
 function splitSections(markdown: string) {
-  const sections = new Map<string, string[]>();
-  let current = "";
+  const sections: Array<{ title: string; lines: string[] }> = [];
 
   for (const line of markdown.split(/\r?\n/)) {
     const match = line.match(/^##\s+(.+)$/);
 
     if (match) {
-      current = match[1].trim().toLowerCase();
-      sections.set(current, []);
+      sections.push({ title: unescapeMarkdown(match[1]), lines: [] });
       continue;
     }
 
-    if (current) {
-      sections.get(current)?.push(line);
-    }
+    sections[sections.length - 1]?.lines.push(line);
   }
 
   return sections;
 }
 
-function splitEntries(lines: string[]) {
-  const entries: string[][] = [];
+interface MarkdownItem {
+  title: string;
+  meta: string;
+  subtitle: string;
+  link: { text: string; url: string } | null;
+  summary: string;
+  bullets: string[];
+}
+
+/** One item per run of non-blank lines; a `###` heading also starts a new one. */
+function parseItems(lines: string[]): MarkdownItem[] {
+  const blocks: string[][] = [];
   let current: string[] = [];
 
   for (const line of lines.map((item) => item.trim())) {
-    if (!line) continue;
-
-    if (line.startsWith("### ")) {
-      if (current.length) entries.push(current);
-      current = [line.replace(/^###\s+/, "")];
+    if (!line || line.startsWith("### ")) {
+      if (current.length) blocks.push(current);
+      current = line ? [line] : [];
       continue;
     }
 
-    if (current.length) current.push(line);
+    current.push(line);
   }
 
-  if (current.length) entries.push(current);
-  return entries;
+  if (current.length) blocks.push(current);
+
+  return blocks.map((block) => {
+    const item: MarkdownItem = {
+      title: "",
+      meta: "",
+      subtitle: "",
+      link: null,
+      summary: "",
+      bullets: [],
+    };
+    const summary: string[] = [];
+
+    for (const line of block) {
+      const link = parseLink(line);
+
+      if (line.startsWith("### ")) item.title = unescapeMarkdown(line.slice(4));
+      else if (/^[-*]\s+/.test(line)) item.bullets.push(unescapeMarkdown(line.slice(2)));
+      else if (/^_.+_$/.test(line) && !item.meta) item.meta = unescapeMarkdown(line.slice(1, -1));
+      else if (/^\*\*.+\*\*$/.test(line) && !item.subtitle) item.subtitle = line.slice(2, -2);
+      else if (link && !item.link) item.link = link;
+      else summary.push(unescapeMarkdown(line));
+    }
+
+    item.summary = summary.join("\n");
+    return item;
+  });
 }
 
 function parseHeader(markdown: string, resume: ResumeData) {
-  const lines = markdown
+  const header = markdown.split(/^##\s/m)[0];
+  const lines = header
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
 
-  const nameLine = lines.find((line) => line.startsWith("# "));
-  const nameIndex = nameLine ? lines.indexOf(nameLine) : -1;
+  for (const line of lines) {
+    if (line.startsWith("# ")) {
+      resume.basics.fullName = unescapeMarkdown(line.slice(2));
+      resume.title = resume.basics.fullName;
+      continue;
+    }
 
-  if (nameLine) {
-    resume.basics.fullName = cleanMarkdown(nameLine.replace(/^#\s+/, ""));
-    resume.title = resume.basics.fullName;
-  }
+    const fields = line.split(/(?<!\\) \| /);
+    const links = fields.map(parseLink);
 
-  const beforeSections = lines.filter((line) => !line.startsWith("## "));
-  const roleLine = beforeSections.find((line, index) => index > nameIndex && /^_.+_$/.test(line));
+    if (links.every(Boolean)) {
+      resume.links.items = links.map((link, index) => ({
+        id: `link-${index + 1}`,
+        type: "custom",
+        label: link!.text,
+        url: link!.url,
+      }));
+      continue;
+    }
 
-  if (roleLine) {
-    resume.basics.role = cleanMarkdown(roleLine);
-  }
+    const values = fields.map(unescapeMarkdown);
+    const isContact = fields.length > 1 || values.some((value) => value.includes("@"));
 
-  const contactLine = beforeSections.find((line) => line.includes(" | ") && !line.startsWith("#"));
-  const headlineLine = beforeSections.find(
-    (line) =>
-      line !== nameLine &&
-      line !== roleLine &&
-      line !== contactLine &&
-      !line.startsWith("# ") &&
-      !/^_.+_$/.test(line),
-  );
+    if (isContact) {
+      for (const value of values) {
+        if (value.includes("@")) resume.basics.email = value;
+        else if (/^\+?[\d\s().-]{6,}$/.test(value)) resume.basics.phone = value;
+        else resume.basics.location = value;
+      }
+      continue;
+    }
 
-  if (headlineLine) {
-    resume.basics.headline = cleanMarkdown(headlineLine);
-  }
-
-  if (contactLine) {
-    const [email = "", phone = "", location = ""] = contactLine
-      .split("|")
-      .map((item) => item.trim());
-    resume.basics.email = email;
-    resume.basics.phone = phone;
-    resume.basics.location = location;
+    if (!resume.basics.headline) resume.basics.headline = values[0];
   }
 }
 
 function parseExperience(lines: string[]): ResumeExperienceItem[] {
-  return splitEntries(lines).map((entry, index) => {
-    const [heading = "", meta = "", ...rest] = entry;
-    const [role = "Role", company = "Company"] = heading.split(/\s+-\s+/);
-    const [dateRange = "", location = ""] = meta.split("|").map((item) => item.trim());
-    const summaryLines: string[] = [];
-    const highlights: string[] = [];
-
-    for (const line of rest) {
-      const bullet = line.match(/^[-*]\s+(.+)$/);
-      if (bullet) highlights.push(cleanMarkdown(bullet[1]));
-      else summaryLines.push(cleanMarkdown(line));
-    }
+  return parseItems(lines).map((item, index) => {
+    const [company = "", location = ""] = item.subtitle ? splitFields(item.subtitle) : [];
 
     return {
       id: `experience-${index + 1}`,
-      role: cleanMarkdown(role),
-      company: cleanMarkdown(company),
+      role: item.title,
+      company,
       location,
-      ...parseDateRange(dateRange),
-      summary: summaryLines.join("\n"),
-      highlights,
+      ...parseDateRange(item.meta),
+      summary: item.summary,
+      highlights: item.bullets,
     };
   });
 }
 
 function parseEducation(lines: string[]): ResumeEducationItem[] {
-  return lines
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("- "))
-    .map((line, index) => {
-      const clean = cleanMarkdown(line.replace(/^-\s+/, ""));
-      const match = clean.match(/^(.+?)\s+-\s+(.+?)(?:\s+\((.*?)\))?$/);
-      const title = match?.[1] ?? clean;
-      const school = match?.[2] ?? "";
-      const dateRange = match?.[3] ?? "";
-      const [degree = "", field = ""] = title.split(",").map((item) => item.trim());
+  return parseItems(lines).map((item, index) => {
+    const [degree = "", ...field] = item.title.split(", ");
 
-      return {
-        id: `education-${index + 1}`,
-        school,
-        degree,
-        field,
-        ...parseDateRange(dateRange),
-        summary: "",
-      };
-    });
+    return {
+      id: `education-${index + 1}`,
+      school: unescapeMarkdown(item.subtitle),
+      degree,
+      field: field.join(", "),
+      ...parseDateRange(item.meta),
+      summary: item.summary,
+    };
+  });
 }
 
 function parseProjects(lines: string[]): ResumeProjectItem[] {
-  return splitEntries(lines).map((entry, index) => {
-    const [heading = "", ...rest] = entry;
-    const titleMatch = heading.match(/^(.+?)(?:\s+\((.*?)\))?$/);
-    const highlights: string[] = [];
-    const summaryLines: string[] = [];
-    let link = "";
-
-    for (const line of rest) {
-      const bullet = line.match(/^[-*]\s+(.+)$/);
-      if (bullet) highlights.push(cleanMarkdown(bullet[1]));
-      else if (!link && /^https?:\/\//i.test(line)) link = line;
-      else summaryLines.push(cleanMarkdown(line));
-    }
+  return parseItems(lines).map((item, index) => {
+    const [name = "", role = ""] = item.title.split(" | ");
+    const link = item.link?.url ?? "";
+    const linkLabel = item.link && item.link.text !== link ? item.link.text : "";
 
     return {
       id: `project-${index + 1}`,
-      name: cleanMarkdown(titleMatch?.[1] ?? heading),
-      role: cleanMarkdown(titleMatch?.[2] ?? ""),
+      name,
+      role,
       link,
-      linkLabel: "Link",
+      linkLabel,
       showLinkAsText: true,
-      summary: summaryLines.join("\n"),
-      highlights,
-      skills: [],
+      summary: item.summary,
+      highlights: item.bullets,
+      skills: item.subtitle ? unescapeMarkdown(item.subtitle).split(", ").filter(Boolean) : [],
     };
   });
 }
 
 function parseSkills(lines: string[]): ResumeSkillGroup[] {
   return lines
-    .map((line) => cleanMarkdown(line.replace(/^[-*]\s+/, "")))
-    .filter(Boolean)
-    .map((line, index) => {
-      const [name = "Skills", keywords = ""] = line.split(":");
-
-      return {
-        id: `skill-${index + 1}`,
-        name: name.trim(),
-        keywords: keywords
-          .split(",")
-          .map((keyword) => keyword.trim())
-          .filter(Boolean),
-      };
-    });
-}
-
-function parseLinks(lines: string[]): ResumeLinkItem[] {
-  return lines
-    .map((line) => line.trim().match(/^[-*]\s+\[(.*?)\]\((.*?)\)$/))
+    .map((line) => line.trim().match(/^[-*]\s+\*\*(.+?):\*\*\s*(.*)$/))
     .filter((match): match is RegExpMatchArray => Boolean(match))
     .map((match, index) => ({
+      id: `skill-${index + 1}`,
+      name: unescapeMarkdown(match[1]),
+      keywords: unescapeMarkdown(match[2])
+        .split(",")
+        .map((keyword) => keyword.trim())
+        .filter(Boolean),
+    }));
+}
+
+/** "a | b" back into its fields, the second empty when the renderer printed one. */
+function pair(value: string): [string, string] {
+  const [first = "", second = ""] = value ? splitFields(value) : [];
+  return [first, second];
+}
+
+const LANGUAGE_FLUENCY = Object.fromEntries(
+  Object.entries(FLUENCY_LABELS).map(([fluency, label]) => [label, fluency]),
+) as Record<string, ResumeLanguage["fluency"]>;
+
+/**
+ * The eight typed sections and any custom ones, read back from the fields each prints (see
+ * `resume-render-items.ts`). A heading that is none of the eight becomes a custom section, so
+ * nothing the file prints is dropped. Returns the section key (see `getResumeSectionKey`).
+ */
+function readAdditionalSection(resume: ResumeData, title: string, lines: string[]): string {
+  const items = parseItems(lines);
+  const key = title.toLowerCase();
+  const website = (item: MarkdownItem) => item.link?.url ?? "";
+
+  switch (key) {
+    case "certifications":
+      resume.certificates = items.map((item, index) => {
+        const [issuer, referenceId] = pair(item.subtitle);
+        return {
+          id: `certificate-${index + 1}`,
+          title: item.title,
+          issuer,
+          referenceId,
+          date: item.meta,
+          website: website(item),
+          showLink: Boolean(item.link),
+          description: item.summary,
+        };
+      });
+      return key;
+    case "awards":
+      resume.awards = items.map((item, index) => ({
+        id: `award-${index + 1}`,
+        title: item.title,
+        awarder: unescapeMarkdown(item.subtitle),
+        date: item.meta,
+        website: website(item),
+        showLink: Boolean(item.link),
+        description: item.summary,
+      }));
+      return key;
+    case "publications":
+      resume.publications = items.map((item, index) => ({
+        id: `publication-${index + 1}`,
+        title: item.title,
+        publisher: unescapeMarkdown(item.subtitle),
+        date: item.meta,
+        website: website(item),
+        showLink: Boolean(item.link),
+        description: item.summary,
+      }));
+      return key;
+    case "languages":
+      resume.languages = items.map((item, index) => ({
+        id: `language-${index + 1}`,
+        language: item.title,
+        fluency: LANGUAGE_FLUENCY[unescapeMarkdown(item.subtitle)] ?? "professional",
+      }));
+      return key;
+    case "interests":
+      resume.interests = items.map((item, index) => ({
+        id: `interest-${index + 1}`,
+        name: item.title,
+        keywords: item.bullets,
+      }));
+      return key;
+    case "volunteer":
+      resume.volunteer = items.map((item, index) => {
+        const [role, location] = pair(item.subtitle);
+        return {
+          id: `volunteer-${index + 1}`,
+          organization: item.title,
+          role,
+          location,
+          ...parseDateRange(item.meta),
+          summary: item.summary,
+        };
+      });
+      return key;
+    case "references":
+      resume.references = items.map((item, index) => {
+        const [jobTitle, organization] = pair(item.subtitle);
+        return {
+          id: `reference-${index + 1}`,
+          name: item.title,
+          title: jobTitle,
+          organization,
+          email: item.link?.url.replace(/^mailto:/i, "") ?? "",
+          phone: item.meta,
+          relationship: item.summary,
+        };
+      });
+      return key;
+    case "achievements":
+      resume.achievements = items.map((item, index) => ({
+        id: `achievement-${index + 1}`,
+        title: item.title,
+        description: item.summary,
+      }));
+      return key;
+    default: {
+      const id =
+        resume.customSections.length === 0
+          ? "custom-default"
+          : `custom-${resume.customSections.length + 1}`;
+      const section: ResumeCustomSection = {
+        id,
+        kind: "custom",
+        title,
+        editableTitle: true,
+        items: items.map((item, index) => {
+          const [issuer, referenceId] = pair(item.subtitle);
+          return {
+            id: `${id}-item-${index + 1}`,
+            name: item.title,
+            issuer,
+            referenceId,
+            date: item.meta,
+            link: item.link?.url ?? "",
+            description: item.summary,
+            details: item.bullets,
+          };
+        }),
+      };
+
+      resume.customSections.push(section);
+      return `custom:${id}`;
+    }
+  }
+}
+
+/** The "## Links" list older exports wrote; current exports put links in the header. */
+function parseLinkList(lines: string[]): ResumeLinkItem[] {
+  return lines
+    .map((line) => parseLink(line.trim().replace(/^[-*]\s+/, "")))
+    .filter((link): link is NonNullable<typeof link> => Boolean(link))
+    .map((link, index) => ({
       id: `link-${index + 1}`,
       type: "custom",
-      label: cleanMarkdown(match[1]),
-      url: match[2].trim(),
+      label: link.text,
+      url: link.url,
     }));
 }
 
 export function parseResumeMarkdown(markdown: string, currentResume?: ResumeData): ResumeData {
-  const base = cloneBlankResume();
   const resume = normalizeResumeData({
-    ...base,
+    ...structuredClone(blankResume),
     ...(currentResume
       ? {
           templateId: currentResume.templateId,
@@ -248,28 +420,58 @@ export function parseResumeMarkdown(markdown: string, currentResume?: ResumeData
   });
 
   parseHeader(markdown, resume);
+  resume.customSections = [];
 
-  const sections = splitSections(markdown);
-  const summary = sections.get("summary")?.map(cleanMarkdown).filter(Boolean).join("\n\n");
+  /** The file's section order, as section keys. */
+  const order: string[] = [];
 
-  if (summary) resume.summary = summary;
+  for (const { title, lines } of splitSections(markdown)) {
+    switch (title.toLowerCase()) {
+      case "summary":
+        resume.summary = lines.map(unescapeMarkdown).filter(Boolean).join("\n\n");
+        order.push("summary");
+        break;
+      case "experience":
+        resume.experience = parseExperience(lines);
+        order.push("experience");
+        break;
+      case "education":
+        resume.education = parseEducation(lines);
+        order.push("education");
+        break;
+      case "projects":
+        resume.projects = parseProjects(lines);
+        order.push("projects");
+        break;
+      case "skills":
+        resume.skills = parseSkills(lines);
+        order.push("skills");
+        break;
+      case "links": {
+        const linkList = parseLinkList(lines);
+        if (linkList.length) resume.links = { ...resume.links, items: linkList };
+        break;
+      }
+      default:
+        order.push(readAdditionalSection(resume, title, lines));
+    }
+  }
 
-  const experience = parseExperience(sections.get("experience") ?? []);
-  if (experience.length) resume.experience = experience;
+  const normalized = normalizeResumeData(resume);
+  const rank = (section: ResumeSection) => {
+    const index = order.indexOf(getResumeSectionKey(section));
+    return index === -1 ? order.length : index;
+  };
+  const [basics, links, ...body] = normalized.sections;
 
-  const education = parseEducation(sections.get("education") ?? []);
-  if (education.length) resume.education = education;
+  // The sections print in the order the file lists them.
+  const sections = [
+    basics,
+    links,
+    ...[...body].sort((left, right) => rank(left) - rank(right) || left.order - right.order),
+  ].map((section, index) => ({ ...section, order: index }));
 
-  const projects = parseProjects(sections.get("projects") ?? []);
-  if (projects.length) resume.projects = projects;
-
-  const skills = parseSkills(sections.get("skills") ?? []);
-  if (skills.length) resume.skills = skills;
-
-  const links = parseLinks(sections.get("links") ?? []);
-  if (links.length) resume.links = { ...resume.links, items: links };
-
-  return normalizeResumeData(resume);
+  return normalizeResumeData({ ...normalized, sections });
 }
 
 export async function importResumeFromMarkdownFile(file: File, currentResume?: ResumeData) {

@@ -1,24 +1,27 @@
 /* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { CSSProperties } from "react";
 import type { CoverLetterContent } from "@/features/cover-letter/types";
 import type { ResumeLinkDisplayMode, ResumeLinkItem } from "@/types/resume";
 import type { CoverLetterTokens } from "../tokens";
 
-import { createCoverLetterPageProbe } from "../measure";
-import { paginateIncremental } from "@/templates/shared/pagination";
+import {
+  getFragmentBoxStyle,
+  getFragmentRows,
+  getFragmentWords,
+  paginateCoverLetterFlow,
+  useCoverLetterFontReady,
+  type FlowFragment,
+} from "../measure";
 
 import {
-  buildCoverLetterFlowContent,
   buildProfessionalFlowItems,
+  getCoverLetterDocumentTitle,
   getCoverLetterState,
   getFlowPageKey,
-  getProfessionalFlowItemWeight,
-  getCoverLetterFlowSenderName,
-  isCoverLetterSectionVisible,
-  paginateWeightedItems,
+  getFlowSplitKind,
   type CoverLetterPalette,
   type ProfessionalFlowItem,
 } from "../shared";
@@ -36,8 +39,6 @@ import { COVER_LETTER_SCALE as S } from "../tokens";
 
 import { SOCIAL_ICON_SRC_BY_TYPE } from "@/templates/shared/social-icons";
 
-const PAGE_HEIGHT = S.pageHeight;
-
 const px = (value: number) => `${value}px`;
 
 /**
@@ -45,31 +46,41 @@ const px = (value: number) => `${value}px`;
  * spacing change moves the preview and the export together.
  */
 function renderFlowItem(
-  item: ProfessionalFlowItem,
+  fragment: FlowFragment<ProfessionalFlowItem>,
   palette: CoverLetterPalette,
   tokens: CoverLetterTokens,
   paragraphSpacing: number,
 ) {
+  const { item } = fragment;
   const spacing = { marginBottom: px(paragraphSpacing) };
+  const cut = getFragmentBoxStyle(fragment);
 
   if (item.type === "greeting")
-    return <p style={{ ...webText(tokens.strong), ...spacing }}>{item.text}</p>;
+    return <p style={{ ...webText(tokens.strong), ...spacing, ...cut }}>{item.text}</p>;
 
-  if (item.type === "paragraph" || item.type === "closing")
-    return <p style={{ ...webText(tokens.body), ...spacing }}>{item.text}</p>;
+  if (item.type === "paragraph" || item.type === "closing") {
+    const text = getFragmentWords(item.text, fragment.range);
+
+    return text ? <p style={{ ...webText(tokens.body), ...spacing, ...cut }}>{text}</p> : null;
+  }
 
   if (item.type === "body-list" || item.type === "proof-list")
     return (
       <div
         style={{
           backgroundColor: palette.surface,
-          padding: `${px(S.listPadY)} ${px(S.listPadX)}`,
+          paddingBottom: px(S.listPadY),
+          paddingLeft: px(S.listPadX),
+          paddingRight: px(S.listPadX),
+          paddingTop: px(S.listPadY),
           ...spacing,
+          ...cut,
         }}
       >
-        {item.items.map((listItem, index) => (
+        {getFragmentRows(item.items, fragment.range).map(({ row, index }) => (
           <div
-            key={listItem}
+            key={index}
+            data-flow-row=""
             style={{
               columnGap: px(S.bulletGap),
               display: "flex",
@@ -87,37 +98,30 @@ function renderFlowItem(
               {BULLET_MARKER}
             </span>
 
-            <span style={{ ...webText(tokens.body), ...webFlexible }}>{listItem}</span>
+            <span style={{ ...webText(tokens.body), ...webFlexible }}>{row}</span>
           </div>
         ))}
       </div>
     );
 
-  if (item.type === "signature") return <p style={webText(tokens.strong)}>{item.text}</p>;
+  if (item.type === "signature")
+    return <p style={{ ...webText(tokens.strong), ...cut }}>{item.text}</p>;
 
-  return (
+  const text = getFragmentWords(item.text, fragment.range);
+
+  return text ? (
     <p
       style={{
         ...webText(tokens.postscript),
         borderTop: `${S.hairline}px solid ${palette.border}`,
         marginTop: px(S.postscriptTop),
         paddingTop: px(S.postscriptPadTop),
+        ...cut,
       }}
     >
-      P.S. {item.text}
+      {text}
     </p>
-  );
-}
-
-function renderGroupedFlowItems(
-  items: ProfessionalFlowItem[],
-  palette: CoverLetterPalette,
-  tokens: CoverLetterTokens,
-  paragraphSpacing: number,
-) {
-  return items.map((item) => (
-    <div key={item.id}>{renderFlowItem(item, palette, tokens, paragraphSpacing)}</div>
-  ));
+  ) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -151,10 +155,12 @@ function LetterHead({
       }}
     >
       <div style={webFlexible}>
-        <h1 style={webText(tokens.senderName)}>{senderName}</h1>
-        <p style={{ ...webText(tokens.senderTitle), marginTop: px(S.subjectLabelGap) }}>
-          {senderTitle}
-        </p>
+        {senderName ? <h1 style={webText(tokens.senderName)}>{senderName}</h1> : null}
+        {senderTitle ? (
+          <p style={{ ...webText(tokens.senderTitle), marginTop: px(S.subjectLabelGap) }}>
+            {senderTitle}
+          </p>
+        ) : null}
       </div>
 
       {contact.length > 0 || renderedLinks.length > 0 ? (
@@ -168,8 +174,8 @@ function LetterHead({
             rowGap: px(S.headerRowGap),
           }}
         >
-          {contact.map((item) => (
-            <p key={item} style={webText(tokens.contact)}>
+          {contact.map((item, index) => (
+            <p key={index} style={webText(tokens.contact)}>
               {item}
             </p>
           ))}
@@ -232,8 +238,8 @@ function RecipientMeta({
           rowGap: px(S.metaRowGap),
         }}
       >
-        {recipient.map((line) => (
-          <p key={line} style={webText(tokens.contact)}>
+        {recipient.map((line, index) => (
+          <p key={index} style={webText(tokens.contact)}>
             {line}
           </p>
         ))}
@@ -285,17 +291,16 @@ function SubjectBlock({
  *
  * The export cannot reproduce one: react-pdf repeats a `fixed` node at the same
  * y on every page without reserving flow space for it, so the running text
- * would print underneath it. Keeping the banner in the preview alone meant the
- * second page of a letter looked different once downloaded, and the preview
- * also had to reserve height for a thing the PDF never drew — which moved the
- * page break. A recipient reading a numbered attachment does not need telling
- * that a letter continues.
+ * would print underneath it. A recipient reading a numbered attachment does not
+ * need telling that a letter continues.
  */
 
-function paginateProfessionalHtmlItems(items: ProfessionalFlowItem[]) {
-  return paginateWeightedItems(items, getProfessionalFlowItemWeight, (pageIndex) =>
-    pageIndex === 0 ? 17 : 26,
-  );
+/**
+ * The letter body is a flex column in every renderer: flex items' margins add up
+ * rather than collapse, which is how Yoga lays out the PDF.
+ */
+function bodyStyle(continued: boolean): CSSProperties {
+  return { display: "flex", flexDirection: "column", marginTop: continued ? 0 : px(S.bodyTop) };
 }
 
 function renderProfessionalHtmlItem(item: ProfessionalFlowItem) {
@@ -309,14 +314,14 @@ function renderProfessionalHtmlItem(item: ProfessionalFlowItem) {
       )
       .join("")}</div>`;
   }
-  if (item.type === "closing") return `<p>${escapeHtml(item.text)}</p>`;
+  if (item.type === "closing") return `<p class="closing">${escapeHtml(item.text)}</p>`;
   if (item.type === "signature") return `<p class="signature">${escapeHtml(item.text)}</p>`;
 
-  return `<p class="postscript">P.S. ${escapeHtml(item.text)}</p>`;
+  return `<p class="postscript">${escapeHtml(item.text)}</p>`;
 }
 
 export function ProfessionalCoverLetterPreview({ content }: { content: CoverLetterContent }) {
-  const state = getCoverLetterState(content, { firstPage: 18, nextPage: 27 });
+  const state = useMemo(() => getCoverLetterState(content), [content]);
   const {
     appearance,
     palette,
@@ -326,38 +331,19 @@ export function ProfessionalCoverLetterPreview({ content }: { content: CoverLett
     contact,
     linkDisplayMode,
     renderedLinks,
+    date,
     recipient,
+    subject,
   } = state;
   const fontFamily = FONT_FAMILY_MAP[appearance.fontFamily];
-  const flowSenderName = getCoverLetterFlowSenderName(content);
-  const showTarget = isCoverLetterSectionVisible(content, "target");
-  const subject = content.subject || content.jobTitle;
-  const flowContent = useMemo(() => buildCoverLetterFlowContent(content), [content]);
-  const flowItems = useMemo(
-    () => buildProfessionalFlowItems(flowContent, flowSenderName),
-    [flowContent, flowSenderName],
-  );
-  const [pages, setPages] = useState<ProfessionalFlowItem[][]>(() => [flowItems]);
+  const flowItems = useMemo(() => buildProfessionalFlowItems(state.flow), [state.flow]);
+  const [pages, setPages] = useState<FlowFragment<ProfessionalFlowItem>[][]>(() => [
+    flowItems.map((item) => ({ item })),
+  ]);
   const measureRef = useRef<HTMLDivElement | null>(null);
   const firstPrefixRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef(new Map<string, HTMLDivElement>());
-  const [fontsReady, setFontsReady] = useState(() => typeof document === "undefined");
-
-  // Measuring before the document font has loaded fills the probe with
-  // fallback metrics, producing page breaks the PDF export will not reproduce.
-  useEffect(() => {
-    if (fontsReady) return;
-
-    let cancelled = false;
-
-    document.fonts.ready.then(() => {
-      if (!cancelled) setFontsReady(true);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [fontsReady]);
+  const fontsReady = useCoverLetterFontReady(fontFamily);
 
   const pageStyle: CSSProperties = {
     backgroundColor: appearance.pageColor,
@@ -368,8 +354,6 @@ export function ProfessionalCoverLetterPreview({ content }: { content: CoverLett
 
   // The page box matches the PDF page exactly; see COVER_LETTER_SCALE.
   const pageBox: CSSProperties = { height: px(S.pageHeight), width: px(S.pageWidth) };
-
-  const bodyStyle: CSSProperties = { marginTop: px(S.bodyTop) };
 
   useLayoutEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -386,22 +370,19 @@ export function ProfessionalCoverLetterPreview({ content }: { content: CoverLett
       });
       measureRef.current?.appendChild(probe);
 
-      const nextPages = paginateIncremental(
-        flowItems,
-        createCoverLetterPageProbe<ProfessionalFlowItem>({
-          measureRoot: probe,
-          contentRoot: probe,
-          pageHeight: PAGE_HEIGHT,
-          // Only the first page carries the letterhead; later pages are body only.
-          getPrefix: (pageIndex) => (pageIndex === 0 ? firstPrefixRef.current : null),
-          getItemNode: (item) => itemRefs.current.get(item.id) ?? null,
-          createBody: () => {
-            const main = document.createElement("main");
-            main.style.marginTop = px(S.bodyTop);
-            return main;
-          },
-        }),
-      );
+      const nextPages = paginateCoverLetterFlow(flowItems, {
+        measureRoot: probe,
+        contentRoot: probe,
+        // Only the first page carries the letterhead; later pages are body only.
+        getPrefix: (pageIndex) => (pageIndex === 0 ? firstPrefixRef.current : null),
+        getItemNode: (item) => itemRefs.current.get(item.id) ?? null,
+        getSplitKind: getFlowSplitKind,
+        createBody: (continued) => {
+          const main = document.createElement("main");
+          Object.assign(main.style, bodyStyle(continued));
+          return main;
+        },
+      });
       probe.remove();
       const nextKey = getFlowPageKey(nextPages);
 
@@ -439,18 +420,16 @@ export function ProfessionalCoverLetterPreview({ content }: { content: CoverLett
         ref={measureRef}
         aria-hidden="true"
         className="pointer-events-none absolute opacity-0"
-        style={{ left: -10000, top: 0, width: 794 }}
+        style={{ left: -10000, top: 0, width: S.pageWidth }}
       >
         <article className="overflow-hidden" style={{ ...pageStyle, ...pageBox }}>
           <div ref={firstPrefixRef}>
             {head}
-            <RecipientMeta date={content.date} recipient={recipient} tokens={tokens} />
-            {showTarget && subject ? (
-              <SubjectBlock palette={palette} subject={subject} tokens={tokens} />
-            ) : null}
+            <RecipientMeta date={date} recipient={recipient} tokens={tokens} />
+            {subject ? <SubjectBlock palette={palette} subject={subject} tokens={tokens} /> : null}
           </div>
 
-          <main style={bodyStyle}>
+          <main style={bodyStyle(false)}>
             {flowItems.map((item) => (
               <div
                 key={item.id}
@@ -459,14 +438,14 @@ export function ProfessionalCoverLetterPreview({ content }: { content: CoverLett
                   else itemRefs.current.delete(item.id);
                 }}
               >
-                {renderFlowItem(item, palette, tokens, appearance.paragraphSpacing)}
+                {renderFlowItem({ item }, palette, tokens, appearance.paragraphSpacing)}
               </div>
             ))}
           </main>
         </article>
       </div>
 
-      {pages.map((pageBlocks, pageIndex) => (
+      {pages.map((fragments, pageIndex) => (
         <article
           key={pageIndex}
           className="mx-auto max-w-full overflow-hidden shadow-sm ring-1 ring-zinc-200"
@@ -475,15 +454,19 @@ export function ProfessionalCoverLetterPreview({ content }: { content: CoverLett
           {pageIndex === 0 ? (
             <>
               {head}
-              <RecipientMeta date={content.date} recipient={recipient} tokens={tokens} />
-              {showTarget && subject ? (
+              <RecipientMeta date={date} recipient={recipient} tokens={tokens} />
+              {subject ? (
                 <SubjectBlock palette={palette} subject={subject} tokens={tokens} />
               ) : null}
             </>
           ) : null}
 
-          <main style={bodyStyle}>
-            {renderGroupedFlowItems(pageBlocks, palette, tokens, appearance.paragraphSpacing)}
+          <main style={bodyStyle(pages.slice(0, pageIndex).some((page) => page.length > 0))}>
+            {fragments.map((fragment) => (
+              <div key={`${fragment.item.id}-${fragment.range?.[0] ?? 0}`}>
+                {renderFlowItem(fragment, palette, tokens, appearance.paragraphSpacing)}
+              </div>
+            ))}
           </main>
         </article>
       ))}
@@ -492,7 +475,7 @@ export function ProfessionalCoverLetterPreview({ content }: { content: CoverLett
 }
 
 export function buildProfessionalCoverLetterHtml(content: CoverLetterContent): string {
-  const state = getCoverLetterState(content, { firstPage: 18, nextPage: 27 });
+  const state = getCoverLetterState(content);
 
   const {
     appearance,
@@ -503,44 +486,41 @@ export function buildProfessionalCoverLetterHtml(content: CoverLetterContent): s
     contact,
     linkDisplayMode,
     renderedLinks,
+    date,
     recipient,
+    subject,
   } = state;
-  const showTarget = isCoverLetterSectionVisible(content, "target");
-  const subject = escapeHtml(
-    showTarget ? content.subject || content.jobTitle || "Application" : "",
-  );
   const fontFamily = FONT_FAMILY_MAP[appearance.fontFamily];
   const fontHref = getFontStylesheetHref(appearance.fontFamily);
-  const flowItems = buildProfessionalFlowItems(buildCoverLetterFlowContent(content), senderName);
-  const pages = paginateProfessionalHtmlItems(flowItems);
+  const flowItems = buildProfessionalFlowItems(state.flow);
 
   const t = tokens;
   const font = (token: (typeof t)["body"]) =>
     `font-size:${token.fontSize}px;line-height:${token.lineHeight}px;font-weight:${token.fontWeight};color:${token.color};`;
 
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(content.senderName || "Cover Letter")}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${escapeHtml(fontHref)}"><style>
-*{box-sizing:border-box}body{margin:0;padding:32px 16px;background:${palette.surface};color:${palette.text};font-family:${fontFamily}}.page{width:794px;height:1123px;margin:0 auto 24px;overflow:hidden;background:${appearance.pageColor};box-shadow:0 0 0 1px ${palette.border};page-break-after:always;padding:${appearance.pageMargin}px}.page:last-child{page-break-after:auto}p,h1,h2{margin:0}header{display:flex;border-bottom:${S.headerRule}px solid ${palette.strong};padding-bottom:${S.headerPadBottom}px}header .identity{flex:1 1 auto;min-width:0}header h1{${font(t.senderName)}}header .identity p{${font(t.senderTitle)}margin-top:${S.subjectLabelGap}px}.contact{display:flex;flex-direction:column;align-items:flex-end;flex:0 0 ${S.headerContactWidth}px;width:${S.headerContactWidth}px;margin-left:${S.headerColumnGap}px;row-gap:${S.headerRowGap}px}.contact p{${font(t.contact)}}.contact a{${font({ ...t.contact, color: palette.strong })}text-decoration:none}.meta{display:flex;margin-top:${S.metaTop}px}.meta .to{display:flex;flex-direction:column;flex:1 1 auto;min-width:0;row-gap:${S.metaRowGap}px}.meta .to p{${font(t.contact)}}.meta .date{${font(t.metaDate)}flex:0 0 ${S.metaDateWidth}px;width:${S.metaDateWidth}px;margin-left:${S.metaColumnGap}px;text-align:right}.subject{border-top:${S.hairline}px solid ${palette.border};border-bottom:${S.hairline}px solid ${palette.border};margin-top:${S.subjectTop}px;padding:${S.subjectPadY}px 0}.label{${font(t.label)}letter-spacing:${t.label.letterSpacing}px;text-transform:uppercase}.subject h2{${font(t.subject)}margin-top:${S.subjectLabelGap}px}.body{margin-top:${S.bodyTop}px}.body p{${font(t.body)}margin-bottom:${appearance.paragraphSpacing}px}.greeting,.signature{${font(t.strong)}}.list{background:${palette.surface};padding:${S.listPadY}px ${S.listPadX}px;margin-bottom:${appearance.paragraphSpacing}px}.bullet{display:flex;column-gap:${S.bulletGap}px}.bullet+.bullet{margin-top:${S.bulletRowGap}px}.bullet .marker{flex:0 0 ${S.bulletIndent - S.bulletGap}px;width:${S.bulletIndent - S.bulletGap}px;text-align:right}.bullet span{${font(t.body)}}.postscript{${font(t.postscript)}border-top:${S.hairline}px solid ${palette.border};margin-top:${S.postscriptTop}px;padding-top:${S.postscriptPadTop}px}.continued{${font(t.continued)}letter-spacing:${t.continued.letterSpacing}px;text-transform:uppercase;border-bottom:${S.hairline}px solid ${palette.border};padding-bottom:${S.continuedPadBottom}px}@media print{body{padding:0;background:white}.page{box-shadow:none;margin:0}}</style></head><body>${pages
-    .map((blocks, pageIndex) => {
-      const first = pageIndex === 0;
-      const body = blocks.map((item) => renderProfessionalHtmlItem(item)).join("");
-      return `<article class="page">${
-        first
-          ? `<header><div class="identity"><h1>${escapeHtml(senderName)}</h1><p>${escapeHtml(senderTitle)}</p></div><div class="contact">${contact
-              .map((item) => `<p>${escapeHtml(item)}</p>`)
-              .join("")}${renderedLinks
-              .map(
-                (link) =>
-                  `<a href="${escapeHtml(normalizeLinkHref(link.url))}">${escapeHtml(getLinkDisplayText(link, linkDisplayMode))}</a>`,
-              )
-              .join("")}</div></header><section class="meta"><div class="to">${recipient
-              .map((line) => `<p>${escapeHtml(line)}</p>`)
-              .join("")}</div><p class="date">${escapeHtml(content.date)}</p></section>${
-              showTarget
-                ? `<section class="subject"><p class="label">Re</p><h2>${subject}</h2></section>`
-                : ""
-            }`
-          : ""
-      }<main class="body">${body}</main></article>`;
-    })
-    .join("")}</body></html>`;
+  const contactColumn =
+    contact.length > 0 || renderedLinks.length > 0
+      ? `<div class="contact">${contact
+          .map((item) => `<p>${escapeHtml(item)}</p>`)
+          .join("")}${renderedLinks
+          .map(
+            (link) =>
+              `<a href="${escapeHtml(normalizeLinkHref(link.url))}">${escapeHtml(getLinkDisplayText(link, linkDisplayMode))}</a>`,
+          )
+          .join("")}</div>`
+      : "";
+
+  // One flowing page: the browser's print engine breaks it with the same rules react-pdf
+  // uses (whole bullets, signature and greeting; two-line orphans and widows), and the
+  // screen copy never clips what does not fit a fixed-height box.
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(getCoverLetterDocumentTitle(state))}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${escapeHtml(fontHref)}"><style>
+*{box-sizing:border-box}body{margin:0;padding:32px 16px;background:${palette.surface};color:${palette.text};font-family:${fontFamily}}.page{width:${S.pageWidth}px;min-height:${S.pageHeight}px;margin:0 auto 24px;background:${appearance.pageColor};box-shadow:0 0 0 1px ${palette.border};padding:${appearance.pageMargin}px}p,h1,h2{margin:0;white-space:pre-line}header{display:flex;border-bottom:${S.headerRule}px solid ${palette.strong};padding-bottom:${S.headerPadBottom}px}header .identity{flex:1 1 auto;min-width:0}header h1{${font(t.senderName)}}header .identity p{${font(t.senderTitle)}margin-top:${S.subjectLabelGap}px}.contact{display:flex;flex-direction:column;align-items:flex-end;flex:0 0 ${S.headerContactWidth}px;width:${S.headerContactWidth}px;margin-left:${S.headerColumnGap}px;row-gap:${S.headerRowGap}px}.contact p{${font(t.contact)}}.contact a{${font({ ...t.contact, color: palette.strong })}text-decoration:none}.meta{display:flex;margin-top:${S.metaTop}px}.meta .to{display:flex;flex-direction:column;flex:1 1 auto;min-width:0;row-gap:${S.metaRowGap}px}.meta .to p{${font(t.contact)}}.meta .date{${font(t.metaDate)}flex:0 0 ${S.metaDateWidth}px;width:${S.metaDateWidth}px;margin-left:${S.metaColumnGap}px;text-align:right}.subject{border-top:${S.hairline}px solid ${palette.border};border-bottom:${S.hairline}px solid ${palette.border};margin-top:${S.subjectTop}px;padding:${S.subjectPadY}px 0}.label{${font(t.label)}letter-spacing:${t.label.letterSpacing}px;text-transform:uppercase}.subject h2{${font(t.subject)}margin-top:${S.subjectLabelGap}px}.body{display:flex;flex-direction:column;margin-top:${S.bodyTop}px}.body p{${font(t.body)}margin-bottom:${appearance.paragraphSpacing}px}.body .greeting,.body .signature{${font(t.strong)}}.body .signature{margin-bottom:0}.greeting,.closing,.signature,.bullet{break-inside:avoid}.list{background:${palette.surface};padding:${S.listPadY}px ${S.listPadX}px;margin-bottom:${appearance.paragraphSpacing}px}.bullet{display:flex;column-gap:${S.bulletGap}px}.bullet+.bullet{margin-top:${S.bulletRowGap}px}.bullet .marker{flex:0 0 ${S.bulletIndent - S.bulletGap}px;width:${S.bulletIndent - S.bulletGap}px;text-align:right}.bullet span{${font(t.body)}}.body .postscript{${font(t.postscript)}border-top:${S.hairline}px solid ${palette.border};margin:${S.postscriptTop}px 0 0;padding-top:${S.postscriptPadTop}px}@page{size:${S.pageWidth}px ${S.pageHeight}px;margin:${appearance.pageMargin}px 0}@media print{body{padding:0;background:${appearance.pageColor}}.page{box-shadow:none;margin:0;min-height:0;padding-top:0;padding-bottom:0}}</style></head><body><article class="page"><header><div class="identity">${senderName ? `<h1>${escapeHtml(senderName)}</h1>` : ""}${
+    senderTitle ? `<p>${escapeHtml(senderTitle)}</p>` : ""
+  }</div>${contactColumn}</header><section class="meta"><div class="to">${recipient
+    .map((line) => `<p>${escapeHtml(line)}</p>`)
+    .join("")}</div>${date ? `<p class="date">${escapeHtml(date)}</p>` : ""}</section>${
+    subject
+      ? `<section class="subject"><p class="label">Re</p><h2>${escapeHtml(subject)}</h2></section>`
+      : ""
+  }<main class="body">${flowItems.map(renderProfessionalHtmlItem).join("")}</main></article></body></html>`;
 }

@@ -20,6 +20,10 @@ export default defineConfig({
     environment: "node",
     include: ["tests/parity/**/*.test.ts"],
     globals: false,
+    // Every test starts from the real implementations and globals, whatever the last one stubbed.
+    restoreMocks: true,
+    unstubGlobals: true,
+    unstubEnvs: true,
     // One server, one browser, one page at a time — parallel navigations make
     // the measurements noisy.
     fileParallelism: false,

@@ -4,7 +4,6 @@ import React from "react";
 
 import type { ResumeWebContext } from "../shared/web";
 
-import { cleanResumeText } from "@/features/documents/rendering/resume-rendering";
 import { WebContactRow, WebLinkRow, createResumeWebTemplate, px } from "../shared/web";
 import { webText } from "../shared/tokens";
 import {
@@ -15,7 +14,7 @@ import {
 } from "./skin";
 
 function Header(ctx: ResumeWebContext) {
-  const { model, resume, style, tokens } = ctx;
+  const { model, style, tokens } = ctx;
 
   return (
     <header
@@ -28,15 +27,13 @@ function Header(ctx: ResumeWebContext) {
       {model.showBasics && (
         <>
           {/* Minimal keeps the identity quiet: body colour, not accent. */}
-          <h1 style={{ ...webText(tokens.name), color: style.textColor }}>
-            {cleanResumeText(resume.basics.fullName) || "Your Name"}
-          </h1>
+          <h1 style={{ ...webText(tokens.name), color: style.textColor }}>{model.name}</h1>
 
-          {(resume.basics.headline || resume.basics.role) && (
+          {model.headline && (
             <p
               style={{ ...webText(tokens.role), fontWeight: 400, marginTop: px(geometry.roleTop) }}
             >
-              {cleanResumeText(resume.basics.headline || resume.basics.role)}
+              {model.headline}
             </p>
           )}
 

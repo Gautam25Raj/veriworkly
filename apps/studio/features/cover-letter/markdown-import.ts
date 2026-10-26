@@ -1,6 +1,9 @@
 "use client";
 
+import type { ResumeLinkItem, ResumeLinkType } from "@/types/resume";
 import type { CoverLetterContent } from "@/features/cover-letter/types";
+
+import { COVER_LETTER_MARKDOWN_LABELS } from "@/templates/cover-letter/shared";
 
 function cleanMarkdown(value: string): string {
   return value
@@ -15,96 +18,216 @@ function isBullet(line: string) {
 
 function splitBlocks(markdown: string) {
   return markdown
+    .replace(/\r\n/g, "\n")
     .split(/\n{2,}/)
     .map((block) => block.trim())
     .filter(Boolean);
 }
 
-function splitContact(value: string) {
-  return value
-    .split("|")
-    .map((item) => item.trim())
-    .filter(Boolean);
+type LetterheadField = Exclude<keyof typeof COVER_LETTER_MARKDOWN_LABELS, "link">;
+
+const FIELD_BY_LABEL = new Map(
+  Object.entries(COVER_LETTER_MARKDOWN_LABELS).map(([field, label]) => [
+    label.toLowerCase(),
+    field,
+  ]),
+);
+
+const LETTERHEAD_LINE = /^[-*]\s+\*\*([^*]+):\*\*\s*(.*)$/;
+
+const LINK_TYPE_BY_HOST: [RegExp, ResumeLinkType][] = [
+  [/(^|\.)github\.com$/, "github"],
+  [/(^|\.)linkedin\.com$/, "linkedin"],
+  [/(^|\.)dribbble\.com$/, "dribbble"],
+  [/(^|\.)(twitter|x)\.com$/, "twitter"],
+  [/(^|\.)behance\.net$/, "behance"],
+  [/(^|\.)medium\.com$/, "medium"],
+  [/(^|\.)(youtube\.com|youtu\.be)$/, "youtube"],
+];
+
+function getLinkType(url: string): ResumeLinkType {
+  try {
+    const host = new URL(url).hostname;
+    return LINK_TYPE_BY_HOST.find(([pattern]) => pattern.test(host))?.[1] ?? "custom";
+  } catch {
+    return "custom";
+  }
 }
 
+/** The labelled list `buildCoverLetterMarkdown` writes under the name, or null for any other block. */
+function parseLetterhead(block: string) {
+  const lines = block.split("\n").map((line) => line.trim());
+  const matches = lines.map((line) => line.match(LETTERHEAD_LINE));
+
+  if (!matches.every((match) => match && FIELD_BY_LABEL.has(match[1].trim().toLowerCase()))) {
+    return null;
+  }
+
+  const fields: Partial<Record<LetterheadField, string>> = {};
+  const links: ResumeLinkItem[] = [];
+
+  for (const match of matches as RegExpMatchArray[]) {
+    const field = FIELD_BY_LABEL.get(match[1].trim().toLowerCase());
+    const value = match[2].trim();
+
+    if (field === "link") {
+      const link = value.match(/^\[(.*)\]\((.*)\)$/);
+      const url = link ? link[2].trim() : value;
+
+      links.push({
+        id: `cover-letter-link-${links.length + 1}`,
+        type: getLinkType(url),
+        label: link ? link[1].trim() : "",
+        url,
+      });
+      continue;
+    }
+
+    if (field) fields[field as LetterheadField] = value;
+  }
+
+  return { fields, links };
+}
+
+type Letterhead = NonNullable<ReturnType<typeof parseLetterhead>>;
+
+const LEGACY_SUBJECT = /^\*\*Subject:\*\*\s*/i;
+
+/**
+ * The letterhead of exports made before the fields were labelled: a " | " contact line
+ * (title, email, phone, location, website, links — empty ones left out), the date, the
+ * recipient lines, and a `**Subject:**` block. Fields are told apart by what they look
+ * like rather than by position, since the empty ones shifted everything after them.
+ * Consumes the blocks it reads.
+ */
+function parseLegacyLetterhead(blocks: string[]): Letterhead | null {
+  const subjectIndex = blocks.findIndex((block) => LEGACY_SUBJECT.test(block));
+
+  if (subjectIndex < 0 && !blocks[0]?.includes(" | ")) return null;
+
+  const headerEnd =
+    subjectIndex >= 0 ? subjectIndex : blocks.findIndex((block) => isShortLine(block));
+  const header = blocks.splice(0, Math.min(Math.max(headerEnd, 0), 3));
+  const fields: Partial<Record<LetterheadField, string>> = {};
+  const links: ResumeLinkItem[] = [];
+
+  if (subjectIndex >= 0) {
+    fields.subject = blocks.splice(subjectIndex - header.length, 1)[0].replace(LEGACY_SUBJECT, "");
+  }
+
+  for (const block of header) {
+    if (block.includes("\n")) {
+      [fields.recipientName, fields.recipientTitle, fields.companyName, fields.companyLocation] =
+        block.split("\n").map((line) => line.trim());
+    } else if (!block.includes(" | ") && !Number.isNaN(Date.parse(block))) {
+      fields.date = block;
+    } else {
+      for (const part of block.split(" | ").map((item) => item.trim())) {
+        const isAddress = /^\S+\.\S+$/.test(part);
+
+        if (part.includes("@")) fields.senderEmail ??= part;
+        else if (/^\+?[\d\s().-]{7,}$/.test(part)) fields.senderPhone ??= part;
+        else if (isAddress && !fields.senderWebsite) fields.senderWebsite = part;
+        else if (isAddress) {
+          const url = /^https?:\/\//i.test(part) ? part : `https://${part}`;
+          links.push({
+            id: `cover-letter-link-${links.length + 1}`,
+            type: getLinkType(url),
+            label: "",
+            url,
+          });
+        } else if (!fields.senderTitle) fields.senderTitle = part;
+        else fields.senderLocation ??= part;
+      }
+    }
+  }
+
+  return { fields, links };
+}
+
+/** A one-line block that reads as a salutation or a sign-off: "Dear Jordan," / "Sincerely,". */
+function isShortLine(block: string) {
+  return !block.includes("\n") && /[,:]$/.test(block);
+}
+
+/**
+ * Reads back a letter written by `buildCoverLetterMarkdown`.
+ *
+ * Only the appearance and the link display mode carry over from the letter that is open —
+ * they are settings, not content. Every field the file does not state comes back empty,
+ * never from the open letter, so an import can be trusted to contain only the file.
+ */
 export function parseCoverLetterMarkdown(
   markdown: string,
   currentContent: CoverLetterContent,
 ): CoverLetterContent {
   const blocks = splitBlocks(markdown);
-  const [nameBlock = "", contactBlock = "", dateBlock = "", recipientBlock = "", ...letterBlocks] =
-    blocks;
 
-  const contact = splitContact(contactBlock);
-  const subjectIndex = letterBlocks.findIndex((block) =>
-    cleanMarkdown(block).toLowerCase().startsWith("subject:"),
-  );
+  const nameBlock = blocks[0]?.startsWith("# ") ? (blocks.shift() ?? "") : "";
+  const labelled = blocks[0] ? parseLetterhead(blocks[0]) : null;
 
-  const subject =
-    subjectIndex >= 0
-      ? cleanMarkdown(letterBlocks.splice(subjectIndex, 1)[0]).replace(/^Subject:\s*/i, "")
-      : currentContent.subject;
+  if (labelled) blocks.shift();
 
-  const greetingIndex = letterBlocks.findIndex(
-    (block) => /,$/.test(block) && /^Dear\s+/i.test(block),
-  );
+  const letterhead = labelled ?? parseLegacyLetterhead(blocks);
+
+  const fields = letterhead?.fields ?? {};
+  const letterBlocks = [...blocks];
+
+  const postscriptIndex = letterBlocks.findIndex((block) => /^P\.S\.\s+/i.test(block));
+  const postscript =
+    postscriptIndex >= 0
+      ? letterBlocks
+          .splice(postscriptIndex, 1)[0]
+          .replace(/^P\.S\.\s*/i, "")
+          .trim()
+      : "";
+
   const greeting =
-    greetingIndex >= 0
-      ? cleanMarkdown(letterBlocks.splice(greetingIndex, 1)[0])
-      : currentContent.greeting;
-
-  const signatureIndex = letterBlocks.findIndex((block) => {
-    const clean = cleanMarkdown(block);
-    return clean === cleanMarkdown(nameBlock) || clean === currentContent.signature;
-  });
-
-  const tailBlocks = signatureIndex >= 0 ? letterBlocks.splice(signatureIndex) : [];
-  const signature = tailBlocks[0] ? cleanMarkdown(tailBlocks[0]) : cleanMarkdown(nameBlock);
-  const postscriptBlock = tailBlocks.find((block) => /^P\.?S\.?\s+/i.test(block));
-  const postscript = postscriptBlock
-    ? cleanMarkdown(postscriptBlock).replace(/^P\.?S\.?\s*/i, "")
-    : currentContent.postscript;
-
+    letterBlocks.length > 0 && isShortLine(letterBlocks[0]) ? letterBlocks.shift()! : "";
+  const signature = letterBlocks.length > 0 ? letterBlocks.pop()! : "";
   const closing =
-    signatureIndex > 0
-      ? cleanMarkdown(letterBlocks.splice(signatureIndex - 1, 1)[0])
-      : currentContent.closing;
-  const highlightBlocks = letterBlocks.filter((block) => block.split(/\r?\n/).some(isBullet));
-  const highlights = highlightBlocks
-    .flatMap((block) => block.split(/\r?\n/))
-    .filter(isBullet)
-    .map((line) => line.replace(/^[-*]\s+/, "").trim())
-    .filter(Boolean)
-    .map((line) => `- ${line}`)
-    .join("\n");
+    letterBlocks.length > 0 && isShortLine(letterBlocks[letterBlocks.length - 1])
+      ? letterBlocks.pop()!
+      : "";
 
-  const proseBlocks = letterBlocks.filter((block) => !block.split(/\r?\n/).some(isBullet));
-  const opening = proseBlocks[0] ? cleanMarkdown(proseBlocks[0]) : currentContent.opening;
-  const body = proseBlocks.slice(1).map(cleanMarkdown).filter(Boolean).join("\n\n");
+  const lastBlock = letterBlocks[letterBlocks.length - 1];
+  const highlights =
+    lastBlock && lastBlock.split("\n").every(isBullet) ? (letterBlocks.pop() ?? "") : "";
 
-  const recipientLines = recipientBlock.split(/\r?\n/).map(cleanMarkdown).filter(Boolean);
+  const [opening = "", ...bodyBlocks] = letterBlocks;
+  const openingIsProse = opening && !opening.split("\n").some(isBullet);
 
   return {
-    ...currentContent,
-    senderName: cleanMarkdown(nameBlock) || currentContent.senderName,
-    senderTitle: contact[0] ?? currentContent.senderTitle,
-    senderEmail: contact[1] ?? currentContent.senderEmail,
-    senderPhone: contact[2] ?? currentContent.senderPhone,
-    senderLocation: contact[3] ?? currentContent.senderLocation,
-    senderWebsite: contact[4] ?? currentContent.senderWebsite,
-    date: cleanMarkdown(dateBlock) || currentContent.date,
-    recipientName: recipientLines[0] ?? currentContent.recipientName,
-    recipientTitle: recipientLines[1] ?? currentContent.recipientTitle,
-    companyName: recipientLines[2] ?? currentContent.companyName,
-    companyLocation: recipientLines[3] ?? currentContent.companyLocation,
-    subject,
+    // Older exports printed this placeholder for a letter without a name.
+    senderName: cleanMarkdown(nameBlock) === "Your Name" ? "" : cleanMarkdown(nameBlock),
+    senderTitle: fields.senderTitle ?? "",
+    senderEmail: fields.senderEmail ?? "",
+    senderPhone: fields.senderPhone ?? "",
+    senderLocation: fields.senderLocation ?? "",
+    senderWebsite: fields.senderWebsite ?? "",
+    links: {
+      displayMode: currentContent.links?.displayMode ?? "icon-username",
+      items: letterhead?.links ?? [],
+    },
+    date: fields.date ?? "",
+    recipientName: fields.recipientName ?? "",
+    recipientTitle: fields.recipientTitle ?? "",
+    companyName: fields.companyName ?? "",
+    companyLocation: fields.companyLocation ?? "",
+    jobTitle: fields.jobTitle ?? "",
+    subject: fields.subject ?? "",
     greeting,
-    opening,
-    body: body || currentContent.body,
-    highlights: highlights || currentContent.highlights,
+    opening: openingIsProse ? opening : "",
+    body: (openingIsProse ? bodyBlocks : letterBlocks).join("\n\n"),
+    highlights: highlights
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => `- ${line.replace(/^[-*]\s+/, "").trim()}`)
+      .join("\n"),
     closing,
     signature,
     postscript,
+    appearance: currentContent.appearance,
   };
 }
 

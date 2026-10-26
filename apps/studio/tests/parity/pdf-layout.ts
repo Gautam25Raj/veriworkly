@@ -84,15 +84,25 @@ const px = (node: LayoutNode | undefined) => ({
   height: ptToPx(node?.box?.height),
 });
 
-/** A section heading is the only node in a section that declares a bottom margin. */
-const isHeading = (node: LayoutNode | undefined) => node?.style?.marginBottom !== undefined;
+/**
+ * Children that take up space. A section that flows opens with an empty view so its
+ * heading can carry `minPresenceAhead`; that view is not part of the document.
+ */
+const drawn = (nodes: LayoutNode[] | undefined) =>
+  (nodes ?? []).filter((node) => (node.box?.height ?? 0) > 0);
+
+/**
+ * A section heading is the only node in a section that declares a bottom margin. A part of
+ * a paragraph react-pdf broke across pages declares one too, of zero, so zero does not count.
+ */
+const isHeading = (node: LayoutNode | undefined) => Number(node?.style?.marginBottom ?? 0) > 0;
 
 /**
  * `createResumePdfTemplate` wraps the heading and the first item in an
  * unbreakable group, so a section's first child is that group and a
  * continuation page's first child is a plain item.
  */
-const isHeadingGroup = (node: LayoutNode | undefined) => isHeading((node?.children ?? [])[0]);
+const isHeadingGroup = (node: LayoutNode | undefined) => isHeading(drawn(node?.children)[0]);
 
 export interface PdfSection {
   heading: LayoutNode;
@@ -126,6 +136,9 @@ export function readResumeDocument(pages: LayoutNode[]): PdfDocumentShape {
 
   pages.forEach((page, pageIndex) => {
     (page.children ?? []).forEach((child, childIndex) => {
+      // What a flowing section leaves behind when its heading moved on: nothing drawn.
+      if ((child.box?.height ?? 0) === 0) return;
+
       const grandChildren = child.children ?? [];
 
       // The skin header is the first child of the first page and never repeats.
@@ -135,7 +148,7 @@ export function readResumeDocument(pages: LayoutNode[]): PdfDocumentShape {
       }
 
       if (isHeadingGroup(grandChildren[0])) {
-        const group = grandChildren[0].children ?? [];
+        const group = drawn(grandChildren[0].children);
         const kept = [...group.slice(1), ...grandChildren.slice(1)].filter(
           (node) => (node.box?.height ?? 0) > 0,
         );

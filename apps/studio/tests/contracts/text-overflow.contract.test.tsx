@@ -46,9 +46,12 @@ interface Face {
 
 interface Node {
   type: string;
-  box?: { width?: number };
+  box?: { top?: number; width?: number; height?: number };
   style?: { fontSize?: number; fontWeight?: number; letterSpacing?: number };
-  lines?: { string?: string }[];
+  lines?: {
+    string?: string;
+    box?: { y: number; height: number };
+  }[];
   children?: Node[];
   value?: string;
 }
@@ -170,22 +173,22 @@ function wordyCoverLetter(): CoverLetterContent {
   return content;
 }
 
+beforeAll(() => {
+  // Production disables hyphenation; without it these measure a different document.
+  registerPdfHyphenation();
+
+  for (const font of Object.values(FONT_REGISTRY)) {
+    Font.register({
+      family: font.primaryFamily,
+      fonts: font.pdfFonts.map((f) => ({
+        src: join(process.cwd(), "public", f.src),
+        fontWeight: f.fontWeight,
+      })),
+    });
+  }
+});
+
 describe("no PDF paragraph is broken for the wrong column", () => {
-  beforeAll(() => {
-    // Production disables hyphenation; without it these measure a different document.
-    registerPdfHyphenation();
-
-    for (const font of Object.values(FONT_REGISTRY)) {
-      Font.register({
-        family: font.primaryFamily,
-        fonts: font.pdfFonts.map((f) => ({
-          src: join(process.cwd(), "public", f.src),
-          fontWeight: f.fontWeight,
-        })),
-      });
-    }
-  });
-
   for (const templateId of pdfTemplateIds) {
     it(`${templateId} wraps every paragraph inside its column`, async () => {
       const laid = await layout(await loadTemplatePdfComponentById(templateId), {
@@ -197,13 +200,7 @@ describe("no PDF paragraph is broken for the wrong column", () => {
     }, 60_000);
   }
 
-  for (const templateId of [
-    "professional",
-    "veriworkly-special",
-    "minimalist",
-    "executive",
-    "ats-essential",
-  ]) {
+  for (const templateId of coverLetterTemplateRegistry.ids) {
     it(`${templateId} cover letter wraps every paragraph inside its column`, async () => {
       const laid = await layout(await coverLetterTemplateRegistry.loadPdf(templateId), {
         content: wordyCoverLetter(),
@@ -211,6 +208,101 @@ describe("no PDF paragraph is broken for the wrong column", () => {
       const problems = overflowingLines(laid);
 
       expect(problems, `${templateId}:\n${problems.join("\n")}`).toEqual([]);
+    }, 60_000);
+  }
+});
+
+/** Every laid-out line of text in the tree, in document order. */
+function laidOutLines(node: Node, found: NonNullable<Node["lines"]> = []) {
+  if (node.type === "TEXT" && node.lines) found.push(...node.lines);
+  for (const child of node.children ?? []) laidOutLines(child, found);
+  return found;
+}
+
+/**
+ * The lowest point anything is drawn below the top of its page, in points. A text box can be
+ * squeezed shorter than its lines, so the lines are measured, not only the boxes. A text that
+ * continues from the previous page keeps its lines' original offsets, and the renderer draws
+ * them from the first one's — so does this.
+ */
+function contentBottom(node: Node, parentTop = 0): number {
+  const top = parentTop + (node.box?.top ?? 0);
+  const firstLineY = node.lines?.[0]?.box?.y ?? 0;
+
+  return Math.max(
+    top + (node.box?.height ?? 0),
+    ...(node.lines ?? []).map(
+      (line) => top + (line.box?.y ?? 0) - firstLineY + (line.box?.height ?? 0),
+    ),
+    ...(node.children ?? []).map((child) => contentBottom(child, top)),
+  );
+}
+
+function longResume(templateId: string): ResumeData {
+  const resume = structuredClone(defaultResume);
+
+  resume.templateId = templateId;
+  resume.summary = Array.from({ length: 1_500 }, (_, i) => `word${i % 97}`).join(" ");
+  resume.experience[0].highlights = Array.from(
+    { length: 60 },
+    (_, i) => `Bullet ${i + 1}: shipped a change that moved a metric the team was measuring.`,
+  );
+
+  return resume;
+}
+
+describe("S-103: long content is never clipped by the PDF", () => {
+  for (const templateId of pdfTemplateIds) {
+    it(`${templateId}: a 1,500-word summary and a 60-bullet role stay inside every page`, async () => {
+      const laid = await layout(await loadTemplatePdfComponentById(templateId), {
+        resume: longResume(templateId),
+      });
+      const pages = laid.children ?? [];
+
+      expect(pages.length).toBeGreaterThan(2);
+
+      pages.forEach((page, index) => {
+        const bottom = Math.max(...(page.children ?? []).map((child) => contentBottom(child)));
+
+        expect(bottom, `${templateId} page ${index + 1}`).toBeLessThanOrEqual(
+          (page.box?.height ?? 0) + 0.5,
+        );
+      });
+
+      const text = laidOutLines(laid)
+        .map((line) => line.string ?? "")
+        .join(" ");
+
+      expect(text).toContain("word96");
+      expect(text).toContain("Bullet 60:");
+    }, 60_000);
+  }
+});
+
+/** The page each laid-out line of text lands on, by its text. */
+function pageOfLine(pages: Node[], needle: string): number {
+  return pages.findIndex((page) =>
+    laidOutLines(page).some((line) => (line.string ?? "").includes(needle)),
+  );
+}
+
+describe("a role that fits on a page moves whole, the way the preview moves it", () => {
+  for (const templateId of pdfTemplateIds) {
+    it(`${templateId}: a role about two thirds of a page tall is not split`, async () => {
+      const resume = structuredClone(defaultResume);
+
+      resume.templateId = templateId;
+      resume.summary = Array.from({ length: 260 }, (_, i) => `word${i % 53}`).join(" ");
+      resume.experience[0].highlights = Array.from(
+        { length: 30 },
+        (_, i) => `Bullet ${i + 1}: shipped a change that moved the metric we track.`,
+      );
+
+      const laid = await layout(await loadTemplatePdfComponentById(templateId), { resume });
+      const pages = laid.children ?? [];
+
+      expect(pageOfLine(pages, "Bullet 1:")).toBeGreaterThanOrEqual(0);
+      expect(pageOfLine(pages, "Bullet 30:")).toBe(pageOfLine(pages, "Bullet 1:"));
     }, 60_000);
   }
 });

@@ -10,18 +10,13 @@ import {
   getProjectTitle,
   hasAwardContent,
   hasCustomItemContent,
-  hasCustomSectionContent,
   hasAchievementContent,
   hasCertificateContent,
   hasInterestContent,
   hasLanguageContent,
   hasPublicationContent,
   hasReferenceContent,
-  hasResumeSectionContent,
   hasVolunteerContent,
-  customSectionVisible,
-  getOrderedResumeSections,
-  getResumeSectionKey,
   normalizeLinkHref,
 } from "@/features/documents/rendering/resume-rendering";
 
@@ -30,8 +25,8 @@ import {
  *
  * Both the web preview and the PDF export build their items from these helpers, so a field
  * can never appear in one renderer and silently vanish from the other (the WYSIWYG class of
- * bug this file exists to prevent). The DOCX, HTML and Markdown exporters read the same
- * helpers for the optional sections, for the same reason.
+ * bug this file exists to prevent). The DOCX, HTML, Markdown and text exporters read them
+ * too, through `buildResumeSections`, for the same reason.
  */
 export interface ResumeRenderItem {
   id: string;
@@ -129,7 +124,7 @@ export function getCustomRenderItems(section: ResumeCustomSection): ResumeRender
 
     return {
       id: item.id,
-      title: cleanResumeText(item.name) || "Item",
+      title: cleanResumeText(item.name),
       meta: cleanResumeText(item.date),
       subtitle: joinMeta([item.issuer, item.referenceId]),
       link: href ? { href, text: cleanResumeText(item.link) } : null,
@@ -157,7 +152,7 @@ export function getSkillLines(groups: ResumeData["skills"]): ResumeSkillLine[] {
  * fields mean.
  */
 
-const FLUENCY_LABELS: Record<ResumeLanguage["fluency"], string> = {
+export const FLUENCY_LABELS: Record<ResumeLanguage["fluency"], string> = {
   elementary: "Elementary",
   limited: "Limited working",
   professional: "Professional working",
@@ -273,14 +268,6 @@ export function getAchievementRenderItems(items: ResumeData["achievements"]): Re
   }));
 }
 
-/** One optional section, resolved to printable items. */
-export interface ResumeAdditionalBlock {
-  /** Unique across the document — see `getResumeSectionKey`. */
-  key: string;
-  title: string;
-  items: ResumeRenderItem[];
-}
-
 /** Human-readable heading for each of the eight fixed optional sections. */
 export const ADDITIONAL_SECTION_TITLES = {
   certifications: "Certifications",
@@ -292,55 +279,6 @@ export const ADDITIONAL_SECTION_TITLES = {
   references: "References",
   achievements: "Achievements",
 } as const;
-
-/**
- * Every optional section a resume prints — the eight typed ones plus any number of custom
- * ones — in the user's order, with the empty and hidden ones dropped.
- *
- * Shared by the DOCX, HTML and Markdown exporters so they cannot disagree with the preview
- * about what an optional section contains. Before the typed model they iterated
- * `resume.customSections` directly and gated the lot behind the single "custom" toggle.
- */
-export function getResumeAdditionalBlocks(resume: ResumeData): ResumeAdditionalBlock[] {
-  const blocks: ResumeAdditionalBlock[] = [];
-
-  for (const section of getOrderedResumeSections(resume)) {
-    if (section.id === "custom") {
-      /*
-       * The `kind` fallback is for a document read without normalisation, whose section
-       * entries predate `customSectionId`. It can go once no stored resume reaches an
-       * exporter without one — `normalizeResumeData` assigns them on read.
-       */
-      const custom = section.customSectionId
-        ? resume.customSections.find((entry) => entry.id === section.customSectionId)
-        : resume.customSections.find((entry) => entry.kind === "custom");
-
-      if (!custom || !hasCustomSectionContent(custom)) continue;
-      if (!customSectionVisible(resume, custom.id)) continue;
-
-      blocks.push({
-        key: getResumeSectionKey(section),
-        title: cleanResumeText(custom.title),
-        items: getCustomRenderItems(custom),
-      });
-
-      continue;
-    }
-
-    if (!(section.id in ADDITIONAL_SECTION_TITLES)) continue;
-    if (!hasResumeSectionContent(resume, section.id)) continue;
-
-    const title = ADDITIONAL_SECTION_TITLES[section.id as keyof typeof ADDITIONAL_SECTION_TITLES];
-
-    blocks.push({
-      key: getResumeSectionKey(section),
-      title,
-      items: getAdditionalSectionItems(resume, section.id),
-    });
-  }
-
-  return blocks;
-}
 
 /** The typed items for one of the eight fixed optional sections. */
 export function getAdditionalSectionItems(

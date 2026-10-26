@@ -7,6 +7,8 @@ import { beforeAll, describe, expect, it } from "vitest";
 import type { ComponentType, ReactElement } from "react";
 import type { DocumentProps } from "@react-pdf/renderer";
 
+import { extractResume } from "@veriworkly/ats-engine/node";
+
 import type { CoverLetterContent } from "@/features/cover-letter/types";
 
 import { createDefaultCoverLetter } from "@/features/cover-letter/defaults";
@@ -50,36 +52,33 @@ beforeAll(() => {
 describe("resume pdf export contract", () => {
   const resumeWithCredential = {
     ...defaultResume,
-    customSections: defaultResume.customSections.map((section) =>
-      section.kind === "certifications"
-        ? {
-            ...section,
-            items: [
-              {
-                id: "cert-1",
-                name: "AWS Certified Developer",
-                issuer: "Amazon Web Services",
-                date: "2024",
-                link: "https://verify.example.com/aws-cert",
-                referenceId: "CRED-99182",
-                description: "Associate level certification.",
-                details: ["Scored in the top decile."],
-              },
-            ],
-          }
-        : section,
-    ),
+    certificates: [
+      {
+        id: "cert-1",
+        title: "AWS Certified Developer",
+        issuer: "Amazon Web Services",
+        date: "2024-05",
+        website: "https://verify.example.com/aws-cert",
+        showLink: true,
+        referenceId: "CRED-99182",
+        description: "Associate level certification.",
+      },
+    ],
   };
 
   for (const templateId of pdfTemplateIds) {
-    it(`renders a real PDF for ${templateId}`, async () => {
+    it(`S-037: renders a real PDF for ${templateId}, credential included`, async () => {
       const TemplatePdf = await loadTemplatePdfComponentById(templateId);
       const buffer = await renderToBuffer(
         pdfElement(TemplatePdf, { resume: { ...resumeWithCredential, templateId } }),
       );
+      const { text } = await extractResume(buffer, "pdf");
 
       expect(buffer.subarray(0, 5).toString("latin1")).toBe("%PDF-");
-      expect(buffer.byteLength).toBeGreaterThan(5_000);
+      // Read back, so a fixture that renders nothing cannot pass.
+      expect(text).toContain("AWS Certified Developer");
+      expect(text).toContain("CRED-99182");
+      expect(text).toContain("Associate level certification.");
     }, 30_000);
   }
 });
@@ -93,13 +92,7 @@ describe("cover letter pdf export contract", () => {
     return { ...base, appearance: { ...base.appearance, ...overrides } };
   }
 
-  for (const templateId of [
-    "professional",
-    "veriworkly-special",
-    "minimalist",
-    "executive",
-    "ats-essential",
-  ]) {
+  for (const templateId of coverLetterTemplateRegistry.ids) {
     it(`renders a real PDF for ${templateId}`, async () => {
       const CoverLetterPdf = await coverLetterTemplateRegistry.loadPdf(templateId);
       const buffer = await renderToBuffer(pdfElement(CoverLetterPdf, { content: createContent() }));

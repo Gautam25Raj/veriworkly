@@ -12,16 +12,15 @@ import type { PdfTemplateProps } from "@/templates/resume/pdf/types";
 import type { ResumeRenderItem } from "./model";
 import type { ResumeTokens } from "./tokens";
 import type { ResumeTypeScale } from "./typography";
+import type { ResumeSectionStart } from "./keep-together";
 
 import { getPdfFontStack } from "@/features/documents/constants/fonts";
 import {
   RESUME_PAGE_HEIGHT_PT,
   RESUME_PAGE_WIDTH_PT,
-  RESUME_PAGE_WIDTH_PX,
   pxToPt,
 } from "@/features/resume/constants/resume-layout";
 import {
-  cleanResumeText,
   getLinkDisplayText,
   getResumeRenderModel,
   normalizeLinkHref,
@@ -29,6 +28,7 @@ import {
 import { PdfSocialIcon } from "../../pdf/SocialIcon";
 import { buildResumeSections } from "./model";
 import { createResumeTokens } from "./tokens";
+import { HEADING_PRESENCE_LINES, createResumeKeepTogether, getTextWidths } from "./keep-together";
 import { pdfFixedWidth, pdfFlexible } from "@/templates/shared/box";
 import { pdfText } from "@/templates/shared/text-tokens";
 import { BULLET_MARKER } from "./typography";
@@ -89,9 +89,7 @@ export function createResumePdfStyles(
    * edge, while the preview — which measures after layout — wraps correctly.
    * Giving the node a definite width makes the first measure the right one.
    */
-  const contentWidth = RESUME_PAGE_WIDTH_PX - pagePadding * 2;
-  const columnWidth =
-    layout === "gutter" ? contentWidth - scale.gutterWidth - scale.gutterGap : contentWidth;
+  const { contentWidth, columnWidth } = getTextWidths(scale, pagePadding, layout);
 
   const textColumn = (width: number) => ({ width: pxToPt(width), maxWidth: pxToPt(width) });
 
@@ -298,11 +296,13 @@ export function PdfLinkRow({
 function PdfItem({
   ctx,
   item,
+  keepTogether,
   layout,
   spacingTop,
 }: {
   ctx: ResumePdfContext;
   item: ResumeRenderItem;
+  keepTogether: boolean;
   layout: "stacked" | "gutter";
   spacingTop: number;
 }) {
@@ -380,7 +380,7 @@ function PdfItem({
 
   if (layout === "gutter") {
     return (
-      <View style={[styles.itemRow, rootSpacing].flat()} wrap={false}>
+      <View style={[styles.itemRow, rootSpacing].flat()} wrap={!keepTogether}>
         <View style={styles.gutter}>
           {item.meta ? <Text style={styles.gutterMeta}>{item.meta}</Text> : null}
         </View>
@@ -391,7 +391,7 @@ function PdfItem({
   }
 
   return (
-    <View style={[styles.itemColumn, rootSpacing].flat()} wrap={false}>
+    <View style={[styles.itemColumn, rootSpacing].flat()} wrap={!keepTogether}>
       {rows}
     </View>
   );
@@ -400,6 +400,12 @@ function PdfItem({
 // ---------------------------------------------------------------------------
 // Document shell
 // ---------------------------------------------------------------------------
+
+/** A section's blocks, and what opens it, which decides whether the opening is held together. */
+interface PdfSectionContent {
+  nodes: React.ReactNode;
+  start: ResumeSectionStart | null;
+}
 
 export function createResumePdfTemplate(skin: ResumePdfSkin): React.FC<PdfTemplateProps> {
   const layout = skin.itemLayout ?? "stacked";
@@ -418,6 +424,9 @@ export function createResumePdfTemplate(skin: ResumePdfSkin): React.FC<PdfTempla
     const styles = createResumePdfStyles(style, scale, pagePadding, layout);
     const tokens = createResumeTokens(style, scale);
     const ctx: ResumePdfContext = { model, resume, scale, style, styles, tokens };
+
+    // Which blocks stay on one page: the same answer the web template gives the preview.
+    const keepTogether = createResumeKeepTogether(ctx, pagePadding, layout);
 
     /**
      * Spacing goes above a section, never below it.
@@ -438,10 +447,11 @@ export function createResumePdfTemplate(skin: ResumePdfSkin): React.FC<PdfTempla
     const renderSection = (
       key: string,
       title: string,
-      children: React.ReactNode,
+      { nodes, start }: PdfSectionContent,
       isFirst: boolean,
     ) => {
-      const blocks = React.Children.toArray(children);
+      const blocks = React.Children.toArray(nodes);
+      const heading = skin.renderSectionHeading(title, ctx);
 
       return (
         <View
@@ -465,10 +475,28 @@ export function createResumePdfTemplate(skin: ResumePdfSkin): React.FC<PdfTempla
             Grouping costs no space: the heading's bottom margin and the second
             item's top margin sit exactly where they did before.
           */}
-          <View style={styles.section} wrap={false}>
-            {skin.renderSectionHeading(title, ctx)}
-            {blocks[0]}
-          </View>
+          {keepTogether.sectionStart(title, start) ? (
+            <View style={styles.section} wrap={false}>
+              {heading}
+              {blocks[0]}
+            </View>
+          ) : (
+            /*
+              Too tall to hold together, so it flows — but never leaves the heading at
+              the foot of a page. react-pdf honours `minPresenceAhead` only for a node
+              with something before it in the same view, hence the empty first child.
+              The preview applies the same distance (see `ResumePagedPreview`).
+            */
+            <View style={styles.section}>
+              <View style={{ height: 0 }} />
+              {React.isValidElement<{ minPresenceAhead?: number }>(heading)
+                ? React.cloneElement(heading, {
+                    minPresenceAhead: pxToPt(tokens.body.lineHeight * HEADING_PRESENCE_LINES),
+                  })
+                : heading}
+              {blocks[0]}
+            </View>
+          )}
 
           {blocks.slice(1)}
         </View>
@@ -479,19 +507,24 @@ export function createResumePdfTemplate(skin: ResumePdfSkin): React.FC<PdfTempla
      * Mirrors the web `Stack`: spacing sits between items only, never before
      * the first or after the last one.
      */
-    const renderItems = (items: ResumeRenderItem[]) =>
-      items.map((item, index) => (
-        <PdfItem
-          ctx={ctx}
-          item={item}
-          key={item.id}
-          layout={layout}
-          spacingTop={index === 0 ? 0 : scale.itemGap}
-        />
-      ));
+    const renderItems = (items: ResumeRenderItem[]): PdfSectionContent => {
+      return {
+        start: items[0] ? { item: items[0] } : null,
+        nodes: items.map((item, index) => (
+          <PdfItem
+            ctx={ctx}
+            item={item}
+            keepTogether={keepTogether.item(item)}
+            key={item.id}
+            layout={layout}
+            spacingTop={index === 0 ? 0 : scale.itemGap}
+          />
+        )),
+      };
+    };
 
     return (
-      <Document title={`${cleanResumeText(resume.basics.fullName) || "Resume"} - Resume`}>
+      <Document title={model.name ? `${model.name} - Resume` : "Resume"}>
         <Page size={[RESUME_PAGE_WIDTH_PT, RESUME_PAGE_HEIGHT_PT]} style={styles.page}>
           {(model.showBasics || model.showLinks) && skin.renderHeader(ctx)}
 
@@ -500,11 +533,15 @@ export function createResumePdfTemplate(skin: ResumePdfSkin): React.FC<PdfTempla
             rendered — and so whether it takes a top margin — is only known
             after the empty ones have been dropped.
           */}
-          {buildResumeSections<React.ReactNode>(resume, model, {
+          {buildResumeSections<PdfSectionContent>(resume, model, {
             items: renderItems,
-            summary: (value) => <Text style={styles.sectionText}>{value}</Text>,
-            skills: (lines) =>
-              lines.map((line, index) => (
+            summary: (value) => ({
+              start: { text: value },
+              nodes: <Text style={styles.sectionText}>{value}</Text>,
+            }),
+            skills: (lines) => ({
+              start: lines[0] ? { text: `${lines[0].label}: ${lines[0].value}` } : null,
+              nodes: lines.map((line, index) => (
                 <Text
                   key={line.id}
                   style={[
@@ -516,6 +553,7 @@ export function createResumePdfTemplate(skin: ResumePdfSkin): React.FC<PdfTempla
                   {line.value}
                 </Text>
               )),
+            }),
           }).map((entry, index) =>
             renderSection(entry.id, entry.title, entry.children, index === 0),
           )}

@@ -17,6 +17,7 @@ import {
 import { fontOptions } from "@/features/documents/constants/fonts";
 import { templateCatalogByType } from "@/features/documents/core/template-catalog";
 import { useCoverLetterStore } from "@/features/cover-letter/store/cover-letter-store";
+import { COVER_LETTER_APPEARANCE_RANGES as RANGES } from "@/templates/cover-letter/shared";
 
 /**
  * Reads state through narrow store selectors, matching
@@ -77,24 +78,24 @@ export function CoverLetterSettingsPanel() {
         </SettingsSelect>
 
         <SettingsRange
-          min={24}
-          max={72}
+          min={RANGES.pageMargin[0]}
+          max={RANGES.pageMargin[1]}
           value={appearance.pageMargin}
           label={`Page margin (${appearance.pageMargin}px)`}
           onChange={(event) => onUpdateAppearance({ pageMargin: Number(event.target.value) })}
         />
 
         <SettingsRange
-          min={4}
-          max={24}
+          min={RANGES.paragraphSpacing[0]}
+          max={RANGES.paragraphSpacing[1]}
           value={appearance.paragraphSpacing}
           label={`Paragraph gap (${appearance.paragraphSpacing}px)`}
           onChange={(event) => onUpdateAppearance({ paragraphSpacing: Number(event.target.value) })}
         />
 
         <SettingsRange
-          min={1.25}
-          max={1.8}
+          min={RANGES.lineHeight[0]}
+          max={RANGES.lineHeight[1]}
           step={0.05}
           value={appearance.lineHeight}
           label={`Line height (${appearance.lineHeight.toFixed(2)})`}

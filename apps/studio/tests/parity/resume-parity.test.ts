@@ -17,7 +17,7 @@ import { measurePagination, measureResume } from "./web-measure";
 import { recordReport } from "./report";
 import { startParityServer } from "./server";
 
-import { loadTemplatePdfComponentById } from "@/templates/resume/pdf";
+import { loadTemplatePdfComponentById, pdfTemplateIds } from "@/templates/resume/pdf";
 
 /**
  * The only test that measures both renderers.
@@ -76,6 +76,13 @@ const KNOWN_ENGINE_DIFFERENCES: Record<string, string> = {
  */
 const MEASURABLE_FIXTURES = PARITY_FIXTURE_IDS.filter((id) => id !== "cjk");
 
+/**
+ * Box-by-box comparison stops at blocks taller than a page: both engines break those
+ * mid-paragraph, and the two line breakers put the break a line apart. Pagination and
+ * clipping are still checked for them below.
+ */
+const GEOMETRY_FIXTURES = MEASURABLE_FIXTURES.filter((id) => id !== "overflow");
+
 let server: ParityServer;
 let browser: Browser;
 
@@ -120,8 +127,12 @@ async function measure<T>(
 }
 
 describe("resume preview and PDF lay out the same boxes", () => {
+  it("S-035: measures every registered template", () => {
+    expect(Object.keys(TEMPLATES).sort()).toEqual([...pdfTemplateIds].sort());
+  });
+
   for (const [templateId, layout] of Object.entries(TEMPLATES)) {
-    for (const fixture of MEASURABLE_FIXTURES) {
+    for (const fixture of GEOMETRY_FIXTURES) {
       it(`${templateId} / ${fixture}`, async () => {
         const resume = { ...PARITY_FIXTURES[fixture as ParityFixtureId].resume(), templateId };
         const shape = readResumeDocument(
@@ -199,6 +210,8 @@ describe("resume preview and PDF break pages at the same place", () => {
         );
 
         expect(preview.pages, `${templateId}/${fixture}: ${message}`).toBe(shape.pageCount);
+        // A block taller than a page flows on; the page must not cut it off.
+        expect(preview.clippedPages, `${templateId}/${fixture}: clipped preview pages`).toEqual([]);
       }, 180_000);
     }
   }

@@ -4,13 +4,12 @@ import React from "react";
 
 import type { ResumeWebContext } from "../shared/web";
 
-import { cleanResumeText } from "@/features/documents/rendering/resume-rendering";
 import { WebContactRow, WebLinkRow, createResumeWebTemplate, px } from "../shared/web";
 import { webText } from "../shared/tokens";
 import { boldImpactGeometry as geometry, boldImpactScale } from "./skin";
 
 function Header(ctx: ResumeWebContext) {
-  const { model, resume, style, tokens } = ctx;
+  const { model, style, tokens } = ctx;
 
   return (
     <header
@@ -25,10 +24,10 @@ function Header(ctx: ResumeWebContext) {
       {model.showBasics && (
         <>
           <h1 style={{ ...webText(tokens.name), textAlign: "center", textTransform: "uppercase" }}>
-            {cleanResumeText(resume.basics.fullName) || "Your Name"}
+            {model.name}
           </h1>
 
-          {(resume.basics.headline || resume.basics.role) && (
+          {model.headline && (
             <p
               style={{
                 ...webText(tokens.role),
@@ -36,7 +35,7 @@ function Header(ctx: ResumeWebContext) {
                 textAlign: "center",
               }}
             >
-              {cleanResumeText(resume.basics.headline || resume.basics.role)}
+              {model.headline}
             </p>
           )}
 

@@ -1,7 +1,7 @@
 import { Document, Link, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
 import type { CoverLetterContent } from "@/features/cover-letter/types";
-import type { CoverLetterPalette } from "../shared";
+import type { CoverLetterPalette, CoverLetterState } from "../shared";
 import type { CoverLetterTokens } from "../tokens";
 
 import { getPdfFontStack } from "@/features/documents/constants/fonts";
@@ -9,19 +9,12 @@ import { pxToPt } from "@/features/resume/constants/resume-layout";
 import { pdfFixedWidth, pdfFlexible } from "@/templates/shared/box";
 import { pdfText } from "@/templates/shared/text-tokens";
 import { BULLET_MARKER } from "@/templates/resume/shared/typography";
-import { COVER_LETTER_SCALE as S, createCoverLetterTokens } from "../tokens";
+import { COVER_LETTER_SCALE as S } from "../tokens";
 
 import {
-  buildCoverLetterFlowContent,
   buildVeriworklyFlowItems,
-  getCoverLetterFlowSenderName,
-  getCoverLetterPalette,
-  getVeriworklyFlowItemWeight,
-  keepVeriworklyProofHeadingWithNext,
-  paginateWeightedItems,
-  getCoverLetterLinks,
-  getCoverLetterLinkDisplayMode,
-  isCoverLetterSectionVisible,
+  getCoverLetterDocumentTitle,
+  getCoverLetterState,
   type VeriworklyFlowItem,
 } from "../shared";
 
@@ -37,11 +30,16 @@ const PAGE_HEIGHT_PT = pxToPt(S.pageHeight);
 /**
  * Every spatial value goes through `pxToPt` and every text node pins its own
  * line box, so this file lays out exactly like `./web.tsx`.
+ *
+ * The letter flows through one `<Page>` and react-pdf breaks it; the rail is a
+ * `fixed` layer repeated on every page, and the page's left padding keeps the
+ * running text clear of it. `./web.tsx` replays the same breaks — see
+ * `../measure.ts`.
  */
 function createStyles(
   palette: CoverLetterPalette,
   tokens: CoverLetterTokens,
-  appearance: CoverLetterContent["appearance"],
+  appearance: CoverLetterState["appearance"],
 ) {
   /**
    * Column widths, stated rather than left to flex.
@@ -64,12 +62,11 @@ function createStyles(
     page: {
       backgroundColor: appearance.pageColor,
       color: palette.text,
-      height: PAGE_HEIGHT_PT,
-      minHeight: PAGE_HEIGHT_PT,
-      padding: 0,
-      width: PAGE_WIDTH_PT,
+      paddingBottom: pxToPt(appearance.pageMargin),
+      paddingLeft: pxToPt(S.railWidth + appearance.pageMargin),
+      paddingRight: pxToPt(appearance.pageMargin),
+      paddingTop: pxToPt(appearance.pageMargin),
     },
-    shell: { flexDirection: "row", height: PAGE_HEIGHT_PT, minHeight: PAGE_HEIGHT_PT },
 
     sidebar: {
       ...pdfFixedWidth(S.railWidth),
@@ -77,14 +74,11 @@ function createStyles(
       borderRightColor: palette.sidebarBorder,
       borderRightWidth: pxToPt(S.hairline),
       height: PAGE_HEIGHT_PT,
+      left: 0,
       paddingHorizontal: pxToPt(S.railPadX),
       paddingVertical: pxToPt(S.railPadY),
-    },
-    main: {
-      ...pdfFlexible,
-      backgroundColor: appearance.pageColor,
-      height: PAGE_HEIGHT_PT,
-      padding: pxToPt(appearance.pageMargin),
+      position: "absolute",
+      top: 0,
     },
 
     railLabel: { ...pdfText(tokens.railLabel), ...column(railTextWidth) },
@@ -207,66 +201,42 @@ function createStyles(
   });
 }
 
-function paginateVeriworklyPdfItems(items: VeriworklyFlowItem[]) {
-  return paginateWeightedItems(
-    items,
-    getVeriworklyFlowItemWeight,
-    () => 24,
-    keepVeriworklyProofHeadingWithNext,
-  );
-}
-
 export function VeriworklyCoverLetterPdf({ content }: { content: CoverLetterContent }) {
-  const appearance = content.appearance;
-  const palette = getCoverLetterPalette(appearance);
-  const tokens = createCoverLetterTokens(appearance, palette);
+  const state = getCoverLetterState(content);
+  const {
+    appearance,
+    palette,
+    tokens,
+    senderName,
+    senderTitle,
+    contact,
+    date,
+    recipient,
+    subject,
+    targetTitle,
+    targetCompany,
+  } = state;
   const styles = createStyles(palette, tokens, appearance);
 
-  const showProfile = isCoverLetterSectionVisible(content, "profile");
-  const showLinks = isCoverLetterSectionVisible(content, "links");
-  const showTarget = isCoverLetterSectionVisible(content, "target");
-
   const paragraphSpacing = { marginBottom: pxToPt(appearance.paragraphSpacing) };
-  const senderName = getCoverLetterFlowSenderName(content);
+  const links = state.renderedLinks;
+  const linkDisplayMode = state.linkDisplayMode;
 
-  const contact = showProfile
-    ? [
-        content.senderEmail,
-        content.senderPhone,
-        content.senderLocation,
-        content.senderWebsite,
-      ].filter(Boolean)
-    : [];
-
-  const links = showLinks ? getCoverLetterLinks(content) : [];
-  const linkDisplayMode = getCoverLetterLinkDisplayMode(content);
-
-  const recipient = showTarget
-    ? [
-        content.recipientName,
-        content.recipientTitle,
-        content.companyName,
-        content.companyLocation,
-      ].filter(Boolean)
-    : [];
-
-  const flowItems = buildVeriworklyFlowItems(buildCoverLetterFlowContent(content), senderName);
-  const pages = paginateVeriworklyPdfItems(flowItems);
-  const renderPages = pages.length > 0 ? pages : [[]];
+  const flowItems = buildVeriworklyFlowItems(state.flow);
 
   function renderSidebar() {
     return (
-      <View style={styles.sidebar}>
+      <View fixed style={styles.sidebar}>
         <Text style={styles.railLabel}>Candidate</Text>
-        <Text style={styles.railName}>{senderName}</Text>
+        {senderName ? <Text style={styles.railName}>{senderName}</Text> : null}
 
-        {content.senderTitle ? <Text style={styles.railTitle}>{content.senderTitle}</Text> : null}
+        {senderTitle ? <Text style={styles.railTitle}>{senderTitle}</Text> : null}
 
         <View style={styles.rule} />
 
         <View style={styles.railBlock}>
-          {contact.map((item) => (
-            <Text key={item} style={styles.railText}>
+          {contact.map((item, index) => (
+            <Text key={index} style={styles.railText}>
               {item}
             </Text>
           ))}
@@ -290,21 +260,18 @@ export function VeriworklyCoverLetterPdf({ content }: { content: CoverLetterCont
           ))}
         </View>
 
-        {showTarget ? (
+        {targetTitle || targetCompany ? (
           <View style={styles.targetBlock}>
             <Text style={styles.railLabel}>Target</Text>
-            <Text style={styles.targetTitle}>
-              {content.jobTitle || content.subject || "Open role"}
-            </Text>
-            {content.companyName ? (
-              <Text style={styles.railText}>{content.companyName}</Text>
-            ) : null}
+            {targetTitle ? <Text style={styles.targetTitle}>{targetTitle}</Text> : null}
+            {targetCompany ? <Text style={styles.railText}>{targetCompany}</Text> : null}
           </View>
         ) : null}
       </View>
     );
   }
 
+  /** `wrap={false}` items move to the next page whole; text and lists break. */
   function renderFlowItem(item: VeriworklyFlowItem) {
     if (item.type === "greeting") {
       return (
@@ -316,7 +283,7 @@ export function VeriworklyCoverLetterPdf({ content }: { content: CoverLetterCont
 
     if (item.type === "paragraph") {
       return (
-        <Text key={item.id} style={[styles.paragraph, paragraphSpacing]} wrap={false}>
+        <Text key={item.id} style={[styles.paragraph, paragraphSpacing]}>
           {item.text}
         </Text>
       );
@@ -324,14 +291,15 @@ export function VeriworklyCoverLetterPdf({ content }: { content: CoverLetterCont
 
     if (item.type === "body-list") {
       return (
-        <View key={item.id} style={[styles.list, paragraphSpacing]} wrap={false}>
+        <View key={item.id} style={[styles.list, paragraphSpacing]}>
           {item.items.map((listItem, index) => (
             <View
-              key={listItem}
+              key={index}
               style={[
                 styles.bulletRow,
                 index === 0 ? {} : { marginTop: pxToPt(S.bulletRowGap) },
               ].flat()}
+              wrap={false}
             >
               <View style={styles.bulletMarkerColumn}>
                 <Text style={styles.bulletMarker}>{BULLET_MARKER}</Text>
@@ -343,26 +311,18 @@ export function VeriworklyCoverLetterPdf({ content }: { content: CoverLetterCont
       );
     }
 
-    if (item.type === "proof-heading") {
-      return (
-        <View key={item.id} wrap={false}>
-          <Text style={styles.proofLabel}>Selected Proof</Text>
-        </View>
-      );
-    }
-
     if (item.type === "proof-item") {
       return (
-        <View
-          key={item.id}
-          style={[styles.proofItem, item.isLast ? { borderBottomWidth: 0 } : {}].flat()}
-          wrap={false}
-        >
-          <View style={styles.proofIndexColumn}>
-            <Text style={styles.proofIndex}>{String(item.index + 1).padStart(2, "0")}</Text>
-          </View>
+        <View key={item.id} wrap={false}>
+          {item.heading ? <Text style={styles.proofLabel}>Selected Proof</Text> : null}
 
-          <Text style={styles.proofText}>{item.text}</Text>
+          <View style={[styles.proofItem, item.isLast ? { borderBottomWidth: 0 } : {}].flat()}>
+            <View style={styles.proofIndexColumn}>
+              <Text style={styles.proofIndex}>{String(item.index + 1).padStart(2, "0")}</Text>
+            </View>
+
+            <Text style={styles.proofText}>{item.text}</Text>
+          </View>
         </View>
       );
     }
@@ -371,61 +331,47 @@ export function VeriworklyCoverLetterPdf({ content }: { content: CoverLetterCont
       return (
         <View key={item.id} style={styles.signoff} wrap={false}>
           {item.closing ? <Text style={styles.paragraph}>{item.closing}</Text> : null}
-          <Text style={styles.signature}>{item.signature}</Text>
+          {item.signature ? <Text style={styles.signature}>{item.signature}</Text> : null}
         </View>
       );
     }
 
     return (
-      <Text key={item.id} style={styles.postscript} wrap={false}>
-        P.S. {item.text}
+      <Text key={item.id} style={styles.postscript}>
+        {item.text}
       </Text>
     );
   }
 
   return (
-    <Document>
-      {renderPages.map((pageItems, pageIndex) => (
-        <Page
-          key={pageIndex}
-          size={[PAGE_WIDTH_PT, PAGE_HEIGHT_PT]}
-          style={[styles.page, { fontFamily: getPdfFontStack(appearance.fontFamily) }]}
-          wrap={false}
-        >
-          <View style={styles.shell}>
-            {renderSidebar()}
+    <Document title={getCoverLetterDocumentTitle(state)} language="en">
+      <Page
+        size={[PAGE_WIDTH_PT, PAGE_HEIGHT_PT]}
+        style={[styles.page, { fontFamily: getPdfFontStack(appearance.fontFamily) }]}
+      >
+        {renderSidebar()}
 
-            <View style={styles.main}>
-              {pageIndex === 0 ? (
-                <>
-                  <View style={styles.meta}>
-                    <View style={styles.metaLeft}>
-                      {recipient.map((line) => (
-                        <Text key={line} style={styles.metaLine}>
-                          {line}
-                        </Text>
-                      ))}
-                    </View>
-
-                    {content.date ? <Text style={styles.metaDate}>{content.date}</Text> : null}
-                  </View>
-
-                  {showTarget ? (
-                    <View style={styles.subject}>
-                      <Text style={styles.railLabel}>Cover Letter</Text>
-                      <Text style={styles.subjectText}>
-                        {content.subject || content.jobTitle || "Application"}
-                      </Text>
-                    </View>
-                  ) : null}
-                </>
-              ) : null}
-
-              <View style={styles.body}>{pageItems.map((item) => renderFlowItem(item))}</View>
-            </View>
+        <View style={styles.meta}>
+          <View style={styles.metaLeft}>
+            {recipient.map((line, index) => (
+              <Text key={index} style={styles.metaLine}>
+                {line}
+              </Text>
+            ))}
           </View>
-        </Page>
-      ))}
+
+          {date ? <Text style={styles.metaDate}>{date}</Text> : null}
+        </View>
+
+        {subject ? (
+          <View style={styles.subject}>
+            <Text style={styles.railLabel}>Cover Letter</Text>
+            <Text style={styles.subjectText}>{subject}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.body}>{flowItems.map((item) => renderFlowItem(item))}</View>
+      </Page>
     </Document>
   );
 }

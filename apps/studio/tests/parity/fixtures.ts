@@ -10,12 +10,20 @@ import { defaultResume } from "@/features/resume/constants/default-resume";
  * `default` is the shipped sample. The rest exist because the shipped sample
  * exercises none of the cases where a browser's line breaker and textkit are
  * most likely to disagree: a name long enough to wrap, a URL with no break
- * opportunity, a bullet list dense enough to cross a page boundary, and a
- * script with no spaces at all.
+ * opportunity, a bullet list dense enough to cross a page boundary, a script
+ * with no spaces at all, and blocks taller than a page, which both engines must
+ * flow across pages rather than clip.
  */
-export type ParityFixtureId = "default" | "long" | "dense" | "cjk" | "spill";
+export type ParityFixtureId = "default" | "long" | "dense" | "cjk" | "spill" | "overflow";
 
-export const PARITY_FIXTURE_IDS: ParityFixtureId[] = ["default", "long", "dense", "cjk", "spill"];
+export const PARITY_FIXTURE_IDS: ParityFixtureId[] = [
+  "default",
+  "long",
+  "dense",
+  "cjk",
+  "spill",
+  "overflow",
+];
 
 const clone = <T>(value: T): T => structuredClone(value);
 
@@ -152,6 +160,19 @@ function cjkResume(): ResumeData {
   return resume;
 }
 
+/** A 1,500-word summary and a 60-bullet role: each is taller than a page on its own. */
+function overflowResume(): ResumeData {
+  const resume = baseResume();
+
+  resume.summary = Array.from({ length: 1_500 }, (_, i) => `word${i % 97}`).join(" ");
+  resume.experience[0].highlights = Array.from(
+    { length: 60 },
+    (_, i) => `Bullet ${i + 1}: shipped a change that moved a metric the team was measuring.`,
+  );
+
+  return resume;
+}
+
 export const PARITY_FIXTURES: Record<
   ParityFixtureId,
   { resume: () => ResumeData; coverLetter: () => CoverLetterContent }
@@ -191,6 +212,10 @@ export const PARITY_FIXTURES: Record<
   },
   spill: {
     resume: spillResume,
+    coverLetter: () => coverLetterContent(),
+  },
+  overflow: {
+    resume: overflowResume,
     coverLetter: () => coverLetterContent(),
   },
   cjk: {

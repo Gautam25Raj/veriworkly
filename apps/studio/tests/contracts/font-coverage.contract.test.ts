@@ -11,6 +11,7 @@ import {
   getPdfFontStack,
   type FontFamilyId,
 } from "@/features/documents/constants/fonts";
+import { cleanResumeText } from "@/features/documents/rendering/resume-rendering";
 import { registerPdfHyphenation } from "@/templates/pdf/fonts";
 
 /**
@@ -52,6 +53,13 @@ const SUPPORTED = {
   punctuation: "£ $ € ¥ ₹ — – “ ” ‘ ’ … • ½ © ® § ¶ † ‡",
   bullet: "•",
 };
+
+/**
+ * Emoji as people type them: presentation-default pictographs, a flag, a hand with a skin
+ * tone, a ZWJ family, emoji-styled hearts and letters, a keycap, dingbats no family draws —
+ * beside the ©, ® and ™ every family does draw.
+ */
+const EMOJI_LINE = "Shipped 🚀 the ⭐ launch 🇺🇸 🫶 🅰 ❤️ 👍🏽 👨‍👩‍👧 ✔ ★ ☎ ⌘ © ® ™ 1️⃣";
 
 /** Scripts no embedded family covers. Tracked, not silently accepted. */
 const UNSUPPORTED = {
@@ -128,6 +136,22 @@ describe("the PDF can draw every script the editor is meant to accept", () => {
         ).toBe(0);
       }, 60_000);
     }
+  }
+
+  /**
+   * No embedded family has emoji, so the render model strips them before either renderer
+   * sees the text. What is left must draw completely: no flag letter, skin tone, joiner or
+   * variation selector may survive as a blank.
+   */
+  for (const fontId of FONT_IDS) {
+    it(`S-109: ${fontId} draws a line typed with emoji once they are stripped`, async () => {
+      const cleaned = cleanResumeText(EMOJI_LINE);
+      const { total, blank } = await blanksFor(fontId, cleaned);
+
+      expect(cleaned).toBe("Shipped the launch © ® ™ 1");
+      expect(total).toBeGreaterThan(0);
+      expect(blank, `${fontId} leaves ${blank} blank in "${cleaned}"`).toBe(0);
+    }, 60_000);
   }
 
   /**

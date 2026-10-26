@@ -106,7 +106,7 @@ export function emptyProject(): ResumeProjectItem {
     name: "",
     role: "",
     link: "",
-    linkLabel: "Link",
+    linkLabel: "",
     showLinkAsText: true,
     summary: "",
     highlights: [],

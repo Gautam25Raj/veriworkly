@@ -5,14 +5,13 @@ import { Text, View } from "@react-pdf/renderer";
 
 import type { ResumePdfContext } from "../shared/pdf";
 
-import { cleanResumeText } from "@/features/documents/rendering/resume-rendering";
 import { pxToPt } from "@/features/resume/constants/resume-layout";
 import { PdfContactRow, PdfLinkRow, createResumePdfTemplate } from "../shared/pdf";
 import { pdfFixedWidth } from "@/templates/shared/box";
 import { corporateBriefGeometry as geometry, corporateBriefScale } from "./skin";
 
 function Header(ctx: ResumePdfContext) {
-  const { model, resume, scale, style, styles } = ctx;
+  const { model, scale, style, styles } = ctx;
 
   return (
     <View
@@ -31,11 +30,11 @@ function Header(ctx: ResumePdfContext) {
     >
       {model.showBasics && (
         <View style={{ flexGrow: 1, flexShrink: 1, minWidth: 0 }}>
-          <Text style={styles.name}>{cleanResumeText(resume.basics.fullName) || "Your Name"}</Text>
+          <Text style={styles.name}>{model.name}</Text>
 
-          {(resume.basics.headline || resume.basics.role) && (
+          {model.headline && (
             <Text style={[styles.role, { marginTop: pxToPt(geometry.roleTop) }]}>
-              {cleanResumeText(resume.basics.headline || resume.basics.role)}
+              {model.headline}
             </Text>
           )}
         </View>

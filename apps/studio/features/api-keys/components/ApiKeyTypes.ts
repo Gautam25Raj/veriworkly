@@ -5,6 +5,9 @@ export interface ApiKeyListRecord {
   isActive: boolean;
   createdAt: string;
   lastUsed: string | null;
+  /** Optional until `GET /api-keys` selects them; without them the list can only tell active from not. */
+  expiresAt?: string | null;
+  revokedAt?: string | null;
 }
 
 export type ApiKeyRecord = ApiKeyListRecord;

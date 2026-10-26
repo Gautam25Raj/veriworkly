@@ -19,6 +19,8 @@ import {
 
 import type { AdminUserDetail, Role } from "@/features/admin/types/admin-types";
 
+import { parseCreditAmount } from "@/app/admin/billing/credit-amount";
+
 /**
  * Every control on this panel writes to the admin audit log, so each one is wrapped in the
  * shared confirmation dialog rather than firing on a bare click. The role select is the one
@@ -35,6 +37,8 @@ const UserAdminActions = ({ detail }: { detail: AdminUserDetail }) => {
   );
   const [entitlementEndsAt, setEntitlementEndsAt] = useState("");
   const [error, setError] = useState("");
+
+  const credits = parseCreditAmount(creditAmount);
 
   const isProtectedAdmin = user.role === "ADMIN";
   // Deleting the account here cancels nothing at the payment provider.
@@ -92,23 +96,37 @@ const UserAdminActions = ({ detail }: { detail: AdminUserDetail }) => {
           <Input
             id="admin-user-credits"
             type="number"
+            step={1}
             inputSize="sm"
             className="w-32"
+            aria-invalid={!credits.ok}
+            aria-describedby={credits.ok ? undefined : "admin-user-credits-error"}
             value={creditAmount}
             onChange={(event) => setCreditAmount(event.target.value)}
           />
 
           <AdminActionDialog
             trigger="Apply credits"
-            disabled={!Number(creditAmount)}
+            disabled={!credits.ok}
             title="Adjust credit balance"
-            description={`${Number(creditAmount) > 0 ? "Granting" : "Removing"} ${Math.abs(Number(creditAmount))} credits for ${user.email}.`}
+            description={
+              credits.ok
+                ? `${credits.amount > 0 ? "Granting" : "Removing"} ${Math.abs(credits.amount)} credits for ${user.email}.`
+                : credits.message
+            }
             confirmLabel="Apply adjustment"
             onConfirm={async (reason, attemptKey) => {
-              await adjustAdminCredits(user.id, Number(creditAmount), reason, attemptKey);
+              if (!credits.ok) throw new Error(credits.message);
+              await adjustAdminCredits(user.id, credits.amount, reason, attemptKey);
             }}
           />
         </div>
+
+        {!credits.ok && (
+          <p id="admin-user-credits-error" role="alert" className="text-xs text-red-600">
+            {credits.message}
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">

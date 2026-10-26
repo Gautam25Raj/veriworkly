@@ -10,19 +10,16 @@ import type {
 } from "../components/ApiKeyTypes";
 
 import { useUserStore } from "@/store/useUserStore";
-import { ApiRequestError, fetchApiData } from "@/utils/fetchApiData";
+import { fetchApiData } from "@/utils/fetchApiData";
+
+import { apiKeyErrorMessage } from "../api-key-service";
+import { useApiKeyActions } from "./useApiKeyActions";
 
 type UseApiKeysOptions = {
   initialKeys: ApiKeyRecord[];
   initialKeysLoaded: boolean;
   initialPagination: OffsetPaginationPayload<ApiKeyRecord> | null;
 };
-
-function resolveErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiRequestError) return error.message;
-
-  return fallback;
-}
 
 export function useApiKeys({
   initialKeys,
@@ -41,13 +38,6 @@ export function useApiKeys({
   const [generatedKey, setGeneratedKey] = useState<GeneratedApiKeyRecord | null>(null);
 
   const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
-  const [rotateSubmitting, setRotateSubmitting] = useState(false);
-  const [revokeSubmitting, setRevokeSubmitting] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<ApiKeyRecord | null>(null);
-  const [rotateTarget, setRotateTarget] = useState<ApiKeyRecord | null>(null);
-  const [revokeTarget, setRevokeTarget] = useState<ApiKeyRecord | null>(null);
 
   const applyPage = useCallback((data: OffsetPaginationPayload<ApiKeyRecord>) => {
     setPage(data.page);
@@ -68,7 +58,7 @@ export function useApiKeys({
 
         applyPage(data);
       } catch (error) {
-        toast.error(resolveErrorMessage(error, "Failed to fetch API keys."));
+        toast.error(apiKeyErrorMessage(error, "Failed to fetch API keys."));
       } finally {
         setLoading(false);
       }
@@ -98,78 +88,17 @@ export function useApiKeys({
     });
   }, [applyPage, fetchKeys, initialKeysLoaded, initialPagination, isLoggedIn]);
 
-  const rotateKey = async (values: {
-    name: string;
-    rateLimit: number;
-    expiresAt?: string;
-    scopes: string[];
-  }) => {
-    if (!rotateTarget) return;
-
-    try {
-      setRotateSubmitting(true);
-
-      const data = await fetchApiData<GeneratedApiKeyRecord>(
-        `/api-keys/${rotateTarget.id}/rotate`,
-        {
-          method: "POST",
-          body: JSON.stringify(values),
-        },
-      );
-
-      setGeneratedKey(data);
-      setRotateTarget(null);
-
-      toast.success("API key rotated.");
-
-      // Rotating doesn't change which page the key lives on — stay put instead of
-      // silently teleporting the user back to page 1.
+  const actions = useApiKeyActions({
+    onRotated: (rotated) => {
+      setGeneratedKey(rotated);
+      // Rotating doesn't change which page the key lives on, so the list stays on it.
       void fetchKeys(page);
-    } catch (error) {
-      toast.error(resolveErrorMessage(error, "Failed to rotate API key."));
-    } finally {
-      setRotateSubmitting(false);
-    }
-  };
-
-  const deleteKey = async () => {
-    if (!deleteTarget) return;
-
-    try {
-      setDeleteSubmitting(true);
-
-      await fetchApiData<null>(`/api-keys/${deleteTarget.id}`, { method: "DELETE" });
-
-      setDeleteTarget(null);
-      toast.success("API key deleted.");
-      // If this was the last item on the current page, step back a page instead of
-      // fetching an empty one; otherwise stay on the same page the user was viewing.
-      void fetchKeys(keys.length <= 1 && page > 1 ? page - 1 : page);
-    } catch (error) {
-      toast.error(resolveErrorMessage(error, "Failed to delete API key."));
-    } finally {
-      setDeleteSubmitting(false);
-    }
-  };
-
-  const revokeKey = async () => {
-    if (!revokeTarget) return;
-
-    try {
-      setRevokeSubmitting(true);
-
-      await fetchApiData<null>(`/api-keys/${revokeTarget.id}/revoke`, { method: "POST" });
-
-      setRevokeTarget(null);
-      toast.success("API key revoked.");
-      // Revoking doesn't remove the row from this page — stay on the same page.
-      void fetchKeys(page);
-    } catch (error) {
-      toast.error(resolveErrorMessage(error, "Failed to revoke API key."));
-    } finally {
-      setRevokeSubmitting(false);
-    }
-  };
+    },
+    // Revoking keeps the row on this page.
+    onRevoked: () => void fetchKeys(page),
+    // The last row of a page steps back a page instead of fetching an empty one.
+    onDeleted: () => void fetchKeys(keys.length <= 1 && page > 1 ? page - 1 : page),
+  });
 
   const copyToClipboard = async (text: string, id: string) => {
     try {
@@ -184,6 +113,7 @@ export function useApiKeys({
   };
 
   return {
+    ...actions,
     generatedKey,
     copiedId,
     keys,
@@ -191,20 +121,8 @@ export function useApiKeys({
     totalPages,
     hasMore,
     loading,
-    rotateTarget,
-    rotateSubmitting,
-    deleteTarget,
-    deleteSubmitting,
-    revokeTarget,
-    revokeSubmitting,
     copyToClipboard,
     setGeneratedKey,
-    setRotateTarget,
-    setRevokeTarget,
-    setDeleteTarget,
-    rotateKey,
-    deleteKey,
-    revokeKey,
     goToPreviousPage: () => {
       if (page > 1 && !loading) void fetchKeys(page - 1);
     },

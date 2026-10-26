@@ -33,6 +33,7 @@ export default function ApiKeySection({
   const router = useRouter();
   const isLoggedIn = useUserStore((state) => state.isLoggedIn);
   const apiKeys = useApiKeys({ initialKeys, initialPagination, initialKeysLoaded });
+  const { generatedKey } = apiKeys;
 
   return (
     <section id="api-keys" className="relative min-h-100 space-y-6">
@@ -59,14 +60,12 @@ export default function ApiKeySection({
       </div>
 
       <div className={cn("grid gap-6", !isLoggedIn && "pointer-events-none opacity-40 blur-[3px]")}>
-        {apiKeys.generatedKey && (
+        {generatedKey && (
           <GeneratedApiKeyCard
-            generatedKey={apiKeys.generatedKey.key}
+            generatedKey={generatedKey.key}
             onDismiss={() => apiKeys.setGeneratedKey(null)}
-            copied={apiKeys.copiedId === apiKeys.generatedKey.id}
-            onCopy={() =>
-              void apiKeys.copyToClipboard(apiKeys.generatedKey!.key, apiKeys.generatedKey!.id)
-            }
+            copied={apiKeys.copiedId === generatedKey.id}
+            onCopy={() => void apiKeys.copyToClipboard(generatedKey.key, generatedKey.id)}
           />
         )}
 

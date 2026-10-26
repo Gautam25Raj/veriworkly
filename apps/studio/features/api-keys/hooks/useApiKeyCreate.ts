@@ -9,22 +9,22 @@ import type { GeneratedApiKeyRecord } from "../components/ApiKeyTypes";
 
 import { API_KEY_SCOPE_OPTIONS, AVAILABLE_API_KEY_SCOPES } from "../components/ApiKeyScopes";
 
+import {
+  API_KEY_DEFAULT_RATE_LIMIT,
+  apiKeyErrorMessage,
+  buildCreateApiKeyPayload,
+  createApiKey,
+} from "../api-key-service";
+
 import { useUserStore } from "@/store/useUserStore";
 
-import { ApiRequestError, fetchApiData } from "@/utils/fetchApiData";
-
 const DEFAULT_SELECTED_SCOPES = ["user:read"];
-
-function resolveErrorMessage(error: unknown) {
-  if (error instanceof ApiRequestError) return error.message;
-  return "Failed to create API key.";
-}
 
 export function useApiKeyCreate() {
   const isLoggedIn = useUserStore((state) => state.isLoggedIn);
 
   const [name, setName] = useState("");
-  const [rateLimit, setRateLimit] = useState(20);
+  const [rateLimit, setRateLimit] = useState(API_KEY_DEFAULT_RATE_LIMIT);
 
   const [copied, setCopied] = useState(false);
   const [expiresAt, setExpiresAt] = useState("");
@@ -33,6 +33,10 @@ export function useApiKeyCreate() {
 
   const [generatedKey, setGeneratedKey] = useState<GeneratedApiKeyRecord | null>(null);
   const [selectedScopes, setSelectedScopes] = useState<string[]>(DEFAULT_SELECTED_SCOPES);
+
+  // While the one-time secret is on screen the form is locked, so a second submit cannot
+  // replace it before it was copied.
+  const locked = creating || generatedKey !== null;
 
   const selectedScopeDetails = useMemo(
     () => API_KEY_SCOPE_OPTIONS.filter((scope) => selectedScopes.includes(scope.value)),
@@ -56,25 +60,19 @@ export function useApiKeyCreate() {
       return;
     }
 
-    if (!name.trim() || selectedScopes.length === 0) return;
+    if (locked || !name.trim() || selectedScopes.length === 0) return;
 
     try {
       setCreating(true);
-      const data = await fetchApiData<GeneratedApiKeyRecord>("/api-keys", {
-        method: "POST",
-        body: JSON.stringify({
-          name,
-          scopes: selectedScopes,
-          rateLimit,
-          expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
-        }),
-      });
+      const data = await createApiKey(
+        buildCreateApiKeyPayload({ name, scopes: selectedScopes, rateLimit, expiresAt }),
+      );
 
       setGeneratedKey(data);
 
       toast.success("API key created.");
     } catch (error) {
-      toast.error(resolveErrorMessage(error));
+      toast.error(apiKeyErrorMessage(error, "Failed to create API key."));
     } finally {
       setCreating(false);
     }
@@ -97,6 +95,7 @@ export function useApiKeyCreate() {
 
   return {
     creating,
+    locked,
     copied,
     name,
     rateLimit,
@@ -104,7 +103,7 @@ export function useApiKeyCreate() {
     selectedScopes,
     selectedScopeDetails,
     generatedKey,
-    canSubmit: Boolean(isLoggedIn && name.trim() && selectedScopes.length > 0 && !creating),
+    canSubmit: Boolean(isLoggedIn && name.trim() && selectedScopes.length > 0 && !locked),
     setName,
     setRateLimit,
     setExpiresAt,

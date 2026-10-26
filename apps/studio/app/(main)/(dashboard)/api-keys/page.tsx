@@ -11,6 +11,7 @@ import type {
 } from "@/features/api-keys/components/ApiKeyTypes";
 
 import ApiKeySection from "@/features/api-keys/components/ApiKeySection";
+import { getApiKeyStatus } from "@/features/api-keys/api-key-service";
 
 export const metadata: Metadata = {
   title: "API Keys",
@@ -46,7 +47,7 @@ const ApiKeysPage = async () => {
   const initialApiKeys = await fetchInitialApiKeys();
 
   const total = initialApiKeys.pagination?.total ?? initialApiKeys.keys.length;
-  const active = initialApiKeys.keys.filter((key) => key.isActive).length;
+  const active = initialApiKeys.keys.filter((key) => getApiKeyStatus(key) === "active").length;
 
   return (
     <main className="space-y-6" aria-labelledby="api-keys-title">

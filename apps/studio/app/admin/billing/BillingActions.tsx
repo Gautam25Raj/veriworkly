@@ -18,6 +18,8 @@ import {
 
 import type { SubscriptionStatus } from "@/features/admin/types/admin-types";
 
+import { parseCreditAmount } from "./credit-amount";
+
 const inputClass =
   "border-border bg-background h-9 w-full rounded-lg border px-3 text-xs outline-none";
 
@@ -106,8 +108,8 @@ export function CreditAdjustmentForm() {
   const [userId, setUserId] = useState("");
   const [amount, setAmount] = useState("100");
 
-  const parsed = Number(amount);
-  const ready = userId.trim().length > 0 && Number.isFinite(parsed) && parsed !== 0;
+  const parsed = parseCreditAmount(amount);
+  const ready = userId.trim().length > 0 && parsed.ok;
 
   return (
     <div className="space-y-3">
@@ -121,20 +123,34 @@ export function CreditAdjustmentForm() {
       <input
         className={inputClass}
         type="number"
+        step={1}
         placeholder="Credits (negative to claw back)"
+        aria-invalid={!parsed.ok}
+        aria-describedby={parsed.ok ? undefined : "credit-adjustment-error"}
         value={amount}
         onChange={(event) => setAmount(event.target.value)}
       />
+
+      {!parsed.ok && (
+        <p id="credit-adjustment-error" role="alert" className="text-xs text-red-600">
+          {parsed.message}
+        </p>
+      )}
 
       <AdminActionDialog
         trigger="Apply adjustment"
         triggerVariant="primary"
         disabled={!ready}
         title="Adjust a credit balance"
-        description={`${parsed > 0 ? "Granting" : "Removing"} ${Math.abs(parsed)} credits.`}
+        description={
+          parsed.ok
+            ? `${parsed.amount > 0 ? "Granting" : "Removing"} ${Math.abs(parsed.amount)} credits.`
+            : parsed.message
+        }
         confirmLabel="Apply"
         onConfirm={async (reason, attemptKey) => {
-          await adjustAdminCredits(userId.trim(), parsed, reason, attemptKey);
+          if (!parsed.ok) throw new Error(parsed.message);
+          await adjustAdminCredits(userId.trim(), parsed.amount, reason, attemptKey);
           setUserId("");
         }}
       />

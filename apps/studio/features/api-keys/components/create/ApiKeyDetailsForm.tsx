@@ -4,8 +4,12 @@ import { KeyRound } from "lucide-react";
 
 import { Card, Input } from "@veriworkly/ui";
 
+import { useTomorrowDateInput } from "../LocalDateTime";
+
+import { API_KEY_MAX_RATE_LIMIT, API_KEY_RATE_WINDOW_LABEL } from "../../api-key-service";
+
 type ApiKeyDetailsFormProps = {
-  creating: boolean;
+  disabled: boolean;
   name: string;
   rateLimit: number;
   expiresAt: string;
@@ -15,7 +19,7 @@ type ApiKeyDetailsFormProps = {
 };
 
 export function ApiKeyDetailsForm({
-  creating,
+  disabled,
   name,
   rateLimit,
   expiresAt,
@@ -23,6 +27,8 @@ export function ApiKeyDetailsForm({
   onRateLimitChange,
   onExpiresAtChange,
 }: ApiKeyDetailsFormProps) {
+  const minExpiry = useTomorrowDateInput();
+
   return (
     <Card className="space-y-5 rounded-2xl p-5 sm:p-6">
       <div className="flex items-start gap-3">
@@ -42,7 +48,7 @@ export function ApiKeyDetailsForm({
 
           <Input
             value={name}
-            disabled={creating}
+            disabled={disabled}
             placeholder="Production docs integration"
             onChange={(event) => onNameChange(event.target.value)}
           />
@@ -52,31 +58,35 @@ export function ApiKeyDetailsForm({
           <span className="text-sm font-bold">Rate limit</span>
 
           <Input
+            required
             min={1}
-            max={20}
+            step={1}
+            max={API_KEY_MAX_RATE_LIMIT}
             type="number"
-            value={rateLimit}
-            disabled={creating}
-            onChange={(event) => {
-              const nextValue = Number(event.target.value || 1);
-              onRateLimitChange(Math.min(20, Math.max(1, nextValue)));
-            }}
+            value={rateLimit || ""}
+            disabled={disabled}
+            onChange={(event) => onRateLimitChange(Number(event.target.value))}
           />
 
-          <span className="text-muted block text-xs">Max 20 requests per window.</span>
+          <span className="text-muted block text-xs">
+            Up to {API_KEY_MAX_RATE_LIMIT} requests per {API_KEY_RATE_WINDOW_LABEL}.
+          </span>
         </label>
 
         <label className="space-y-2">
-          <span className="text-sm font-bold">Expires at</span>
+          <span className="text-sm font-bold">Expires at end of</span>
 
           <Input
             type="date"
+            min={minExpiry}
             value={expiresAt}
-            disabled={creating}
+            disabled={disabled}
             onChange={(event) => onExpiresAtChange(event.target.value)}
           />
 
-          <span className="text-muted block text-xs">Empty uses default lifetime.</span>
+          <span className="text-muted block text-xs">
+            Midnight your time. Empty uses the default lifetime.
+          </span>
         </label>
       </div>
     </Card>

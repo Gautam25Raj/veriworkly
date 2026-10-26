@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import AdminFilterBar from "@/components/admin/AdminFilterBar";
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import AdminPagination from "@/components/admin/AdminPagination";
 import AdminStatCard from "@/components/admin/AdminStatCard";
-import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
-import Panel from "@/components/admin/Panel";
+import AdminListPage from "@/components/admin/AdminListPage";
+import type { AdminTableColumn } from "@/components/admin/AdminTable";
 import { CreditAdjustmentForm } from "@/app/admin/billing/BillingActions";
 
 import {
@@ -102,65 +99,47 @@ export default async function AdminCreditsPage({
   ]);
 
   return (
-    <div className="space-y-5">
-      <AdminPageHeader
-        eyebrow="Revenue"
-        title="Credit wallets"
-        description="AI credit balances across every account, and the manual adjustment tool for support refunds and goodwill grants."
-        actions={
-          <Link href="/admin/billing" className="text-accent text-sm font-semibold">
-            ← Billing
-          </Link>
-        }
-      />
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <AdminStatCard label="Outstanding balance" value={formatNumber(summary.credits.balance)} />
-        <AdminStatCard label="Reserved" value={formatNumber(summary.credits.reserved)} />
-        <AdminStatCard
-          label="Granted (30d)"
-          value={formatNumber(summary.credits.grantedLast30Days)}
-          tone="positive"
-        />
-        <AdminStatCard label="Spent (30d)" value={formatNumber(summary.credits.spentLast30Days)} />
-      </section>
-
-      <div className="grid gap-3 lg:grid-cols-[1fr_20rem]">
-        <div className="space-y-4">
-          <AdminFilterBar
-            basePath="/admin/billing/credits"
-            searchPlaceholder="Account email, name, or user id"
-            selects={FILTERS}
+    <AdminListPage
+      eyebrow="Revenue"
+      title="Credit wallets"
+      description="AI credit balances across every account, and the manual adjustment tool for support refunds and goodwill grants."
+      actions={
+        <Link href="/admin/billing" className="text-accent text-sm font-semibold">
+          ← Billing
+        </Link>
+      }
+      summary={
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <AdminStatCard
+            label="Outstanding balance"
+            value={formatNumber(summary.credits.balance)}
           />
-
-          <AdminTable
-            columns={columns}
-            rows={data.items}
-            rowKey={(row) => row.id}
-            emptyMessage="No credit wallets match these filters."
+          <AdminStatCard label="Reserved" value={formatNumber(summary.credits.reserved)} />
+          <AdminStatCard
+            label="Granted (30d)"
+            value={formatNumber(summary.credits.grantedLast30Days)}
+            tone="positive"
           />
-
-          <AdminPagination
-            total={data.total}
-            limit={data.limit}
-            offset={data.offset}
-            basePath="/admin/billing/credits"
-            params={params}
+          <AdminStatCard
+            label="Spent (30d)"
+            value={formatNumber(summary.credits.spentLast30Days)}
           />
-        </div>
-
-        <Panel className="h-fit space-y-4 rounded-xl p-4">
-          <div>
-            <h3 className="text-foreground font-semibold tracking-tight">Adjust credits</h3>
-            <p className="text-muted mt-1 text-xs leading-5">
-              Positive grants, negative claws back. Every adjustment is a ledger entry the user can
-              see in their credit history.
-            </p>
-          </div>
-
-          <CreditAdjustmentForm />
-        </Panel>
-      </div>
-    </div>
+        </section>
+      }
+      aside={{
+        title: "Adjust credits",
+        description:
+          "Positive grants, negative claws back. Every adjustment is a ledger entry the user can see in their credit history.",
+        form: <CreditAdjustmentForm />,
+      }}
+      basePath="/admin/billing/credits"
+      params={params}
+      searchPlaceholder="Account email, name, or user id"
+      filters={FILTERS}
+      page={data}
+      columns={columns}
+      rowKey={(row) => row.id}
+      emptyMessage="No credit wallets match these filters."
+    />
   );
 }

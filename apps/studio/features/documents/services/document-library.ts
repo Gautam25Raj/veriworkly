@@ -142,20 +142,6 @@ function mapIndexEntryToLibraryItem(entry: DocumentIndexEntry): DocumentLibraryI
   };
 }
 
-export function mapDocumentToLibraryItem(document: BaseDocument): DocumentLibraryItem {
-  const definition = getDocumentDefinition(document.type);
-
-  return mapIndexEntryToLibraryItem({
-    id: document.id,
-    type: document.type,
-    title: document.title,
-    templateId: document.templateId,
-    description: definition.describe(document),
-    updatedAt: document.updatedAt,
-    sync: document.sync,
-  });
-}
-
 export function formatRelative(value: string) {
   const date = new Date(value);
 

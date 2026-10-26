@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import AdminFilterBar from "@/components/admin/AdminFilterBar";
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import AdminPagination from "@/components/admin/AdminPagination";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
-import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
+import AdminListPage from "@/components/admin/AdminListPage";
+import type { AdminTableColumn } from "@/components/admin/AdminTable";
 import { WithdrawalActions } from "@/app/admin/affiliates/AffiliateActions";
 
 import { fetchAdminWithdrawals } from "@/features/admin/services/admin-server";
@@ -110,35 +108,23 @@ export default async function AdminWithdrawalsPage({
   const data = await fetchAdminWithdrawals(params);
 
   return (
-    <div className="space-y-5">
-      <AdminPageHeader
-        eyebrow="Revenue"
-        title="Affiliate withdrawals"
-        description="Approve payout requests, then record the transfer once it has actually been sent. Approving reserves the balance; marking paid closes the request."
-        actions={
-          <Link href="/admin/affiliates" className="text-accent text-sm font-semibold">
-            ← Affiliates
-          </Link>
-        }
-      />
-
-      <AdminFilterBar basePath="/admin/affiliates/withdrawals" selects={FILTERS} />
-
-      <AdminTable
-        columns={columns}
-        rows={data.items}
-        rowKey={(row) => row.id}
-        emptyMessage="No withdrawal requests match these filters."
-        caption={`${formatCents(data.totalAmountCents)} across ${data.total} matching request(s). Payouts are sent out of band — this queue records the decision and the transfer.`}
-      />
-
-      <AdminPagination
-        total={data.total}
-        limit={data.limit}
-        offset={data.offset}
-        basePath="/admin/affiliates/withdrawals"
-        params={params}
-      />
-    </div>
+    <AdminListPage
+      eyebrow="Revenue"
+      title="Affiliate withdrawals"
+      description="Approve payout requests, then record the transfer once it has actually been sent. Approving reserves the balance; marking paid closes the request."
+      actions={
+        <Link href="/admin/affiliates" className="text-accent text-sm font-semibold">
+          ← Affiliates
+        </Link>
+      }
+      basePath="/admin/affiliates/withdrawals"
+      params={params}
+      filters={FILTERS}
+      page={data}
+      columns={columns}
+      rowKey={(row) => row.id}
+      emptyMessage="No withdrawal requests match these filters."
+      caption={`${formatCents(data.totalAmountCents)} across ${data.total} matching request(s). Payouts are sent out of band — this queue records the decision and the transfer.`}
+    />
   );
 }

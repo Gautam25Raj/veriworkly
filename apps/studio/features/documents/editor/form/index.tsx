@@ -4,9 +4,7 @@ import type { ReactNode } from "react";
 
 import { useState } from "react";
 
-import { Input, Select } from "@veriworkly/ui";
-
-import { cn } from "@/lib/utils";
+import { Input, Select, cn } from "@veriworkly/ui";
 
 /**
  * Form primitives shared by every document editor.
@@ -47,7 +45,7 @@ export function Field({
   );
 }
 
-export function TextArea({
+function TextArea({
   className,
   value,
   ...props
@@ -56,6 +54,7 @@ export function TextArea({
     <textarea
       className={cn(
         "border-border bg-background text-foreground focus:border-accent/40 focus:ring-accent/20 min-h-24 w-full rounded-3xl border px-4 py-3 text-sm shadow-sm transition outline-none focus:ring-2",
+        "aria-invalid:border-destructive/60 aria-invalid:focus:border-destructive aria-invalid:focus:ring-destructive/15",
         className,
       )}
       value={value}
@@ -82,7 +81,7 @@ export function TextInputField({
     <Field error={error} hint={hint} label={label}>
       <Input
         {...props}
-        className={cn(invalidClass(error), props.className)}
+        error={Boolean(error)}
         onChange={(event) => onValueChange(event.target.value)}
         value={value}
       />
@@ -111,7 +110,8 @@ export function TextAreaField({
     <Field error={error} label={label}>
       <TextArea
         {...props}
-        className={cn("min-h-28 leading-6", invalidClass(error), className)}
+        aria-invalid={error ? true : undefined}
+        className={cn("min-h-28 leading-6", className)}
         onChange={(event) => onValueChange(event.target.value)}
         value={value}
       />
@@ -173,7 +173,7 @@ export function SelectField({
     <Field error={error} label={label}>
       <Select
         {...props}
-        className={cn(invalidClass(error), props.className)}
+        error={Boolean(error)}
         onChange={(event) => onValueChange(event.target.value)}
         value={value}
       >
@@ -193,10 +193,6 @@ export function EditorBlock({ children, title }: { children: ReactNode; title: s
       {children}
     </section>
   );
-}
-
-export function invalidClass(error?: string) {
-  return error ? "border-red-500 focus:border-red-500 focus:ring-red-200" : undefined;
 }
 
 /**

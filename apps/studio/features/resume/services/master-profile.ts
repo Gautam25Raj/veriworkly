@@ -15,6 +15,7 @@ import { ApiRequestError, fetchApiData } from "@/utils/fetchApiData";
 
 import { MASTER_PROFILE_STORAGE_KEY } from "@/lib/constants";
 
+import { isRecord } from "@/lib/is-record";
 import { useUserStore } from "@/store/useUserStore";
 
 import { normalizeResumeData } from "@/features/resume/utils/normalize-data";
@@ -39,7 +40,7 @@ interface MasterProfileSummaryState {
   shareResumeCount: number;
 }
 
-export interface MasterProfileBundleState {
+interface MasterProfileBundleState {
   updatedAt: string;
   profile: MasterProfileData;
   summary: MasterProfileSummaryState | null;
@@ -77,17 +78,11 @@ function isBrowser() {
   return typeof window !== "undefined";
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 /**
  * Maps a stored font id onto one the studio can actually render.
  *
- * This used to be a `.transform()` inside the schema. It cannot live there any more: the
- * schema is shared with the server and the portfolio, and neither has any business
- * importing the studio's font catalog. Applying it here keeps the behaviour and keeps the
- * catalog on the side of the boundary that owns it.
+ * Not a `.transform()` inside the schema: the schema is shared with the server and the
+ * portfolio, and neither has any business importing the studio's font catalog.
  */
 function withNormalizedFont(profile: MasterProfileData): MasterProfileData {
   const fontFamily = normalizeFontFamilyId(profile.customization.fontFamily);
@@ -133,10 +128,9 @@ export function salvageMasterProfile(raw: unknown): MasterProfileData {
 /**
  * Parks the bytes we could not read instead of deleting them.
  *
- * This used to `removeItem` on every parse failure, which is the storage layer destroying
- * the only copy of the user's data at the exact moment it admits it cannot read it. The
- * copy stays recoverable by hand from devtools, and by us if a migration turns out to be
- * what was needed.
+ * Deleting on a parse failure would destroy the only copy of the user's data at the exact
+ * moment the storage layer admits it cannot read it. The copy stays recoverable by hand from
+ * devtools, and by us if a migration turns out to be what was needed.
  */
 function backUpCorruptProfile(rawValue: string) {
   safeSetLocalStorageItem(window.localStorage, MASTER_PROFILE_CORRUPT_KEY, rawValue);

@@ -44,11 +44,9 @@ function QueueBadge({ count, critical }: { count: number | null; critical?: bool
  * What a collapsed parent should show on its badge: its own queue plus every queue nested
  * under it.
  *
- * Sub-routes are only revealed while their section is active, so a parent that renders just
- * its own badge is silent about work sitting one level down. Affiliates was the worst case —
- * withdrawals and commissions both hang off it, so the rail could show a bare "Affiliates"
- * while 30+ payouts waited for a decision, and nothing on screen said to look there. Summing
- * the subtree is what makes the rail's counts trustworthy at a glance.
+ * Sub-routes are only revealed while their section is active, so a parent that rendered just
+ * its own badge would be silent about work one level down (Affiliates holds the withdrawal and
+ * commission queues). Summing the subtree makes the rail's counts trustworthy at a glance.
  *
  * Once the section is expanded the children carry their own badges, so the parent drops back
  * to its own count rather than double-reporting the same items.
@@ -74,10 +72,9 @@ function resolveBadge(item: AdminNavItem, queue: AdminActionQueue, expanded: boo
 /**
  * The persistent left rail.
  *
- * A sidebar rather than the previous horizontal pill bar because the admin has 20 routes: at
- * that count a top nav wraps onto a second row on a laptop, which is what made the old header
- * feel unstructured. A vertical rail also has room for the icon and the live queue count that
- * tell an operator where the work is before they click anything.
+ * A vertical rail because the admin has 20 routes, which would wrap a top nav onto a second
+ * row on a laptop. It also has room for the icon and the live queue count that tell an operator
+ * where the work is before they click anything.
  */
 const AdminSidebar = ({ queue, onNavigate }: AdminSidebarProps) => {
   const pathname = usePathname();
@@ -141,11 +138,7 @@ const AdminSidebar = ({ queue, onNavigate }: AdminSidebarProps) => {
 
                       <QueueBadge count={badge.count} critical={badge.critical} />
 
-                      {/*
-                        A section with sub-routes previously looked identical to a leaf, so
-                        nothing on screen said that Affiliates or Billing contained anything —
-                        the sub-pages only appeared after you had already guessed and clicked.
-                      */}
+                      {/* Marks a section with sub-routes, so it does not look like a leaf. */}
                       {item.children?.length ? (
                         <ChevronDown
                           className={cn(
@@ -160,8 +153,7 @@ const AdminSidebar = ({ queue, onNavigate }: AdminSidebarProps) => {
                     {/*
                       Sub-routes are revealed only while their section is active. Showing all 20
                       routes at once would make the rail scroll on a laptop; hiding them entirely
-                      is what previously made pages like /admin/billing/entitlements unreachable
-                      except by typing the URL.
+                      would leave pages like /admin/billing/entitlements reachable only by URL.
                     */}
                     {/* ml-4.5 puts the guide rule under the centre of the parent's icon, so the
                         sub-list reads as hanging off that item rather than floating loose. */}

@@ -1,7 +1,6 @@
 "use client";
 
 import type { BaseSectionProps } from "./section-types";
-import type { ResumeSectionId } from "@/types/resume";
 
 import { useResumeStore } from "@/features/resume/store/resume-store";
 import { validateBasics } from "@/features/resume/utils/validation";
@@ -23,12 +22,7 @@ const BasicsSection = ({ isOpen, onToggle }: BaseSectionProps) => {
   const phoneNeedsCountryCode = isLegacyUnqualifiedPhone(basics.phone);
 
   return (
-    <SectionAccordion
-      id="basics"
-      label="Basics"
-      isOpen={isOpen}
-      onToggle={(nextId) => onToggle(nextId as ResumeSectionId)}
-    >
+    <SectionAccordion id="basics" label="Basics" isOpen={isOpen} onToggle={onToggle}>
       <div className="grid gap-4 md:grid-cols-2">
         <TextInputField
           error={basicErrors.fullName}

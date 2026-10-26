@@ -13,11 +13,10 @@ import {
   TextInputField,
   DelimitedTextArea,
 } from "@/features/documents/editor/form";
-import SectionAccordion from "@/features/documents/editor/SectionAccordion";
-import { ListEditorControls } from "@/features/documents/editor/ListEditorControls";
 import { useIndexedListEditor } from "@/features/documents/editor/useIndexedListEditor";
 import type { BaseSectionProps } from "./section-types";
-import type { ResumeSectionId } from "@/types/resume";
+
+import ListSection from "./ListSection";
 
 const ExperienceSection = ({ isOpen, onToggle }: BaseSectionProps) => {
   const experience = useResumeStore((state) => state.resume.experience);
@@ -27,30 +26,25 @@ const ExperienceSection = ({ isOpen, onToggle }: BaseSectionProps) => {
   const updateExperience = useResumeStore((state) => state.updateExperience);
 
   const list = useIndexedListEditor(experience, addExperience);
-  const activeExperience = list.activeItem;
 
   const experienceErrors = useMemo(
-    () => (activeExperience ? validateExperience(activeExperience) : {}),
-    [activeExperience],
+    () => (list.activeItem ? validateExperience(list.activeItem) : {}),
+    [list.activeItem],
   );
 
   return (
-    <SectionAccordion
+    <ListSection
       id="experience"
-      isOpen={isOpen}
       label="Experience"
-      onToggle={(nextId) => onToggle(nextId as ResumeSectionId)}
+      isOpen={isOpen}
+      onToggle={onToggle}
+      list={list}
+      items={experience}
+      onRemove={removeExperience}
+      labelFor={(item, index) => item.role || item.company || `Experience ${index + 1}`}
+      emptyMessage="No experience entries yet. Click Add to create one."
     >
-      <ListEditorControls
-        items={experience}
-        index={list.index}
-        onAdd={list.add}
-        onSelect={list.select}
-        onRemove={removeExperience}
-        labelFor={(item, index) => item.role || item.company || `Experience ${index + 1}`}
-      />
-
-      {activeExperience ? (
+      {(activeExperience) => (
         <>
           <div className="grid gap-4 md:grid-cols-2">
             <TextInputField
@@ -130,7 +124,7 @@ const ExperienceSection = ({ isOpen, onToggle }: BaseSectionProps) => {
             />
 
             {/* Children-based `Field`: DelimitedTextArea keeps a local draft string and so
-                cannot take the value/onChange contract the `*Field` wrappers impose. */}
+              cannot take the value/onChange contract the `*Field` wrappers impose. */}
             <Field label="Highlights (one per line)">
               <DelimitedTextArea
                 delimiter="newline"
@@ -141,10 +135,8 @@ const ExperienceSection = ({ isOpen, onToggle }: BaseSectionProps) => {
             </Field>
           </div>
         </>
-      ) : (
-        <p className="text-muted text-sm">No experience entries yet. Click Add to create one.</p>
       )}
-    </SectionAccordion>
+    </ListSection>
   );
 };
 

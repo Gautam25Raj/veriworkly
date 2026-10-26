@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { Button, Select } from "@veriworkly/ui";
 
-import ConfirmationModal from "@/components/modals/ConfirmationModal";
+import ConfirmDialog from "@/components/modals/ConfirmDialog";
 
 interface ListEditorControlsProps<T> {
   items: T[];
@@ -84,7 +84,7 @@ export function ListEditorControls<T>({
         {removeLabel}
       </Button>
 
-      <ConfirmationModal
+      <ConfirmDialog
         open={pendingRemoval !== null}
         onClose={() => setPendingRemoval(null)}
         onConfirm={() => {
@@ -97,8 +97,8 @@ export function ListEditorControls<T>({
             ? `"${labelFor(items[pendingRemoval], pendingRemoval)}" will be removed.`
             : "This entry will be removed."
         }
-        confirmText={removeLabel}
-        variant="destructive"
+        confirmLabel={removeLabel}
+        tone="destructive"
       />
     </div>
   );

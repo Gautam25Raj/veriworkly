@@ -15,9 +15,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Button } from "@veriworkly/ui";
-
-import { cn } from "@/lib/utils";
+import { Button, cn } from "@veriworkly/ui";
 
 type MobileTab = "content" | "preview" | "settings";
 

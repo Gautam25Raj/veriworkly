@@ -7,11 +7,8 @@ import type { DocumentSyncState } from "./types";
  * round-trips through *that* copy rather than the envelope's — it hydrates from
  * `document.content` and `saveResume` rebuilds the envelope from it. So whenever the
  * envelope's identity is set or changed (creation, import), the inner copy has to move
- * with it, or the first autosave writes the stale copy straight back over the envelope.
- *
- * That is exactly how the workspace's `autoSyncEnabled` setting used to get lost:
- * `createDocument` applied it to the envelope only, and the editor's first save reverted
- * it to the definition's hardcoded `local-only`.
+ * with it, or the first autosave writes the stale copy straight back over the envelope
+ * (losing, for example, the workspace's `autoSyncEnabled` setting on a new document).
  *
  * Cover letter content has neither field, so this is a no-op for it — hence the `in`
  * checks rather than an unconditional spread.

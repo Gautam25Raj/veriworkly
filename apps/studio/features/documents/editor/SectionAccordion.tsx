@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 import { ChevronDown } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@veriworkly/ui";
 
 /**
  * Collapsible section used by every document editor's content and design panels.

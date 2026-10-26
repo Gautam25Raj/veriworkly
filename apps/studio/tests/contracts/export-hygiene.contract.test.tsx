@@ -1,7 +1,4 @@
-import { join } from "node:path";
-
 import { renderToStaticMarkup } from "react-dom/server";
-import { Font } from "@react-pdf/renderer";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { extractResume } from "@veriworkly/ats-engine/node";
@@ -10,11 +7,9 @@ import type { ResumeData } from "@/types/resume";
 import type { BaseDocument, ExportFormat } from "@/features/documents/core/types";
 
 import { blankResume, defaultResume } from "@/features/resume/constants/default-resume";
-import { FONT_REGISTRY } from "@/features/documents/constants/fonts";
 import { exportResumeDocument } from "@/features/documents/export/resume-exporters";
 import { buildHtml } from "@/features/documents/export/export-html";
 import { buildText } from "@/features/documents/export/export-text";
-import { registerPdfHyphenation } from "@/templates/pdf/fonts";
 import { buildResumeSections } from "@/templates/resume/shared/model";
 import { captureDownloads } from "@/tests/utils/downloads";
 import {
@@ -30,6 +25,7 @@ import {
   getProjectRenderItems,
 } from "@/templates/resume/shared/model";
 import { loadTemplateComponentById, templateRegistry } from "@/templates";
+import { registerPdfTestFonts } from "@/tests/utils/pdf";
 
 /**
  * An entry the user has partially filled: real company and bullets, but no role, and no
@@ -298,17 +294,7 @@ const EXPORT_PLACEHOLDERS = [
 
 describe("every resume export format", () => {
   beforeAll(() => {
-    registerPdfHyphenation();
-
-    for (const font of Object.values(FONT_REGISTRY)) {
-      Font.register({
-        family: font.primaryFamily,
-        fonts: font.pdfFonts.map((face) => ({
-          src: join(process.cwd(), "public", face.src),
-          fontWeight: face.fontWeight,
-        })),
-      });
-    }
+    registerPdfTestFonts();
   });
 
   it("S-108: prints no placeholder in any of the six formats", async () => {

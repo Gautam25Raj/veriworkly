@@ -7,6 +7,7 @@ import { useResumeStore } from "@/features/resume/store/resume-store";
 import { toResumeDocument } from "@/features/resume/services/resume-core";
 import { getWorkspaceStorage } from "@/features/documents/services/document-workspace-service";
 import type { ResumeData } from "@/types/resume";
+import { createLocalStorageMock } from "@/tests/utils/local-storage";
 
 function cloneResume(resume: ResumeData): ResumeData {
   return JSON.parse(JSON.stringify(resume)) as ResumeData;
@@ -49,27 +50,6 @@ describe("resume store", () => {
     expect(useResumeStore.getState().resume.skills).toEqual([]);
   });
 });
-
-function createLocalStorageMock() {
-  const store = new Map<string, string>();
-
-  return {
-    getItem: vi.fn((key: string) => store.get(key) ?? null),
-    setItem: vi.fn((key: string, value: string) => {
-      store.set(key, value);
-    }),
-    removeItem: vi.fn((key: string) => {
-      store.delete(key);
-    }),
-    clear: vi.fn(() => {
-      store.clear();
-    }),
-    key: vi.fn((index: number) => [...store.keys()][index] ?? null),
-    get length() {
-      return store.size;
-    },
-  };
-}
 
 const LINKED_SYNC: ResumeData["sync"] = {
   enabled: true,

@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { Button, Select } from "@veriworkly/ui";
 
-import ConfirmationModal from "@/components/modals/ConfirmationModal";
+import ConfirmDialog from "@/components/modals/ConfirmDialog";
 
 import type {
   DocumentLinks,
@@ -134,7 +134,7 @@ export function LinksEditor({
         Add link
       </Button>
 
-      <ConfirmationModal
+      <ConfirmDialog
         open={Boolean(pendingRemoval)}
         onClose={() => setPendingRemovalId(null)}
         onConfirm={() => {
@@ -149,8 +149,8 @@ export function LinksEditor({
             ? `${pendingRemoval.url} will be removed.`
             : "This link will be removed."
         }
-        confirmText="Remove link"
-        variant="destructive"
+        confirmLabel="Remove link"
+        tone="destructive"
       />
     </>
   );

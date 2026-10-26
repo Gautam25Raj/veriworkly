@@ -360,11 +360,6 @@ const resumeExportSchema = createResumeDataSchema(contentRules);
  */
 const resumeImportSchema = resumeDataInputSchema.required({ basics: true });
 
-export interface ResumeCollection {
-  version: 1;
-  items: Record<string, ResumeData>;
-}
-
 /** The read path for storage, sync and the editor. */
 export function parseResumeDataInput(value: unknown) {
   const result = resumeDataInputSchema.safeParse(value);

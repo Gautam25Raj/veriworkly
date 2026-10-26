@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import AdminAuditList from "@/components/admin/AdminAuditList";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
 import Panel from "@/components/admin/Panel";
@@ -11,7 +12,7 @@ import {
   fetchAdminAmbassadorApplication,
   loadAdminDetail,
 } from "@/features/admin/services/admin-server";
-import { formatDateTime, humanizeKey } from "@/features/admin/utils/admin-format";
+import { formatDateTime } from "@/features/admin/utils/admin-format";
 
 export const metadata: Metadata = {
   title: "Admin · Ambassador application",
@@ -101,25 +102,11 @@ export default async function AdminAmbassadorDetailPage({
             </Panel>
           ) : null}
 
-          <Panel className="space-y-3 rounded-xl p-4">
-            <h3 className="text-foreground font-semibold tracking-tight">Audit history</h3>
-
-            {auditEntries.length === 0 ? (
-              <p className="text-muted text-sm">No admin actions on this application yet.</p>
-            ) : (
-              <div className="divide-border/50 divide-y">
-                {auditEntries.map((entry) => (
-                  <div key={entry.id} className="space-y-0.5 py-2.5 text-sm">
-                    <p className="text-foreground font-medium">{humanizeKey(entry.action)}</p>
-                    <p className="text-muted text-xs">
-                      {entry.actor?.email ?? "system"} · {formatDateTime(entry.createdAt)}
-                      {entry.reason ? ` · ${entry.reason}` : ""}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Panel>
+          <AdminAuditList
+            title="Audit history"
+            emptyMessage="No admin actions on this application yet."
+            entries={auditEntries}
+          />
         </div>
 
         <Panel className="h-fit space-y-3 rounded-xl p-4">

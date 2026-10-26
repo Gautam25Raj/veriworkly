@@ -4,13 +4,9 @@ import type { ReactNode } from "react";
 
 import { cn } from "@veriworkly/ui";
 
-export type AdminStatTone = "default" | "positive" | "warning" | "critical";
+type AdminStatTone = "default" | "positive" | "warning" | "critical";
 
-/**
- * Tones come from the theme's semantic tokens rather than raw palette steps, matching
- * `AdminStatusBadge`. See the note there on why the admin no longer hardcodes `emerald-600`
- * and friends.
- */
+/** Tones come from the theme's semantic tokens rather than raw palette steps, as in `AdminStatusBadge`. */
 const toneStyles: Record<AdminStatTone, string> = {
   default: "text-foreground",
   positive: "text-success",

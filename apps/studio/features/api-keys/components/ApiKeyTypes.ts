@@ -1,4 +1,4 @@
-export interface ApiKeyListRecord {
+export interface ApiKeyRecord {
   id: string;
   name: string;
   keyPrefix: string;
@@ -9,8 +9,6 @@ export interface ApiKeyListRecord {
   expiresAt?: string | null;
   revokedAt?: string | null;
 }
-
-export type ApiKeyRecord = ApiKeyListRecord;
 
 export interface ApiKeyDetailRecord {
   id: string;
@@ -28,20 +26,4 @@ export interface ApiKeyDetailRecord {
 
 export interface GeneratedApiKeyRecord extends ApiKeyDetailRecord {
   key: string;
-}
-
-export interface OffsetPaginationPayload<T> {
-  items: T[];
-  total: number;
-  limit: number;
-  offset: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-  hasMore: boolean;
-  pagination: {
-    mode: "offset";
-    nextOffset: number | null;
-    nextCursor: string | null;
-  };
 }

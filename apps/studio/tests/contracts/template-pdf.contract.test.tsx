@@ -1,7 +1,5 @@
-import { join } from "node:path";
-
 import { createElement } from "react";
-import { Font, renderToBuffer } from "@react-pdf/renderer";
+import { renderToBuffer } from "@react-pdf/renderer";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import type { ComponentType, ReactElement } from "react";
@@ -13,10 +11,9 @@ import type { CoverLetterContent } from "@/features/cover-letter/types";
 
 import { createDefaultCoverLetter } from "@/features/cover-letter/defaults";
 import { defaultResume } from "@/features/resume/constants/default-resume";
-import { FONT_REGISTRY } from "@/features/documents/constants/fonts";
-import { registerPdfHyphenation } from "@/templates/pdf/fonts";
 import { coverLetterTemplateRegistry } from "@/templates/cover-letter/registry";
 import { loadTemplatePdfComponentById, pdfTemplateIds } from "@/templates/resume/pdf";
+import { registerPdfTestFonts } from "@/tests/utils/pdf";
 
 /**
  * The browser registers PDF fonts from URLs (templates/pdf/fonts.ts). Under
@@ -35,18 +32,7 @@ function pdfElement<P extends object>(
 }
 
 beforeAll(() => {
-  // Production disables hyphenation; without it these measure a different document.
-  registerPdfHyphenation();
-
-  for (const font of Object.values(FONT_REGISTRY)) {
-    Font.register({
-      family: font.primaryFamily,
-      fonts: font.pdfFonts.map((face) => ({
-        src: join(process.cwd(), "public", face.src),
-        fontWeight: face.fontWeight,
-      })),
-    });
-  }
+  registerPdfTestFonts();
 });
 
 describe("resume pdf export contract", () => {

@@ -13,11 +13,10 @@ import {
   TextInputField,
   DelimitedTextArea,
 } from "@/features/documents/editor/form";
-import SectionAccordion from "@/features/documents/editor/SectionAccordion";
-import { ListEditorControls } from "@/features/documents/editor/ListEditorControls";
 import { useIndexedListEditor } from "@/features/documents/editor/useIndexedListEditor";
 import type { BaseSectionProps } from "./section-types";
-import type { ResumeSectionId } from "@/types/resume";
+
+import ListSection from "./ListSection";
 
 const ProjectsSection = ({ isOpen, onToggle }: BaseSectionProps) => {
   const projects = useResumeStore((state) => state.resume.projects);
@@ -27,30 +26,25 @@ const ProjectsSection = ({ isOpen, onToggle }: BaseSectionProps) => {
   const updateProject = useResumeStore((state) => state.updateProject);
 
   const list = useIndexedListEditor(projects, addProject);
-  const activeProject = list.activeItem;
 
   const projectErrors = useMemo(
-    () => (activeProject ? validateProject(activeProject) : {}),
-    [activeProject],
+    () => (list.activeItem ? validateProject(list.activeItem) : {}),
+    [list.activeItem],
   );
 
   return (
-    <SectionAccordion
+    <ListSection
       id="projects"
-      isOpen={isOpen}
       label="Projects"
-      onToggle={(nextId) => onToggle(nextId as ResumeSectionId)}
+      isOpen={isOpen}
+      onToggle={onToggle}
+      list={list}
+      items={projects}
+      onRemove={removeProject}
+      labelFor={(item, index) => item.name || `Project ${index + 1}`}
+      emptyMessage="No projects yet. Click Add to create one."
     >
-      <ListEditorControls
-        items={projects}
-        index={list.index}
-        onAdd={list.add}
-        onSelect={list.select}
-        onRemove={removeProject}
-        labelFor={(item, index) => item.name || `Project ${index + 1}`}
-      />
-
-      {activeProject ? (
+      {(activeProject) => (
         <>
           <div className="grid gap-4 md:grid-cols-2">
             <TextInputField
@@ -99,7 +93,7 @@ const ProjectsSection = ({ isOpen, onToggle }: BaseSectionProps) => {
             </CheckboxField>
 
             {/* Children-based `Field`: DelimitedTextArea holds a local draft string and so
-                cannot take the value/onChange contract the `*Field` wrappers impose. */}
+              cannot take the value/onChange contract the `*Field` wrappers impose. */}
             <Field label="Skills (comma separated)">
               <DelimitedTextArea
                 delimiter="comma"
@@ -142,10 +136,8 @@ const ProjectsSection = ({ isOpen, onToggle }: BaseSectionProps) => {
             </Field>
           </div>
         </>
-      ) : (
-        <p className="text-muted text-sm">No projects yet. Click Add to create one.</p>
       )}
-    </SectionAccordion>
+    </ListSection>
   );
 };
 

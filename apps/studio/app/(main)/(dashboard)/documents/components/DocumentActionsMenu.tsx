@@ -14,9 +14,7 @@ import {
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
-import { cn } from "@/lib/utils";
-
-import { Menu, MenuItem, MenuSeparator } from "@veriworkly/ui";
+import { Menu, MenuItem, MenuSeparator, cn } from "@veriworkly/ui";
 
 import { getDocumentEditorPath } from "@/features/documents/core/routes";
 import type { DocumentLibraryItem } from "@/features/documents/services/document-library";

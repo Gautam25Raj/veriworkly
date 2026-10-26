@@ -13,11 +13,9 @@ import { useRef, useState } from "react";
 
 import type { MasterProfile } from "@/types/resume";
 
-import { Card, Badge, Button, TextArea } from "@veriworkly/ui";
+import { Card, Badge, Button, TextArea, cn } from "@veriworkly/ui";
 
-import { cn } from "@/lib/utils";
-
-import ConfirmationModal from "@/components/modals/ConfirmationModal";
+import ConfirmDialog from "@/components/modals/ConfirmDialog";
 
 import { resolveConflictUpdatedAt } from "@/features/resume/services/master-profile";
 
@@ -251,12 +249,12 @@ const ProfileAdvanced = ({ profile, onSave, isSaving }: ProfileAdvancedProps) =>
         }}
       />
 
-      <ConfirmationModal
-        variant="warning"
+      <ConfirmDialog
+        tone="warning"
         title="Discard changes?"
-        cancelText="Keep editing"
+        cancelLabel="Keep editing"
         open={isResetConfirmOpen}
-        confirmText="Discard changes"
+        confirmLabel="Discard changes"
         onConfirm={handleConfirmReset}
         onClose={() => setIsResetConfirmOpen(false)}
         description="Are you sure you want to discard all local raw JSON modifications and reset back to the saved profile state? This action cannot be undone."

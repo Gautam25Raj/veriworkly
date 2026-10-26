@@ -13,6 +13,7 @@ import type { ResumeRenderItem } from "./model";
 import type { ResumeTokens } from "./tokens";
 import type { ResumeTypeScale } from "./typography";
 import type { ResumeSectionStart } from "./keep-together";
+import type { StackedHeaderOptions } from "./stacked-header";
 
 import { getPdfFontStack } from "@/features/documents/constants/fonts";
 import {
@@ -33,7 +34,7 @@ import { pdfFixedWidth, pdfFlexible } from "@/templates/shared/box";
 import { pdfText } from "@/templates/shared/text-tokens";
 import { BULLET_MARKER } from "./typography";
 
-export type ResumePdfStyles = ReturnType<typeof createResumePdfStyles>;
+type ResumePdfStyles = ReturnType<typeof createResumePdfStyles>;
 
 type PdfViewStyle = NonNullable<React.ComponentProps<typeof View>["style"]>;
 
@@ -405,6 +406,53 @@ function PdfItem({
 interface PdfSectionContent {
   nodes: React.ReactNode;
   start: ResumeSectionStart | null;
+}
+
+/** See {@link StackedHeaderOptions}. */
+export function createStackedPdfHeader({
+  geometry,
+  ruleWeight = 1,
+  ruleColor = "borderColor",
+  headlineWeight,
+}: StackedHeaderOptions) {
+  return function StackedHeader(ctx: ResumePdfContext) {
+    const { model, scale, style, styles } = ctx;
+
+    return (
+      <View
+        style={{
+          borderBottomColor: style[ruleColor],
+          borderBottomWidth: pxToPt(scale.hairline * ruleWeight),
+          marginBottom: pxToPt(geometry.headerGap),
+          paddingBottom: pxToPt(geometry.headerPadBottom),
+        }}
+      >
+        {model.showBasics && (
+          <>
+            <View style={{ flexDirection: "column", rowGap: pxToPt(geometry.nameGapY) }}>
+              <Text style={styles.name}>{model.name}</Text>
+
+              {model.headline && (
+                <Text
+                  style={
+                    headlineWeight === undefined
+                      ? styles.role
+                      : [styles.role, { fontWeight: headlineWeight }]
+                  }
+                >
+                  {model.headline}
+                </Text>
+              )}
+            </View>
+
+            <PdfContactRow ctx={ctx} style={{ marginTop: pxToPt(geometry.contactTop) }} />
+          </>
+        )}
+
+        <PdfLinkRow ctx={ctx} style={{ marginTop: pxToPt(geometry.linksTop) }} />
+      </View>
+    );
+  };
 }
 
 export function createResumePdfTemplate(skin: ResumePdfSkin): React.FC<PdfTemplateProps> {

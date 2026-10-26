@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
 
-import { Button, Modal } from "@veriworkly/ui";
+import { Button, Modal, cn } from "@veriworkly/ui";
 
 const LinkedinIcon = ({ className }: { className?: string }) => (
   <svg
@@ -42,7 +42,6 @@ import { DOCUMENT_TYPES, type DocumentType } from "@/features/documents/core/doc
 import type { NewDocumentSource } from "@/features/documents/services/document-limit";
 import { getMasterProfileForNewDocument } from "@/features/resume/services/master-profile";
 
-import { cn } from "@/lib/utils";
 import { useUserStore } from "@/store/useUserStore";
 
 const SOURCE_COPY: Record<NewDocumentSource, { label: string; description: string }> = {

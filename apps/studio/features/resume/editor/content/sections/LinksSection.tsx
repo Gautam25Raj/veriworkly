@@ -1,7 +1,6 @@
 "use client";
 
 import type { BaseSectionProps } from "./section-types";
-import type { ResumeSectionId } from "@/types/resume";
 
 import { useResumeStore } from "@/features/resume/store/resume-store";
 
@@ -21,12 +20,7 @@ const LinksSection = ({ isOpen, onToggle }: BaseSectionProps) => {
   const updateLinkDisplayMode = useResumeStore((state) => state.updateLinkDisplayMode);
 
   return (
-    <SectionAccordion
-      id="links"
-      label="Links"
-      isOpen={isOpen}
-      onToggle={(nextId) => onToggle(nextId as ResumeSectionId)}
-    >
+    <SectionAccordion id="links" label="Links" isOpen={isOpen} onToggle={onToggle}>
       <LinksEditor
         links={links}
         onAddLink={addLinkItem}

@@ -3,24 +3,11 @@ import { unflattenLegacySections } from "@veriworkly/profile-core";
 import type { ResumeData, ResumeLinkType, ResumeSection } from "@/types/resume";
 
 import { normalizeFontFamilyId } from "@/features/documents/constants/fonts";
+import { isDocumentLinkType } from "@/features/documents/core/link-types";
 import { blankResume, defaultSections } from "@/features/resume/constants/default-resume";
 
-function isKnownLinkType(value: string): value is ResumeLinkType {
-  return [
-    "github",
-    "linkedin",
-    "dribbble",
-    "twitter",
-    "portfolio",
-    "behance",
-    "medium",
-    "youtube",
-    "custom",
-  ].includes(value);
-}
-
 function normalizeLinkType(value: string | undefined): ResumeLinkType {
-  return value && isKnownLinkType(value) ? value : "portfolio";
+  return isDocumentLinkType(value) ? value : "portfolio";
 }
 
 function normalizeLinks(value: Partial<ResumeData> | null | undefined) {
@@ -44,11 +31,8 @@ function normalizeLinks(value: Partial<ResumeData> | null | undefined) {
 /**
  * Every custom section survives, in the order it arrived.
  *
- * This used to map over `defaultResume.customSections` and `.find()` one match per `kind`,
- * so the output was always exactly the nine default sections — a user with three custom
- * sections got one, and the other two were dropped on the first read. The eight legacy
- * kinds are no longer synthesised here at all: `unflattenLegacySections` has already turned
- * them into typed arrays by the time this runs.
+ * The eight legacy kinds are not synthesised here: `unflattenLegacySections` has already
+ * turned them into typed arrays by the time this runs.
  */
 function normalizeCustomSections(sections: ResumeData["customSections"]) {
   const usedIds = new Set<string>();

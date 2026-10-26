@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import AdminFilterBar from "@/components/admin/AdminFilterBar";
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import AdminPagination from "@/components/admin/AdminPagination";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
-import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
+import AdminListPage from "@/components/admin/AdminListPage";
+import type { AdminTableColumn } from "@/components/admin/AdminTable";
 
 import { fetchAdminUsers } from "@/features/admin/services/admin-server";
 import type { AdminUserRow } from "@/features/admin/types/admin-types";
@@ -143,33 +141,18 @@ export default async function AdminUsersPage({
   const data = await fetchAdminUsers(params);
 
   return (
-    <div className="space-y-5">
-      <AdminPageHeader
-        eyebrow="People"
-        title="Users"
-        description="Search every account, inspect a full billing and content history, and change roles or revoke sessions."
-      />
-
-      <AdminFilterBar
-        basePath="/admin/users"
-        searchPlaceholder="Email, name, username, user id, or affiliate code"
-        selects={FILTERS}
-      />
-
-      <AdminTable
-        columns={columns}
-        rows={data.items}
-        rowKey={(user) => user.id}
-        emptyMessage="No users match these filters."
-      />
-
-      <AdminPagination
-        total={data.total}
-        limit={data.limit}
-        offset={data.offset}
-        basePath="/admin/users"
-        params={params}
-      />
-    </div>
+    <AdminListPage
+      eyebrow="People"
+      title="Users"
+      description="Search every account, inspect a full billing and content history, and change roles or revoke sessions."
+      basePath="/admin/users"
+      params={params}
+      searchPlaceholder="Email, name, username, user id, or affiliate code"
+      filters={FILTERS}
+      page={data}
+      columns={columns}
+      rowKey={(user) => user.id}
+      emptyMessage="No users match these filters."
+    />
   );
 }

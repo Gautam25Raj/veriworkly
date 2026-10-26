@@ -57,9 +57,7 @@ export function loadWorkspaceSettingsFromLocalStorage(): WorkspaceSettings {
   return parsed.data;
 }
 
-export function saveWorkspaceSettingsToLocalStorage(
-  settings: WorkspaceSettings,
-): LocalStorageWriteResult {
+function saveWorkspaceSettingsToLocalStorage(settings: WorkspaceSettings): LocalStorageWriteResult {
   if (!isBrowser()) {
     return { ok: true };
   }

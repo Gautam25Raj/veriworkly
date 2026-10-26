@@ -67,7 +67,7 @@ export interface ResumeTypeScale {
   hairline: number;
 }
 
-export const BASE_TYPE_SCALE: ResumeTypeScale = {
+const BASE_TYPE_SCALE: ResumeTypeScale = {
   name: 30,
   role: 15,
   contact: 12,

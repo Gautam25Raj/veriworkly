@@ -20,7 +20,7 @@ import type { ApiKeyRecord } from "./ApiKeyTypes";
 
 import { API_KEY_STATUS_LABELS, apiKeyHref, getApiKeyStatus } from "../api-key-service";
 
-import { LocalDateTime } from "./LocalDateTime";
+import { LocalDate } from "@/components/LocalDate";
 import { INACTIVE_STATUS_NOTES, statusClass } from "./details/api-key-detail-utils";
 
 type ApiKeyListProps = {
@@ -172,13 +172,13 @@ export default function ApiKeyList({
                   <div className="flex items-center justify-between gap-3 text-xs">
                     <div className="text-muted-foreground flex items-center gap-1.5">
                       <Calendar className="h-3.5 w-3.5" />
-                      Created <LocalDateTime iso={key.createdAt} dateOnly />
+                      Created <LocalDate value={key.createdAt} />
                     </div>
 
                     <div className="text-muted-foreground">
                       {key.lastUsed ? (
                         <>
-                          Last used <LocalDateTime iso={key.lastUsed} dateOnly />
+                          Last used <LocalDate value={key.lastUsed} />
                         </>
                       ) : (
                         "Never used"

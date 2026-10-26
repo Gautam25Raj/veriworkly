@@ -13,11 +13,7 @@ import { fetchAdminRoadmapServer } from "@/features/admin/services/admin-server"
 
 import DeleteRoadmapButton from "@/app/admin/roadmap/components/DeleteRoadmapButton";
 
-/**
- * Column accents come from the chart ramp rather than raw Tailwind steps. The previous version
- * used `bg-slate-50/50`, `bg-blue-50/50` and `border-slate-50`, all of which are light-mode-only
- * values — on the dark theme they rendered as near-white slabs against a #0d1117 background.
- */
+/** Column accents come from the chart ramp, which has light and dark values; raw palette steps do not. */
 const statusConfig: Record<RoadmapStatus, { label: string; series: ChartSeries }> = {
   todo: { label: "To do", series: 2 },
   "in-progress": { label: "In progress", series: 1 },
@@ -31,7 +27,7 @@ export const metadata: Metadata = {
 };
 
 const AdminRoadmapPage = async () => {
-  const items = (await fetchAdminRoadmapServer()) ?? [];
+  const items = await fetchAdminRoadmapServer();
 
   const grouped: Record<RoadmapStatus, typeof items> = {
     todo: [],

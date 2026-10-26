@@ -3,14 +3,10 @@
 import { toast } from "sonner";
 import { useCallback, useEffect, useState } from "react";
 
-import type {
-  ApiKeyRecord,
-  GeneratedApiKeyRecord,
-  OffsetPaginationPayload,
-} from "../components/ApiKeyTypes";
+import type { ApiKeyRecord, GeneratedApiKeyRecord } from "../components/ApiKeyTypes";
 
 import { useUserStore } from "@/store/useUserStore";
-import { fetchApiData } from "@/utils/fetchApiData";
+import { fetchApiData, type OffsetPaginationPayload } from "@/utils/fetchApiData";
 
 import { apiKeyErrorMessage } from "../api-key-service";
 import { useApiKeyActions } from "./useApiKeyActions";

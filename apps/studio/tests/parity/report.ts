@@ -29,5 +29,3 @@ export function recordReport(label: string, report: string, meta: Record<string,
 
   appendFileSync(REPORT_PATH, `[${status}] ${label} ${detail}${body}\n`, "utf8");
 }
-
-export { REPORT_PATH };

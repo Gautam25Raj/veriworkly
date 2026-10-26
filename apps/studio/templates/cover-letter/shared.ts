@@ -118,7 +118,7 @@ function toHexColor([r, g, b]: Rgb): string {
 }
 
 /** Blend `from` towards `to` by `amount` (0–1). Both must be hex colours. */
-export function mixColors(from: string, to: string, amount: number): string {
+function mixColors(from: string, to: string, amount: number): string {
   const start = parseHexColor(from);
   const end = parseHexColor(to);
 
@@ -178,10 +178,7 @@ export function getCoverLetterPalette(appearance: {
   };
 }
 
-export function isCoverLetterSectionVisible(
-  content: CoverLetterContent,
-  sectionId: CoverLetterSectionId,
-) {
+function isCoverLetterSectionVisible(content: CoverLetterContent, sectionId: CoverLetterSectionId) {
   return !content.appearance?.hiddenSections?.includes(sectionId);
 }
 
@@ -195,14 +192,14 @@ function toRunningText(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
-export function splitParagraphs(value: string): string[] {
+function splitParagraphs(value: string): string[] {
   return value
     .split(/\n{2,}/)
     .map(toRunningText)
     .filter(Boolean);
 }
 
-export function splitRichTextBlocks(value: string): RichTextBlock[] {
+function splitRichTextBlocks(value: string): RichTextBlock[] {
   const blocks: RichTextBlock[] = [];
   const lines = value.split(/\r?\n/);
 
@@ -250,7 +247,7 @@ export function splitRichTextBlocks(value: string): RichTextBlock[] {
   return blocks;
 }
 
-export function splitMarkdownLines(value: string) {
+function splitMarkdownLines(value: string) {
   return value
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -262,7 +259,7 @@ export function splitMarkdownLines(value: string) {
  * The letter itself, cleaned, with the hidden "letter" section already applied — the
  * signature included, since it belongs to the letter rather than the letterhead.
  */
-export function buildCoverLetterFlowContent(content: CoverLetterContent): CoverLetterFlowContent {
+function buildCoverLetterFlowContent(content: CoverLetterContent): CoverLetterFlowContent {
   if (!isCoverLetterSectionVisible(content, "letter")) {
     return {
       body: "",
@@ -392,11 +389,11 @@ export function getFlowSplitKind(item: ProfessionalFlowItem | VeriworklyFlowItem
   return "whole";
 }
 
-export function getCoverLetterLinks(content: CoverLetterContent): ResumeLinkItem[] {
+function getCoverLetterLinks(content: CoverLetterContent): ResumeLinkItem[] {
   return content.links?.items?.filter((link) => normalizeLinkHref(link.url)) ?? [];
 }
 
-export function getCoverLetterLinkDisplayMode(content: CoverLetterContent): ResumeLinkDisplayMode {
+function getCoverLetterLinkDisplayMode(content: CoverLetterContent): ResumeLinkDisplayMode {
   return content.links?.displayMode ?? "icon-username";
 }
 

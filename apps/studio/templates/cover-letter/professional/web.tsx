@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 
 import type { CSSProperties } from "react";
 import type { CoverLetterContent } from "@/features/cover-letter/types";
@@ -11,8 +11,6 @@ import {
   getFragmentBoxStyle,
   getFragmentRows,
   getFragmentWords,
-  paginateCoverLetterFlow,
-  useCoverLetterFontReady,
   type FlowFragment,
 } from "../measure";
 
@@ -20,8 +18,6 @@ import {
   buildProfessionalFlowItems,
   getCoverLetterDocumentTitle,
   getCoverLetterState,
-  getFlowPageKey,
-  getFlowSplitKind,
   type CoverLetterPalette,
   type ProfessionalFlowItem,
 } from "../shared";
@@ -36,6 +32,7 @@ import { webFixedWidth, webFlexible } from "@/templates/shared/box";
 import { webText } from "@/templates/shared/text-tokens";
 import { BULLET_MARKER } from "@/templates/resume/shared/typography";
 import { COVER_LETTER_SCALE as S } from "../tokens";
+import { useFlowPages } from "../use-flow-pages";
 
 import { SOCIAL_ICON_SRC_BY_TYPE } from "@/templates/shared/social-icons";
 
@@ -337,13 +334,13 @@ export function ProfessionalCoverLetterPreview({ content }: { content: CoverLett
   } = state;
   const fontFamily = FONT_FAMILY_MAP[appearance.fontFamily];
   const flowItems = useMemo(() => buildProfessionalFlowItems(state.flow), [state.flow]);
-  const [pages, setPages] = useState<FlowFragment<ProfessionalFlowItem>[][]>(() => [
-    flowItems.map((item) => ({ item })),
-  ]);
-  const measureRef = useRef<HTMLDivElement | null>(null);
-  const firstPrefixRef = useRef<HTMLDivElement | null>(null);
-  const itemRefs = useRef(new Map<string, HTMLDivElement>());
-  const fontsReady = useCoverLetterFontReady(fontFamily);
+  const { pages, measureRef, firstPrefixRef, itemRef } = useFlowPages(flowItems, {
+    fontFamily,
+    pageColor: appearance.pageColor,
+    textColor: palette.text,
+    pageMargin: appearance.pageMargin,
+    bodyStyle,
+  });
 
   const pageStyle: CSSProperties = {
     backgroundColor: appearance.pageColor,
@@ -354,53 +351,6 @@ export function ProfessionalCoverLetterPreview({ content }: { content: CoverLett
 
   // The page box matches the PDF page exactly; see COVER_LETTER_SCALE.
   const pageBox: CSSProperties = { height: px(S.pageHeight), width: px(S.pageWidth) };
-
-  useLayoutEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      const probe = document.createElement("article");
-
-      probe.className = "mx-auto max-w-full overflow-hidden";
-      probe.style.height = px(S.pageHeight);
-      probe.style.width = px(S.pageWidth);
-      Object.assign(probe.style, {
-        backgroundColor: appearance.pageColor,
-        color: palette.text,
-        fontFamily,
-        padding: px(appearance.pageMargin),
-      });
-      measureRef.current?.appendChild(probe);
-
-      const nextPages = paginateCoverLetterFlow(flowItems, {
-        measureRoot: probe,
-        contentRoot: probe,
-        // Only the first page carries the letterhead; later pages are body only.
-        getPrefix: (pageIndex) => (pageIndex === 0 ? firstPrefixRef.current : null),
-        getItemNode: (item) => itemRefs.current.get(item.id) ?? null,
-        getSplitKind: getFlowSplitKind,
-        createBody: (continued) => {
-          const main = document.createElement("main");
-          Object.assign(main.style, bodyStyle(continued));
-          return main;
-        },
-      });
-      probe.remove();
-      const nextKey = getFlowPageKey(nextPages);
-
-      setPages((current) => {
-        const currentKey = getFlowPageKey(current);
-        return currentKey === nextKey ? current : nextPages;
-      });
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [
-    appearance.pageColor,
-    appearance.pageMargin,
-    flowItems,
-    fontFamily,
-    fontsReady,
-    palette.text,
-  ]);
 
   const head = (
     <LetterHead
@@ -431,13 +381,7 @@ export function ProfessionalCoverLetterPreview({ content }: { content: CoverLett
 
           <main style={bodyStyle(false)}>
             {flowItems.map((item) => (
-              <div
-                key={item.id}
-                ref={(node) => {
-                  if (node) itemRefs.current.set(item.id, node);
-                  else itemRefs.current.delete(item.id);
-                }}
-              >
+              <div key={item.id} ref={itemRef(item.id)}>
                 {renderFlowItem({ item }, palette, tokens, appearance.paragraphSpacing)}
               </div>
             ))}

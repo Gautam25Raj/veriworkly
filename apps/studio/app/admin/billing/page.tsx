@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import AdminFilterBar from "@/components/admin/AdminFilterBar";
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import AdminPagination from "@/components/admin/AdminPagination";
 import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
-import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
+import AdminListPage from "@/components/admin/AdminListPage";
+import type { AdminTableColumn } from "@/components/admin/AdminTable";
 import Panel from "@/components/admin/Panel";
 import { SubscriptionActions } from "@/app/admin/billing/BillingActions";
 
@@ -147,89 +145,79 @@ export default async function AdminBillingPage({
   ]);
 
   return (
-    <div className="space-y-5">
-      <AdminPageHeader
-        eyebrow="Revenue"
-        title="Billing"
-        description="Subscriptions, credit float, entitlements, and the provider webhook log. Overrides here are support tools — the payment provider stays authoritative."
-        actions={
-          <div className="flex flex-wrap items-center gap-3 text-sm font-semibold">
-            <Link href="/admin/billing/credits" className="text-accent">
-              Credits
-            </Link>
-            <Link href="/admin/billing/entitlements" className="text-accent">
-              Entitlements
-            </Link>
-            <Link href="/admin/billing/webhooks" className="text-accent">
-              Webhooks
-            </Link>
-          </div>
-        }
-      />
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <AdminStatCard
-          label="Paying subscriptions"
-          value={formatNumber(summary.subscriptions.paying)}
-          hint={`${formatNumber(summary.subscriptions.newLast30Days)} new in 30 days`}
-          tone="positive"
-        />
-        <AdminStatCard
-          label="Canceling at period end"
-          value={formatNumber(summary.subscriptions.cancelingAtPeriodEnd)}
-          tone={summary.subscriptions.cancelingAtPeriodEnd > 0 ? "warning" : "default"}
-        />
-        <AdminStatCard
-          label="Credit float"
-          value={formatNumber(summary.credits.balance)}
-          hint={`${formatNumber(summary.credits.spentLast30Days)} spent in 30 days`}
-          href="/admin/billing/credits"
-        />
-        <AdminStatCard
-          label="Failed webhooks"
-          value={formatNumber(summary.webhooks.failed)}
-          tone={summary.webhooks.failed > 0 ? "critical" : "default"}
-          href="/admin/billing/webhooks?status=FAILED"
-        />
-      </section>
-
-      <Panel className="space-y-3 rounded-xl p-4">
-        <h3 className="text-foreground font-semibold tracking-tight">Subscriptions by product</h3>
-
-        <div className="grid gap-2 text-sm sm:grid-cols-2">
-          {Object.entries(summary.subscriptions.byProduct).length === 0 ? (
-            <p className="text-muted">No paying subscriptions yet.</p>
-          ) : (
-            Object.entries(summary.subscriptions.byProduct).map(([product, count]) => (
-              <div key={product} className="flex items-center justify-between gap-3">
-                <span className="text-muted">{humanizeKey(product)}</span>
-                <span className="text-foreground font-medium">{formatNumber(count)}</span>
-              </div>
-            ))
-          )}
+    <AdminListPage
+      eyebrow="Revenue"
+      title="Billing"
+      description="Subscriptions, credit float, entitlements, and the provider webhook log. Overrides here are support tools — the payment provider stays authoritative."
+      actions={
+        <div className="flex flex-wrap items-center gap-3 text-sm font-semibold">
+          <Link href="/admin/billing/credits" className="text-accent">
+            Credits
+          </Link>
+          <Link href="/admin/billing/entitlements" className="text-accent">
+            Entitlements
+          </Link>
+          <Link href="/admin/billing/webhooks" className="text-accent">
+            Webhooks
+          </Link>
         </div>
-      </Panel>
+      }
+      summary={
+        <>
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <AdminStatCard
+              label="Paying subscriptions"
+              value={formatNumber(summary.subscriptions.paying)}
+              hint={`${formatNumber(summary.subscriptions.newLast30Days)} new in 30 days`}
+              tone="positive"
+            />
+            <AdminStatCard
+              label="Canceling at period end"
+              value={formatNumber(summary.subscriptions.cancelingAtPeriodEnd)}
+              tone={summary.subscriptions.cancelingAtPeriodEnd > 0 ? "warning" : "default"}
+            />
+            <AdminStatCard
+              label="Credit float"
+              value={formatNumber(summary.credits.balance)}
+              hint={`${formatNumber(summary.credits.spentLast30Days)} spent in 30 days`}
+              href="/admin/billing/credits"
+            />
+            <AdminStatCard
+              label="Failed webhooks"
+              value={formatNumber(summary.webhooks.failed)}
+              tone={summary.webhooks.failed > 0 ? "critical" : "default"}
+              href="/admin/billing/webhooks?status=FAILED"
+            />
+          </section>
 
-      <AdminFilterBar
-        basePath="/admin/billing"
-        searchPlaceholder="Customer email, name, or provider subscription id"
-        selects={FILTERS}
-      />
+          <Panel className="space-y-3 rounded-xl p-4">
+            <h3 className="text-foreground font-semibold tracking-tight">
+              Subscriptions by product
+            </h3>
 
-      <AdminTable
-        columns={columns}
-        rows={data.items}
-        rowKey={(row) => row.id}
-        emptyMessage="No subscriptions match these filters."
-      />
-
-      <AdminPagination
-        total={data.total}
-        limit={data.limit}
-        offset={data.offset}
-        basePath="/admin/billing"
-        params={params}
-      />
-    </div>
+            <div className="grid gap-2 text-sm sm:grid-cols-2">
+              {Object.entries(summary.subscriptions.byProduct).length === 0 ? (
+                <p className="text-muted">No paying subscriptions yet.</p>
+              ) : (
+                Object.entries(summary.subscriptions.byProduct).map(([product, count]) => (
+                  <div key={product} className="flex items-center justify-between gap-3">
+                    <span className="text-muted">{humanizeKey(product)}</span>
+                    <span className="text-foreground font-medium">{formatNumber(count)}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </Panel>
+        </>
+      }
+      basePath="/admin/billing"
+      params={params}
+      searchPlaceholder="Customer email, name, or provider subscription id"
+      filters={FILTERS}
+      page={data}
+      columns={columns}
+      rowKey={(row) => row.id}
+      emptyMessage="No subscriptions match these filters."
+    />
   );
 }

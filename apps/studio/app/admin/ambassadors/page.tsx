@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import AdminFilterBar from "@/components/admin/AdminFilterBar";
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import AdminPagination from "@/components/admin/AdminPagination";
 import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
-import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
+import AdminListPage from "@/components/admin/AdminListPage";
+import type { AdminTableColumn } from "@/components/admin/AdminTable";
 import AmbassadorReviewActions from "@/app/admin/ambassadors/AmbassadorReviewActions";
 
 import {
@@ -126,58 +124,44 @@ export default async function AdminAmbassadorsPage({
   ]);
 
   return (
-    <div className="space-y-5">
-      <AdminPageHeader
-        eyebrow="People"
-        title="Campus ambassadors"
-        description="Review applications, approve or reject with a note, and see who currently holds the ambassador role."
-        actions={
-          <Link href="/admin/ambassadors/roster" className="text-accent text-sm font-semibold">
-            View roster →
-          </Link>
-        }
-      />
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <AdminStatCard
-          label="Pending review"
-          value={formatNumber(summary.pending)}
-          tone={summary.pending > 0 ? "warning" : "default"}
-          href="/admin/ambassadors?status=PENDING"
-        />
-        <AdminStatCard label="Approved" value={formatNumber(summary.approved)} tone="positive" />
-        <AdminStatCard label="Rejected" value={formatNumber(summary.rejected)} />
-        <AdminStatCard
-          label="Active ambassadors"
-          value={formatNumber(summary.activeAmbassadors)}
-          href="/admin/ambassadors/roster"
-        />
-        <AdminStatCard
-          label="Applications (7d)"
-          value={formatNumber(summary.applicationsLast7Days)}
-        />
-      </section>
-
-      <AdminFilterBar
-        basePath="/admin/ambassadors"
-        searchPlaceholder="College, applicant email, name, or social handle"
-        selects={FILTERS}
-      />
-
-      <AdminTable
-        columns={columns}
-        rows={data.items}
-        rowKey={(application) => application.id}
-        emptyMessage="No applications match these filters."
-      />
-
-      <AdminPagination
-        total={data.total}
-        limit={data.limit}
-        offset={data.offset}
-        basePath="/admin/ambassadors"
-        params={params}
-      />
-    </div>
+    <AdminListPage
+      eyebrow="People"
+      title="Campus ambassadors"
+      description="Review applications, approve or reject with a note, and see who currently holds the ambassador role."
+      actions={
+        <Link href="/admin/ambassadors/roster" className="text-accent text-sm font-semibold">
+          View roster →
+        </Link>
+      }
+      summary={
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <AdminStatCard
+            label="Pending review"
+            value={formatNumber(summary.pending)}
+            tone={summary.pending > 0 ? "warning" : "default"}
+            href="/admin/ambassadors?status=PENDING"
+          />
+          <AdminStatCard label="Approved" value={formatNumber(summary.approved)} tone="positive" />
+          <AdminStatCard label="Rejected" value={formatNumber(summary.rejected)} />
+          <AdminStatCard
+            label="Active ambassadors"
+            value={formatNumber(summary.activeAmbassadors)}
+            href="/admin/ambassadors/roster"
+          />
+          <AdminStatCard
+            label="Applications (7d)"
+            value={formatNumber(summary.applicationsLast7Days)}
+          />
+        </section>
+      }
+      basePath="/admin/ambassadors"
+      params={params}
+      searchPlaceholder="College, applicant email, name, or social handle"
+      filters={FILTERS}
+      page={data}
+      columns={columns}
+      rowKey={(application) => application.id}
+      emptyMessage="No applications match these filters."
+    />
   );
 }

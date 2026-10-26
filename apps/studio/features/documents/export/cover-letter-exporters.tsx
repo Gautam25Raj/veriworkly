@@ -36,8 +36,8 @@ export async function exportCoverLetterDocument(
       return;
     }
     case "docx": {
-      const { exportDocumentAsDocx } = await import("@/features/documents/export/export-docx");
-      return exportDocumentAsDocx(document);
+      const { exportCoverLetterAsDocx } = await import("@/features/documents/export/export-docx");
+      return exportCoverLetterAsDocx(document);
     }
     case "html": {
       const { buildCoverLetterHtml } = await import("@/templates/cover-letter/web");

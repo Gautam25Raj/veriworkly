@@ -11,7 +11,7 @@ import { DashboardModalsHost } from "./modals/DashboardModalsHost";
 import { useCreateDocument } from "./hooks/useCreateDocument";
 import { useStudioShortcuts } from "./hooks/useStudioShortcuts";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@veriworkly/ui";
 import { useUserStore } from "@/store/useUserStore";
 
 interface StudioShellProps {
@@ -21,13 +21,16 @@ interface StudioShellProps {
 
 const STUDIO_VERSION = "v3.31.0";
 
-export function StudioShell({ children, mainClassName }: StudioShellProps) {
+function StudioShell({ children, mainClassName }: StudioShellProps) {
   const pathname = usePathname();
   const { user } = useUserStore();
 
   const [collapsed, setCollapsed] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  // Open for the path it was opened on: any navigation (a nav link or an account menu item)
+  // closes the drawer without an effect.
+  const [mobileNavPath, setMobileNavPath] = useState<string | null>(null);
+  const mobileNavOpen = mobileNavPath === pathname;
   const [newDocumentOpen, setNewDocumentOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importProvider, setImportProvider] = useState<"linkedin" | "github">("linkedin");
@@ -69,7 +72,7 @@ export function StudioShell({ children, mainClassName }: StudioShellProps) {
         <MobileHeader
           mobileNavOpen={mobileNavOpen}
           onOpenNewDocument={() => setNewDocumentOpen(true)}
-          onToggleMobileNav={() => setMobileNavOpen((open) => !open)}
+          onToggleMobileNav={() => setMobileNavPath(mobileNavOpen ? null : pathname)}
         />
 
         {mobileNavOpen ? (
@@ -78,7 +81,7 @@ export function StudioShell({ children, mainClassName }: StudioShellProps) {
             pathname={pathname}
             version={STUDIO_VERSION}
             displayName={displayName}
-            onClose={() => setMobileNavOpen(false)}
+            onClose={() => setMobileNavPath(null)}
           />
         ) : null}
 

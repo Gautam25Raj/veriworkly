@@ -10,12 +10,10 @@ import {
   fetchAdminGithubSyncRunning,
   flushAdminCache,
   triggerAdminGithubSync,
+  type AdminCachePrefix,
 } from "@/features/admin/services/admin-actions";
 
 const subscribeNever = () => () => {};
-
-type CachePrefix =
-  "portfolio:public" | "user:profile" | "affiliate" | "credits" | "changelog" | "roadmap";
 
 /**
  * `targets` are the server's names for what each choice flushes (`FLUSH_TARGETS` in the admin
@@ -23,7 +21,7 @@ type CachePrefix =
  * generations that are bumped so every key under them goes stale at once.
  */
 const CACHE_PREFIXES: Array<{
-  value: CachePrefix;
+  value: AdminCachePrefix;
   label: string;
   description: string;
   targets: string[];
@@ -71,7 +69,7 @@ const CACHE_PREFIXES: Array<{
  * six names, so no combination of clicks on this page can sign every user out.
  */
 export function CacheFlushControls() {
-  const [prefix, setPrefix] = useState<CachePrefix>("portfolio:public");
+  const [prefix, setPrefix] = useState<AdminCachePrefix>("portfolio:public");
 
   const selected = CACHE_PREFIXES.find((entry) => entry.value === prefix);
 
@@ -81,7 +79,7 @@ export function CacheFlushControls() {
         aria-label="Cache prefix"
         className="h-9 text-xs"
         value={prefix}
-        onChange={(event) => setPrefix(event.target.value as CachePrefix)}
+        onChange={(event) => setPrefix(event.target.value as AdminCachePrefix)}
       >
         {CACHE_PREFIXES.map((entry) => (
           <option key={entry.value} value={entry.value}>

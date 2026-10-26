@@ -5,22 +5,14 @@ import {
   type LocalStorageWriteResult,
 } from "./storage/safe-local-storage";
 import {
-  DOCUMENT_INDEX_STORAGE_KEY,
-  type DocumentIndexRevisionListener,
   getDocumentIndexRevision,
   listLocalStorageKeys,
   readDocumentIndex,
-  subscribeToDocumentIndexRevision,
   wasDocumentIndexCorrupt,
   writeDocumentIndex,
 } from "./document-index";
 import { withDocumentIdentity } from "@/features/documents/core/content-identity";
-import {
-  BaseDocumentData,
-  DocumentCollection,
-  DocumentIndex,
-  DocumentIndexEntry,
-} from "@/types/document";
+import { BaseDocumentData, DocumentIndex, DocumentIndexEntry } from "@/types/document";
 
 export interface SaveDocumentOptions {
   debounceMs?: number;
@@ -59,8 +51,6 @@ export interface LocalStorageConfig<T extends BaseDocumentData> {
   documentKeyPrefix: string;
   /** Pre-v3 single-blob key, read once to migrate then deleted. */
   legacyCollectionKey: string;
-  activeIdKey: string;
-  activeIdScope?: string;
   updatedEventName: string;
   parseItem: (input: unknown) => T | null;
   /** Projects a document down to what list views need. See DocumentIndexEntry. */
@@ -77,10 +67,6 @@ export interface LocalStorageConfig<T extends BaseDocumentData> {
   resolveMovedId?: (id: string) => string | null;
 }
 
-export { DOCUMENT_INDEX_STORAGE_KEY };
-export type { DocumentIndexEntry, DocumentIndexRevisionListener };
-export { subscribeToDocumentIndexRevision };
-
 const CORRUPT_SUFFIX = ":corrupt";
 
 /**
@@ -89,9 +75,6 @@ const CORRUPT_SUFFIX = ":corrupt";
  * The important property: `persist`, `loadById`, and `patchSync` touch exactly one
  * document key plus the (small, body-free) index. None of them scale with how many
  * documents the user has. See storage-keys.ts for why v2's single-blob layout had to go.
- *
- * `loadCollection`/`saveCollection` still exist for the few callers that genuinely need
- * every body at once, but they are the slow path — prefer `listIndex()` when metadata suffices.
  *
  * `listIndex` and `getRevision` never write: the document library calls them from a
  * `useSyncExternalStore` getSnapshot. Every other method first runs {@link prepare}
@@ -170,18 +153,6 @@ export class LocalStorageService<T extends BaseDocumentData> {
       id,
       ...(content === undefined ? {} : { content: withDocumentIdentity(content, { id }) }),
     };
-  }
-
-  private formatActiveId(id: string) {
-    return this.config.activeIdScope ? `${this.config.activeIdScope}:${id}` : id;
-  }
-
-  private parseActiveId(value: string | null) {
-    if (!value) return null;
-    if (!this.config.activeIdScope) return value;
-
-    const prefix = `${this.config.activeIdScope}:`;
-    return value.startsWith(prefix) ? value.slice(prefix.length) : null;
   }
 
   /**
@@ -374,16 +345,6 @@ export class LocalStorageService<T extends BaseDocumentData> {
     return writeDocumentIndex(nextIndex);
   }
 
-  getActiveId(): string | null {
-    if (!this.isBrowser()) return null;
-    return this.parseActiveId(window.localStorage.getItem(this.config.activeIdKey));
-  }
-
-  setActiveId(id: string) {
-    if (!this.isBrowser()) return;
-    safeSetLocalStorageItem(window.localStorage, this.config.activeIdKey, this.formatActiveId(id));
-  }
-
   /**
    * Metadata for every document in this scope, newest first. O(1) in document size —
    * this reads the index only and never touches a document body. Never writes.
@@ -399,22 +360,6 @@ export class LocalStorageService<T extends BaseDocumentData> {
   /** Monotonic counter for cache keys; changes whenever anything in storage changes. */
   getRevision(): number {
     return getDocumentIndexRevision();
-  }
-
-  /**
-   * Loads every document body in this scope. The slow path — O(library size).
-   * Only for callers that truly need all content; use {@link listIndex} otherwise.
-   */
-  loadCollection(): DocumentCollection<T> {
-    const items: Record<string, T> = {};
-
-    for (const item of this.list()) items[item.id] = item;
-
-    return { version: 3, items };
-  }
-
-  saveCollection(collection: DocumentCollection<T>): LocalStorageWriteResult {
-    return this.persistMany(Object.values(collection.items));
   }
 
   /**
@@ -446,22 +391,6 @@ export class LocalStorageService<T extends BaseDocumentData> {
     if (result.ok) this.emitUpdatedEvent();
 
     return result;
-  }
-
-  loadActive(): T | null {
-    const activeId = this.getActiveId();
-    if (activeId) {
-      const active = this.loadById(activeId);
-      if (active) return active;
-    }
-
-    const first = this.listIndex()[0];
-    if (!first) return null;
-
-    const item = this.readDocument(first.id);
-    if (item) this.setActiveId(item.id);
-
-    return item;
   }
 
   loadById(id: string): T | null {
@@ -565,7 +494,6 @@ export class LocalStorageService<T extends BaseDocumentData> {
     if (!saveResult.ok) return { ok: false, reason: saveResult.reason };
 
     this.emitUpdatedEvent();
-    this.setActiveId(toPersist.id);
 
     return movedTo ? { ok: true, queued: false, movedTo } : { ok: true, queued: false };
   }
@@ -610,14 +538,6 @@ export class LocalStorageService<T extends BaseDocumentData> {
 
     this.emitUpdatedEvent();
 
-    const nextId = this.listIndex()[0]?.id ?? null;
-
-    if (nextId) {
-      this.setActiveId(nextId);
-    } else {
-      window.localStorage.removeItem(this.config.activeIdKey);
-    }
-
     return { ok: true };
   }
 
@@ -641,7 +561,6 @@ export class LocalStorageService<T extends BaseDocumentData> {
     for (const id of ids) window.localStorage.removeItem(this.config.documentKey(id));
 
     window.localStorage.removeItem(this.config.legacyCollectionKey);
-    window.localStorage.removeItem(this.config.activeIdKey);
 
     this.emitUpdatedEvent();
 

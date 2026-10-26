@@ -25,9 +25,7 @@ import type { AdminActionQueueKey } from "@/features/admin/types/admin-types";
  * The one description of the admin's information architecture.
  *
  * The sidebar, the breadcrumb trail and the command palette all read this file, so a route
- * added here appears in all three at once. The previous navigation hardcoded its own list,
- * which is how `/admin/billing/credits`, `/admin/billing/entitlements` and every affiliate
- * sub-queue ended up reachable only by typing the URL.
+ * added here appears in all three at once.
  *
  * Order is by how often an operator needs each surface — moderation and money queues first,
  * read-only platform pages last — not alphabetically.

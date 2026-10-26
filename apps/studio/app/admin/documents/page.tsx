@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import AdminFilterBar from "@/components/admin/AdminFilterBar";
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import AdminPagination from "@/components/admin/AdminPagination";
 import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
-import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
+import AdminListPage from "@/components/admin/AdminListPage";
+import type { AdminTableColumn } from "@/components/admin/AdminTable";
 import DocumentModerationActions from "@/app/admin/documents/DocumentModerationActions";
 
 import {
@@ -152,64 +150,50 @@ export default async function AdminDocumentsPage({
   ]);
 
   return (
-    <div className="space-y-5">
-      <AdminPageHeader
-        eyebrow="Content"
-        title="Documents"
-        description="Every resume, cover letter, and portfolio draft on the platform. Moderation can only reduce a document's reach — never widen it."
-        actions={
-          <Link href="/admin/share-links" className="text-accent text-sm font-semibold">
-            Share links →
-          </Link>
-        }
-      />
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <AdminStatCard
-          label="Active documents"
-          value={formatNumber(summary.active)}
-          hint={`${formatNumber(summary.createdLast30Days)} created in 30 days`}
-        />
-        <AdminStatCard
-          label="Soft-deleted"
-          value={formatNumber(summary.softDeleted)}
-          href="/admin/documents?includeDeleted=true"
-        />
-        <AdminStatCard
-          label="Public / unlisted"
-          value={formatNumber(
-            (summary.byVisibility.PUBLIC ?? 0) + (summary.byVisibility.UNLISTED ?? 0),
-          )}
-          hint={`${formatNumber(summary.byVisibility.PRIVATE ?? 0)} private`}
-        />
-        <AdminStatCard
-          label="Share link views"
-          value={formatCompactNumber(summary.shareViews)}
-          hint={`${formatNumber(summary.shareLinks)} links`}
-          href="/admin/share-links"
-        />
-      </section>
-
-      <AdminFilterBar
-        basePath="/admin/documents"
-        searchPlaceholder="Title, slug, document id, or owner email"
-        selects={FILTERS}
-      />
-
-      <AdminTable
-        columns={columns}
-        rows={data.items}
-        rowKey={(row) => row.id}
-        emptyMessage="No documents match these filters."
-      />
-
-      <AdminPagination
-        total={data.total}
-        limit={data.limit}
-        offset={data.offset}
-        basePath="/admin/documents"
-        params={params}
-      />
-    </div>
+    <AdminListPage
+      eyebrow="Content"
+      title="Documents"
+      description="Every resume, cover letter, and portfolio draft on the platform. Moderation can only reduce a document's reach — never widen it."
+      actions={
+        <Link href="/admin/share-links" className="text-accent text-sm font-semibold">
+          Share links →
+        </Link>
+      }
+      summary={
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <AdminStatCard
+            label="Active documents"
+            value={formatNumber(summary.active)}
+            hint={`${formatNumber(summary.createdLast30Days)} created in 30 days`}
+          />
+          <AdminStatCard
+            label="Soft-deleted"
+            value={formatNumber(summary.softDeleted)}
+            href="/admin/documents?includeDeleted=true"
+          />
+          <AdminStatCard
+            label="Public / unlisted"
+            value={formatNumber(
+              (summary.byVisibility.PUBLIC ?? 0) + (summary.byVisibility.UNLISTED ?? 0),
+            )}
+            hint={`${formatNumber(summary.byVisibility.PRIVATE ?? 0)} private`}
+          />
+          <AdminStatCard
+            label="Share link views"
+            value={formatCompactNumber(summary.shareViews)}
+            hint={`${formatNumber(summary.shareLinks)} links`}
+            href="/admin/share-links"
+          />
+        </section>
+      }
+      basePath="/admin/documents"
+      params={params}
+      searchPlaceholder="Title, slug, document id, or owner email"
+      filters={FILTERS}
+      page={data}
+      columns={columns}
+      rowKey={(row) => row.id}
+      emptyMessage="No documents match these filters."
+    />
   );
 }

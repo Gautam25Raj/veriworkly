@@ -5,10 +5,8 @@ import { KeyRound, ShieldCheck } from "lucide-react";
 
 import { hasSessionCookie, serverFetchData } from "@/lib/server-fetch";
 
-import type {
-  ApiKeyRecord,
-  OffsetPaginationPayload,
-} from "@/features/api-keys/components/ApiKeyTypes";
+import type { ApiKeyRecord } from "@/features/api-keys/components/ApiKeyTypes";
+import type { OffsetPaginationPayload } from "@/utils/fetchApiData";
 
 import ApiKeySection from "@/features/api-keys/components/ApiKeySection";
 import { getApiKeyStatus } from "@/features/api-keys/api-key-service";

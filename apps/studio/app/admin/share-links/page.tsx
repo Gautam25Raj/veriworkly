@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import AdminFilterBar from "@/components/admin/AdminFilterBar";
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import AdminPagination from "@/components/admin/AdminPagination";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
-import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
+import AdminListPage from "@/components/admin/AdminListPage";
+import type { AdminTableColumn } from "@/components/admin/AdminTable";
 import ShareLinkActions from "@/app/admin/share-links/ShareLinkActions";
 
 import { fetchAdminShareLinks } from "@/features/admin/services/admin-server";
@@ -109,38 +107,23 @@ export default async function AdminShareLinksPage({
   const data = await fetchAdminShareLinks(params);
 
   return (
-    <div className="space-y-5">
-      <AdminPageHeader
-        eyebrow="Content"
-        title="Share links"
-        description="Public document URLs, how much traffic each gets, and whether it is password protected. Revoking a link kills the URL immediately."
-        actions={
-          <Link href="/admin/documents" className="text-accent text-sm font-semibold">
-            ← Documents
-          </Link>
-        }
-      />
-
-      <AdminFilterBar
-        basePath="/admin/share-links"
-        searchPlaceholder="Slug, document title, or owner email"
-        selects={FILTERS}
-      />
-
-      <AdminTable
-        columns={columns}
-        rows={data.items}
-        rowKey={(row) => row.id}
-        emptyMessage="No share links match these filters."
-      />
-
-      <AdminPagination
-        total={data.total}
-        limit={data.limit}
-        offset={data.offset}
-        basePath="/admin/share-links"
-        params={params}
-      />
-    </div>
+    <AdminListPage
+      eyebrow="Content"
+      title="Share links"
+      description="Public document URLs, how much traffic each gets, and whether it is password protected. Revoking a link kills the URL immediately."
+      actions={
+        <Link href="/admin/documents" className="text-accent text-sm font-semibold">
+          ← Documents
+        </Link>
+      }
+      basePath="/admin/share-links"
+      params={params}
+      searchPlaceholder="Slug, document title, or owner email"
+      filters={FILTERS}
+      page={data}
+      columns={columns}
+      rowKey={(row) => row.id}
+      emptyMessage="No share links match these filters."
+    />
   );
 }

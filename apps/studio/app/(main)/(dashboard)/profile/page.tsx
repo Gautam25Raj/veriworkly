@@ -4,7 +4,7 @@ import {
   ProfileLinksGrid,
   ProfileDataLayers,
 } from "@/features/profile/components/ProfileOverviewSections";
-import ProfileHero from "@/features/profile/components/ProfielHero";
+import ProfileHero from "@/features/profile/components/ProfileHero";
 import ProfileDataPanel from "@/features/profile/components/ProfileDataPanel";
 import AccountStatsPanel from "@/features/profile/components/ProfileAccountStats";
 import DangerZoneCard from "@/features/profile/components/DangerZoneCard";

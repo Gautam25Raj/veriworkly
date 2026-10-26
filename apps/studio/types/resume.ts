@@ -9,8 +9,7 @@ import type {
   MasterProfilePublication,
 } from "@veriworkly/profile-core";
 
-import type { DocumentSyncState } from "@/types";
-import type { SyncStatus } from "@/features/documents/services/sync-engine";
+import type { DocumentSyncState } from "@/types/document";
 import type {
   DocumentLinkItem,
   DocumentLinkType,
@@ -73,7 +72,7 @@ export type ResumeLinkType = DocumentLinkType;
 export type ResumeLinkDisplayMode = DocumentLinkDisplayMode;
 export type ResumeLinkItem = DocumentLinkItem;
 
-export interface ResumeLinks {
+interface ResumeLinks {
   displayMode: ResumeLinkDisplayMode;
   items: ResumeLinkItem[];
 }
@@ -135,7 +134,7 @@ export type ResumeVolunteer = MasterProfileVolunteer;
 export type ResumeReference = MasterProfileReference;
 export type ResumeAchievement = MasterProfileAchievement;
 
-export type ResumeAdditionalSectionKind =
+type ResumeAdditionalSectionKind =
   | "certifications"
   | "awards"
   | "publications"
@@ -190,9 +189,7 @@ export interface ResumeCustomization {
   headingLineHeight: number;
 }
 
-export type ResumeSyncStatus = SyncStatus;
-
-export type ResumeSyncState = DocumentSyncState;
+type ResumeSyncState = DocumentSyncState;
 
 export interface ResumeData {
   id: string;
@@ -205,12 +202,7 @@ export interface ResumeData {
   education: ResumeEducationItem[];
   projects: ResumeProjectItem[];
   skills: ResumeSkillGroup[];
-  /*
-   * The same eight typed arrays the master profile has. A resume used to carry none of
-   * them: every optional section was flattened into `customSections`, which meant the
-   * master -> resume hand-off could only ever lose data — a reference's phone number
-   * arrived in a field called `date` and a volunteer's dates arrived as one display string.
-   */
+  /* The same eight typed arrays the master profile has, so the master -> resume hand-off is lossless. */
   languages: ResumeLanguage[];
   interests: ResumeInterest[];
   awards: ResumeAward[];
@@ -231,10 +223,10 @@ export interface ResumeData {
  * Re-exported, not redeclared. The master profile is defined once, in
  * `@veriworkly/profile-core`, and its type is inferred from that schema — a hand-written
  * interface here would be a second definition free to drift from the schema the server
- * validates against, which is precisely the failure the package was extracted to end.
+ * validates against.
  *
  * `ResumeData` above stays local: a resume is a document, forked from the profile at
  * creation and independent of it thereafter. Its member types are the profile's, though —
- * see the alias blocks — so the two can no longer disagree about what a certificate is.
+ * see the alias blocks — so the two cannot disagree about what a certificate is.
  */
 export type { MasterProfileData, MasterProfile } from "@veriworkly/profile-core";

@@ -1,7 +1,9 @@
 "use client";
 
 import { FileText, Mail, Search, X } from "lucide-react";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
+
+import { Modal } from "@veriworkly/ui";
 
 import type { DocumentType } from "@/features/documents/core/document-types";
 import type { DocumentLibraryItem } from "@/features/documents/services/document-library";
@@ -29,17 +31,6 @@ export function WorkspaceSearchModal({
 
   const [query, setQuery] = useState("");
 
-  useEffect(() => {
-    if (!open) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, open]);
-
   const results = useMemo(() => {
     if (!open) return [];
 
@@ -61,25 +52,11 @@ export function WorkspaceSearchModal({
       .slice(0, 10);
   }, [open, query]);
 
-  if (!open) return null;
-
   return (
-    <div
-      role="presentation"
-      onMouseDown={onClose}
-      className="fixed inset-0 z-80 flex items-start justify-center bg-black/45 px-4 pt-24 backdrop-blur-sm"
-    >
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="workspace-search-title"
-        onMouseDown={(event) => event.stopPropagation()}
-        className="border-border bg-card w-full max-w-2xl overflow-hidden rounded-2xl border shadow-2xl"
-      >
+    <Modal open={open} onClose={onClose}>
+      <Modal.Content className="overflow-hidden p-0 md:max-w-2xl">
         <div className="border-border/70 border-b p-3">
-          <h2 id="workspace-search-title" className="sr-only">
-            Search workspace
-          </h2>
+          <Modal.Title className="sr-only">Search workspace</Modal.Title>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <label className="sr-only" htmlFor={inputId}>
@@ -139,8 +116,8 @@ export function WorkspaceSearchModal({
             </div>
           )}
         </div>
-      </section>
-    </div>
+      </Modal.Content>
+    </Modal>
   );
 }
 

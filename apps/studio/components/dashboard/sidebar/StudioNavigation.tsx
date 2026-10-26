@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@veriworkly/ui";
 import { siteConfig } from "@/config/site";
 
 export interface StudioNavItem {

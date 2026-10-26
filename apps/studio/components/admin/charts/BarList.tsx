@@ -2,9 +2,11 @@ import Link from "next/link";
 
 import { cn } from "@veriworkly/ui";
 
+import { formatNumber } from "@/features/admin/utils/admin-format";
+
 import { chartColor, type ChartSeries } from "./ChartDefs";
 
-export interface BarListItem {
+interface BarListItem {
   label: string;
   value: number;
   /** Turns the row into a link to the filtered list that explains the number. */
@@ -36,7 +38,7 @@ interface BarListProps {
 const BarList = ({
   items,
   series = 1,
-  formatValue = (value) => value.toLocaleString("en-US"),
+  formatValue = formatNumber,
   emptyMessage = "Nothing recorded yet.",
   limit,
   className,

@@ -28,12 +28,7 @@ import {
 } from "./storage-keys";
 
 export type { SyncResult, SyncTelemetry, SyncWorkerOptions };
-export type { RemoteDeletionDetail };
-export {
-  DOCUMENT_REMOTE_DELETION_EVENT,
-  DOCUMENT_STORAGE_UPDATED_EVENT,
-  DOCUMENT_SYNC_OUTBOX_UPDATED_EVENT,
-};
+export { DOCUMENT_STORAGE_UPDATED_EVENT, DOCUMENT_SYNC_OUTBOX_UPDATED_EVENT };
 
 /** Subscribes to deletions made on another device; returns the unsubscribe function. */
 export function subscribeToRemoteDeletions(listener: (detail: RemoteDeletionDetail) => void) {
@@ -162,7 +157,7 @@ export function startAllDocumentSyncWorkers(options: SyncWorkerOptions) {
   for (const type of DOCUMENT_TYPES) getService(type).startWorker(options);
 }
 
-export function setDocumentSyncEnabled(type: DocumentType, enabled: boolean) {
+function setDocumentSyncEnabled(type: DocumentType, enabled: boolean) {
   return getService(type).setAllSyncEnabled(enabled);
 }
 

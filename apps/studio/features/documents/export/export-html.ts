@@ -91,9 +91,8 @@ function inlineComputedStyles(source: Element, clone: Element): void {
  * The subtree to export out of the preview stage.
  *
  * Prefers the element the preview explicitly marks as holding the visible pages. The
- * fallback to the first element child is what this function used to do unconditionally —
- * it is kept only for preview shells that carry no marker, and it is why the hidden-node
- * pruning above exists as a second line of defence.
+ * fallback to the first element child is for preview shells that carry no marker, and it is
+ * why the hidden-node pruning above exists as a second line of defence.
  */
 function findExportSourceNode(container: HTMLElement): HTMLElement {
   const markedRoot = container.querySelector<HTMLElement>(`[${EXPORT_ROOT_ATTRIBUTE}]`);

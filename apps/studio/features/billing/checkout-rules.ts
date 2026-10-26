@@ -1,5 +1,6 @@
 import type { CatalogProduct, ProductKey } from "@/features/billing/types";
 import { ApiRequestError } from "@/utils/fetchApiData";
+import { formatCents } from "@/features/admin/utils/admin-format";
 
 export const PAYMENTS_OPEN_SOON =
   "Payments open soon. Purchases are not available yet; nothing has been charged.";
@@ -35,10 +36,6 @@ const PASS_NAMES: Partial<Record<CheckoutInterval, string>> = {
   one_day: "3-Day Sprint pass",
   seven_day: "7-Day Hunt pass",
 };
-
-export function formatPrice(cents: number, currency: CatalogProduct["currency"] = "USD") {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
-}
 
 export type CheckoutRequest =
   | {
@@ -76,6 +73,6 @@ export function resolveCheckoutRequest(
     productKey: product.key,
     interval,
     productName: PASS_NAMES[interval] ?? product.name,
-    priceLabel: `${formatPrice(priceCents, product.currency)} ${INTERVAL_LABELS[interval]}`,
+    priceLabel: `${formatCents(priceCents, product.currency)} ${INTERVAL_LABELS[interval]}`,
   };
 }

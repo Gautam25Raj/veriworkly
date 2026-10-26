@@ -13,7 +13,7 @@ import {
 
 import { useCoverLetterStore } from "@/features/cover-letter/store/cover-letter-store";
 
-import DestructiveModal from "@/components/modals/DestructiveModal";
+import ConfirmDialog, { documentDeleteNotice } from "@/components/modals/ConfirmDialog";
 import ShareDocumentModal from "@/components/modals/ShareDocumentModal";
 
 interface CoverLetterEditorModalsProps {
@@ -86,14 +86,16 @@ const CoverLetterEditorModals = ({
         />
       )}
 
-      <DestructiveModal
-        open={deleteModalOpen}
-        onConfirmAction={onDeleteCoverLetter}
-        onCloseAction={onDeleteModalClose}
+      <ConfirmDialog
+        tone="destructive"
+        confirmPhrase="DELETE"
         loading={isDeleting}
-        entityName={document.title || "cover letter"}
-        cloudBacked={Boolean(document.sync.cloudDocumentId)}
-        title="Delete Cover Letter?"
+        open={deleteModalOpen}
+        onConfirm={onDeleteCoverLetter}
+        onClose={onDeleteModalClose}
+        title={"Delete Cover Letter?"}
+        cancelLabel={`Keep ${document.title || "cover letter"}`}
+        description={documentDeleteNotice(Boolean(document.sync.cloudDocumentId))}
       />
     </>
   );

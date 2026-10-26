@@ -4,10 +4,9 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { CloudSync, CheckCircle2, History, LucideIcon } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import { useUserStore } from "@/store/useUserStore";
 
-import { Switch } from "@veriworkly/ui";
+import { Switch, cn } from "@veriworkly/ui";
 
 import {
   syncAllPendingDocuments,

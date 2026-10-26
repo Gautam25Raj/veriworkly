@@ -11,9 +11,9 @@ import type {
 
 import { useResumeStore } from "@/features/resume/store/resume-store";
 
-import SectionAccordion from "@/features/documents/editor/SectionAccordion";
-import { ListEditorControls } from "@/features/documents/editor/ListEditorControls";
 import { useIndexedListEditor } from "@/features/documents/editor/useIndexedListEditor";
+
+import ListSection from "./ListSection";
 
 /**
  * The list shell every typed optional section shares: add, select, remove, and render the
@@ -63,35 +63,27 @@ export default function TypedSectionEditor<K extends ResumeTypedSectionKey>({
 
   const list = useIndexedListEditor(items, () => addTypedItem(sectionKey));
 
-  const activeItem = list.activeItem;
-
   return (
-    <SectionAccordion
+    <ListSection
       id={sectionId}
       label={label}
       isOpen={isOpen}
-      onToggle={(nextId) => onToggle(nextId as ResumeSectionId)}
+      onToggle={onToggle}
+      items={items}
+      list={list}
+      addLabel={addLabel}
+      fullWidthWhenEmpty
+      emptyMessage={emptyMessage}
+      onRemove={(index) => removeTypedItem(sectionKey, index)}
+      labelFor={(item, index) => labelFor(item) || `${fallbackItemLabel} ${index + 1}`}
     >
-      <ListEditorControls
-        items={items}
-        index={list.index}
-        onAdd={list.add}
-        onSelect={list.select}
-        addLabel={addLabel}
-        fullWidthWhenEmpty
-        onRemove={(index) => removeTypedItem(sectionKey, index)}
-        labelFor={(item, index) => labelFor(item) || `${fallbackItemLabel} ${index + 1}`}
-      />
-
-      {activeItem ? (
+      {(item) =>
         children({
-          item: activeItem,
+          item,
           index: list.index,
           update: (values) => updateTypedItem(sectionKey, list.index, values),
         })
-      ) : (
-        <p className="text-muted text-sm">{emptyMessage}</p>
-      )}
-    </SectionAccordion>
+      }
+    </ListSection>
   );
 }

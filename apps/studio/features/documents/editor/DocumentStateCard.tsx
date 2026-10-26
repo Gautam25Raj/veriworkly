@@ -1,8 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useRouter } from "next/navigation";
 
-import { Card } from "@veriworkly/ui";
+import type { EditorLoadState } from "./editor-load-status";
+
+import { Button, Card } from "@veriworkly/ui";
 
 /**
  * Pre-editor state frame — "loading" and "not found" — shared by the resume and cover
@@ -26,4 +29,58 @@ export function DocumentStateCard({
       </Card>
     </div>
   );
+}
+
+/**
+ * The card an editor shows instead of itself until its document is ready: loading, not
+ * found, or a load error with a retry. Renders nothing once the document is ready.
+ */
+export function DocumentLoadStateCard({
+  load,
+  isReady,
+  noun,
+  notFoundMessage,
+  onRetry,
+}: {
+  load: EditorLoadState;
+  isReady: boolean;
+  /** Lower case, e.g. "cover letter". */
+  noun: string;
+  notFoundMessage: string;
+  onRetry: () => void;
+}) {
+  const router = useRouter();
+  const backToDocuments = (
+    <Button onClick={() => router.push("/documents")} variant="secondary">
+      Back to documents
+    </Button>
+  );
+
+  if (load.status === "not-found") {
+    return (
+      <DocumentStateCard
+        title={`${noun[0].toUpperCase()}${noun.slice(1)} not found`}
+        message={notFoundMessage}
+      >
+        {backToDocuments}
+      </DocumentStateCard>
+    );
+  }
+
+  if (load.status === "error") {
+    return (
+      <DocumentStateCard title={`Could not load this ${noun}`} message={load.message}>
+        <div className="flex justify-center gap-2">
+          <Button onClick={onRetry}>Try again</Button>
+          {backToDocuments}
+        </div>
+      </DocumentStateCard>
+    );
+  }
+
+  if (!isReady) {
+    return <DocumentStateCard title={`Loading ${noun}`} message="Preparing your editor." />;
+  }
+
+  return null;
 }

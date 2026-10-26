@@ -1,4 +1,6 @@
-export type AmbassadorApplicationSnapshot = {
+import type { Role } from "@/features/admin/types/admin-types";
+
+type AmbassadorApplicationSnapshot = {
   collegeName: string;
   graduationYear: string;
   whyJoin: string;
@@ -16,7 +18,7 @@ export type AmbassadorApplicationSnapshot = {
 export type AmbassadorStatus = {
   name: string | null;
   email: string | null;
-  role: "USER" | "AMBASSADOR" | "ADMIN";
+  role: Role;
   ambassadorStatus: "NONE" | "PENDING" | "APPROVED" | "REJECTED" | string;
   collegeName: string | null;
   graduationYear: string | null;

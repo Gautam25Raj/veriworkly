@@ -5,7 +5,7 @@ import { memo, useCallback, useMemo, useState } from "react";
 import { Button } from "@veriworkly/ui";
 import { Plus } from "lucide-react";
 
-import type { ResumeSection, ResumeSectionId } from "@/types/resume";
+import type { ResumeSection } from "@/types/resume";
 
 import { useResumeStore } from "@/features/resume/store/resume-store";
 import { getResumeSectionKey } from "@/features/documents/rendering/resume-rendering";
@@ -91,12 +91,9 @@ const EditorSectionItem = memo(function EditorSectionItem({
   isOpen,
   onToggle,
 }: EditorSectionItemProps) {
-  const sectionProps = {
-    isOpen,
-    // The accordion children report their own id, which for a custom section is already its
-    // key; for the rest, the id and the key are the same string.
-    onToggle: onToggle as (sectionId: ResumeSectionId | string) => void,
-  };
+  // The accordion children report their own id, which for a custom section is already its
+  // key; for the rest, the id and the key are the same string.
+  const sectionProps = { isOpen, onToggle };
 
   if (section.id === "custom") {
     // Missing `customSectionId` means the entry predates the field. `normalizeResumeData`

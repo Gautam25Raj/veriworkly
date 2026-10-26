@@ -4,7 +4,7 @@ import { KeyRound } from "lucide-react";
 
 import { Card, Input } from "@veriworkly/ui";
 
-import { useTomorrowDateInput } from "../LocalDateTime";
+import { useTomorrowDateInput } from "@/components/LocalDate";
 
 import { API_KEY_MAX_RATE_LIMIT, API_KEY_RATE_WINDOW_LABEL } from "../../api-key-service";
 

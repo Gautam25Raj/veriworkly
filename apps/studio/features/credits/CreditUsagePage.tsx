@@ -4,7 +4,7 @@ import { Coins, History, TrendingDown, TrendingUp } from "lucide-react";
 import type { CreditTransaction, CreditWallet } from "@/features/credits/types";
 import type { BillingSummary } from "@/features/billing/types";
 import type { AtsPricing } from "@/features/ats/types";
-import { LocalDate } from "@/features/billing/LocalDate";
+import { LocalDate } from "@/components/LocalDate";
 
 /** The server keeps the newest entries only (`CREDIT_HISTORY_LIMIT`); there is no paging. */
 const HISTORY_LIMIT = 50;

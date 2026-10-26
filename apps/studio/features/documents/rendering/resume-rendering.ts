@@ -231,7 +231,7 @@ export function getProjectLinkText(item: ResumeData["projects"][number]): string
   return cleanResumeText(item.link);
 }
 
-export function hasExperienceContent(item: ResumeData["experience"][number]): boolean {
+function hasExperienceContent(item: ResumeData["experience"][number]): boolean {
   return Boolean(
     cleanResumeText(item.role) ||
     cleanResumeText(item.company) ||
@@ -241,7 +241,7 @@ export function hasExperienceContent(item: ResumeData["experience"][number]): bo
   );
 }
 
-export function hasEducationContent(item: ResumeData["education"][number]): boolean {
+function hasEducationContent(item: ResumeData["education"][number]): boolean {
   return Boolean(
     cleanResumeText(item.school) ||
     cleanResumeText(item.degree) ||
@@ -250,7 +250,7 @@ export function hasEducationContent(item: ResumeData["education"][number]): bool
   );
 }
 
-export function hasProjectContent(item: ResumeData["projects"][number]): boolean {
+function hasProjectContent(item: ResumeData["projects"][number]): boolean {
   return Boolean(
     cleanResumeText(item.name) ||
     cleanResumeText(item.role) ||
@@ -261,7 +261,7 @@ export function hasProjectContent(item: ResumeData["projects"][number]): boolean
   );
 }
 
-export function hasSkillGroupContent(item: ResumeData["skills"][number]): boolean {
+function hasSkillGroupContent(item: ResumeData["skills"][number]): boolean {
   return Boolean(
     cleanResumeText(item.name) && item.keywords.some((keyword) => cleanResumeText(keyword)),
   );
@@ -278,16 +278,16 @@ export function hasCustomItemContent(item: ResumeData["customSections"][number][
   );
 }
 
-export function hasCustomSectionContent(section: ResumeData["customSections"][number]): boolean {
+function hasCustomSectionContent(section: ResumeData["customSections"][number]): boolean {
   return section.items.some((item) => hasCustomItemContent(item));
 }
 
 /*
  * Content predicates for the eight typed sections.
  *
- * Each one asks the same question the flattened `hasCustomItemContent` used to ask — "did
- * the user put anything in this row?" — against the fields the row actually has, so an
- * entry with only a phone number or only a fluency still counts as content.
+ * Each one asks "did the user put anything in this row?" against the fields the row
+ * actually has, so an entry with only a phone number or only a fluency still counts as
+ * content.
  */
 
 export function hasLanguageContent(item: ResumeData["languages"][number]): boolean {

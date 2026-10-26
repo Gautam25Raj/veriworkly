@@ -27,32 +27,12 @@ import {
   isMonthDate,
   isYearDate,
 } from "@/features/resume/schemas/resume-validation-rules";
+import { createLocalStorageMock } from "@/tests/utils/local-storage";
 
 // lib/constants reads the backend URL when it is first imported.
 vi.hoisted(() => {
   process.env.NEXT_PUBLIC_BACKEND_URL ||= "http://localhost:8080/api/v1";
 });
-
-function createLocalStorageMock() {
-  const store = new Map<string, string>();
-
-  return {
-    getItem: vi.fn((key: string) => store.get(key) ?? null),
-    setItem: vi.fn((key: string, value: string) => {
-      store.set(key, value);
-    }),
-    removeItem: vi.fn((key: string) => {
-      store.delete(key);
-    }),
-    clear: vi.fn(() => {
-      store.clear();
-    }),
-    key: vi.fn((index: number) => [...store.keys()][index] ?? null),
-    get length() {
-      return store.size;
-    },
-  };
-}
 
 function stubBrowser(hostname: string) {
   const localStorageMock = createLocalStorageMock();

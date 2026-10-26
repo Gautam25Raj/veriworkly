@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import AdminFilterBar from "@/components/admin/AdminFilterBar";
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import AdminPagination from "@/components/admin/AdminPagination";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
-import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
+import AdminListPage from "@/components/admin/AdminListPage";
+import type { AdminTableColumn } from "@/components/admin/AdminTable";
 
 import { fetchAdminReferrals } from "@/features/admin/services/admin-server";
 import type { AdminReferralRow } from "@/features/admin/types/admin-types";
@@ -98,34 +96,22 @@ export default async function AdminReferralsPage({
   const data = await fetchAdminReferrals(params);
 
   return (
-    <div className="space-y-5">
-      <AdminPageHeader
-        eyebrow="Revenue"
-        title="Affiliate referrals"
-        description="Every signup attributed to an affiliate code, and whether it has converted into a paying customer."
-        actions={
-          <Link href="/admin/affiliates" className="text-accent text-sm font-semibold">
-            ← Affiliates
-          </Link>
-        }
-      />
-
-      <AdminFilterBar basePath="/admin/affiliates/referrals" selects={FILTERS} />
-
-      <AdminTable
-        columns={columns}
-        rows={data.items}
-        rowKey={(row) => row.id}
-        emptyMessage="No referrals match these filters."
-      />
-
-      <AdminPagination
-        total={data.total}
-        limit={data.limit}
-        offset={data.offset}
-        basePath="/admin/affiliates/referrals"
-        params={params}
-      />
-    </div>
+    <AdminListPage
+      eyebrow="Revenue"
+      title="Affiliate referrals"
+      description="Every signup attributed to an affiliate code, and whether it has converted into a paying customer."
+      actions={
+        <Link href="/admin/affiliates" className="text-accent text-sm font-semibold">
+          ← Affiliates
+        </Link>
+      }
+      basePath="/admin/affiliates/referrals"
+      params={params}
+      filters={FILTERS}
+      page={data}
+      columns={columns}
+      rowKey={(row) => row.id}
+      emptyMessage="No referrals match these filters."
+    />
   );
 }

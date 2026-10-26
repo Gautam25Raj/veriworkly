@@ -2,6 +2,8 @@
 
 import { useSyncExternalStore } from "react";
 
+import { tomorrowLocalDateInput } from "@/lib/local-date";
+
 const subscribeNever = () => () => {};
 
 /**
@@ -25,4 +27,9 @@ export function LocalDate({ value, withTime = false }: { value: string; withTime
         : new Date(value).toLocaleString("en-US", { ...options, timeZone: "UTC" })}
     </time>
   );
+}
+
+/** Tomorrow in the user's time zone, as a date input's `min`; unset during server rendering. */
+export function useTomorrowDateInput() {
+  return useSyncExternalStore(subscribeNever, tomorrowLocalDateInput, () => undefined);
 }

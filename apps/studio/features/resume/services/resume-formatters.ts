@@ -7,26 +7,10 @@ import {
   formatDateRange,
   sanitizeFileName,
   escapeHtml,
-  joinTruthy,
 } from "@/features/documents/utils/formatters";
 
-export { safeText, formatDateRange, sanitizeFileName, escapeHtml, joinTruthy };
-
-export function getResumeTitle(resume: ResumeData): string {
-  return resume.title?.trim() || resume.basics.fullName.trim() || "Untitled Resume";
-}
+export { safeText, formatDateRange, escapeHtml };
 
 export function getResumeFileBaseName(resume: ResumeData): string {
   return sanitizeFileName(resume.title || resume.basics.fullName) || "resume";
-}
-
-export function getVisibleSectionMap(resume: ResumeData): Map<string, boolean> {
-  return new Map(resume.sections.map((section) => [section.id, section.visible]));
-}
-
-export function isSectionVisible(
-  visibleSections: Map<string, boolean>,
-  sectionId: string,
-): boolean {
-  return visibleSections.get(sectionId) ?? true;
 }

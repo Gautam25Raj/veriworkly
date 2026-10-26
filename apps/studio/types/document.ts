@@ -14,11 +14,6 @@ export interface BaseDocumentData {
   templateId: string;
 }
 
-export interface DocumentCollection<T extends BaseDocumentData> {
-  version: number;
-  items: Record<string, T>;
-}
-
 /**
  * The list-view projection of a document, held in the shared index key.
  *

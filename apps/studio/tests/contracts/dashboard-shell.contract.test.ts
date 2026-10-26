@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   mainNav,
@@ -7,6 +7,11 @@ import {
   NavGroup,
   StudioNavLink,
 } from "@/components/dashboard/sidebar/StudioNavigation";
+
+vi.mock("next/font/google", () => ({
+  Geist: () => ({ variable: "" }),
+  Geist_Mono: () => ({ variable: "" }),
+}));
 
 describe("dashboard navigation contracts", () => {
   it("exports navigation components and configs", () => {

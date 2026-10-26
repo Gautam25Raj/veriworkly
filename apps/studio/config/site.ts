@@ -13,18 +13,13 @@ const links = {
 } as const;
 
 export const siteConfig = {
-  name: "VeriWorkly Studio",
   shortName: "VeriWorkly",
-
-  creator: "Gautam Raj",
 
   /** The studio's own origin, for metadata, sitemap and robots. `SITE_URL` is the marketing site's. */
   url: process.env.NEXT_PUBLIC_APP_URL || links.app,
 
   description:
     "Free, open-source, and privacy-first studio for resumes, cover letters, portfolios, ATS checks, and AI-assisted content.",
-
-  tagline: "Build career assets. No login. 100% private.",
 
   links,
 
@@ -51,23 +46,7 @@ export const siteConfig = {
     "best free resume builder",
   ],
 
-  openGraph: {
-    type: "website",
-    locale: "en_US",
-    siteName: "VeriWorkly",
-  },
-
   twitter: {
     handle: "@veriworkly",
-    site: "@veriworkly",
-    cardType: "summary_large_image",
   },
-
-  navigation: [
-    { href: "/", label: "Overview" },
-    { href: `${links.main}/templates`, label: "Templates" },
-    { href: "/profile", label: "Profile" },
-    { href: `${links.main}/roadmap`, label: "Roadmap" },
-    { href: `${links.main}/stats`, label: "Development" },
-  ],
 } as const;

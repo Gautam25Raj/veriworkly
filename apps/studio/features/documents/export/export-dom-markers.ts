@@ -9,10 +9,9 @@
 /**
  * Marks the element that wraps the *visible* rendered document and nothing else.
  *
- * The export used to clone the whole preview stage, which also contains the off-screen
- * copy the paginator measures against — so every exported file carried a second, complete
- * copy of the resume. Invisible in a browser; fully present to anything that parses the
- * markup (an ATS, a scraper, a text extractor, a diff).
+ * The preview stage also contains the off-screen copy the paginator measures against;
+ * exporting the whole stage would carry a second, complete copy of the resume — invisible in
+ * a browser, fully present to anything that parses the markup (an ATS, a text extractor).
  */
 export const EXPORT_ROOT_ATTRIBUTE = "data-resume-pages";
 

@@ -5,7 +5,7 @@ import { AlertTriangle, Trash2 } from "lucide-react";
 import { Button } from "@veriworkly/ui";
 import DeleteAccountModal from "./DeleteAccountModal";
 
-export function DangerZoneCard({ userEmail }: { userEmail?: string | null }) {
+function DangerZoneCard({ userEmail }: { userEmail?: string | null }) {
   const [isModalOpen, setIsModalOpen] = React.useState(false);
 
   if (!userEmail) return null;

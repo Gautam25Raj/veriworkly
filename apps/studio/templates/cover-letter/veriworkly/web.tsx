@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
 
 import type { CSSProperties } from "react";
 import type { CoverLetterContent } from "@/features/cover-letter/types";
@@ -10,8 +10,6 @@ import {
   getFragmentBoxStyle,
   getFragmentRows,
   getFragmentWords,
-  paginateCoverLetterFlow,
-  useCoverLetterFontReady,
   type FlowFragment,
 } from "../measure";
 
@@ -19,8 +17,6 @@ import {
   buildVeriworklyFlowItems,
   getCoverLetterDocumentTitle,
   getCoverLetterState,
-  getFlowPageKey,
-  getFlowSplitKind,
   type CoverLetterPalette,
   type VeriworklyFlowItem,
 } from "../shared";
@@ -35,6 +31,7 @@ import { webFixedWidth, webFlexible } from "@/templates/shared/box";
 import { webText } from "@/templates/shared/text-tokens";
 import { BULLET_MARKER } from "@/templates/resume/shared/typography";
 import { COVER_LETTER_SCALE as S } from "../tokens";
+import { useFlowPages } from "../use-flow-pages";
 
 import { SOCIAL_ICON_SRC_BY_TYPE } from "@/templates/shared/social-icons";
 
@@ -316,13 +313,14 @@ export function VeriworklyCoverLetterPreview({ content }: { content: CoverLetter
   } = state;
   const fontFamily = FONT_FAMILY_MAP[appearance.fontFamily];
   const flowItems = useMemo(() => buildVeriworklyFlowItems(state.flow), [state.flow]);
-  const [pages, setPages] = useState<FlowFragment<VeriworklyFlowItem>[][]>(() => [
-    flowItems.map((item) => ({ item })),
-  ]);
-  const measureRef = useRef<HTMLDivElement | null>(null);
-  const firstPrefixRef = useRef<HTMLDivElement | null>(null);
-  const itemRefs = useRef(new Map<string, HTMLDivElement>());
-  const fontsReady = useCoverLetterFontReady(fontFamily);
+  const { pages, measureRef, firstPrefixRef, itemRef } = useFlowPages(flowItems, {
+    fontFamily,
+    pageColor: appearance.pageColor,
+    textColor: palette.text,
+    pageMargin: appearance.pageMargin,
+    bodyStyle,
+    railWidth: S.railWidth,
+  });
 
   const shellStyle: CSSProperties = {
     backgroundColor: appearance.pageColor,
@@ -339,63 +337,6 @@ export function VeriworklyCoverLetterPreview({ content }: { content: CoverLetter
     ...webFlexible,
     padding: px(appearance.pageMargin),
   };
-
-  useLayoutEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      const probe = document.createElement("article");
-
-      probe.className = "mx-auto max-w-full overflow-hidden";
-      probe.style.height = px(S.pageHeight);
-      probe.style.width = px(S.pageWidth);
-      Object.assign(probe.style, { display: "flex", fontFamily });
-
-      const aside = document.createElement("aside");
-      aside.style.width = px(S.railWidth);
-      aside.style.flexShrink = "0";
-      probe.appendChild(aside);
-
-      const main = document.createElement("main");
-      Object.assign(main.style, {
-        backgroundColor: appearance.pageColor,
-        color: palette.text,
-        flexGrow: "1",
-        minWidth: "0",
-        padding: px(appearance.pageMargin),
-      });
-      probe.appendChild(main);
-      measureRef.current?.appendChild(probe);
-
-      const nextPages = paginateCoverLetterFlow(flowItems, {
-        // The rail is a sibling of `main`, so the page foot is measured on `main`.
-        measureRoot: main,
-        contentRoot: main,
-        getPrefix: (pageIndex) => (pageIndex === 0 ? firstPrefixRef.current : null),
-        getItemNode: (item) => itemRefs.current.get(item.id) ?? null,
-        getSplitKind: getFlowSplitKind,
-        createBody: (continued) => {
-          const body = document.createElement("section");
-          Object.assign(body.style, bodyStyle(continued));
-          return body;
-        },
-      });
-      probe.remove();
-      const nextKey = getFlowPageKey(nextPages);
-
-      setPages((current) => {
-        const currentKey = getFlowPageKey(current);
-        return currentKey === nextKey ? current : nextPages;
-      });
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [
-    appearance.pageColor,
-    appearance.pageMargin,
-    flowItems,
-    fontFamily,
-    fontsReady,
-    palette.text,
-  ]);
 
   function renderSidebar() {
     return (
@@ -533,13 +474,7 @@ export function VeriworklyCoverLetterPreview({ content }: { content: CoverLetter
 
             <section style={bodyStyle(false)}>
               {flowItems.map((item) => (
-                <div
-                  key={item.id}
-                  ref={(node) => {
-                    if (node) itemRefs.current.set(item.id, node);
-                    else itemRefs.current.delete(item.id);
-                  }}
-                >
+                <div key={item.id} ref={itemRef(item.id)}>
                   {renderFlowItem({ item }, palette, tokens, appearance.paragraphSpacing)}
                 </div>
               ))}

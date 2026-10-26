@@ -2,8 +2,7 @@ import { AffiliateNav } from "@/features/affiliate/AffiliateNav";
 import type { AffiliateDashboard } from "@/features/affiliate/types";
 import { getProgramServerData, PROGRAM_UNAVAILABLE } from "@/features/billing/billing-server";
 import { ProgramUnavailable } from "@/features/billing/ProgramUnavailable";
-const money = (cents: number, currency: string) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
+import { formatCents } from "@/features/admin/utils/admin-format";
 export default async function AffiliateCommissionsPage() {
   const data = await getProgramServerData<AffiliateDashboard>("/affiliates/me");
   if (data === PROGRAM_UNAVAILABLE) return <ProgramUnavailable program="affiliate" />;
@@ -30,7 +29,7 @@ export default async function AffiliateCommissionsPage() {
                   </p>
                 </div>
                 <span>{item.rateBps / 100}% rate</span>
-                <strong>{money(item.amountCents, item.currency)}</strong>
+                <strong>{formatCents(item.amountCents, item.currency)}</strong>
               </div>
             ))
           ) : (

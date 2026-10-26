@@ -16,7 +16,6 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
-import { cn } from "@/lib/utils";
 import {
   endOfLocalDay,
   isPastLocalDate,
@@ -24,7 +23,7 @@ import {
   todayLocalDateInput,
 } from "@/lib/local-date";
 
-import { Badge, Modal, Input, Button, Checkbox } from "@veriworkly/ui";
+import { Badge, Modal, Input, Button, Checkbox, cn } from "@veriworkly/ui";
 
 import type { DocumentType } from "@/features/documents/core/document-types";
 import type { DocumentLibraryItem } from "@/features/documents/services/document-library";
@@ -44,7 +43,7 @@ import EditProfileUsernameModal from "@/features/profile/components/EditProfileU
 
 import { useUserStore } from "@/store/useUserStore";
 
-import ConfirmationModal from "./ConfirmationModal";
+import ConfirmDialog from "./ConfirmDialog";
 
 interface ShareDocumentModalProps {
   documentId: string | null;
@@ -693,7 +692,7 @@ const ShareDocumentModal = ({
         }}
       />
 
-      <ConfirmationModal
+      <ConfirmDialog
         open={confirmRevokeId !== null}
         onClose={() => setConfirmRevokeId(null)}
         onConfirm={() => {
@@ -704,8 +703,8 @@ const ShareDocumentModal = ({
         }}
         title="Revoke this share link?"
         description="Anyone opening this link will no longer see the document. This cannot be undone."
-        confirmText="Revoke link"
-        variant="destructive"
+        confirmLabel="Revoke link"
+        tone="destructive"
       />
     </Modal>
   );

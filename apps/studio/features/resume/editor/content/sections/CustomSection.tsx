@@ -1,7 +1,6 @@
 "use client";
 
 import type { BaseSectionProps } from "./section-types";
-import type { ResumeSectionId } from "@/types/resume";
 
 import { Button } from "@veriworkly/ui";
 import { useState } from "react";
@@ -9,11 +8,11 @@ import { Trash2 } from "lucide-react";
 
 import { useResumeStore } from "@/features/resume/store/resume-store";
 
-import ConfirmationModal from "@/components/modals/ConfirmationModal";
-import SectionAccordion from "@/features/documents/editor/SectionAccordion";
-import { ListEditorControls } from "@/features/documents/editor/ListEditorControls";
+import ConfirmDialog from "@/components/modals/ConfirmDialog";
 import { useIndexedListEditor } from "@/features/documents/editor/useIndexedListEditor";
 import { TextAreaField, TextInputField } from "@/features/documents/editor/form";
+
+import ListSection from "./ListSection";
 
 interface CustomSectionProps extends BaseSectionProps {
   /** Which custom section this accordion edits. */
@@ -50,36 +49,53 @@ const CustomSection = ({ customSectionId, isOpen, onToggle }: CustomSectionProps
     return null;
   }
 
-  const activeCustomItem = list.activeItem;
-  const accordionId = `custom:${customSection.id}`;
-
   return (
-    <SectionAccordion
-      id={accordionId}
-      isOpen={isOpen}
+    <ListSection
+      id={`custom:${customSection.id}`}
       label={customSection.title || "Custom"}
-      onToggle={(nextId) => onToggle(nextId as ResumeSectionId)}
+      isOpen={isOpen}
+      onToggle={onToggle}
+      items={items}
+      list={list}
+      addLabel="Add item"
+      removeLabel="Remove item"
+      onRemove={(index) => removeCustomSectionItem(customSectionId, index)}
+      labelFor={(item, index) => item.name || `Item ${index + 1}`}
+      emptyMessage="No custom items yet. Click Add item."
+      header={
+        customSection.editableTitle ? (
+          <TextInputField
+            label="Section header"
+            value={customSection.title}
+            onValueChange={(title) => updateCustomSection(customSectionId, { title })}
+          />
+        ) : null
+      }
+      footer={
+        <>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button onClick={() => setConfirmingRemove(true)} size="sm" variant="ghost">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Remove this section
+            </Button>
+          </div>
+
+          <ConfirmDialog
+            open={confirmingRemove}
+            onClose={() => setConfirmingRemove(false)}
+            onConfirm={() => {
+              setConfirmingRemove(false);
+              removeCustomSection(customSectionId);
+            }}
+            title="Remove this section?"
+            description={`"${customSection.title || "Custom"}" and its ${items.length} item${items.length === 1 ? "" : "s"} will be removed from this resume.`}
+            confirmLabel="Remove section"
+            tone="destructive"
+          />
+        </>
+      }
     >
-      <ListEditorControls
-        items={items}
-        index={list.index}
-        onAdd={list.add}
-        onSelect={list.select}
-        addLabel="Add item"
-        removeLabel="Remove item"
-        onRemove={(index) => removeCustomSectionItem(customSectionId, index)}
-        labelFor={(item, index) => item.name || `Item ${index + 1}`}
-      />
-
-      {customSection.editableTitle ? (
-        <TextInputField
-          label="Section header"
-          value={customSection.title}
-          onValueChange={(title) => updateCustomSection(customSectionId, { title })}
-        />
-      ) : null}
-
-      {activeCustomItem ? (
+      {(activeCustomItem) => (
         <>
           <div className="grid gap-4 md:grid-cols-2">
             <TextInputField
@@ -109,30 +125,8 @@ const CustomSection = ({ customSectionId, isOpen, onToggle }: CustomSectionProps
             }
           />
         </>
-      ) : (
-        <p className="text-muted text-sm">No custom items yet. Click Add item.</p>
       )}
-
-      <div className="mt-4 flex flex-wrap gap-2">
-        <Button onClick={() => setConfirmingRemove(true)} size="sm" variant="ghost">
-          <Trash2 className="mr-2 h-4 w-4" />
-          Remove this section
-        </Button>
-      </div>
-
-      <ConfirmationModal
-        open={confirmingRemove}
-        onClose={() => setConfirmingRemove(false)}
-        onConfirm={() => {
-          setConfirmingRemove(false);
-          removeCustomSection(customSectionId);
-        }}
-        title="Remove this section?"
-        description={`"${customSection.title || "Custom"}" and its ${items.length} item${items.length === 1 ? "" : "s"} will be removed from this resume.`}
-        confirmText="Remove section"
-        variant="destructive"
-      />
-    </SectionAccordion>
+    </ListSection>
   );
 };
 

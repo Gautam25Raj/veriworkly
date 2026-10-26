@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ResumeSection } from "@/types/resume";
 import { getResumeSectionKey } from "@/features/documents/rendering/resume-rendering";
-import { cn } from "@/lib/utils";
+import { cn } from "@veriworkly/ui";
 
 /*
  * Every callback here takes a section KEY (see `getResumeSectionKey`), not a section id.

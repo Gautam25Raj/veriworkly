@@ -79,7 +79,7 @@ export function buildCoverLetterDocx(content: CoverLetterContent): Promise<Blob>
   );
 }
 
-export async function exportDocumentAsDocx(document: BaseDocument): Promise<void> {
+export async function exportCoverLetterAsDocx(document: BaseDocument): Promise<void> {
   const content = document.content as CoverLetterContent;
   const blob = await buildCoverLetterDocx(content);
   downloadBlob(blob, `${getDocumentFileBaseName(document)}.docx`);

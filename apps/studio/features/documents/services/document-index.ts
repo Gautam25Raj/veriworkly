@@ -8,13 +8,7 @@ import {
 } from "./storage/safe-local-storage";
 import { DOCUMENT_INDEX_STORAGE_KEY } from "./storage-keys";
 
-export { DOCUMENT_INDEX_STORAGE_KEY };
-
-export const DOCUMENT_INDEX_VERSION = 3;
-
-export type DocumentIndexRevisionListener = (revision: number) => void;
-
-const revisionListeners = new Set<DocumentIndexRevisionListener>();
+const DOCUMENT_INDEX_VERSION = 3;
 
 /**
  * Mirrors `index.revision` in memory so callers can read it without a localStorage
@@ -132,30 +126,16 @@ export function writeDocumentIndex(index: DocumentIndex): LocalStorageWriteResul
   cachedRevision = nextRevision;
   lastReadWasCorrupt = false;
 
-  for (const listener of revisionListeners) listener(nextRevision);
-
   return result;
 }
 
 /**
- * Current index revision without re-parsing storage when it is already known.
- *
- * This is the whole point of the revision counter: the document library's cache key
- * used to be the concatenated raw JSON of every collection (~563KB at 50 documents,
- * rebuilt on every React render). Now it is one integer.
+ * Current index revision without re-parsing storage when it is already known, so the
+ * document library's cache key is one integer rather than the library's raw JSON.
  */
 export function getDocumentIndexRevision(): number {
   if (cachedRevision >= 0) return cachedRevision;
   return readDocumentIndex().revision;
-}
-
-/**
- * Notifies on same-tab index writes. Cross-tab changes still arrive via the native
- * `storage` event; this covers the same-tab case without a storage round trip.
- */
-export function subscribeToDocumentIndexRevision(listener: DocumentIndexRevisionListener) {
-  revisionListeners.add(listener);
-  return () => revisionListeners.delete(listener);
 }
 
 /** Test/`storage`-event hook: forces the next revision read to hit localStorage. */

@@ -479,45 +479,32 @@ describe("HTML export carries no hidden duplicate (VW-04)", () => {
 });
 
 describe("preview route does not write to storage (VW-05)", () => {
-  const ACTIVE_KEY = "veriworkly:docs:v2:active";
+  const BODY_PREFIX = "veriworkly:docs:v3:doc:resume:";
 
-  function readActivePointer(): Promise<string | null> {
-    return page.evaluate((key) => localStorage.getItem(key), ACTIVE_KEY);
+  function readBody(id: string): Promise<string | null> {
+    return page.evaluate((key) => localStorage.getItem(key), `${BODY_PREFIX}${id}`);
   }
 
-  it("leaves the active document pointer where the editor left it", async () => {
+  it("leaves the previewed document's stored body untouched", async () => {
     await page.setViewportSize(DESKTOP);
 
-    const other = await seedResume();
-    const opened = await seedResume();
+    const previewed = await seedResume();
+    await seedResume();
 
-    // Opening an editor is the one place that legitimately claims the active pointer.
-    await page.goto(`${server.origin}/editor/resume/${opened}`, { waitUntil: "networkidle" });
-    await page.waitForTimeout(1_200);
+    const before = await readBody(previewed);
+    expect(before).not.toBeNull();
 
-    expect(await readActivePointer()).toBe(`RESUME:${opened}`);
-
-    await page.goto(`${server.origin}/editor/resume/${other}/preview`, {
+    await page.goto(`${server.origin}/editor/resume/${previewed}/preview`, {
       waitUntil: "networkidle",
     });
     await page.waitForTimeout(1_500);
 
-    // Merely looking at a document must not repoint what other surfaces open by default.
-    expect(await readActivePointer()).toBe(`RESUME:${opened}`);
+    expect(await readBody(previewed)).toBe(before);
   });
 
   it("still renders the previewed document", async () => {
     expect(await page.getByText(/document not found/i).count()).toBe(0);
     expect(await page.locator("#resume-container").count()).toBeGreaterThan(0);
-  });
-
-  it("still updates the pointer when the editor opens that document", async () => {
-    const previewed = page.url().split("/").slice(-2)[0];
-
-    await page.goto(`${server.origin}/editor/resume/${previewed}`, { waitUntil: "networkidle" });
-    await page.waitForTimeout(1_200);
-
-    expect(await readActivePointer()).toBe(`RESUME:${previewed}`);
   });
 });
 

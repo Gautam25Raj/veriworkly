@@ -12,14 +12,13 @@ const WINDOWS = [
   { days: 180, label: "180d" },
 ] as const;
 
-export const DEFAULT_WINDOW_DAYS = 30;
+const DEFAULT_WINDOW_DAYS = 30;
 
 /**
  * Parses `?days=` into one of the offered windows.
  *
  * Exported so the dashboard's server component and this control agree on what an absent or
- * malformed param means — the previous dashboard hardcoded a 30-day window and never exposed
- * the parameter the API had accepted all along.
+ * malformed param means.
  */
 export function parseWindowDays(value: string | undefined) {
   const parsed = Number(value);

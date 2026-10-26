@@ -15,7 +15,8 @@ export const metadata: Metadata = {
 const AdminLayout = async ({ children }: { children: ReactNode }) => {
   // Fails closed (404) for any non-admin session — the backend independently re-enforces this
   // on every admin API call, but the frontend must not rely on that alone. Pages are gated too:
-  // every admin read awaits the same cached check (see requireAdminUser's doc comment).
+  // every admin read awaits the same cached check (see requireAdminUser's doc comment). A
+  // failure here is above `app/admin/error.tsx`, so it reaches the root `app/error.tsx`.
   const admin = await requireAdminUser();
 
   // Drives the sidebar's queue badges. This layout is not re-run on client navigations inside
@@ -24,12 +25,7 @@ const AdminLayout = async ({ children }: { children: ReactNode }) => {
 
   return (
     <AdminShell adminEmail={admin.email} queue={queue}>
-      {/*
-        Hydrates the client auth store for the whole admin section. This used to live on the
-        dashboard page alone, which left every other admin page rendering with an empty user
-        store — anything reading `useUserStore` from an inner page saw null until the operator
-        happened to visit `/admin` first.
-      */}
+      {/* Hydrates the client auth store for every admin page, not just the dashboard. */}
       <AuthInitializer initialUser={admin} />
 
       {/* Chart gradients, declared once here so no chart needs `useId` to own one. */}

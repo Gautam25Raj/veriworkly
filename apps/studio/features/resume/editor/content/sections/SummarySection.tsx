@@ -1,7 +1,6 @@
 "use client";
 
 import type { BaseSectionProps } from "./section-types";
-import type { ResumeSectionId } from "@/types/resume";
 
 import { useResumeStore } from "@/features/resume/store/resume-store";
 import { validateSummary } from "@/features/resume/utils/validation";
@@ -18,12 +17,7 @@ const SummarySection = ({ isOpen, onToggle }: BaseSectionProps) => {
   const summaryErrors = validateSummary(summary);
 
   return (
-    <SectionAccordion
-      id="summary"
-      isOpen={isOpen}
-      label="Summary"
-      onToggle={(nextId) => onToggle(nextId as ResumeSectionId)}
-    >
+    <SectionAccordion id="summary" isOpen={isOpen} label="Summary" onToggle={onToggle}>
       <TextAreaField
         className="min-h-40"
         label="Professional summary"

@@ -16,26 +16,20 @@ import type {
   ResumeExperienceItem,
 } from "@/types/resume";
 
-import { createId } from "@veriworkly/profile-core";
+import { createId, fluencySchema } from "@veriworkly/profile-core";
 
 import { fontOptions } from "@/features/documents/constants/fonts";
 
 /*
- * What is left here is the master editor UI: the option lists the selects render and the
- * empty-item factories the "Add" buttons call.
- *
- * Everything that describes the *profile itself* — the save validator, the save sanitiser,
- * the id normalisers, the URL and email predicates — moved to `@veriworkly/profile-core`,
- * because the server needs exactly those rules and used to carry its own drifting copy of
- * them. They are re-exported below so this module stays the single import site the editor
- * components already use.
+ * The master editor UI: the option lists the selects render and the empty-item factories the
+ * "Add" buttons call. The rules that describe the profile itself live in
+ * `@veriworkly/profile-core`, which the server uses too, and are re-exported here as the
+ * editor components' single import site.
  */
 export {
   createId,
-  ensureUniqueIds,
   normalizeProfileIds,
   isValidAbsoluteUrl,
-  normalizeAbsoluteUrl,
   sanitizeMasterProfileForSave,
   validateMasterProfileForSave,
   // Named `isValidEmail` here since the editor was written against that name; it is the
@@ -46,13 +40,7 @@ export {
 export const linkTypes = ["github", "linkedin", "portfolio"] as const;
 export const fontFamilies = fontOptions.map((font) => font.value);
 
-export const fluencyOptions: ResumeLanguage["fluency"][] = [
-  "elementary",
-  "limited",
-  "professional",
-  "fluent",
-  "native",
-];
+export const fluencyOptions: readonly ResumeLanguage["fluency"][] = fluencySchema.options;
 
 export const sectionLabels: Record<ResumeSection["id"], string> = {
   basics: "Basics",

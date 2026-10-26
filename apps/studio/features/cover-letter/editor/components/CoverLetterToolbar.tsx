@@ -1,6 +1,5 @@
 "use client";
 
-import { toast } from "sonner";
 import { memo } from "react";
 import { useRouter } from "next/navigation";
 
@@ -11,11 +10,9 @@ import ToolbarDownloadMenu from "@/features/documents/editor/toolbar/ToolbarDown
 import { useDocumentDownloads } from "@/features/documents/editor/toolbar/useDocumentDownloads";
 import { useDocumentJsonImport } from "@/features/documents/editor/toolbar/useDocumentJsonImport";
 import { useHiddenFileInput } from "@/features/documents/editor/toolbar/useHiddenFileInput";
-
-import { useUserStore } from "@/store/useUserStore";
+import { useSyncNowAction } from "@/features/documents/editor/toolbar/useSyncNowAction";
 
 import { getDocumentPreviewPath } from "@/features/documents/core/routes";
-import { syncDocumentNow } from "@/features/documents/services/document-sync";
 import { getMasterProfileForNewDocument } from "@/features/resume/services/master-profile";
 
 import { useCoverLetterStore } from "@/features/cover-letter/store/cover-letter-store";
@@ -46,38 +43,12 @@ export const CoverLetterToolbar = memo(function CoverLetterToolbar({
 }: CoverLetterToolbarProps) {
   const router = useRouter();
 
-  const isLoggedIn = useUserStore((state) => state.isLoggedIn);
-
   const document = useCoverLetterStore((state) => state.document);
   const updateTitle = useCoverLetterStore((state) => state.updateTitle);
   const resetDocument = useCoverLetterStore((state) => state.resetDocument);
   const emptyDocument = useCoverLetterStore((state) => state.emptyDocument);
 
-  async function handleSync() {
-    if (!isLoggedIn) {
-      toast.error("Please log in to sync documents.");
-      return;
-    }
-
-    onSetMessage("Syncing with cloud...");
-
-    try {
-      const result = await syncDocumentNow("COVER_LETTER", documentId);
-
-      if (!result.ok) {
-        onSetMessage(`Sync failed: ${result.message}`);
-        toast.error(result.message);
-        return;
-      }
-
-      onSetMessage("Synced successfully");
-      toast.success("Synced successfully");
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : "Sync failed";
-      onSetMessage(`Sync failed: ${errMsg}`);
-      toast.error(errMsg);
-    }
-  }
+  const handleSync = useSyncNowAction("COVER_LETTER", documentId, onSetMessage);
 
   const {
     activeDownload,

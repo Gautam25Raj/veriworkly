@@ -1,18 +1,9 @@
-import { join } from "node:path";
-import { createRequire } from "node:module";
-
-import { createElement } from "react";
-import { Font, pdf } from "@react-pdf/renderer";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import type { ComponentType, ReactElement } from "react";
-import type { DocumentProps } from "@react-pdf/renderer";
 import type { ResumeTypeScale } from "@/templates/resume/shared/typography";
 
 import type { CoverLetterContent } from "@/features/cover-letter/types";
 
-import { FONT_REGISTRY } from "@/features/documents/constants/fonts";
-import { registerPdfHyphenation } from "@/templates/pdf/fonts";
 import { createDefaultCoverLetter } from "@/features/cover-letter/defaults";
 import { defaultResume } from "@/features/resume/constants/default-resume";
 import { coverLetterTemplateRegistry } from "@/templates/cover-letter/registry";
@@ -33,6 +24,7 @@ import { modernMinimalScale } from "@/templates/resume/modern-minimal/skin";
 import { precisionAtsScale } from "@/templates/resume/precision-ats/skin";
 import { timelineFocusScale } from "@/templates/resume/timeline-focus/skin";
 import { veriworklySpecialScale } from "@/templates/resume/veriworkly-special/skin";
+import { layoutPages, registerPdfTestFonts } from "@/tests/utils/pdf";
 
 /**
  * The preview and the PDF are two layout engines fed from one scale. These
@@ -80,39 +72,9 @@ const box = (node: Node): Box => ({
   height: toPx(node.box?.height),
 });
 
-function pdfElement<P extends object>(C: ComponentType<P>, props: P): ReactElement<DocumentProps> {
-  return createElement(C, props) as unknown as ReactElement<DocumentProps>;
-}
-
-/** `@react-pdf/layout` is a transitive dependency; resolve it via the renderer. */
-function resolveLayoutEngine() {
-  const fromHere = createRequire(import.meta.url);
-  const rendererEntry = fromHere.resolve("@react-pdf/renderer");
-  const fromRenderer = createRequire(rendererEntry);
-
-  return fromRenderer("@react-pdf/layout").default as (
-    document: Node,
-    fontStore: unknown,
-  ) => Promise<Node>;
-}
-
-async function layoutPages(element: ReactElement<DocumentProps>): Promise<Node[]> {
-  const instance = pdf(element) as unknown as {
-    container: { document: Node };
-    toBuffer: () => Promise<unknown>;
-  };
-
-  await instance.toBuffer();
-
-  const laidOut = await resolveLayoutEngine()(instance.container.document, Font);
-  return laidOut.children ?? [];
-}
-
 async function layoutFirstPage(id: string): Promise<Node> {
   const TemplatePdf = await loadTemplatePdfComponentById(id);
-  const pages = await layoutPages(
-    pdfElement(TemplatePdf, { resume: { ...defaultResume, templateId: id } }),
-  );
+  const pages = await layoutPages(TemplatePdf, { resume: { ...defaultResume, templateId: id } });
 
   return pages[0];
 }
@@ -204,18 +166,7 @@ describe("resume pdf geometry matches the shared scale", () => {
   const style = getResumeRenderStyle(defaultResume);
 
   beforeAll(() => {
-    // Production disables hyphenation; without it these measure a different document.
-    registerPdfHyphenation();
-
-    for (const font of Object.values(FONT_REGISTRY)) {
-      Font.register({
-        family: font.primaryFamily,
-        fonts: font.pdfFonts.map((face) => ({
-          src: join(process.cwd(), "public", face.src),
-          fontWeight: face.fontWeight,
-        })),
-      });
-    }
+    registerPdfTestFonts();
   });
 
   for (const [id, scale] of Object.entries(SCALES)) {
@@ -326,15 +277,7 @@ describe("resume pdf geometry matches the shared scale", () => {
 
 describe("cover letter pdf geometry matches the shared scale", () => {
   beforeAll(() => {
-    for (const font of Object.values(FONT_REGISTRY)) {
-      Font.register({
-        family: font.primaryFamily,
-        fonts: font.pdfFonts.map((face) => ({
-          src: join(process.cwd(), "public", face.src),
-          fontWeight: face.fontWeight,
-        })),
-      });
-    }
+    registerPdfTestFonts();
   });
 
   for (const templateId of coverLetterTemplateRegistry.ids) {
@@ -344,7 +287,7 @@ describe("cover letter pdf geometry matches the shared scale", () => {
       const tokens = createCoverLetterTokens(content.appearance, palette);
 
       const CoverLetterPdf = await coverLetterTemplateRegistry.loadPdf(templateId);
-      const [page] = await layoutPages(pdfElement(CoverLetterPdf, { content }));
+      const [page] = await layoutPages(CoverLetterPdf, { content });
       const problems: string[] = [];
       const near = (actual: number, expected: number, what: string) => {
         if (Math.abs(actual - expected) > 0.02) {

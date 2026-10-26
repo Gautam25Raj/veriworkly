@@ -3,7 +3,6 @@ import type {
   ResumeAward,
   ResumeAchievement,
   ResumeAdditionalItem,
-  ResumeAdditionalSectionKind,
   ResumeCertificate,
   ResumeCustomSection,
   ResumeEducationItem,
@@ -19,13 +18,11 @@ import type {
   ResumeVolunteer,
 } from "@/types/resume";
 
-function uniqueId(prefix: string) {
-  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
-}
+import { createId } from "@veriworkly/profile-core";
 
 export function createExperienceItem(): ResumeExperienceItem {
   return {
-    id: uniqueId("exp"),
+    id: createId("exp"),
     company: "",
     role: "",
     location: "",
@@ -39,7 +36,7 @@ export function createExperienceItem(): ResumeExperienceItem {
 
 export function createEducationItem(): ResumeEducationItem {
   return {
-    id: uniqueId("edu"),
+    id: createId("edu"),
     school: "",
     degree: "",
     field: "",
@@ -52,7 +49,7 @@ export function createEducationItem(): ResumeEducationItem {
 
 export function createProjectItem(): ResumeProjectItem {
   return {
-    id: uniqueId("proj"),
+    id: createId("proj"),
     name: "",
     role: "",
     link: "",
@@ -66,7 +63,7 @@ export function createProjectItem(): ResumeProjectItem {
 
 export function createLinkItem(type: ResumeLinkType = "portfolio"): ResumeLinkItem {
   return {
-    id: uniqueId("link"),
+    id: createId("link"),
     type,
     label: "",
     url: "",
@@ -75,15 +72,16 @@ export function createLinkItem(type: ResumeLinkType = "portfolio"): ResumeLinkIt
 
 export function createSkillGroup(): ResumeSkillGroup {
   return {
-    id: uniqueId("skills"),
+    id: createId("skills"),
     name: "New Skills",
     keywords: [],
   };
 }
 
-export function createAdditionalItem(kind: ResumeAdditionalSectionKind): ResumeAdditionalItem {
-  const base = {
-    id: uniqueId(kind),
+export function createCustomItem(): ResumeAdditionalItem {
+  return {
+    id: createId("custom"),
+    name: "Custom Item",
     issuer: "",
     date: "",
     link: "",
@@ -91,94 +89,25 @@ export function createAdditionalItem(kind: ResumeAdditionalSectionKind): ResumeA
     description: "",
     details: [],
   };
-
-  if (kind === "certifications") {
-    return {
-      ...base,
-      name: "New Certification",
-    };
-  }
-
-  if (kind === "awards") {
-    return {
-      ...base,
-      name: "New Award",
-    };
-  }
-
-  if (kind === "publications") {
-    return {
-      ...base,
-      name: "New Publication",
-    };
-  }
-
-  if (kind === "languages") {
-    return {
-      ...base,
-      name: "Language",
-      referenceId: "Proficiency",
-    };
-  }
-
-  if (kind === "interests") {
-    return {
-      ...base,
-      name: "Interest",
-    };
-  }
-
-  if (kind === "volunteer") {
-    return {
-      ...base,
-      name: "Organization",
-      issuer: "Role",
-    };
-  }
-
-  if (kind === "references") {
-    return {
-      ...base,
-      name: "Reference Name",
-      issuer: "Title",
-      referenceId: "Relationship",
-    };
-  }
-
-  if (kind === "achievements") {
-    return {
-      ...base,
-      name: "Achievement",
-    };
-  }
-
-  return {
-    ...base,
-    name: "Custom Item",
-  };
 }
 
 /**
- * The eight typed optional sections.
- *
- * These used to come out of `createAdditionalItem`, which returned one flat shape for every
- * section and pre-filled `name` with a placeholder ("New Certification", "Reference Name")
- * because the list control had no other label to show. The typed factories return genuinely
- * empty rows: `ListEditorControls` falls back to "Certification 1" for an unnamed entry, so
- * the placeholder only ever risked being exported as if the user had typed it.
+ * The eight typed optional sections. Rows start genuinely empty, with no placeholder name:
+ * `ListEditorControls` falls back to "Certification 1" for an unnamed entry, and a placeholder
+ * would risk being exported as if the user had typed it.
  */
 
-export function createLanguage(): ResumeLanguage {
-  return { id: uniqueId("lang"), language: "", fluency: "professional" };
+function createLanguage(): ResumeLanguage {
+  return { id: createId("lang"), language: "", fluency: "professional" };
 }
 
-export function createInterest(): ResumeInterest {
-  return { id: uniqueId("interest"), name: "", keywords: [] };
+function createInterest(): ResumeInterest {
+  return { id: createId("interest"), name: "", keywords: [] };
 }
 
-export function createAward(): ResumeAward {
+function createAward(): ResumeAward {
   return {
-    id: uniqueId("award"),
+    id: createId("award"),
     title: "",
     awarder: "",
     date: "",
@@ -188,9 +117,9 @@ export function createAward(): ResumeAward {
   };
 }
 
-export function createCertificate(): ResumeCertificate {
+function createCertificate(): ResumeCertificate {
   return {
-    id: uniqueId("cert"),
+    id: createId("cert"),
     title: "",
     issuer: "",
     date: "",
@@ -201,9 +130,9 @@ export function createCertificate(): ResumeCertificate {
   };
 }
 
-export function createPublication(): ResumePublication {
+function createPublication(): ResumePublication {
   return {
-    id: uniqueId("pub"),
+    id: createId("pub"),
     title: "",
     publisher: "",
     date: "",
@@ -213,9 +142,9 @@ export function createPublication(): ResumePublication {
   };
 }
 
-export function createVolunteer(): ResumeVolunteer {
+function createVolunteer(): ResumeVolunteer {
   return {
-    id: uniqueId("volunteer"),
+    id: createId("volunteer"),
     organization: "",
     role: "",
     startDate: "",
@@ -226,9 +155,9 @@ export function createVolunteer(): ResumeVolunteer {
   };
 }
 
-export function createReference(): ResumeReference {
+function createReference(): ResumeReference {
   return {
-    id: uniqueId("ref"),
+    id: createId("ref"),
     name: "",
     title: "",
     organization: "",
@@ -238,13 +167,13 @@ export function createReference(): ResumeReference {
   };
 }
 
-export function createAchievement(): ResumeAchievement {
-  return { id: uniqueId("achievement"), title: "", description: "" };
+function createAchievement(): ResumeAchievement {
+  return { id: createId("achievement"), title: "", description: "" };
 }
 
 export function createCustomSection(): ResumeCustomSection {
   return {
-    id: uniqueId("custom"),
+    id: createId("custom"),
     kind: "custom",
     title: "Custom Section",
     editableTitle: true,

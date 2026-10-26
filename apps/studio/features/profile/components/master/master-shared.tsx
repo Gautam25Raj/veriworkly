@@ -1,9 +1,8 @@
 import type { ReactNode } from "react";
 
-import { Button } from "@veriworkly/ui";
+import { Button, cn } from "@veriworkly/ui";
 import { Card } from "@veriworkly/ui";
 import { Input } from "@veriworkly/ui";
-import { cn } from "@/lib/utils";
 
 export function SectionCard({
   sectionId,

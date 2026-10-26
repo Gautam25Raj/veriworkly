@@ -3,15 +3,14 @@
 import { useMemo } from "react";
 
 import type { BaseSectionProps } from "./section-types";
-import type { ResumeSectionId } from "@/types/resume";
+
+import ListSection from "./ListSection";
 
 import { Field, TextInputField, DelimitedTextArea } from "@/features/documents/editor/form";
 
 import { useResumeStore } from "@/features/resume/store/resume-store";
 import { validateSkillGroup } from "@/features/resume/utils/validation";
 
-import SectionAccordion from "@/features/documents/editor/SectionAccordion";
-import { ListEditorControls } from "@/features/documents/editor/ListEditorControls";
 import { useIndexedListEditor } from "@/features/documents/editor/useIndexedListEditor";
 
 const SkillsSection = ({ isOpen, onToggle }: BaseSectionProps) => {
@@ -21,30 +20,25 @@ const SkillsSection = ({ isOpen, onToggle }: BaseSectionProps) => {
   const updateSkillGroup = useResumeStore((state) => state.updateSkillGroup);
 
   const list = useIndexedListEditor(skills, addSkillGroup);
-  const activeSkillGroup = list.activeItem;
 
   const skillErrors = useMemo(
-    () => (activeSkillGroup ? validateSkillGroup(activeSkillGroup) : {}),
-    [activeSkillGroup],
+    () => (list.activeItem ? validateSkillGroup(list.activeItem) : {}),
+    [list.activeItem],
   );
 
   return (
-    <SectionAccordion
+    <ListSection
       id="skills"
       label="Skills"
       isOpen={isOpen}
-      onToggle={(nextId) => onToggle(nextId as ResumeSectionId)}
+      onToggle={onToggle}
+      list={list}
+      items={skills}
+      onRemove={removeSkillGroup}
+      labelFor={(item, index) => item.name || `Group ${index + 1}`}
+      emptyMessage="No skill groups yet. Click Add to create one."
     >
-      <ListEditorControls
-        items={skills}
-        index={list.index}
-        onAdd={list.add}
-        onSelect={list.select}
-        onRemove={removeSkillGroup}
-        labelFor={(item, index) => item.name || `Group ${index + 1}`}
-      />
-
-      {activeSkillGroup ? (
+      {(activeSkillGroup) => (
         <>
           <TextInputField
             label="Group name"
@@ -76,10 +70,8 @@ const SkillsSection = ({ isOpen, onToggle }: BaseSectionProps) => {
             </div>
           ) : null}
         </>
-      ) : (
-        <p className="text-muted text-sm">No skill groups yet. Click Add to create one.</p>
       )}
-    </SectionAccordion>
+    </ListSection>
   );
 };
 

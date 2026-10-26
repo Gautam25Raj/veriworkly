@@ -5,7 +5,7 @@ import type { BaseDocument } from "@/features/documents/core/types";
 import type { CoverLetterContent, CoverLetterSectionId } from "@/features/cover-letter/types";
 
 import { backendApiUrl } from "@/lib/constants";
-import { ApiRequestError, fetchApiData } from "@/utils/fetchApiData";
+import { ApiRequestError, fetchApiData, type OffsetPaginationPayload } from "@/utils/fetchApiData";
 import { normalizeResumeData } from "@/features/resume/utils/normalize-data";
 import {
   sectionVisible,
@@ -48,23 +48,9 @@ export type ShareLinkItem = {
   documentSlug?: string;
 };
 
-export type ShareLinksPage = {
-  items: ShareLinkItem[];
-  total: number;
-  limit: number;
-  offset: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-  hasMore: boolean;
-  pagination: {
-    mode: "offset";
-    nextOffset: number | null;
-    nextCursor: string | null;
-  };
-};
+type ShareLinksPage = OffsetPaginationPayload<ShareLinkItem>;
 
-export type SharedDocumentIdsResult = {
+type SharedDocumentIdsResult = {
   documentIds: string[];
 };
 
@@ -257,7 +243,7 @@ export async function createShareLink(
   return payload.data;
 }
 
-export async function listShareLinks(
+async function listShareLinks(
   documentId: string,
   options?: { page?: number; pageSize?: number },
 ): Promise<ShareLinksPage> {

@@ -7,7 +7,7 @@ import type { ApiKeyStatus } from "../../api-key-service";
 
 import { Card } from "@veriworkly/ui";
 
-import { LocalDateTime } from "../LocalDateTime";
+import { LocalDate } from "@/components/LocalDate";
 
 function DetailMetric({
   icon: Icon,
@@ -31,7 +31,7 @@ function DetailMetric({
 }
 
 function dateOr(value: string | null, fallback: string) {
-  return value ? <LocalDateTime iso={value} /> : fallback;
+  return value ? <LocalDate value={value} withTime /> : fallback;
 }
 
 export function ApiKeyDetailOverview({

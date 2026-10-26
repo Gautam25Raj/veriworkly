@@ -24,15 +24,8 @@ import type { DocumentType } from "@/features/documents/core/document-types";
  * `index.revision` increments on every write so cache keys can be a single integer
  * rather than a hash of the entire library.
  */
-export const DOCUMENT_STORAGE_VERSION = "v3";
-export const LEGACY_DOCUMENT_STORAGE_VERSION = "v2";
-
-/**
- * Deliberately kept on the v2 name: it holds a `TYPE:id` pointer, not document data,
- * so there is nothing to migrate and rotating it would silently drop the user's
- * "last edited document" on upgrade.
- */
-export const DOCUMENT_ACTIVE_STORAGE_KEY = `veriworkly:docs:${LEGACY_DOCUMENT_STORAGE_VERSION}:active`;
+const DOCUMENT_STORAGE_VERSION = "v3";
+const LEGACY_DOCUMENT_STORAGE_VERSION = "v2";
 
 /**
  * Owned here (rather than by document-sync.ts) so document-workspace-service.ts
@@ -74,9 +67,3 @@ export function getDocumentKeyPrefix(type: DocumentType): string {
 export function getLegacyDocumentCollectionKey(type: DocumentType): string {
   return `veriworkly:docs:${LEGACY_DOCUMENT_STORAGE_VERSION}:${type.toLowerCase()}`;
 }
-
-/**
- * @deprecated v2 collection key. Retained only so migration code and any stale
- * import keeps resolving; new call sites want {@link getDocumentKey}.
- */
-export const getDocumentCollectionKey = getLegacyDocumentCollectionKey;

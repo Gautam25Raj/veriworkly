@@ -1,2 +1,2 @@
-export { exportDocumentAsDocx } from "./docx/document-docx";
+export { exportCoverLetterAsDocx } from "./docx/document-docx";
 export { exportResumeAsDocx } from "./docx/resume-docx";

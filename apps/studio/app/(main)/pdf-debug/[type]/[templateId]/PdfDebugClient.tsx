@@ -57,8 +57,6 @@ export function PdfDebugClient({ documentId, templateId, type }: PdfDebugClientP
   const resume = useMemo(() => {
     if (type !== "resume") return null;
 
-    // `readResumeById`, not `loadResumeById`: this runs during render, and opening a debug
-    // view must not repoint the workspace's active document.
     const saved = documentId ? readResumeById(documentId) : null;
     return { ...(saved ?? createDebugResume(templateId)), templateId };
   }, [documentId, templateId, type]);

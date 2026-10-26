@@ -366,6 +366,113 @@ function resolveCatalogProduct(
   return null;
 }
 
+type BillingEventSummary = {
+  productName: string | null;
+  amountCents: number | null;
+  currency: string | null;
+};
+
+const UNKNOWN_EVENT_SUMMARY: BillingEventSummary = {
+  productName: null,
+  amountCents: null,
+  currency: null,
+};
+
+/**
+ * What a billing event was for, as the customer's billing history names it (V-197): the product
+ * from the shared naming table and the amount the event carries. Reads a stored event (`{ type,
+ * data }`); anything it cannot read, a redacted payload included, is unknown rather than an error.
+ */
+function summarizeBillingEvent(event: unknown): BillingEventSummary {
+  const parsed = dodoWebhookEventSchema.pick({ type: true, data: true }).safeParse(event);
+  if (!parsed.success) return UNKNOWN_EVENT_SUMMARY;
+  const { type, data } = parsed.data;
+
+  if (type.startsWith("subscription.")) {
+    const subscription = dodoSubscriptionSchema.safeParse(data);
+    if (!subscription.success) return UNKNOWN_EVENT_SUMMARY;
+    const product = resolveCatalogProduct(subscription.data.product_id, subscription.data.metadata);
+    return {
+      productName: product ? purchaseName(product.productKey, product.interval) : null,
+      amountCents: subscription.data.recurring_pre_tax_amount ?? null,
+      currency: subscription.data.currency?.toUpperCase() ?? null,
+    };
+  }
+
+  if (type.startsWith("payment.")) {
+    const payment = dodoPaymentSchema.safeParse(data);
+    if (!payment.success) return UNKNOWN_EVENT_SUMMARY;
+    const { metadata } = payment.data;
+    const packKey = metadata.veriworkly_product;
+    // Same order as `applyPaymentEvent`: a pack names itself in metadata, anything else is the
+    // catalog product its cart names.
+    const product = resolveCatalogProduct(
+      payment.data.product_cart?.[0]?.product_id ?? payment.data.product_id,
+      metadata,
+    );
+    return {
+      productName:
+        packKey && isCreditPackKey(packKey)
+          ? creditPackCatalog[packKey].name
+          : product
+            ? purchaseName(product.productKey, product.interval)
+            : null,
+      amountCents: payment.data.total_amount ?? null,
+      currency: payment.data.currency?.toUpperCase() ?? null,
+    };
+  }
+
+  if (type.startsWith("refund.")) {
+    const refund = z
+      .object({ amount: z.number().int().nullish(), currency: z.string().trim().min(1).nullish() })
+      .safeParse(data);
+    if (!refund.success) return UNKNOWN_EVENT_SUMMARY;
+    return {
+      productName: null,
+      amountCents: refund.data.amount ?? null,
+      currency: refund.data.currency?.toUpperCase() ?? null,
+    };
+  }
+
+  return UNKNOWN_EVENT_SUMMARY;
+}
+
+/**
+ * `summarizeBillingEvent` for an event being stored. A refund names no product itself, so it takes
+ * the product of the payment it refunds when that payment's event is on file; otherwise null. The
+ * lookup never fails the webhook: an unnamed refund is still a correct history row.
+ */
+async function summarizeStoredEvent(event: {
+  type: string;
+  data: unknown;
+}): Promise<BillingEventSummary> {
+  const summary = summarizeBillingEvent(event);
+  if (!event.type.startsWith("refund.") || summary.productName) return summary;
+
+  const refund = refundEventSchema.safeParse(event.data);
+  if (!refund.success) return summary;
+  try {
+    const payment = await prisma.billingWebhookEvent.findFirst({
+      where: {
+        type: "payment.succeeded",
+        payload: { path: ["data", "payment_id"], equals: refund.data.payment_id },
+      },
+      select: { productName: true, payload: true },
+    });
+    if (!payment) return summary;
+    return {
+      ...summary,
+      productName: payment.productName ?? summarizeBillingEvent(payment.payload).productName,
+    };
+  } catch (error) {
+    logger.warn("Refund stored without its product name", {
+      paymentId: refund.data.payment_id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return summary;
+  }
+}
+
 /**
  * Every status the Dodo SDK can report, mapped explicitly. The `Record` over the SDK type makes a
  * new provider status a compile error here rather than a silent `INACTIVE` that revokes access
@@ -895,19 +1002,48 @@ export class BillingService {
     );
   }
 
+  /**
+   * The customer's billing events, each with the product and amount it was for (V-197). A row
+   * stored before those columns existed is described from its payload while the payload lasts;
+   * the payload itself is never returned.
+   */
   static async getHistory(userId: string) {
-    const cached = await cacheGet<Awaited<ReturnType<typeof prisma.billingWebhookEvent.findMany>>>(
+    const cached = await cacheGet<Awaited<ReturnType<typeof BillingService.readHistory>>>(
       billingHistoryCacheKey(userId),
     );
     if (cached) return cached;
-    const result = await prisma.billingWebhookEvent.findMany({
+    const result = await this.readHistory(userId);
+    await cacheSet(billingHistoryCacheKey(userId), result, BILLING_HISTORY_TTL_SECONDS);
+    return result;
+  }
+
+  private static async readHistory(userId: string) {
+    const rows = await prisma.billingWebhookEvent.findMany({
       where: { userId, status: "PROCESSED" },
-      select: { id: true, providerEventId: true, type: true, processedAt: true, createdAt: true },
+      select: {
+        id: true,
+        providerEventId: true,
+        type: true,
+        processedAt: true,
+        createdAt: true,
+        productName: true,
+        amountCents: true,
+        currency: true,
+        payload: true,
+      },
       orderBy: { createdAt: "desc" },
       take: 50,
     });
-    await cacheSet(billingHistoryCacheKey(userId), result, BILLING_HISTORY_TTL_SECONDS);
-    return result;
+    return rows.map(({ payload, ...row }) => {
+      if (row.productName !== null && row.amountCents !== null && row.currency !== null) return row;
+      const fromPayload = summarizeBillingEvent(payload);
+      return {
+        ...row,
+        productName: row.productName ?? fromPayload.productName,
+        amountCents: row.amountCents ?? fromPayload.amountCents,
+        currency: row.currency ?? fromPayload.currency,
+      };
+    });
   }
 
   /**
@@ -1334,6 +1470,7 @@ export class BillingService {
             providerEventId,
             type: parsedEvent.type,
             payload: parsedEvent as unknown as Prisma.InputJsonValue,
+            ...(await summarizeStoredEvent(parsedEvent)),
             status: "PROCESSING",
             lastAttemptAt: new Date(),
           },

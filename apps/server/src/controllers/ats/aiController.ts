@@ -6,19 +6,20 @@ import {
   type PreparedResume,
 } from "@veriworkly/ats-engine";
 import { AtsAiError } from "@veriworkly/ats-engine/ai";
+import type { Prisma } from "@prisma/client";
 import type { NextFunction, Request, Response } from "express";
 import { z } from "zod";
 
 import { requireAuthUser } from "#middleware/auth";
 import { withAiSlot } from "#middleware/rateLimit";
-import { AtsAiService } from "#services/ats/ai";
+import { ANALYSIS_ACTION, AtsAiService } from "#services/ats/ai";
 import { aiRequestSignal, aiTimeoutError } from "#services/ats/aiDeadline";
 import { publicAtsPolicy } from "#services/ats/aiPolicy";
 import { AtsJobFetchService } from "#services/ats/jobFetch";
 import { AtsQuotaService } from "#services/ats/quota";
 import { AtsScoringService } from "#services/ats/scoring";
 import { AtsRepairService, type RepairOutcome } from "#services/ats/repair";
-import { CreditService } from "#services/creditService";
+import { CreditService, replayFingerprint } from "#services/creditService";
 import { NOT_ENOUGH_CREDITS } from "#services/productNames";
 import { createSuccessResponse, handleValidationError, ApiError } from "#lib/errors";
 import { getRequestIpDetails } from "#utils/requestIp";
@@ -87,6 +88,33 @@ export class AtsAiController {
       // the same prepared text feeds the report, the repair pass and the analysis.
       const resume = AtsScoringService.prepare(input.resume);
 
+      // V-192: a retry of an analysis already paid for (its response was lost) gets the stored
+      // analysis back, before anything is checked, metered, fetched or charged again.
+      const fingerprint = replayFingerprint({
+        resume: resume.text,
+        jobDescription: input.jobDescription ?? null,
+        jobUrl: input.jobUrl ?? null,
+        fetchJobUrl: input.fetchJobUrl,
+        layout: input.layout ?? null,
+        repairParse: input.repairParse,
+      });
+      const stored = await CreditService.storedResult(
+        user.id,
+        input.requestId,
+        ANALYSIS_ACTION,
+        fingerprint,
+      );
+      if (stored && typeof stored === "object" && !Array.isArray(stored)) {
+        res.json(
+          createSuccessResponse({
+            ...stored,
+            quota: await AtsQuotaService.summary(user.id, ip(req)),
+            replayed: true,
+          }),
+        );
+        return;
+      }
+
       // One signal for the whole request, built before the quota, the job fetch and every
       // provider call: the client leaving or the deadline ends whichever step is running, and
       // no reservation made after that is ever committed (V-034).
@@ -124,7 +152,18 @@ export class AtsAiController {
           if (signal.aborted) throw aiTimeoutError();
           res.json(
             createSuccessResponse(
-              await AtsAiController.run(user.id, req, input, resume, jobDescription, quota, signal),
+              await AtsAiController.run(
+                user.id,
+                req,
+                input,
+                resume,
+                jobDescription,
+                quota,
+                signal,
+                {
+                  fingerprint,
+                },
+              ),
             ),
           );
         } catch (error) {
@@ -147,6 +186,8 @@ export class AtsAiController {
     quota: Awaited<ReturnType<typeof AtsQuotaService.consume>>,
     /** The request's signal (see `analyze`), shared by the repair and the analysis call. */
     signal: AbortSignal,
+    /** What a retry of this request must match to be answered from the stored analysis. */
+    replay: { fingerprint: string },
   ) {
     const resumeText = resume.text;
     const report = AtsScoringService.check(resume, { jobDescription, layout: input.layout });
@@ -243,7 +284,7 @@ export class AtsAiController {
      * that the AI layer did not run, instead of an empty `ai` field the caller cannot
      * distinguish from a model that found nothing to say.
      */
-    return {
+    const delivered = {
       report: shapeReport(report, "full"),
       ...result,
       aiStatus: routed ? "ok" : "unavailable",
@@ -262,6 +303,27 @@ export class AtsAiController {
         creditsSpent: repairCreditsSpent,
         unusable: repairUnusable,
       },
+    };
+
+    // V-192: the analysis was charged inside `AtsAiService.analyze`; the response it belongs to
+    // is only whole now, so it is stored now. Without it a retry answers 409 as it used to, so a
+    // failure here is logged and the response still goes out.
+    if (routed) {
+      try {
+        await CreditService.attachReplay(userId, input.requestId, {
+          fingerprint: replay.fingerprint,
+          response: JSON.parse(JSON.stringify(delivered)) as Prisma.InputJsonValue,
+        });
+      } catch (error) {
+        logger.error("ATS analysis delivered but not stored for a retry", {
+          requestId: input.requestId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return {
+      ...delivered,
       quota: routed ? quota : await AtsQuotaService.refund(userId, ip(req)),
     };
   }

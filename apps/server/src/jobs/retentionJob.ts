@@ -35,6 +35,7 @@ export type RetentionSetting =
   | "auditLogs"
   | "adminAuditEntries"
   | "creditReservations"
+  | "creditReplays"
   | "flushBatches"
   | "affiliateClicks"
   | "portfolioViews"
@@ -57,6 +58,9 @@ export function readRetentionSettings(env: NodeJS.ProcessEnv = process.env): Ret
     // one lets a late retry reserve again, run the AI call, and then fail the commit on the
     // CreditTransaction.requestId unique. 90 days is far past any client retry.
     creditReservations: days("RETENTION_CREDIT_RESERVATION_DAYS", 90),
+    // The stored AI result a retry of a paid request is answered from (V-192) is the user's
+    // content: a day covers any client retry, after which a retry answers 409 as it used to.
+    creditReplays: days("RETENTION_CREDIT_REPLAY_DAYS", 1),
     flushBatches: days("RETENTION_FLUSH_BATCH_DAYS", 7),
     // Off by default: the affiliate dashboard and admin affiliate stats count every click row, so
     // pruning would shrink lifetime click totals.
@@ -146,6 +150,19 @@ const RULES: Array<{ name: string; setting: RetentionSetting; step: BatchStep }>
       DELETE FROM "CreditReservation" WHERE "id" IN (
         SELECT "id" FROM "CreditReservation"
         WHERE "status" IN ('COMMITTED', 'RELEASED', 'EXPIRED') AND "updatedAt" < ${cutoff}
+        LIMIT ${limit})`,
+  },
+  {
+    // Only COMMITTED rows carry a replay; `updatedAt` is when it was stored. The partial index
+    // holds only rows with a replay, so a run never walks the committed history. The row itself
+    // stays: it is still the requestId's idempotency record (the rule above).
+    name: "creditReplays", // "CreditReservation_replay_idx" (updatedAt) WHERE replay IS NOT NULL
+    setting: "creditReplays",
+    step: (cutoff, limit) => prisma.$executeRaw`
+      UPDATE "CreditReservation" SET "replay" = NULL
+      WHERE "id" IN (
+        SELECT "id" FROM "CreditReservation"
+        WHERE "replay" IS NOT NULL AND "updatedAt" < ${cutoff}
         LIMIT ${limit})`,
   },
   {

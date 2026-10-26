@@ -35,6 +35,7 @@ vi.mock("#services/ats/aiPolicy", async (importOriginal) => ({
 
 import { app } from "#app";
 import { prisma } from "#lib/prisma";
+import { getRedis } from "#lib/redis";
 import { CreditService } from "#services/creditService";
 import { buildResumeShell } from "#services/profileImportService";
 
@@ -313,5 +314,60 @@ describe("POST /profiles/import/github (V-144 / V-022)", () => {
 
     expect(response.status).toBe(429);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /profiles/import/quota (V-197)", () => {
+  it("reports a paid user's real GitHub cap and no LinkedIn cap instead of a fake 9999", async () => {
+    const user = await createUserWithSession();
+    await prisma.entitlementGrant.create({
+      data: { userId: user.id, key: "ai_credits", source: "MANUAL", sourceId: randomUUID() },
+    });
+    await getRedis().set(
+      `import:paid-github:${user.id}:${new Date().toISOString().slice(0, 10)}`,
+      "3",
+    );
+
+    const response = await asUser(user).get("/api/v1/profiles/import/quota");
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.github).toMatchObject({
+      isPaid: true,
+      unlimited: false,
+      limit: 50,
+      remaining: 47,
+      hasGithubAccount: false,
+    });
+    expect(response.body.data.linkedin).toMatchObject({
+      isPaid: true,
+      unlimited: true,
+      limit: null,
+      remaining: null,
+    });
+  });
+
+  it("says whether a GitHub account is linked, without asking GitHub", async () => {
+    const user = await createUserWithSession();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse({}, 401));
+
+    const before = await asUser(user).get("/api/v1/profiles/import/quota");
+    expect(before.body.data.github).toMatchObject({
+      isPaid: false,
+      unlimited: false,
+      limit: 1,
+      remaining: 1,
+      hasGithubAccount: false,
+    });
+
+    await prisma.account.create({
+      data: { userId: user.id, providerId: "github", accountId: "13579", accessToken: "gho_test" },
+    });
+    const after = await asUser(user).get("/api/v1/profiles/import/quota");
+    // The token is rejected, so no username, but the link itself is known.
+    expect(after.body.data.github).toMatchObject({
+      hasGithubAccount: true,
+      connectedUsername: null,
+    });
+    expect(fetchSpy).toHaveBeenCalled();
   });
 });

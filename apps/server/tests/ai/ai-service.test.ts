@@ -43,7 +43,9 @@ vi.mock("#services/creditService", () => ({
     reserveAction,
     commitReservation,
     releaseReservation,
+    storedResult: async () => null,
   },
+  replayFingerprint: () => "fingerprint",
 }));
 
 const input = {

@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { Prisma, type CreditTransaction } from "@prisma/client";
 
 import { getAiModePolicy } from "#services/aiPolicy";
@@ -130,6 +132,25 @@ function withActor(metadata: Prisma.InputJsonValue | undefined, actorId: string 
   if (!actorId) return metadata;
   const base = metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {};
   return { ...base, actorId } satisfies Prisma.InputJsonValue;
+}
+
+/**
+ * What a committed request stores so a retry of it can be answered (V-192): the response, and a
+ * fingerprint of the request it answered. A retry is the same request only when its fingerprint
+ * matches; anything else under that id is still "used for another operation".
+ */
+export type StoredReplay = { fingerprint: string; response: Prisma.InputJsonValue };
+
+/** A stable digest of what a billed request asked for, for `StoredReplay.fingerprint`. */
+export function replayFingerprint(request: unknown) {
+  return createHash("sha256").update(JSON.stringify(request)).digest("hex");
+}
+
+function readReplay(value: Prisma.JsonValue | null) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const { fingerprint, response } = value as Record<string, Prisma.JsonValue | undefined>;
+  if (typeof fingerprint !== "string" || response === undefined || response === null) return null;
+  return { fingerprint, response };
 }
 
 function reservationConflict(
@@ -408,11 +429,59 @@ export class CreditService {
     return reservation;
   }
 
+  /**
+   * The stored response of a request this user already paid for, when `fingerprint` says the
+   * retry is that same request (V-192). Null when there is nothing to replay: no such request,
+   * not committed, committed without a stored response, or the retention job has cleared it;
+   * the caller then reserves as usual and `reserve` answers any conflict. A committed request
+   * with a stored response under a different fingerprint is another operation: 409.
+   */
+  static async storedResult(
+    userId: string,
+    requestId: string,
+    action: string,
+    fingerprint: string,
+  ): Promise<Prisma.JsonValue | null> {
+    const reservation = await prisma.creditReservation.findUnique({
+      where: { userId_requestId: { userId, requestId } },
+      select: { action: true, status: true, replay: true },
+    });
+    if (!reservation || reservation.status !== "COMMITTED") return null;
+    const replay = readReplay(reservation.replay);
+    if (!replay) return null;
+    if (reservation.action !== action || replay.fingerprint !== fingerprint)
+      throw new ApiError(409, "AI request id was already used for another operation.");
+    return replay.response;
+  }
+
+  /**
+   * Stores a committed request's response after the fact, for a path that only knows its full
+   * response once the charge is made (the ATS analysis). Best effort: a failure here leaves the
+   * request unreplayable (a retry answers 409, as before V-192) and never touches the charge.
+   */
+  static async attachReplay(userId: string, requestId: string, replay: StoredReplay) {
+    await prisma.creditReservation.updateMany({
+      where: { userId, requestId, status: "COMMITTED" },
+      data: { replay },
+    });
+  }
+
   static async commitReservation(
     userId: string,
     requestId: string,
-    context: Omit<CreditContext, "requestId" | "action">,
+    context: Omit<CreditContext, "requestId" | "action"> & {
+      /**
+       * Stored on the reservation in the same transaction as the charge, so a request that was
+       * paid for can always be answered again (`storedResult`).
+       */
+      replay?: {
+        fingerprint: string;
+        /** Built from the ledger row, so the stored copy reports the balance this charge left. */
+        response: (transaction: CreditTransaction) => Prisma.InputJsonValue;
+      };
+    },
   ) {
+    const { replay, ...ledgerContext } = context;
     const result = await prisma.$transaction(async (tx) => {
       const reservation = await tx.creditReservation.findUnique({
         where: { userId_requestId: { userId, requestId } },
@@ -455,7 +524,7 @@ export class CreditService {
       });
       if (!settled.count)
         throw new ApiError(409, "Credit ledger is out of balance for this wallet.");
-      const { actorId, metadata, onWrite, ...rest } = context;
+      const { actorId, metadata, onWrite, ...rest } = ledgerContext;
       const transaction = await tx.creditTransaction.create({
         data: {
           walletId: reservation.walletId,
@@ -472,6 +541,16 @@ export class CreditService {
       await tx.creditUsageAllocation.createMany({
         data: allocations.map((item) => ({ transactionId: transaction.id, ...item })),
       });
+      if (replay)
+        await tx.creditReservation.update({
+          where: { id: reservation.id },
+          data: {
+            replay: {
+              fingerprint: replay.fingerprint,
+              response: replay.response(transaction),
+            } satisfies StoredReplay,
+          },
+        });
       if (onWrite) await onWrite(tx, transaction);
       return transaction;
     }, CREDIT_TRANSACTION_OPTIONS);

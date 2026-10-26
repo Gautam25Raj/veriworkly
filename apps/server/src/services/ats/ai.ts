@@ -1,7 +1,17 @@
+import type { Prisma } from "@prisma/client";
+import type { AtsConvertedResume } from "@veriworkly/ats-engine/ai";
+
 import { getAtsAiPolicy, type AtsComplexity } from "#services/ats/aiPolicy";
 import { createServerAtsAi, runBilled, taskRoute } from "#services/ats/atsAi";
 import type { AtsAiInsights, AtsReport } from "#services/ats/types";
+import { CreditService, replayFingerprint } from "#services/creditService";
 import { logger } from "#lib/logger";
+
+/** The ledger action of a resume conversion, and the key its stored result is replayed under. */
+const CONVERSION_ACTION = "ats_resume_conversion";
+
+/** The ledger action of an ATS analysis; the controller replays it (V-192). */
+export const ANALYSIS_ACTION = "ats_analysis";
 
 /**
  * How much model to spend on this request.
@@ -120,7 +130,7 @@ export class AtsAiService {
       userId,
       requestId,
       credits: route.credits,
-      action: "ats_analysis",
+      action: ANALYSIS_ACTION,
       reason: "AI ATS analysis",
       failure: "AI ATS analysis could not be completed.",
       metadata: {
@@ -150,13 +160,30 @@ export class AtsAiService {
     // balance, from any plan, pass or pack, cannot cover the conversion.
     const policy = getAtsAiPolicy();
     const route = policy.resumeConversion;
+
+    // V-192: a retry of a conversion already paid for gets the stored resume back.
+    const fingerprint = replayFingerprint({ resumeText });
+    const stored = await CreditService.storedResult(
+      userId,
+      requestId,
+      CONVERSION_ACTION,
+      fingerprint,
+    );
+    if (stored)
+      return {
+        resume: stored as unknown as AtsConvertedResume,
+        creditsSpent: route.credits,
+        replayed: true,
+      };
+
     const outcome = await runBilled({
       userId,
       requestId,
       credits: route.credits,
-      action: "ats_resume_conversion",
+      action: CONVERSION_ACTION,
       reason: "AI resume conversion",
       failure: "AI resume conversion could not be completed.",
+      replay: { fingerprint, response: (resume) => resume as unknown as Prisma.InputJsonValue },
       run: () =>
         createServerAtsAi(requestId).convertResume(
           { resumeText },

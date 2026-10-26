@@ -83,7 +83,13 @@ vi.mock("#services/ats/enginePolicy", async () => {
   return { getAtsEnginePolicy: () => DEFAULT_POLICY };
 });
 vi.mock("#services/creditService", () => ({
-  CreditService: { reserve: vi.fn(), commitReservation: vi.fn(), releaseReservation: vi.fn() },
+  CreditService: {
+    reserve: vi.fn(),
+    commitReservation: vi.fn(),
+    releaseReservation: vi.fn(),
+    storedResult: vi.fn(async () => null),
+  },
+  replayFingerprint: () => "fingerprint",
 }));
 vi.mock("#services/entitlementService", () => ({
   EntitlementService: {

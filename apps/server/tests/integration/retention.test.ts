@@ -69,6 +69,7 @@ describe("retention defaults", () => {
       auditLogs: 90,
       adminAuditEntries: 365,
       creditReservations: 90,
+      creditReplays: 1,
       flushBatches: 7,
       affiliateClicks: 0,
       portfolioViews: 0,
@@ -206,6 +207,44 @@ describe("retention rules (V-116)", () => {
 
     expect(summary.affected).toEqual({ creditReservations: 3 });
     expect(await ids("CreditReservation")).toEqual(["r-committed-fresh", "r-pending-old"]);
+  });
+
+  it("clears stored AI replays after a day and keeps the reservation rows (V-192)", async () => {
+    const days = DEFAULTS.creditReplays;
+    const user = await createUserWithSession();
+    const wallet = await prisma.creditWallet.create({ data: { userId: user.id } });
+    const replay = { fingerprint: "f", response: { content: "draft" } };
+    for (const [id, side] of [
+      ["replay-old", "old"],
+      ["replay-fresh", "fresh"],
+    ] as const) {
+      await prisma.creditReservation.create({
+        data: {
+          id,
+          walletId: wallet.id,
+          userId: user.id,
+          requestId: randomUUID(),
+          action: "ai",
+          cost: 1,
+          status: "COMMITTED",
+          expiresAt: at(days + 1, "old"),
+          replay,
+        },
+      });
+      await setTimestamp("CreditReservation", "updatedAt", id, at(days, side));
+    }
+
+    const summary = await applyRetention({ settings: only("creditReplays"), now });
+
+    expect(summary.affected).toEqual({ creditReplays: 1 });
+    const rows = await prisma.creditReservation.findMany({
+      select: { id: true, replay: true },
+      orderBy: { id: "asc" },
+    });
+    expect(rows).toEqual([
+      { id: "replay-fresh", replay },
+      { id: "replay-old", replay: null },
+    ]);
   });
 
   it("deletes flush markers past 7 days, affiliate clicks and portfolio views past 180", async () => {

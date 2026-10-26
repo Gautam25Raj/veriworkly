@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import type { AtsEnginePolicy } from "@veriworkly/ats-engine";
 import {
   AtsAiError,
@@ -136,6 +137,11 @@ type BilledRun<T> = {
   reason: string;
   failure: string;
   metadata?: Record<string, unknown>;
+  /**
+   * Stored with the charge so a retry of this request (same id, same fingerprint) is answered
+   * from it instead of running again (V-192; `CreditService.storedResult`).
+   */
+  replay?: { fingerprint: string; response: (result: T) => Prisma.InputJsonValue };
   run: () => Promise<AtsAiResult<T>>;
 };
 
@@ -186,10 +192,19 @@ export async function runReserved<T>(options: BilledRun<T>): Promise<HeldResult<
       if (settled) return;
       settled = true;
       try {
+        const { replay } = options;
         await CreditService.commitReservation(userId, requestId, {
           referenceId: outcome.responseId,
           reason: options.reason,
           metadata: { ...options.metadata, ...aiMetadata(outcome) },
+          ...(replay
+            ? {
+                replay: {
+                  fingerprint: replay.fingerprint,
+                  response: () => replay.response(outcome.result),
+                },
+              }
+            : {}),
         });
       } catch (error) {
         await releaseReservationQuietly(userId, requestId, { reason: options.reason });

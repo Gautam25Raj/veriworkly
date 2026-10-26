@@ -1,11 +1,13 @@
+import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Activity, Ban, Calendar, Clock3 } from "lucide-react";
 
 import type { ApiKeyDetailRecord } from "../ApiKeyTypes";
+import type { ApiKeyStatus } from "../../api-key-service";
 
 import { Card } from "@veriworkly/ui";
 
-import { formatDateTime } from "./api-key-detail-utils";
+import { LocalDateTime } from "../LocalDateTime";
 
 function DetailMetric({
   icon: Icon,
@@ -14,7 +16,7 @@ function DetailMetric({
 }: {
   icon: LucideIcon;
   label: string;
-  value: string;
+  value: ReactNode;
 }) {
   return (
     <Card className="rounded-xl p-4">
@@ -28,21 +30,31 @@ function DetailMetric({
   );
 }
 
-export function ApiKeyDetailOverview({ data }: { data: ApiKeyDetailRecord }) {
+function dateOr(value: string | null, fallback: string) {
+  return value ? <LocalDateTime iso={value} /> : fallback;
+}
+
+export function ApiKeyDetailOverview({
+  data,
+  status,
+}: {
+  data: ApiKeyDetailRecord;
+  status: ApiKeyStatus;
+}) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <DetailMetric icon={Calendar} label="Created" value={formatDateTime(data.createdAt)} />
-      <DetailMetric icon={Activity} label="Last used" value={formatDateTime(data.lastUsed)} />
+      <DetailMetric icon={Calendar} label="Created" value={dateOr(data.createdAt, "Never")} />
+      <DetailMetric icon={Activity} label="Last used" value={dateOr(data.lastUsed, "Never")} />
       <DetailMetric
         icon={Clock3}
-        label="Expires"
-        value={data.expiresAt ? formatDateTime(data.expiresAt) : "No expiry"}
+        label={status === "expired" ? "Expired" : "Expires"}
+        value={dateOr(data.expiresAt, "No expiry")}
       />
-      <DetailMetric
-        icon={Ban}
-        label="Revoked"
-        value={data.revokedAt ? formatDateTime(data.revokedAt) : "Not revoked"}
-      />
+      {status === "disabled" ? (
+        <DetailMetric icon={Ban} label="Disabled" value="By an administrator" />
+      ) : (
+        <DetailMetric icon={Ban} label="Revoked" value={dateOr(data.revokedAt, "Not revoked")} />
+      )}
     </div>
   );
 }

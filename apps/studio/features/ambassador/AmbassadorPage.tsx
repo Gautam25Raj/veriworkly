@@ -123,12 +123,15 @@ export function AmbassadorPage({ status }: { status: AmbassadorStatus | null }) 
         <section className="border-border bg-card rounded-2xl border p-5 sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <h2 className="text-lg font-black">What you told us</h2>
-            <Link
-              className="text-accent shrink-0 text-sm font-bold"
-              href={`${siteConfig.links.main}/ambassador/apply`}
-            >
-              {isAmbassador ? "View program page" : "Update"}
-            </Link>
+            {/* The server refuses changes to an application still in review. */}
+            {!isPending && (
+              <Link
+                className="text-accent shrink-0 text-sm font-bold"
+                href={`${siteConfig.links.main}/ambassador/apply`}
+              >
+                {isAmbassador ? "View program page" : "Update"}
+              </Link>
+            )}
           </div>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">

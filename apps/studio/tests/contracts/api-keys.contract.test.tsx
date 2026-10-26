@@ -1,0 +1,358 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import type { ApiKeyDetailRecord } from "@/features/api-keys/components/ApiKeyTypes";
+
+const routerReplace = vi.fn();
+const routerPush = vi.fn();
+const routerRefresh = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: routerReplace, push: routerPush, refresh: routerRefresh }),
+}));
+
+vi.mock("next/font/google", () => ({
+  Geist: () => ({ variable: "" }),
+  Geist_Mono: () => ({ variable: "" }),
+}));
+
+vi.mock("@/lib/constants", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/constants")>()),
+  backendApiUrl: (path: string) => `http://localhost:4000/api/v1${path}`,
+}));
+
+type ActionOptions = Parameters<
+  typeof import("@/features/api-keys/hooks/useApiKeyActions").useApiKeyActions
+>[0];
+
+const capturedActionOptions: ActionOptions[] = [];
+
+vi.mock("@/features/api-keys/hooks/useApiKeyActions", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/features/api-keys/hooks/useApiKeyActions")>();
+
+  return {
+    ...actual,
+    useApiKeyActions: (options: ActionOptions) => {
+      capturedActionOptions.push(options);
+      return actual.useApiKeyActions(options);
+    },
+  };
+});
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function detailRecord(overrides: Partial<ApiKeyDetailRecord> = {}): ApiKeyDetailRecord {
+  return {
+    id: "key_old",
+    keyPrefix: "vw_12345",
+    keySuffix: "abcdef12",
+    name: "Docs",
+    isActive: true,
+    rateLimit: 300,
+    scopes: ["user:read", "changelog:read"],
+    expiresAt: new Date(Date.now() + 30 * DAY_MS).toISOString(),
+    revokedAt: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    lastUsed: null,
+    ...overrides,
+  };
+}
+
+function jsonResponse(status: number, body: unknown) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+afterEach(() => {
+  routerReplace.mockReset();
+  routerPush.mockReset();
+  routerRefresh.mockReset();
+  capturedActionOptions.length = 0;
+});
+
+describe("S-082 S-084 S-181 rotate keeps what the user did not change", () => {
+  it("S-082 rotating a 300/15 min key sends no lower limit and keeps the exact expiry", async () => {
+    const { buildRotateApiKeyPayload } = await import("@/features/api-keys/api-key-service");
+    const { toLocalDateInput } = await import("@/lib/local-date");
+
+    const current = detailRecord({ expiresAt: "2027-03-01T15:42:10.123Z" });
+    const payload = buildRotateApiKeyPayload(current, {
+      name: current.name,
+      rateLimit: 300,
+      expiresAt: toLocalDateInput(new Date(current.expiresAt!)),
+    });
+
+    // The server keeps the current value for every field left out.
+    expect(payload.rateLimit ?? current.rateLimit).toBe(300);
+    expect(payload).not.toHaveProperty("expiresAt");
+  });
+
+  it("S-082 an admin-raised limit above the self-serve maximum is not clamped on rotate", async () => {
+    const { buildRotateApiKeyPayload } = await import("@/features/api-keys/api-key-service");
+
+    const current = detailRecord({ rateLimit: 5000 });
+    const payload = buildRotateApiKeyPayload(current, {
+      name: current.name,
+      rateLimit: 5000,
+      expiresAt: "",
+    });
+
+    expect(payload.rateLimit ?? current.rateLimit).toBe(5000);
+  });
+
+  it("S-084 a changed expiry is sent as the end of the chosen local day", async () => {
+    const { buildRotateApiKeyPayload } = await import("@/features/api-keys/api-key-service");
+    const { endOfLocalDay } = await import("@/lib/local-date");
+
+    const payload = buildRotateApiKeyPayload(detailRecord(), {
+      name: "Docs",
+      rateLimit: 300,
+      expiresAt: "2999-06-15",
+    });
+
+    expect(payload.expiresAt).toBe(endOfLocalDay("2999-06-15").toISOString());
+  });
+
+  it("S-084 the rotate request carries the payload unchanged and returns the new key", async () => {
+    const { rotateApiKey } = await import("@/features/api-keys/api-key-service");
+
+    const fetchMock = vi.fn(async () =>
+      jsonResponse(201, {
+        success: true,
+        data: { ...detailRecord({ id: "key_new" }), key: "vw_x" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const rotated = await rotateApiKey("key_old", { rateLimit: 450 });
+
+    expect(rotated.id).toBe("key_new");
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toContain("/api-keys/key_old/rotate");
+    expect(JSON.parse(String(init.body))).toEqual({ rateLimit: 450 });
+  });
+});
+
+describe("S-084 S-181 expiry is the end of the chosen local day", () => {
+  const originalTz = process.env.TZ;
+
+  afterEach(() => {
+    process.env.TZ = originalTz;
+  });
+
+  it("S-084 under America/Los_Angeles a picked date expires at local midnight, not UTC", async () => {
+    process.env.TZ = "America/Los_Angeles";
+    const { buildCreateApiKeyPayload } = await import("@/features/api-keys/api-key-service");
+
+    const payload = buildCreateApiKeyPayload({
+      name: "Docs",
+      scopes: ["user:read"],
+      rateLimit: 20,
+      expiresAt: "2026-11-03",
+    });
+
+    expect(payload.expiresAt).toBe("2026-11-04T07:59:59.999Z");
+  });
+
+  it("S-181 the picker's earliest day is tomorrow in the user's time zone", async () => {
+    process.env.TZ = "America/Los_Angeles";
+    const { tomorrowLocalDateInput, toLocalDateInput } = await import("@/lib/local-date");
+
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    expect(tomorrowLocalDateInput()).toBe(toLocalDateInput(tomorrow));
+  });
+
+  it("S-084 the rotate form shows the stored expiry as its local calendar day", async () => {
+    process.env.TZ = "America/Los_Angeles";
+    const { expiryDateInputValue } = await import("@/features/api-keys/api-key-service");
+
+    // 03:00 UTC on 2 March is still 1 March in Los Angeles.
+    expect(expiryDateInputValue("2027-03-02T03:00:00.000Z")).toBe("2027-03-01");
+    expect(expiryDateInputValue(null)).toBe("");
+  });
+});
+
+describe("S-086 S-262 a key's status follows expiry, revocation and admin disable", () => {
+  it("S-086 a past expiresAt is Expired even while the row is still active", async () => {
+    const { getApiKeyStatus } = await import("@/features/api-keys/api-key-service");
+
+    expect(
+      getApiKeyStatus({
+        isActive: true,
+        revokedAt: null,
+        expiresAt: new Date(Date.now() - DAY_MS).toISOString(),
+      }),
+    ).toBe("expired");
+    expect(getApiKeyStatus(detailRecord())).toBe("active");
+    expect(
+      getApiKeyStatus(detailRecord({ isActive: false, revokedAt: "2026-02-01T00:00:00Z" })),
+    ).toBe("revoked");
+    expect(getApiKeyStatus(detailRecord({ isActive: false, revokedAt: null }))).toBe("disabled");
+  });
+
+  it("S-086 the list renders Expired for a past expiresAt and offers no Rotate", async () => {
+    const { default: ApiKeyList } = await import("@/features/api-keys/components/ApiKeyList");
+
+    const html = renderToStaticMarkup(
+      <ApiKeyList
+        keys={[
+          {
+            id: "key_expired",
+            name: "Old CI",
+            keyPrefix: "vw_aaaaa",
+            isActive: true,
+            createdAt: "2025-01-01T00:00:00.000Z",
+            lastUsed: null,
+            expiresAt: new Date(Date.now() - DAY_MS).toISOString(),
+            revokedAt: null,
+          },
+        ]}
+        page={1}
+        totalPages={1}
+        hasMore={false}
+        loading={false}
+        onPrevPage={() => {}}
+        onNextPage={() => {}}
+        onRotate={() => {}}
+        onDelete={() => {}}
+        onRevoke={() => {}}
+      />,
+    );
+
+    expect(html).toContain("Expired");
+    expect(html).not.toMatch(/>Active</);
+  });
+
+  it("S-262 the detail view of an expired key offers no Rotate and its badge agrees", async () => {
+    const { default: ApiKeyDetailView } =
+      await import("@/features/api-keys/components/details/ApiKeyDetailView");
+
+    const html = renderToStaticMarkup(
+      <ApiKeyDetailView
+        initialData={detailRecord({ expiresAt: new Date(Date.now() - DAY_MS).toISOString() })}
+      />,
+    );
+
+    expect(html).toContain("Expired");
+    expect(html).not.toContain("Rotate");
+  });
+
+  it("S-262 an admin-disabled key is Disabled, never Revoked next to 'Not revoked'", async () => {
+    const { default: ApiKeyDetailView } =
+      await import("@/features/api-keys/components/details/ApiKeyDetailView");
+
+    const html = renderToStaticMarkup(
+      <ApiKeyDetailView initialData={detailRecord({ isActive: false, revokedAt: null })} />,
+    );
+
+    expect(html).toContain("Disabled");
+    expect(html).not.toContain("Revoked");
+    expect(html).not.toContain("Rotate");
+  });
+
+  it("S-083 the detail header names the 15-minute window", async () => {
+    const { default: ApiKeyDetailView } =
+      await import("@/features/api-keys/components/details/ApiKeyDetailView");
+
+    const html = renderToStaticMarkup(<ApiKeyDetailView initialData={detailRecord()} />);
+
+    expect(html).toContain("300/15 min");
+    expect(html).not.toContain("/min");
+  });
+});
+
+describe("S-085 rotate from the detail page", () => {
+  it("S-085 ApiKeyDetailView navigates to the new key's id after a rotate", async () => {
+    const { default: ApiKeyDetailView } =
+      await import("@/features/api-keys/components/details/ApiKeyDetailView");
+
+    renderToStaticMarkup(<ApiKeyDetailView initialData={detailRecord()} />);
+
+    const options = capturedActionOptions.at(-1);
+    expect(options).toBeDefined();
+
+    options!.onRotated({ ...detailRecord({ id: "key/new" }), key: "vw_secret" });
+
+    expect(routerReplace).toHaveBeenCalledWith("/api-keys/key%2Fnew");
+  });
+});
+
+describe("E LOW API key scope summary and errors", () => {
+  it("ai:write is summarised as Write, read-only groups as Read", async () => {
+    const { default: summarizeApiKeyScopes } =
+      await import("@/features/api-keys/components/ApiKeyScopes");
+
+    const summary = summarizeApiKeyScopes([
+      "ai:write",
+      "changelog:read",
+      "user:read",
+      "user:write",
+    ]);
+
+    expect(summary).toContainEqual({ label: "AI", access: "Write" });
+    expect(summary).toContainEqual({ label: "Changelog", access: "Read" });
+    expect(summary).toContainEqual({ label: "Profile", access: "Read / Write" });
+  });
+
+  it("S-084 a validation 400 shows the server's field message, not 'Validation failed'", async () => {
+    const { apiKeyErrorMessage } = await import("@/features/api-keys/api-key-service");
+    const { ApiRequestError } = await import("@/utils/fetchApiData");
+
+    const error = new ApiRequestError("Validation failed", 400, [
+      { path: "expiresAt", message: "expiresAt must be in the future" },
+    ]);
+
+    expect(apiKeyErrorMessage(error, "Failed")).toBe("expiresAt must be in the future");
+    expect(apiKeyErrorMessage(new ApiRequestError("Key has expired", 409), "Failed")).toBe(
+      "Key has expired",
+    );
+    expect(apiKeyErrorMessage(new Error("boom"), "Failed")).toBe("Failed");
+  });
+});
+
+describe("S-094 the ambassador page offers no edit the server refuses", () => {
+  const application = {
+    collegeName: "State University",
+    graduationYear: "2027",
+    whyJoin: "To help classmates",
+    superpower: "Organising",
+    funFact: "Juggles",
+    vibeCheck: null,
+    socialHandle: null,
+    reviewNote: null,
+    reviewedAt: null,
+    submittedAt: "2026-10-01T00:00:00.000Z",
+    updatedAt: "2026-10-01T00:00:00.000Z",
+  };
+
+  async function renderAmbassador(status: "PENDING" | "REJECTED") {
+    const { AmbassadorPage } = await import("@/features/ambassador/AmbassadorPage");
+
+    return renderToStaticMarkup(
+      <AmbassadorPage
+        status={{
+          name: "Ada Lovelace",
+          email: "ada@example.com",
+          role: "USER",
+          ambassadorStatus: status,
+          collegeName: application.collegeName,
+          graduationYear: application.graduationYear,
+          application: { ...application, status },
+        }}
+      />,
+    );
+  }
+
+  it("S-094 a pending applicant sees no Update link", async () => {
+    expect(await renderAmbassador("PENDING")).not.toContain(">Update<");
+  });
+
+  it("S-094 a rejected applicant can still update and reapply", async () => {
+    expect(await renderAmbassador("REJECTED")).toContain(">Update<");
+  });
+});

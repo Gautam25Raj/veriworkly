@@ -40,7 +40,8 @@ const inFlight = new Set<DocumentType>();
 export function freeLimitMessage(type: DocumentType) {
   const label = type.toLowerCase().replace("_", " ");
 
-  return `The free plan keeps 1 ${label} at a time. Creator Pro, AI Credits, the Bundle or a pass unlock unlimited documents.`;
+  // Said to credit-pack buyers too, who are paying customers: no "free plan" wording.
+  return `Without a subscription or pass you can keep 1 ${label} at a time. Creator Pro, an AI Credits subscription, the Bundle or a 3- or 7-day pass unlock unlimited documents; credit packs do not.`;
 }
 
 /**

@@ -6,31 +6,25 @@ import { ArrowRightLeft, Calendar, Key, TrendingUp, UserPen, Loader2 } from "luc
 import type { ApiKeyRecord, ApiKeyDetailRecord } from "./ApiKeyTypes";
 
 import { Button, Input, Modal } from "@veriworkly/ui";
-import { fetchApiData, ApiRequestError } from "@/utils/fetchApiData";
+import { tomorrowLocalDateInput } from "@/lib/local-date";
+
+import {
+  API_KEY_MAX_RATE_LIMIT,
+  API_KEY_RATE_WINDOW_LABEL,
+  apiKeyErrorMessage,
+  buildRotateApiKeyPayload,
+  expiryDateInputValue,
+  fetchApiKey,
+  type ApiKeyRotatePayload,
+} from "../api-key-service";
 
 type ApiKeyRotateModalProps = {
   open: boolean;
   keyRecord: ApiKeyRecord | null;
   submitting: boolean;
   onCloseAction: () => void;
-  onSubmitAction: (values: {
-    name: string;
-    rateLimit: number;
-    expiresAt?: string;
-    scopes: string[];
-  }) => void;
+  onSubmitAction: (payload: ApiKeyRotatePayload) => void;
 };
-
-function formatDateValue(dateValue: string | null) {
-  if (!dateValue) {
-    return "";
-  }
-  const parsed = new Date(dateValue);
-  if (Number.isNaN(parsed.getTime())) {
-    return "";
-  }
-  return parsed.toISOString().slice(0, 10);
-}
 
 export default function ApiKeyRotateModal({
   open,
@@ -39,10 +33,10 @@ export default function ApiKeyRotateModal({
   onCloseAction,
   onSubmitAction,
 }: ApiKeyRotateModalProps) {
+  const [details, setDetails] = useState<ApiKeyDetailRecord | null>(null);
   const [name, setName] = useState("");
-  const [rateLimit, setRateLimit] = useState(20);
+  const [rateLimit, setRateLimit] = useState(0);
   const [expiresAt, setExpiresAt] = useState("");
-  const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
 
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [detailError, setDetailError] = useState("");
@@ -58,21 +52,19 @@ export default function ApiKeyRotateModal({
       setLoadingDetails(true);
       setDetailError("");
 
-      fetchApiData<ApiKeyDetailRecord>(`/api-keys/${keyRecord.id}`, { method: "GET" })
+      fetchApiKey(keyRecord.id)
         .then((data) => {
           if (cancelled) return;
 
+          setDetails(data);
           setName(data.name);
-          setSelectedScopes(data.scopes);
-          setExpiresAt(formatDateValue(data.expiresAt));
-          setRateLimit(Math.min(20, Math.max(1, data.rateLimit || 20)));
+          setRateLimit(data.rateLimit);
+          setExpiresAt(expiryDateInputValue(data.expiresAt));
         })
         .catch((err) => {
           if (cancelled) return;
 
-          setDetailError(
-            err instanceof ApiRequestError ? err.message : "Failed to load key details",
-          );
+          setDetailError(apiKeyErrorMessage(err, "Failed to load key details"));
         })
         .finally(() => {
           if (!cancelled) setLoadingDetails(false);
@@ -84,19 +76,21 @@ export default function ApiKeyRotateModal({
     };
   }, [open, keyRecord]);
 
+  const currentExpiry = expiryDateInputValue(details?.expiresAt);
+  const tomorrow = tomorrowLocalDateInput();
+  // A new expiry starts tomorrow; keeping the key's current day, even today, stays allowed.
+  const minExpiry = currentExpiry && currentExpiry < tomorrow ? currentExpiry : tomorrow;
+  // An admin may have raised this key above the self-serve maximum, and keeping that is allowed.
+  const maxRateLimit = Math.max(API_KEY_MAX_RATE_LIMIT, details?.rateLimit ?? 0);
+
   const handleSubmit = (event: React.SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!keyRecord) {
+    if (!details) {
       return;
     }
 
-    onSubmitAction({
-      name: name.trim() || keyRecord.name,
-      rateLimit: Math.min(20, Math.max(1, rateLimit)),
-      expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
-      scopes: selectedScopes,
-    });
+    onSubmitAction(buildRotateApiKeyPayload(details, { name, rateLimit, expiresAt }));
   };
 
   const handleClose = () => {
@@ -159,22 +153,21 @@ export default function ApiKeyRotateModal({
                   htmlFor="rotate-api-key-rate-limit"
                   className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium"
                 >
-                  <TrendingUp className="h-3.5 w-3.5" /> Rate limit
+                  <TrendingUp className="h-3.5 w-3.5" /> Requests per {API_KEY_RATE_WINDOW_LABEL}
                 </label>
 
                 <Input
+                  required
                   min={1}
-                  max={20}
+                  step={1}
+                  max={maxRateLimit}
                   type="number"
                   inputSize="sm"
-                  value={rateLimit}
+                  value={rateLimit || ""}
                   disabled={submitting}
                   id="rotate-api-key-rate-limit"
                   className="bg-background/50 h-9"
-                  onChange={(event) => {
-                    const nextValue = Number(event.target.value || 1);
-                    setRateLimit(Math.min(20, Math.max(1, nextValue)));
-                  }}
+                  onChange={(event) => setRateLimit(Number(event.target.value))}
                 />
               </div>
 
@@ -183,12 +176,13 @@ export default function ApiKeyRotateModal({
                   htmlFor="rotate-api-key-expires-at"
                   className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium"
                 >
-                  <Calendar className="h-3.5 w-3.5" /> Expires at
+                  <Calendar className="h-3.5 w-3.5" /> Expires at end of
                 </label>
 
                 <Input
                   type="date"
                   inputSize="sm"
+                  min={minExpiry}
                   value={expiresAt}
                   disabled={submitting}
                   className="bg-background/50 h-9"
@@ -221,7 +215,13 @@ export default function ApiKeyRotateModal({
                 Cancel
               </Button>
 
-              <Button size="sm" type="submit" loading={submitting} className="w-full sm:w-auto">
+              <Button
+                size="sm"
+                type="submit"
+                loading={submitting}
+                disabled={!details}
+                className="w-full sm:w-auto"
+              >
                 Generate Key
               </Button>
             </Modal.Footer>

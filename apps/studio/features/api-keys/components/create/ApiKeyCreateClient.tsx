@@ -17,7 +17,7 @@ export default function ApiKeyCreateClient() {
       <div className="space-y-5">
         <ApiKeyDetailsForm
           name={create.name}
-          creating={create.creating}
+          disabled={create.locked}
           rateLimit={create.rateLimit}
           expiresAt={create.expiresAt}
           onNameChange={create.setName}

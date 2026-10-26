@@ -24,11 +24,21 @@ export function isAlreadySubscribedError(error: unknown) {
 export type CheckoutInterval = keyof CatalogProduct["prices"];
 
 const INTERVAL_LABELS: Record<CheckoutInterval, string> = {
-  one_day: "for the 3-Day Sprint",
+  one_day: "for 3 days",
   seven_day: "for 7 days",
   monthly: "per month",
   annual: "per year",
 };
+
+/** One-time passes are sold under the bundle key; customers know them by these names. */
+const PASS_NAMES: Partial<Record<CheckoutInterval, string>> = {
+  one_day: "3-Day Sprint pass",
+  seven_day: "7-Day Hunt pass",
+};
+
+export function formatPrice(cents: number, currency: CatalogProduct["currency"] = "USD") {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
+}
 
 export type CheckoutRequest =
   | {
@@ -61,16 +71,11 @@ export function resolveCheckoutRequest(
     return { ok: false, reason: `${product.name} is not sold for that billing period.` };
   }
 
-  const price = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: product.currency,
-  }).format(priceCents / 100);
-
   return {
     ok: true,
     productKey: product.key,
     interval,
-    productName: product.name,
-    priceLabel: `${price} ${INTERVAL_LABELS[interval]}`,
+    productName: PASS_NAMES[interval] ?? product.name,
+    priceLabel: `${formatPrice(priceCents, product.currency)} ${INTERVAL_LABELS[interval]}`,
   };
 }

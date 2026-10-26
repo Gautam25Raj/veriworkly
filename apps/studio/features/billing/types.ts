@@ -1,3 +1,5 @@
+import type { CreditWallet } from "@/features/credits/types";
+
 export type BillingSummary = {
   plan: "FREE" | "AI_CREDITS" | "PORTFOLIO_PRO" | "BUNDLE";
   productKey: ProductKey | null;
@@ -9,13 +11,20 @@ export type BillingSummary = {
   graceEndsAt: string | null;
   canPublish: boolean;
   entitlements: string[];
-  credits: {
-    balance: number;
-    lifetimeCredited: number;
-    lifetimeDebited: number;
-    nextExpiryAt: string | null;
-    nextExpiryCredits: number;
+  /**
+   * What the customer is paying for, from the grants in effect and the credit wallet. `plan`
+   * and `status` describe only entitlements and the latest subscription row, so a pass or
+   * credit-pack buyer reads FREE / INACTIVE there; this is what the account actually has.
+   */
+  access: {
+    tier: "free" | "credits" | "pass" | "ai_credits" | "portfolio_pro" | "bundle";
+    isPaying: boolean;
+    passEndsAt: string | null;
+    portfolioAccessEndsAt: string | null;
+    aiCreditsEndsAt: string | null;
+    creditBalance: number;
   };
+  credits: CreditWallet;
   catalog: CatalogProduct[];
   addOns: Array<{ key: string; name: string }>;
   creditEconomics: {

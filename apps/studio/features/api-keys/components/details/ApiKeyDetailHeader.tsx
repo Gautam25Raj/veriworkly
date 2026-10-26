@@ -7,13 +7,20 @@ import type { ApiKeyDetailRecord } from "../ApiKeyTypes";
 
 import { Badge } from "@veriworkly/ui";
 
-import { statusClass } from "./api-key-detail-utils";
+import {
+  API_KEY_RATE_WINDOW_LABEL,
+  API_KEY_STATUS_LABELS,
+  type ApiKeyStatus,
+} from "../../api-key-service";
+
+import { INACTIVE_STATUS_NOTES, statusClass } from "./api-key-detail-utils";
 
 type ApiKeyDetailHeaderProps = {
   data: ApiKeyDetailRecord;
+  status: ApiKeyStatus;
 };
 
-export function ApiKeyDetailHeader({ data }: ApiKeyDetailHeaderProps) {
+export function ApiKeyDetailHeader({ data, status }: ApiKeyDetailHeaderProps) {
   return (
     <section className="border-border bg-card grid gap-0 overflow-hidden rounded-2xl border lg:grid-cols-[minmax(0,1fr)_22rem]">
       <div className="p-5 sm:p-6">
@@ -39,9 +46,7 @@ export function ApiKeyDetailHeader({ data }: ApiKeyDetailHeaderProps) {
                 {data.name}
               </h1>
 
-              <Badge className={statusClass(data.isActive)}>
-                {data.isActive ? "Active" : "Revoked"}
-              </Badge>
+              <Badge className={statusClass(status)}>{API_KEY_STATUS_LABELS[status]}</Badge>
             </div>
 
             <p className="text-muted mt-2 font-mono text-sm">
@@ -57,12 +62,14 @@ export function ApiKeyDetailHeader({ data }: ApiKeyDetailHeaderProps) {
             Rate limit
           </p>
 
-          <p className="mt-2 text-2xl font-black">{data.rateLimit}/min</p>
+          <p className="mt-2 text-2xl font-black">
+            {data.rateLimit}/{API_KEY_RATE_WINDOW_LABEL}
+          </p>
         </div>
 
-        {!data.isActive && (
+        {status !== "active" && (
           <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm font-medium text-red-700 dark:text-red-300">
-            This API key is disabled and cannot authenticate requests.
+            {INACTIVE_STATUS_NOTES[status]}
           </div>
         )}
       </div>

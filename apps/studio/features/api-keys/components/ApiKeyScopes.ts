@@ -1,13 +1,3 @@
-export const AVAILABLE_API_KEY_SCOPES = [
-  "user:read",
-  "user:write",
-  "resume:read",
-  "resume:write",
-  "roadmap:read",
-  "github:read",
-  "ai:write",
-] as const;
-
 export const API_KEY_SCOPE_OPTIONS = [
   {
     value: "user:read",
@@ -40,6 +30,12 @@ export const API_KEY_SCOPE_OPTIONS = [
   },
 
   {
+    value: "changelog:read",
+    label: "Changelog read",
+    description: "Read published changelog entries.",
+  },
+
+  {
     value: "github:read",
     label: "GitHub read",
     description: "Read synced GitHub issue and stats data.",
@@ -50,6 +46,13 @@ export const API_KEY_SCOPE_OPTIONS = [
     description: "Generate and rewrite content using the account's AI credits.",
   },
 ] as const;
+
+export type ApiKeyScope = (typeof API_KEY_SCOPE_OPTIONS)[number]["value"];
+
+/** Every scope the server accepts (its `ALLOWED_SCOPES`; a contract test keeps them equal). */
+export const AVAILABLE_API_KEY_SCOPES: readonly ApiKeyScope[] = API_KEY_SCOPE_OPTIONS.map(
+  (option) => option.value,
+);
 
 export const API_KEY_SCOPE_GROUPS = [
   {
@@ -74,6 +77,13 @@ export const API_KEY_SCOPE_GROUPS = [
   },
 
   {
+    key: "changelog",
+    label: "Changelog",
+    description: "Public changelog APIs are read-only.",
+    scopes: ["changelog:read"],
+  },
+
+  {
     key: "github",
     label: "GitHub",
     description: "Synced GitHub stats and issue APIs are read-only.",
@@ -85,7 +95,12 @@ export const API_KEY_SCOPE_GROUPS = [
     description: "AI generation spends credits from the account.",
     scopes: ["ai:write"],
   },
-] as const;
+] as const satisfies readonly {
+  key: string;
+  label: string;
+  description: string;
+  scopes: readonly ApiKeyScope[];
+}[];
 
 export type ApiKeyScopeSummary = {
   label: string;
@@ -96,10 +111,10 @@ const summarizeApiKeyScopes = (scopes: string[]): ApiKeyScopeSummary[] => {
   const selected = new Set(scopes);
 
   return API_KEY_SCOPE_GROUPS.flatMap((group) => {
-    const [readScope, writeScope] = group.scopes;
+    const granted = group.scopes.filter((scope) => selected.has(scope));
 
-    const hasRead = Boolean(readScope && selected.has(readScope));
-    const hasWrite = Boolean(writeScope && selected.has(writeScope));
+    const hasRead = granted.some((scope) => scope.endsWith(":read"));
+    const hasWrite = granted.some((scope) => scope.endsWith(":write"));
 
     if (!hasRead && !hasWrite) {
       return [];

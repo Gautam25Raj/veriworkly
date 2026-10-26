@@ -57,7 +57,10 @@ export type AtsResult = {
     remaining: number;
     resetsAt: string;
     canConvertResume: boolean;
-    pricing: AtsPricing;
+    /** `false` when this account cannot use AI parse repair; absent on servers that predate it. */
+    canRepair?: boolean;
+    /** `null` while the server's AI pricing is unavailable. */
+    pricing: AtsPricing | null;
     extract: { limit: number; used: number; remaining: number };
   };
 };

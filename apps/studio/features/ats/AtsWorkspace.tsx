@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -29,11 +30,16 @@ import { toast } from "sonner";
 import { useUserStore } from "@/store/useUserStore";
 import {
   convertResumeWithAi,
+  describeAtsError,
   extractResumeFile,
   getAtsQuota,
   runAtsAnalysis,
   runAtsCheck,
+  type AtsFileInfo,
 } from "@/features/ats/ats-api";
+import type { PaidActionError } from "@/features/credits/credit-errors";
+import type { CreditWallet } from "@/features/credits/types";
+import { fetchApiData } from "@/utils/fetchApiData";
 import type {
   AtsLayoutSignals,
   AtsParsedResume,
@@ -74,6 +80,7 @@ export function AtsWorkspace() {
   // layout. Cleared whenever the resume comes from anywhere else, since it would then describe
   // a document that is no longer loaded.
   const [layout, setLayout] = useState<AtsLayoutSignals | undefined>(undefined);
+  const [fileInfo, setFileInfo] = useState<AtsFileInfo | undefined>(undefined);
   const [jobDescription, setJobDescription] = useState("");
   const [jobUrl, setJobUrl] = useState("");
   const [useJobUrl, setUseJobUrl] = useState(false);
@@ -91,53 +98,75 @@ export function AtsWorkspace() {
   const [result, setResult] = useState<AtsResult | null>(null);
   const [converted, setConverted] = useState<ConvertedResume | null>(null);
   const [busy, setBusy] = useState<"extract" | "check" | "ai" | "convert" | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<PaidActionError | null>(null);
+  // What the user can spend, shown next to every price. "error" keeps a failed read visible
+  // instead of looking like a balance that is still loading.
+  const [wallet, setWallet] = useState<CreditWallet | "error" | null>(null);
+
+  const refreshWallet = useCallback(() => {
+    void fetchApiData<CreditWallet>("/billing/credits")
+      .then(setWallet)
+      .catch(() => setWallet("error"));
+  }, []);
 
   useEffect(() => {
-    if (isLoggedIn) {
-      void getAtsQuota()
-        .then(setQuota)
-        .catch(() => undefined);
-    }
-  }, [isLoggedIn]);
+    if (!isLoggedIn) return;
+
+    void getAtsQuota()
+      .then(setQuota)
+      .catch((cause) =>
+        setError(describeAtsError(cause, "Your scan allowance could not be loaded.")),
+      );
+    refreshWallet();
+  }, [isLoggedIn, refreshWallet]);
 
   const pricing = quota?.pricing;
+  const available = wallet && wallet !== "error" ? wallet.available : null;
   const hasResume = Boolean(resume.trim());
-  const hasTarget = Boolean(jobDescription.trim() || (useJobUrl && jobUrl.trim()));
-  const urlOnlyTarget = useJobUrl && Boolean(jobUrl.trim()) && !jobDescription.trim();
+  // Only the visible field is the target: a description left behind the URL tab is not sent.
+  const hasTarget = Boolean(useJobUrl ? jobUrl.trim() : jobDescription.trim());
+  const urlOnlyTarget = useJobUrl && Boolean(jobUrl.trim());
+  const canRepair = typeof pricing?.parseRepairCredits === "number" && quota?.canRepair !== false;
 
   async function run(withAi: boolean) {
     if (!isLoggedIn) {
       toast.error("Please log in to scan resumes.");
       return;
     }
-    if (!hasResume) return setError("Add a resume before starting the scan.");
+    if (!hasResume)
+      return setError({ message: "Add a resume before starting the scan.", buyCredits: false });
     setBusy(withAi ? "ai" : "check");
-    setError("");
+    setError(null);
     setConverted(null);
     const scanInput = resumeDocument ?? resume;
+    const targetDescription = useJobUrl ? undefined : jobDescription || undefined;
     try {
       const next = withAi
         ? await runAtsAnalysis({
             resume: scanInput,
-            jobDescription: jobDescription || undefined,
+            jobDescription: targetDescription,
             jobUrl: useJobUrl ? jobUrl || undefined : undefined,
             fetchJobUrl: useJobUrl,
             requestId: createRequestId(),
             layout,
-            repairParse: repairParse && !resumeDocument,
+            file: fileInfo,
+            repairParse: repairParse && canRepair && !resumeDocument,
           })
         : await runAtsCheck({
             resume: scanInput,
-            jobDescription: jobDescription || undefined,
+            jobDescription: targetDescription,
             layout,
+            file: fileInfo,
           });
       setResult(next);
       setQuota(next.quota);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "ATS scan failed.");
+      const failure = describeAtsError(cause, "ATS scan failed.");
+      setError(failure);
+      if (failure.quota) setQuota(failure.quota);
     } finally {
       setBusy(null);
+      if (withAi) refreshWallet();
     }
   }
 
@@ -146,17 +175,20 @@ export function AtsWorkspace() {
       toast.error("Please log in to convert resumes.");
       return;
     }
-    if (!hasResume) return setError("Add the old resume you want to convert.");
+    if (!hasResume) {
+      return setError({ message: "Add the old resume you want to convert.", buyCredits: false });
+    }
     setBusy("convert");
-    setError("");
+    setError(null);
     try {
       const response = await convertResumeWithAi({ resume, requestId: createRequestId() });
       setConverted(response.resume);
       toast.success(`Resume draft prepared. ${response.creditsSpent} credits used.`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Resume conversion failed.");
+      setError(describeAtsError(cause, "Resume conversion failed."));
     } finally {
       setBusy(null);
+      refreshWallet();
     }
   }
 
@@ -169,7 +201,10 @@ export function AtsWorkspace() {
     const createFailure = describeSaveResult(created.saveResult);
 
     if (createFailure) {
-      return setError(`The converted resume could not be saved. ${createFailure}`);
+      return setError({
+        message: `The converted resume could not be saved. ${createFailure}`,
+        buyCredits: false,
+      });
     }
 
     const draft = buildResumeFromConversion(converted, created.id);
@@ -180,7 +215,10 @@ export function AtsWorkspace() {
     if (failure) {
       // The placeholder createDocument wrote must not stay behind as the active resume.
       deleteDocument("RESUME", created.id);
-      return setError(`The converted resume could not be saved. ${failure}`);
+      return setError({
+        message: `The converted resume could not be saved. ${failure}`,
+        buyCredits: false,
+      });
     }
 
     router.push(getDocumentEditorPath("RESUME", created.id));
@@ -203,6 +241,10 @@ export function AtsWorkspace() {
         </div>
         <div className="flex gap-6 text-sm">
           <Metric label="Scans left" value={quota ? `${quota.remaining}/${quota.limit}` : "..."} />
+          <Metric
+            label="Credits available"
+            value={wallet === "error" ? "Unavailable" : wallet ? String(wallet.available) : "..."}
+          />
           <Metric label="Resume data" value="Not stored" />
         </div>
       </header>
@@ -228,19 +270,21 @@ export function AtsWorkspace() {
                     return;
                   }
                   setBusy("extract");
-                  setError("");
+                  setError(null);
                   try {
                     const extracted = await extractResumeFile(file);
                     setResume(extracted.text);
                     setResumeDocument(null);
                     setLayout(extracted.layout);
+                    setFileInfo({ name: file.name, bytes: file.size });
+                    setQuota(extracted.quota);
                     setSourceLabel(file.name);
                     setResult(null);
                     setConverted(null);
                   } catch (cause) {
-                    setError(
-                      cause instanceof Error ? cause.message : "Resume file could not be read.",
-                    );
+                    const failure = describeAtsError(cause, "Resume file could not be read.");
+                    setError(failure);
+                    if (failure.quota) setQuota(failure.quota);
                   } finally {
                     setBusy(null);
                   }
@@ -263,6 +307,7 @@ export function AtsWorkspace() {
                     setResumeDocument(document);
                     setResume(renderResumeDocument(document));
                     setLayout(undefined);
+                    setFileInfo(undefined);
                     setSourceLabel(
                       saved.find((item) => item.id === event.target.value)?.title ??
                         "Studio resume",
@@ -289,6 +334,7 @@ export function AtsWorkspace() {
                 setResume(event.target.value);
                 setResumeDocument(null);
                 setLayout(undefined);
+                setFileInfo(undefined);
                 setSourceLabel(event.target.value ? "Pasted resume" : "");
               }}
               rows={9}
@@ -351,22 +397,20 @@ export function AtsWorkspace() {
                 title="Add AI interpretation"
                 description="Explains missing evidence, keyword opportunities, and the best next edits."
                 detail={
-                  useJobUrl
-                    ? pricing
-                      ? `${pricing.jobUrlAnalysisCredits.min}-${pricing.jobUrlAnalysisCredits.max} credits`
-                      : "Price range loads before analysis"
+                  useJobUrl && !jobUrl.trim()
+                    ? "Enter the job URL to review it"
                     : pricing
-                      ? `${pricing.analysisCredits.min}-${pricing.analysisCredits.max} credits`
+                      ? `Uses ${creditRange(useJobUrl ? pricing.jobUrlAnalysisCredits : pricing.analysisCredits)}${available === null ? "" : ` · you have ${available}`}`
                       : "Price range loads before analysis"
                 }
                 icon={Sparkles}
                 accent
-                disabled={!hasResume || Boolean(busy)}
+                disabled={!hasResume || Boolean(busy) || (useJobUrl && !jobUrl.trim())}
                 busy={busy === "ai"}
                 onClick={() => void run(true)}
               />
             </div>
-            {typeof pricing?.parseRepairCredits === "number" && !resumeDocument ? (
+            {canRepair && pricing?.parseRepairCredits && !resumeDocument ? (
               <label className="text-muted mt-4 flex cursor-pointer items-start gap-2 text-xs leading-5">
                 <input
                   type="checkbox"
@@ -394,7 +438,18 @@ export function AtsWorkspace() {
                 role="alert"
                 className="bg-destructive/10 text-destructive mt-4 flex items-start gap-2 rounded-lg px-3 py-2 text-sm"
               >
-                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {error}
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  {error.message}
+                  {error.buyCredits ? (
+                    <>
+                      {" "}
+                      <Link className="font-bold underline" href="/billing">
+                        Get credits
+                      </Link>
+                    </>
+                  ) : null}
+                </span>
               </p>
             ) : null}
           </StepSection>
@@ -403,7 +458,7 @@ export function AtsWorkspace() {
             <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
               <div className="max-w-xl">
                 <div className="text-background/70 mb-2 flex items-center gap-2 text-sm font-semibold">
-                  <LockKeyhole className="h-4 w-4" /> Pro resume conversion
+                  <Sparkles className="h-4 w-4" /> AI resume conversion
                 </div>
                 <h2 className="text-xl font-black">
                   Turn an old resume into an editable VeriWorkly draft
@@ -428,10 +483,18 @@ export function AtsWorkspace() {
               </button>
             </div>
             <p className="text-background/60 mt-4 text-xs">
-              Pro feature ·{" "}
-              {pricing ? `${pricing.resumeConversionCredits} credits` : "Price loads securely"} ·
-              Nothing is created until you confirm
+              {pricing ? `Uses ${pricing.resumeConversionCredits} credits` : "Price loads securely"}
+              {available === null ? "" : ` · you have ${available}`} · Nothing is created until you
+              confirm
             </p>
+            {quota?.canConvertResume === false ? (
+              <p className="text-background/80 mt-2 text-xs">
+                Conversion isn&apos;t available on this account yet.{" "}
+                <Link className="font-bold underline" href="/billing">
+                  See plans and credits
+                </Link>
+              </p>
+            ) : null}
           </section>
         </div>
 
@@ -479,6 +542,10 @@ export function AtsWorkspace() {
       </section>
     </main>
   );
+}
+
+function creditRange({ min, max }: { min: number; max: number }) {
+  return min === max ? `${min} credits` : `${min}–${max} credits`;
 }
 
 function StepSection({
@@ -860,6 +927,9 @@ function RankedFixes({ failedChecks }: { failedChecks: AtsResult["report"]["fail
 }
 
 function ResultsPanel({ result }: { result: AtsResult }) {
+  // `creditsSpent` is the analysis alone; the repair is charged separately.
+  const repairCredits = result.repair?.creditsSpent ?? 0;
+
   return (
     <div className="space-y-4">
       <div className="bg-foreground text-background rounded-xl p-5">
@@ -909,7 +979,8 @@ function ResultsPanel({ result }: { result: AtsResult }) {
       ) : result.repair?.available &&
         !result.repair.applied &&
         !result.repair.creditsSpent &&
-        typeof result.quota.pricing.parseRepairCredits === "number" ? (
+        result.quota.canRepair !== false &&
+        typeof result.quota.pricing?.parseRepairCredits === "number" ? (
         <p className="text-muted flex items-start gap-2 px-1 text-xs leading-5">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
           The parser missed parts of this resume and nothing was recovered this time. AI re-reading,
@@ -951,14 +1022,19 @@ function ResultsPanel({ result }: { result: AtsResult }) {
           </div>
           <p className="mt-2 text-sm leading-6">
             We could not reach a model for this scan, so only the deterministic report above was
-            produced. No credits were charged and this scan was returned to your allowance — please
-            try again shortly.
+            produced. Nothing was charged for the analysis and this scan was returned to your
+            allowance — please try again shortly.
+            {repairCredits
+              ? ` The AI re-read of your resume did run and used ${repairCredits} credits.`
+              : ""}
           </p>
         </section>
       ) : null}
       <ReportList title="What already works" items={result.report.strengths} />
       <p className="text-muted px-1 text-xs">
-        {result.creditsSpent ? `${result.creditsSpent} credits used · ` : ""}
+        {result.creditsSpent + repairCredits
+          ? `${result.creditsSpent + repairCredits} credits used · `
+          : ""}
         {result.quota.remaining} scans remaining
       </p>
     </div>

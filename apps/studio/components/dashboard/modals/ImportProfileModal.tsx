@@ -10,6 +10,12 @@ import { useUserStore } from "@/store/useUserStore";
 import { fetchApiData } from "@/utils/fetchApiData";
 import { extractResumeFile } from "@/features/ats/ats-api";
 import { getDocumentEditorPath } from "@/features/documents/core/routes";
+import { listDocuments } from "@/features/documents/services/document-workspace-service";
+import {
+  FREE_DOCUMENTS_PER_TYPE,
+  freeLimitMessage,
+} from "@/features/documents/services/document-limit";
+import type { BillingSummary } from "@/features/billing/types";
 
 const LinkedinIcon = ({ className }: { className?: string }) => (
   <svg
@@ -43,6 +49,7 @@ const GithubIcon = ({ className }: { className?: string }) => (
 );
 
 interface QuotaDetails {
+  /** A subscription or pass (the server's paid predicate); credit packs alone are not. */
   isPaid: boolean;
   remaining: number;
   limit: number;
@@ -87,6 +94,11 @@ export function ImportProfileModal({
 
   // Quota states
   const [quota, setQuota] = useState<QuotaResponse | null>(null);
+  // Only to name a credit-pack buyer as a paying customer; limits come from `quota`.
+  const [accessTier, setAccessTier] = useState<BillingSummary["access"]["tier"] | null>(null);
+  // An import makes a new resume, so a free account that already has one is told before it
+  // pastes or uploads anything, not by the server's 402 after.
+  const [resumeCount, setResumeCount] = useState(0);
 
   // Sync state during rendering instead of useEffect to avoid synchronous setState inside effects.
   // Resets *all* per-session state on every reopen (not just activeTab) so a previous
@@ -100,6 +112,8 @@ export function ImportProfileModal({
       setLinkedinText("");
       setReplaceMaster(false);
       setQuota(null);
+      setAccessTier(null);
+      setResumeCount(listDocuments("RESUME").length);
     }
   }
 
@@ -120,11 +134,20 @@ export function ImportProfileModal({
           current ? current : (data?.github?.connectedUsername ?? current),
         );
       } catch (error) {
-        console.error("Failed to fetch import quota:", error);
+        if (!active) return;
+        toast.error(
+          `Could not load your import allowance: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     };
 
     void fetchQuota();
+    // A failed read leaves the badge out rather than guessing "Free" for a paying customer.
+    void fetchApiData<BillingSummary>("/billing/me")
+      .then((billing) => {
+        if (active) setAccessTier(billing.access.tier);
+      })
+      .catch(() => undefined);
     return () => {
       active = false;
     };
@@ -135,6 +158,14 @@ export function ImportProfileModal({
   const currentTabQuota = quota ? quota[activeTab] : null;
   const isPaidUser = currentTabQuota?.isPaid ?? false;
   const isTabBlocked = !isPaidUser && currentTabQuota !== null && currentTabQuota.remaining <= 0;
+  const atDocumentLimit = quota !== null && !isPaidUser && resumeCount >= FREE_DOCUMENTS_PER_TYPE;
+  const accessBadge = isPaidUser
+    ? "Subscription or pass"
+    : accessTier === "credits"
+      ? "Credits customer"
+      : accessTier === "free"
+        ? "Free"
+        : null;
 
   // Handle PDF Upload & Extraction
   const handlePdfUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -170,7 +201,7 @@ export function ImportProfileModal({
     }
 
     setLoading(true);
-    setLoadingStep("Fetching details from GitHub API...");
+    setLoadingStep("Fetching your GitHub profile...");
     try {
       const doc = await fetchApiData<ImportedDocument>("/profiles/import/github", {
         method: "POST",
@@ -180,7 +211,6 @@ export function ImportProfileModal({
         }),
       });
 
-      setLoadingStep("Parsing profile via AI...");
       toast.success("GitHub profile imported successfully!");
       onClose();
       // Notify library components
@@ -246,7 +276,7 @@ export function ImportProfileModal({
         <div className="border-border/70 from-card to-background flex items-start justify-between border-b bg-linear-to-r p-5 sm:p-6">
           <div>
             <span className="text-accent text-[10px] font-bold tracking-[0.2em] uppercase">
-              AI Import
+              Import
             </span>
             <h2
               id="import-profile-title"
@@ -278,8 +308,8 @@ export function ImportProfileModal({
             </div>
             <h3 className="text-lg font-bold">Authentication required</h3>
             <p className="text-muted mx-auto max-w-sm text-xs leading-5">
-              Profile parsing requires backend AI compute resources. Sign in to import LinkedIn or
-              GitHub profiles.
+              Imports create a resume in your account. Sign in to import a LinkedIn or GitHub
+              profile.
             </p>
             <div className="pt-2">
               <Button size="sm" variant="primary" onClick={() => router.push("/login")}>
@@ -323,32 +353,51 @@ export function ImportProfileModal({
             {quota && (
               <div className="border-border/60 bg-card/20 flex items-center justify-between border-b px-6 py-2.5 text-[11px]">
                 <div className="text-muted-foreground flex items-center gap-1">
-                  <span>Usage quota:</span>
-                  {isPaidUser ? (
-                    <Badge className="rounded border-none bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-500">
-                      Creator Pro (Unlimited)
+                  <span>Imports:</span>
+                  {accessBadge ? (
+                    <Badge
+                      className={`rounded border-none px-1.5 py-0.5 text-[10px] font-bold ${accessBadge === "Free" ? "bg-amber-500/10 text-amber-500" : "bg-emerald-500/10 text-emerald-500"}`}
+                    >
+                      {accessBadge}
                     </Badge>
-                  ) : (
-                    <Badge className="rounded border-none bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-500">
-                      Free Plan
-                    </Badge>
-                  )}
+                  ) : null}
                 </div>
 
-                {!isPaidUser && currentTabQuota && (
+                {isPaidUser ? (
+                  <span className="text-accent font-semibold">
+                    {activeTab === "linkedin" ? "No import limit" : "Up to 50 a day"}
+                  </span>
+                ) : currentTabQuota ? (
                   <span
                     className={`font-semibold ${currentTabQuota.remaining > 0 ? "text-accent" : "text-destructive"}`}
                   >
-                    {currentTabQuota.remaining} / {currentTabQuota.limit} left this{" "}
-                    {activeTab === "linkedin" ? "month" : "day"}
+                    {currentTabQuota.remaining} / {currentTabQuota.limit} left · rolling{" "}
+                    {activeTab === "linkedin" ? "30 days" : "24 hours"}
                   </span>
-                )}
+                ) : null}
               </div>
             )}
 
             <div className="p-6">
               {/* Limit Blocked View */}
-              {isTabBlocked ? (
+              {atDocumentLimit ? (
+                <div className="border-destructive/20 bg-destructive/5 text-destructive space-y-2 rounded-xl border p-4">
+                  <div className="flex gap-2">
+                    <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+                    <div>
+                      <h4 className="text-sm font-bold">You already have a resume</h4>
+                      <p className="text-muted-foreground mt-1 text-xs leading-5">
+                        An import creates a new resume. {freeLimitMessage("RESUME")}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="pt-2">
+                    <Button size="sm" variant="primary" onClick={() => router.push("/billing")}>
+                      See plans
+                    </Button>
+                  </div>
+                </div>
+              ) : isTabBlocked ? (
                 <div className="border-destructive/20 bg-destructive/5 text-destructive space-y-2 rounded-xl border p-4">
                   <div className="flex gap-2">
                     <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
@@ -356,9 +405,9 @@ export function ImportProfileModal({
                       <h4 className="text-sm font-bold">Limit reached</h4>
                       <p className="text-muted-foreground mt-1 text-xs leading-5">
                         {activeTab === "linkedin"
-                          ? "LinkedIn profile imports are limited to once a month for free accounts."
-                          : "GitHub profile imports are limited to once a day for free accounts."}{" "}
-                        Upgrade to a premium plan to remove all limits immediately.
+                          ? "Without a subscription or pass, LinkedIn imports are limited to one every 30 days."
+                          : "Without a subscription or pass, GitHub imports are limited to one every 24 hours."}{" "}
+                        A subscription or pass lifts this limit.
                       </p>
                     </div>
                   </div>
@@ -372,7 +421,7 @@ export function ImportProfileModal({
                   )}
                   <div className="pt-2">
                     <Button size="sm" variant="primary" onClick={() => router.push("/billing")}>
-                      Upgrade Plan
+                      See plans
                     </Button>
                   </div>
                 </div>
@@ -496,19 +545,42 @@ export function ImportProfileModal({
                           )}
                         </div>
 
-                        {!isPaidUser && (
+                        {!isPaidUser && currentTabQuota && !currentTabQuota.connectedUsername ? (
                           <div className="flex gap-2 rounded-xl border border-amber-500/10 bg-amber-500/5 p-3 text-xs leading-5 text-amber-500">
                             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                             <div>
-                              <p className="font-bold">Free Plan Restriction</p>
+                              <p className="font-bold">GitHub import needs a GitHub sign-in</p>
                               <p className="text-muted-foreground mt-0.5 text-[11px]">
-                                You can only import your own connected GitHub profile (
-                                {currentTabQuota?.connectedUsername || "Connecting..."}). Upgrade to
-                                a paid plan to import any profile.
+                                You didn&apos;t sign in with GitHub, so there is no GitHub profile
+                                of yours to read. Sign in with GitHub to import your own profile,
+                                use LinkedIn import, or get a subscription or pass to import any
+                                public GitHub profile.
                               </p>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => setActiveTab("linkedin")}
+                                >
+                                  Use LinkedIn import
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => router.push("/billing")}
+                                >
+                                  See plans
+                                </Button>
+                              </div>
                             </div>
                           </div>
-                        )}
+                        ) : !isPaidUser ? (
+                          <p className="text-muted-foreground text-[11px] leading-5">
+                            {currentTabQuota
+                              ? `Imports your own GitHub profile (${currentTabQuota.connectedUsername}). A subscription or pass lets you import any public profile.`
+                              : "Checking your GitHub sign-in..."}
+                          </p>
+                        ) : null}
                       </div>
 
                       <div className="border-border/60 flex items-center justify-between gap-4 border-t pt-2">

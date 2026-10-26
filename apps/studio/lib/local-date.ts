@@ -27,6 +27,13 @@ export function todayLocalDateInput(): string {
   return toLocalDateInput(new Date());
 }
 
+/** Tomorrow as a date input's `min`, for an expiry that must leave at least a full day. */
+export function tomorrowLocalDateInput(): string {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return toLocalDateInput(tomorrow);
+}
+
 /** The chosen day has already ended. */
 export function isPastLocalDate(value: string): boolean {
   return endOfLocalDay(value).getTime() < Date.now();

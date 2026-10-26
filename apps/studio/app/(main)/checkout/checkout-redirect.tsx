@@ -108,7 +108,9 @@ export function CheckoutRedirect({
                   } catch (err) {
                     setError({
                       message:
-                        err instanceof Error ? err.message : "Could not reset checkout lock.",
+                        err instanceof Error
+                          ? err.message
+                          : "Could not cancel the earlier checkout.",
                       kind: "other",
                     });
                   } finally {
@@ -116,7 +118,7 @@ export function CheckoutRedirect({
                   }
                 }}
               >
-                Reset active lock & try again
+                Cancel the earlier checkout and try again
               </Button>
             ) : (
               <Button

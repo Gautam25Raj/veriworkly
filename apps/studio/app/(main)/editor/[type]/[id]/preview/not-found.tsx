@@ -2,8 +2,6 @@ import Link from "next/link";
 
 import { Button } from "@veriworkly/ui";
 
-import { siteConfig } from "@/config/site";
-
 export default function EditorPreviewNotFound() {
   return (
     <div className="space-y-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -28,12 +26,8 @@ export default function EditorPreviewNotFound() {
             <Link href="/documents">Go to Documents</Link>
           </Button>
 
-          {/*
-            Absolute, to the marketing site: Studio has no `/templates` route — template
-            browsing here happens inside the editor's Design panel.
-          */}
           <Button asChild variant="ghost">
-            <Link href={`${siteConfig.links.main}/templates`}>View Templates</Link>
+            <Link href="/templates">View Templates</Link>
           </Button>
         </div>
       </div>

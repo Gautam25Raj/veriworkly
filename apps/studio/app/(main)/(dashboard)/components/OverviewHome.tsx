@@ -2,6 +2,7 @@
 
 import type { LucideIcon } from "lucide-react";
 
+import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { BookOpen, FolderOpen, ArrowRight, BriefcaseBusiness } from "lucide-react";
 
@@ -15,6 +16,7 @@ import ShareDocumentModal from "@/components/modals/ShareDocumentModal";
 import RenameDocumentModal from "@/components/modals/RenameDocumentModal";
 
 import { useDocumentsWorkspace } from "../documents/useDocumentsWorkspace";
+import { CreateDocumentActions } from "../documents/components/CreateDocumentActions";
 import RecentCard from "./RecentCard";
 import OverviewHomeHeader from "./OverviewHomeHeader";
 import OverviewReferenceCard from "./OverviewReferenceCard";
@@ -29,6 +31,31 @@ function MiniLink({ href, icon: Icon, label }: { href: string; icon: LucideIcon;
       <span className="min-w-0 flex-1 truncate">{label}</span>
       <ArrowRight className="text-muted h-4 w-4" />
     </Link>
+  );
+}
+
+const subscribeNever = () => () => {};
+
+/** What a new user sees instead of an empty list: one next step, and the faster alternative. */
+function FirstRunGuide() {
+  return (
+    <div className="border-border bg-background/70 col-span-full rounded-xl border p-5 sm:p-6">
+      <p className="text-accent text-xs font-bold tracking-[0.2em] uppercase">Start here</p>
+
+      <h3 className="mt-2 text-xl font-black tracking-tight">Make your first resume</h3>
+
+      <ol className="text-muted mt-3 list-decimal space-y-1 pl-5 text-sm leading-6">
+        <li>Create a resume and choose what it starts from.</li>
+        <li>Fill in each section. Your work saves as you type.</li>
+        <li>Pick a template, then download it as a PDF.</li>
+      </ol>
+
+      <CreateDocumentActions createLabel="Create your first resume" showImport className="mt-5" />
+
+      <Link href="/templates" className="text-accent mt-4 inline-block text-sm font-bold">
+        Or browse templates first
+      </Link>
+    </div>
   );
 }
 
@@ -61,15 +88,23 @@ const OverviewHome = () => {
 
   const recentDocs = visibleDocs.slice(0, 6);
 
+  // Documents live in this browser, so the server render cannot tell a new user from one with
+  // files: the list waits for hydration rather than flashing the first-run guide.
+  const hydrated = useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
+
   return (
-    <section className="space-y-7" aria-label="Studio overview">
+    <section className="flex flex-col gap-7" aria-label="Studio overview">
       <OverviewHomeHeader
         totalCount={totalCount}
         resumeCount={resumeCount}
         coverLetterCount={coverLetterCount}
       />
 
-      <OverviewReferenceCard />
+      <OverviewReferenceCard className="order-last lg:order-none" />
 
       <Card className="overflow-hidden rounded-2xl p-0">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -86,7 +121,9 @@ const OverviewHome = () => {
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {recentDocs.length > 0 ? (
+              {!hydrated ? (
+                <div className="col-span-full min-h-48" aria-hidden="true" />
+              ) : recentDocs.length > 0 ? (
                 recentDocs.map((doc) => (
                   <RecentCard
                     key={`${doc.type}-${doc.id}`}
@@ -100,13 +137,7 @@ const OverviewHome = () => {
                   />
                 ))
               ) : (
-                <div className="border-border bg-background/70 col-span-full rounded-xl border p-5">
-                  <p className="font-bold">No files yet</p>
-
-                  <p className="text-muted mt-1 text-sm">
-                    Use New Document in sidebar to create your first file.
-                  </p>
-                </div>
+                <FirstRunGuide />
               )}
             </div>
           </div>

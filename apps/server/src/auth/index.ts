@@ -31,7 +31,6 @@ export const authRequestContext = new AsyncLocalStorage<{
 const OTP_SEND_PATHS = new Set([
   "/email-otp/send-verification-otp",
   "/email-otp/request-password-reset",
-  "/forget-password/email-otp",
   "/email-otp/request-email-change",
 ]);
 
@@ -119,6 +118,10 @@ export async function assertOtpRecipientQuotaAvailable(email: string): Promise<v
 }
 
 export const auth = betterAuth({
+  // better-auth's deprecated alias of `/email-otp/request-password-reset`, removed in its next
+  // major (V-191). No app calls it; switching it off now means that bump cannot change anything.
+  disabledPaths: ["/forget-password/email-otp"],
+
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),

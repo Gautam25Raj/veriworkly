@@ -16,6 +16,7 @@ import {
 import { invalidateAffiliate, invalidateLeaderboards } from "#services/affiliate/cache";
 import { ApiKeyService } from "#services/apiKeyService";
 import { CreditService } from "#services/creditService";
+import { redactBillingEventsForUser, redactBillingTextForUser } from "#services/deletedAccount";
 import { EntitlementService } from "#services/entitlementService";
 import { PortfolioAssetService } from "#services/portfolioAssetService";
 import { sendAccountDeletedEmail } from "#services/mail/index";
@@ -33,7 +34,9 @@ const userProfileSelect = {
     select: {
       apiKeys: true,
       shareLinks: true,
-      resumes: true,
+      // The "Documents" figure on the account page (V-186): what the documents list shows, so
+      // no soft-deleted (or purged, which are soft-deleted too) rows and no portfolio rows.
+      resumes: { where: { deletedAt: null, type: { not: "PORTFOLIO" } } },
     },
   },
 } satisfies Prisma.UserSelect;
@@ -42,20 +45,89 @@ const userProfileSelect = {
  * Everything a user deletion removes inside ONE transaction. Shared by the self-service path
  * and the admin path so neither can drift from the other again.
  *
- * `creditUsageAllocation` goes first: `CreditUsageAllocation.grant` is `onDelete: Restrict`,
- * so an allocation still present when the cascade reaches the user's CreditGrant rows aborts
- * the whole delete. Today the cascade happens to reach CreditTransaction (which removes the
- * allocations) before CreditGrant, but only because that constraint was created a migration
- * earlier and Postgres fires the cascade triggers in creation order. That is nothing to build on.
+ * Billing records are kept, not deleted (owner decision 5, V-183): Subscription,
+ * EntitlementGrant, CreditWallet, CreditTransaction, CreditGrant (and so their allocations) and
+ * BillingWebhookEvent have `onDelete: SetNull`, so the cascade detaches them. Pending credit
+ * reservations do cascade (they are requests in flight, not money moved), so the wallet's
+ * `reserved` total is cleared first; otherwise the detached wallet would hold credits against
+ * reservations that no longer exist.
  */
 export async function deleteUserCascade(tx: Prisma.TransactionClient, userId: string) {
-  await tx.creditUsageAllocation.deleteMany({
-    where: { OR: [{ transaction: { userId } }, { grant: { userId } }] },
-  });
+  await tx.creditWallet.updateMany({ where: { userId }, data: { reserved: 0 } });
+  // The kept billing events lose the personal data the provider sent in them (decision 5).
+  await redactBillingEventsForUser(tx, userId);
+  await redactBillingTextForUser(tx, userId);
 
-  // Cascades to Document, MasterProfile, ShareLink, PortfolioPublication, CreditWallet,
-  // ApiKey, Session, and the affiliate/ambassador records.
+  // Cascades to Document, MasterProfile, ShareLink, PortfolioPublication, CreditReservation,
+  // ApiKey, Session, and the affiliate/ambassador records; detaches the billing rows above.
   await tx.user.delete({ where: { id: userId } });
+}
+
+/** Provider statuses under which Dodo can still charge the card. */
+const CHARGEABLE_RAW_STATUSES = ["active", "on_hold", "past_due", "paused"] as const;
+/**
+ * How long an unpaid (`pending`) subscription can still turn into a charge: the life of the
+ * checkout session that created it (24 hours, the same as the checkout record in billingService).
+ */
+const PENDING_CHECKOUT_LIFETIME_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * The subscription that would keep charging the card after the account is gone, or `null`.
+ *
+ * Decision (V-168, V-169): deletion is allowed only when nothing will be charged again, judged
+ * on the provider's state as mirrored by the webhooks (`rawStatus`), not on our labels: an admin
+ * can edit `status` and `cancelAtPeriodEnd` without Dodo being told, so a row whose `rawStatus`
+ * is known is judged on that alone. It counts as live while the provider reports it active
+ * (including a scheduled cancellation, which the customer can still undo in the portal), in
+ * dunning or paused (`on_hold`, `past_due`, `paused`: Dodo keeps retrying the card), or not yet
+ * paid (`pending`, while its checkout can still be paid: a pending row last heard of more than
+ * `PENDING_CHECKOUT_LIFETIME_MS` ago is an abandoned checkout). Only a subscription the provider
+ * has cancelled, expired or failed lets the account go. A row with no `rawStatus` (made by hand)
+ * falls back to its label: ACTIVE or PAST_DUE is live.
+ */
+export async function findChargeableSubscription(userId: string, now = new Date()) {
+  const pendingSince = new Date(now.getTime() - PENDING_CHECKOUT_LIFETIME_MS);
+  return prisma.subscription.findFirst({
+    where: {
+      userId,
+      OR: [
+        { rawStatus: { in: [...CHARGEABLE_RAW_STATUSES] } },
+        {
+          rawStatus: "pending",
+          OR: [
+            { lastWebhookAt: { gte: pendingSince } },
+            { lastWebhookAt: null, createdAt: { gte: pendingSince } },
+          ],
+        },
+        { rawStatus: null, status: { in: ["ACTIVE", "PAST_DUE"] } },
+      ],
+    },
+    orderBy: { currentPeriodEnd: "desc" },
+    select: {
+      id: true,
+      status: true,
+      rawStatus: true,
+      productKey: true,
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: true,
+    },
+  });
+}
+
+type ChargeableSubscription = NonNullable<Awaited<ReturnType<typeof findChargeableSubscription>>>;
+
+function formatDay(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+/** The 409 the account owner reads: what is blocking deletion and what to do about it. */
+export function chargeableSubscriptionMessage(subscription: ChargeableSubscription) {
+  if (subscription.status === "ACTIVE" && subscription.cancelAtPeriodEnd)
+    return subscription.currentPeriodEnd
+      ? `Your subscription is cancelled and ends on ${formatDay(subscription.currentPeriodEnd)}. You can delete your account once it has ended. If you need it deleted sooner, contact support.`
+      : "Your subscription is cancelled but has not ended yet. You can delete your account once it has ended. If you need it deleted sooner, contact support.";
+
+  return "Cancel your subscription before deleting your account: open Billing and use Manage Subscription. We cannot cancel it for you, and deleting now would leave you being charged for an account that no longer exists. Once the subscription has ended you can delete your account.";
 }
 
 type DeletedUserCacheTargets = {
@@ -299,22 +371,13 @@ export class UserService {
      * reconciled. The user would be paying for nothing, with no record on our side
      * showing why.
      *
-     * Blocking here and telling them to cancel first is the only honest option.
+     * Blocking here and telling them to cancel first is the only honest option. What counts
+     * as "still billing" is decided in `findChargeableSubscription`.
      */
-    const liveSubscription = await prisma.subscription.findFirst({
-      where: {
-        userId,
-        status: { in: ["ACTIVE", "PAST_DUE"] },
-        cancelAtPeriodEnd: false,
-      },
-      select: { id: true },
-    });
+    const liveSubscription = await findChargeableSubscription(userId);
 
     if (liveSubscription) {
-      throw new ApiError(
-        409,
-        "Cancel your subscription before deleting your account. Open Billing and use Manage Subscription — we cannot cancel it for you, and deleting now would leave you being charged for an account that no longer exists.",
-      );
+      throw new ApiError(409, chargeableSubscriptionMessage(liveSubscription));
     }
 
     /**

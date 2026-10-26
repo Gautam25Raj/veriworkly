@@ -10,6 +10,7 @@ import { app } from "#app";
 import { config } from "#config";
 import { prisma } from "#lib/prisma";
 import { getRedis } from "#lib/redis";
+import { AtsAiService } from "#services/ats/ai";
 import { AtsJobFetchService } from "#services/ats/jobFetch";
 import { AtsQuotaService } from "#services/ats/quota";
 import { CreditService } from "#services/creditService";
@@ -312,6 +313,8 @@ describe("V-037 the paid scan period is anchored on the grant, not on today", ()
   it("counts a MANUAL ai_credits grant's scans in one period across two days", async () => {
     const user = await createUserWithSession();
     await grantEntitlement(user.id, new Date("2026-10-10T00:00:00Z"));
+    // The tier itself follows the balance (owner decision 1); the grant only anchors the period.
+    await grantCredits(user.id, 100);
     const keysFor = () => getRedis().keys(`ats:quota:subscriber:${user.id}:*`);
 
     vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-25T12:00:00Z") });
@@ -326,6 +329,84 @@ describe("V-037 the paid scan period is anchored on the grant, not on today", ()
     expect(await keysFor()).toHaveLength(1);
     // The period closes on the grant's day of the month, not 30 days after each request.
     expect(dayTwo.resetsAt).toBe("2026-11-10T00:00:00.000Z");
+  });
+});
+
+describe("owner decision 1 (V-178, V-179): credits from any source pay for every ATS AI action", () => {
+  it("a credit-pack buyer with no ai_credits grant gets repair, conversion and the paid tier", async () => {
+    const user = await createUserWithSession();
+    await grantCredits(user.id, 100);
+
+    const quota = await request(app)
+      .get("/api/v1/ats/quota")
+      .set("Origin", STUDIO_ORIGIN)
+      .set("Cookie", user.cookie);
+    expect(quota.status).toBe(200);
+    expect(quota.body.data).toMatchObject({
+      tier: "subscriber",
+      canConvertResume: true,
+      canRepair: true,
+    });
+
+    fetchMock
+      .mockResolvedValueOnce(chatResponse({ skills: ["Postgres"] }))
+      .mockResolvedValueOnce(chatResponse(ANALYSIS_REPLY));
+    const body = analyzeBody({ repairParse: true });
+    const analysed = await analyze(user, body);
+    expect(analysed.status).toBe(200);
+    expect(analysed.body.data.repair).toMatchObject({ creditsSpent: REPAIR_CREDITS });
+    expect(await reservationStatus(`${body.requestId}:repair`)).toBe("COMMITTED");
+
+    fetchMock.mockResolvedValueOnce(
+      chatResponse({
+        basics: {
+          fullName: "Jane Doe",
+          role: "",
+          headline: "",
+          email: "",
+          phone: "",
+          location: "",
+        },
+        links: [],
+        summary: "",
+        experience: [],
+        education: [],
+        projects: [],
+        skills: [],
+      }),
+    );
+    const converted = await request(app)
+      .post("/api/v1/ats/convert-resume")
+      .set("Origin", STUDIO_ORIGIN)
+      .set("Cookie", user.cookie)
+      .send({ resume: THIN_RESUME, requestId: `conv-${randomUUID()}` });
+    expect(converted.status, JSON.stringify(converted.body)).toBe(200);
+    expect(await wallet(user.id)).toEqual({
+      balance: 100 - REPAIR_CREDITS - ANALYSIS_CREDITS - 25,
+      reserved: 0,
+    });
+  });
+
+  it("an unrouted analysis hands the repair back as well as the scan", async () => {
+    const user = await createUserWithSession();
+    await grantCredits(user.id, 100);
+    // No model could be served inside its margin (the router's `routed: false`).
+    vi.spyOn(AtsAiService, "analyze").mockResolvedValueOnce({
+      ai: null,
+      creditsSpent: 0,
+      routed: false,
+    });
+    fetchMock.mockResolvedValueOnce(chatResponse({ skills: ["Postgres"] }));
+    const body = analyzeBody({ repairParse: true });
+
+    const response = await analyze(user, body);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.aiStatus).toBe("unavailable");
+    expect(response.body.data.repair.creditsSpent).toBe(0);
+    expect(response.body.data.quota.used).toBe(0);
+    expect(await reservationStatus(`${body.requestId}:repair`)).toBe("RELEASED");
+    expect(await wallet(user.id)).toEqual({ balance: 100, reserved: 0 });
   });
 });
 

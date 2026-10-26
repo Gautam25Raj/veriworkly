@@ -19,6 +19,7 @@ import { AtsQuotaService } from "#services/ats/quota";
 import { AtsScoringService } from "#services/ats/scoring";
 import { AtsRepairService, type RepairOutcome } from "#services/ats/repair";
 import { CreditService } from "#services/creditService";
+import { NOT_ENOUGH_CREDITS } from "#services/productNames";
 import { createSuccessResponse, handleValidationError, ApiError } from "#lib/errors";
 import { getRequestIpDetails } from "#utils/requestIp";
 import {
@@ -52,13 +53,14 @@ function aiFilledFields(parsed: AtsParsedResume): AtsParsedField[] {
  */
 async function requireAnalysisCredits(userId: string, online: boolean, repair: boolean) {
   const pricing = publicAtsPolicy();
-  // A requested repair is billed too; a wallet that covers only the analysis would otherwise
-  // pass here and lose the scan to the repair's own 402.
+  // A repair that will run is billed too; a wallet that covers only the analysis would otherwise
+  // pass here and lose the scan to the repair's own 402. One that will not run (not requested,
+  // not needed, or no route) adds nothing (V-178).
   const minimum =
     (online ? pricing.jobUrlAnalysisCredits.min : pricing.analysisCredits.min) +
     (repair ? (pricing.parseRepairCredits ?? 0) : 0);
   const { available } = await CreditService.getWallet(userId);
-  if (available < minimum) throw new ApiError(402, "Not enough AI credits.");
+  if (available < minimum) throw new ApiError(402, NOT_ENOUGH_CREDITS);
 }
 
 /** A refund from an error path must not replace the error it follows. */
@@ -91,7 +93,11 @@ export class AtsAiController {
       const signal = aiRequestSignal(res);
       const fetchesJobPage = Boolean(input.fetchJobUrl && input.jobUrl);
 
-      await requireAnalysisCredits(user.id, input.fetchJobUrl, input.repairParse);
+      // Whether the repair pass would run depends only on the parse, not on the job text, so it
+      // is known before anything is spent and only a repair that can happen is priced in.
+      const repairWillRun =
+        input.repairParse && needsRepair(AtsScoringService.check(resume, { layout: input.layout }));
+      await requireAnalysisCredits(user.id, input.fetchJobUrl, repairWillRun);
 
       // V-038: at most two provider calls in flight per user, held for the whole request.
       await withAiSlot(user.id, async () => {
@@ -214,7 +220,11 @@ export class AtsAiController {
      * unbilled repair; it is logged and reported as unspent rather than failing the response.
      */
     let repairCreditsSpent = 0;
-    if (repair) {
+    if (repair && !routed) {
+      // V-178: no analysis ran, the scan is refunded below, and the studio tells the user
+      // nothing was charged. The repair goes back with it.
+      await repair.release();
+    } else if (repair) {
       try {
         await repair.commit();
         repairCreditsSpent = repair.creditsSpent;

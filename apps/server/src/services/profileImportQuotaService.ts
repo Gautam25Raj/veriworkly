@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "#lib/prisma";
 import { getRedis } from "#lib/redis";
-import { EntitlementService } from "#services/entitlementService";
+import { EntitlementService, PAID_ACCESS_PHRASE } from "#services/entitlementService";
 import { ApiError } from "#lib/errors";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -123,7 +123,7 @@ export class ProfileImportQuotaService {
 
     return new ApiError(
       429,
-      `Free users can only import from ${providerLabel} ${timeframe}. Upgrade to Creator Pro for unlimited imports.`,
+      `Free accounts can import from ${providerLabel} ${timeframe}. Unlimited imports come with ${PAID_ACCESS_PHRASE}.`,
       { resetsInSeconds },
     );
   }

@@ -10,7 +10,7 @@ import {
   hasLegacyCompatibilitySections,
 } from "@veriworkly/profile-core";
 
-import { ShareService } from "#services/shareService";
+import { ShareService, madePrivateByModerator } from "#services/shareService";
 
 import { prisma } from "#lib/prisma";
 import { logger } from "#lib/logger";
@@ -24,7 +24,8 @@ import {
   revalidatePublicPortfolios,
 } from "#utils/portfolioPublicationCache";
 
-import { EntitlementService } from "#services/entitlementService";
+import { EntitlementService, PAID_ACCESS_PHRASE } from "#services/entitlementService";
+import { isModerationLocked } from "#services/portfolioService";
 
 const MAX_DOCUMENTS_PER_LIST = 500;
 
@@ -318,7 +319,7 @@ export class DocumentService {
     if (activeCount >= 1) {
       throw new ApiError(
         402,
-        `Free users can only have 1 active ${type.toLowerCase().replace("_", " ")} at a time. Upgrade to Creator Pro for unlimited documents.`,
+        `Free accounts can keep 1 active ${type.toLowerCase().replace("_", " ")} at a time. Unlimited documents come with ${PAID_ACCESS_PHRASE}; credit packs add AI credits only.`,
       );
     }
   }
@@ -614,6 +615,39 @@ export class DocumentService {
       }
     }
 
+    /*
+     * A visibility change reaches the public share read, which is cached: the same invalidation
+     * the admin path does (V-171), so "Make private" stops a link at once. An owner may not undo a
+     * moderator's "Make private" here either, the same rule `ShareService.createShareLink` applies.
+     */
+    let visibilityTouchesShares = false;
+    let visibilityShareUsername: string | null = null;
+
+    if (input.visibility) {
+      const current = await prisma.document.findFirst({
+        where: { id: documentId, userId, deletedAt: null },
+        select: {
+          visibility: true,
+          user: { select: { username: true } },
+          _count: { select: { shareLinks: true } },
+        },
+      });
+
+      if (!current) throw new ApiError(404, "Document not found");
+
+      if (
+        current.visibility === "PRIVATE" &&
+        input.visibility !== "PRIVATE" &&
+        (await madePrivateByModerator(documentId))
+      )
+        throw new ApiError(403, "This document was made private by a moderator.");
+
+      if (input.visibility !== current.visibility && current._count.shareLinks > 0) {
+        visibilityTouchesShares = true;
+        visibilityShareUsername = current.user.username;
+      }
+    }
+
     const incomingTemplateId =
       input.templateId ||
       (input.content && typeof input.content === "object" && !Array.isArray(input.content)
@@ -670,6 +704,10 @@ export class DocumentService {
         ...documentCacheNamespaces(userId, documentId),
         ...(publicShareUsername ? [cacheNamespaces.publicShare(publicShareUsername)] : []),
         ...(shareLinkSlugUpdate ? [cacheNamespaces.shareList(userId)] : []),
+        ...(visibilityTouchesShares
+          ? [cacheNamespaces.sharedDocumentIds(userId), cacheNamespaces.shareList(userId)]
+          : []),
+        ...(visibilityShareUsername ? [cacheNamespaces.publicShare(visibilityShareUsername)] : []),
       );
 
       return updated;
@@ -717,7 +755,9 @@ export class DocumentService {
         deletedAt: true,
         user: { select: { username: true } },
         shareLinks: { select: { slug: true } },
-        portfolioPublication: { select: { id: true, subdomain: true, status: true } },
+        portfolioPublication: {
+          select: { id: true, subdomain: true, status: true, suspensionReason: true },
+        },
       },
     });
 
@@ -727,12 +767,12 @@ export class DocumentService {
       return prisma.document.findUniqueOrThrow({ where: { id: documentId } });
     }
 
-    const livePublication =
-      existing.type === "PORTFOLIO" &&
-      existing.portfolioPublication &&
-      existing.portfolioPublication.status !== "SUSPENDED"
-        ? existing.portfolioPublication
-        : null;
+    // Trashing a portfolio is the owner's unpublish, whatever state the publication is in: a
+    // billing suspension included, or the settle step would bring a deleted site back on the free
+    // tier. A moderator's takedown (any reason that is neither billing's nor the owner's) keeps
+    // its own reason, and with it its lock.
+    const publication = existing.type === "PORTFOLIO" ? existing.portfolioPublication : null;
+    const livePublication = publication && !isModerationLocked(publication) ? publication : null;
 
     let document;
     try {
@@ -773,6 +813,8 @@ export class DocumentService {
         ? [cacheNamespaces.publicShare(existing.user.username)]
         : []),
     );
+    // The account read counts live documents (V-186); create drops it too.
+    await cacheDel(userProfileCacheKey(userId));
 
     if (livePublication) {
       await invalidatePublicPortfolioCaches([livePublication.subdomain]);

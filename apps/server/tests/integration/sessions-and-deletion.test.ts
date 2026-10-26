@@ -249,8 +249,10 @@ describe("admin account deletion (V-119 / V-102)", () => {
 
     expect(response.status, JSON.stringify(response.body)).toBe(200);
     expect(await prisma.user.findUnique({ where: { id: target.id } })).toBeNull();
-    expect(await prisma.creditUsageAllocation.count({ where: { grantId: grant.id } })).toBe(0);
+    // V-183: the ledger is a billing record and outlives the account, detached from it.
+    expect(await prisma.creditUsageAllocation.count({ where: { grantId: grant.id } })).toBe(1);
     expect(await prisma.creditGrant.count({ where: { userId: target.id } })).toBe(0);
+    expect((await prisma.creditGrant.findUnique({ where: { id: grant.id } }))?.userId).toBeNull();
   });
 
   it("refuses with 409 naming the open withdrawal, and keeps the user", async () => {

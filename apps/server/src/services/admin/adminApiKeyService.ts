@@ -98,8 +98,8 @@ export async function updateApiKey(apiKeyId: string, input: ApiKeyUpdateInput) {
 
   // Disabling is a terminal-style transition for the cache: the revoked marker (written before
   // the row changes) stops the key at once, even if a validateKey() read raced this update and
-  // re-caches the old active record afterwards (V-122). Re-enabling within the marker's TTL is
-  // not possible by design; the marker is only written when the key is being switched off.
+  // re-caches the old active record afterwards (V-122). Enabling clears it again once the row
+  // is active (below), so Enable works at once instead of after the marker's TTL (V-188).
   if (input.isActive === false) await ApiKeyService.markRevokedById(apiKeyId);
 
   const updated = await prisma.apiKey.update({
@@ -114,6 +114,8 @@ export async function updateApiKey(apiKeyId: string, input: ApiKeyUpdateInput) {
   // validateKey() caches the whole auth record (isActive, rateLimit, revokedAt included), so a
   // rate-limit change keeps serving the old limit until that entry expires unless it is evicted.
   await ApiKeyService.invalidateAuthCacheForUser(existing.userId);
+
+  if (input.isActive === true) await ApiKeyService.clearRevokedMarkerById(apiKeyId);
 
   return { apiKey: updated, previous: existing };
 }

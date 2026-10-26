@@ -5,7 +5,9 @@ import { ApiError } from "#lib/errors";
 import { prisma } from "#lib/prisma";
 import { cacheGet, cacheSet } from "#lib/redis";
 
-import type { EntitlementKey } from "#services/productCatalog";
+import { enforcedEntitlement } from "#services/entitlementEnforcement";
+import { ENTITLEMENT_KEYS, type EntitlementKey } from "#services/productCatalog";
+import { PRODUCT_NAMES } from "#services/productNames";
 
 const ENTITLEMENT_CACHE_TTL_SECONDS = 60;
 
@@ -69,6 +71,23 @@ async function loadGrants(userId: string): Promise<CachedGrant[]> {
   return grants;
 }
 
+/**
+ * The entitlements that make a user "paid" (`isPaid`): every subscription and pass grants at
+ * least one of them, a credit pack grants neither. Exported so the billing summary can derive the
+ * same answer from the grants it already loaded (`isPaidAccessKey`) instead of a second rule.
+ */
+export const PAID_ACCESS_KEYS: readonly EntitlementKey[] = [
+  enforcedEntitlement(ENTITLEMENT_KEYS.AI_CREDITS, "EntitlementService.isPaid"),
+  enforcedEntitlement(ENTITLEMENT_KEYS.PORTFOLIO_PUBLISH, "EntitlementService.isPaid"),
+];
+
+export function isPaidAccessKey(key: string) {
+  return (PAID_ACCESS_KEYS as readonly string[]).includes(key);
+}
+
+/** What `isPaid` means, in the product names customers see (V-189). */
+export const PAID_ACCESS_PHRASE = `any plan (${PRODUCT_NAMES.ai_credits}, ${PRODUCT_NAMES.portfolio_pro} or the ${PRODUCT_NAMES.bundle}) or a pass`;
+
 export class EntitlementService {
   /**
    * Call after every committed write to `EntitlementGrant` for this user. One `INCR` moves every
@@ -105,14 +124,18 @@ export class EntitlementService {
   }
 
   /**
-   * The one "paid user" rule: a live AI-credits or portfolio-publish entitlement. Paid users skip
-   * the free-tier document cap and the profile-import quotas. `client` as for `has`.
+   * The one "paid user" rule (V-173): a live entitlement from a subscription (AI Credits, Creator
+   * Pro, Job Hunter Bundle), a pass, or an admin comp of one of those. Paid users skip the
+   * free-tier document cap and the profile-import quotas. An AI Credits subscription is a plan,
+   * so it lifts the document limit too (as V-189 records); it does not unlock portfolio features,
+   * which check `portfolio_publish` themselves (V-174). Credits alone, bought in a pack or
+   * granted as goodwill, never make a user paid (owner decision 3): they are AI fuel only.
+   * "Paid" here is access, not payment: an admin comp counts, while the billing summary's
+   * `isPaying` (did they pay us) does not count it. `client` as for `has`.
    */
   static async isPaid(userId: string, at = new Date(), client: Prisma.TransactionClient = prisma) {
-    return (
-      (await this.has(userId, "ai_credits", at, client)) ||
-      (await this.has(userId, "portfolio_publish", at, client))
-    );
+    for (const key of PAID_ACCESS_KEYS) if (await this.has(userId, key, at, client)) return true;
+    return false;
   }
 
   static async require(userId: string, key: EntitlementKey, message: string) {

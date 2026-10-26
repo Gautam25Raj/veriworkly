@@ -140,7 +140,7 @@ type BilledRun<T> = {
 };
 
 /** A completed task whose reservation is still open: the caller decides when it is paid for. */
-type HeldResult<T> = {
+export type HeldResult<T> = {
   outcome: AtsAiResult<T>;
   /** Charges the reservation. Throws (after releasing) when the ledger refuses the commit. */
   commit(): Promise<void>;

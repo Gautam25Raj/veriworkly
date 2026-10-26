@@ -174,7 +174,13 @@ describe("GET /api/v1/health/jobs", () => {
       for (const name of RETENTION_VARS) process.env[name] = "0";
       await getRedis().del(JOB_LAST_SUCCESS_KEY);
       const now = Date.now();
-      for (const name of ["views-flush", "usage-metrics", "portfolio-access", "credit-sweep"])
+      for (const name of [
+        "views-flush",
+        "usage-metrics",
+        "portfolio-access",
+        "credit-sweep",
+        "annual-credits",
+      ])
         recordJobSuccess(name, now);
 
       const res = await request(app)

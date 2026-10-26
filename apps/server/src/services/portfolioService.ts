@@ -11,6 +11,9 @@ import {
   USER_UNPUBLISHED_REASON,
 } from "#services/portfolioAssetService";
 import { ENTITLEMENT_KEYS } from "#services/productCatalog";
+import { madePrivateByModerator } from "#services/moderationRecord";
+import { notifyOnce } from "#services/billingNotifications";
+import { UNLOCK_PHRASES } from "#services/productNames";
 
 import {
   invalidatePublicPortfolioCaches,
@@ -32,6 +35,7 @@ import { sendPortfolioUpdatedEmail } from "#services/mail/portfolioMail";
 
 import {
   isPremiumPortfolioTemplate,
+  PREMIUM_PORTFOLIO_TEMPLATE_IDS,
   portfolioContentSchema,
   type PortfolioContentInput,
 } from "#validators/portfolioValidator";
@@ -138,21 +142,144 @@ async function ownedSubdomains(userId: string, documentId?: string) {
   return [publication?.subdomain, document?.slug].filter((name): name is string => Boolean(name));
 }
 
-/** A subscription that still pays for premium publishing, or whose grace window is running. */
-function governsPublication(
-  subscription: { status: string; currentPeriodEnd: Date | null; graceEndsAt: Date | null },
-  now: Date,
-) {
-  const inPeriod = !subscription.currentPeriodEnd || subscription.currentPeriodEnd > now;
+/** The subscription products that carry premium publishing. */
+const PORTFOLIO_PRODUCT_KEYS = ["portfolio_pro", "bundle"] as const;
 
-  return (
-    (subscription.status === "ACTIVE" && inPeriod) ||
-    (subscription.status === "CANCELED" &&
-      subscription.currentPeriodEnd !== null &&
-      subscription.currentPeriodEnd > now) ||
-    (subscription.graceEndsAt !== null && subscription.graceEndsAt > now)
-  );
+/** A subscription that still pays for premium publishing, or whose grace window is running. */
+function governingSubscriptionWhere(now: Date) {
+  return {
+    productKey: { in: [...PORTFOLIO_PRODUCT_KEYS] },
+    OR: [
+      {
+        status: "ACTIVE" as const,
+        OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: now } }],
+      },
+      { status: "CANCELED" as const, currentPeriodEnd: { gt: now } },
+      { graceEndsAt: { gt: now } },
+    ],
+  } satisfies Prisma.SubscriptionWhereInput;
 }
+
+/** No publish grant in effect at `now`. */
+function noPublishGrantWhere(now: Date) {
+  return {
+    none: {
+      key: ENTITLEMENT_KEYS.PORTFOLIO_PUBLISH,
+      startsAt: { lte: now },
+      revokedAt: null,
+      OR: [{ endsAt: null }, { endsAt: { gt: now } }],
+    },
+  } satisfies Prisma.EntitlementGrantListRelationFilter;
+}
+
+/**
+ * Premium publications whose paid access is gone for good: what `settleLapsedPortfolios` and
+ * `settleLapsedPortfolioFor` move to the free tier.
+ *
+ * Only premium templates ride on paid access; a free-template row never earns a grace period
+ * and is never moved here, whatever the user's billing history says.
+ *
+ * The grace window comes from the subscription (`graceEndsAt`). A GRACE row whose user has
+ * no portfolio subscription at all (an expired pass or comp grant, moved to GRACE by the job) has
+ * no provider clock, so its window is `graceDays` from the transition: the row's `updatedAt`,
+ * which that transition was the last write to. A row billing suspended (a cancellation or an
+ * expiry with no grace) is already past any window, but only one suspended within
+ * `BILLING_RESTORE_WINDOW_DAYS` comes back on its own (owner decision: an older billing suspension
+ * stays offline until the owner republishes; it was offline long enough that bringing it back
+ * unannounced would surprise them).
+ *
+ * Never a publication whose document is deleted (trashed or purged): the owner took it down.
+ */
+function lapsedForGoodWhere(now: Date) {
+  const graceCutoff = new Date(now.getTime() - config.portfolio.graceDays * 24 * 60 * 60 * 1000);
+  const restoreCutoff = new Date(now.getTime() - BILLING_RESTORE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+  return {
+    templateId: { in: [...PREMIUM_PORTFOLIO_TEMPLATE_IDS] },
+    document: { deletedAt: null },
+    user: {
+      entitlementGrants: noPublishGrantWhere(now),
+      subscriptions: { none: governingSubscriptionWhere(now) },
+    },
+    OR: [
+      {
+        status: "GRACE" as const,
+        OR: [
+          {
+            user: {
+              subscriptions: { some: { productKey: { in: [...PORTFOLIO_PRODUCT_KEYS] } } },
+            },
+          },
+          { updatedAt: { lte: graceCutoff } },
+        ],
+      },
+      {
+        status: "SUSPENDED" as const,
+        suspensionReason: { in: [...BILLING_SUSPENSION_REASONS] },
+        suspendedAt: { gte: restoreCutoff },
+      },
+    ],
+  } satisfies Prisma.PortfolioPublicationWhereInput;
+}
+
+/** How recent a billing suspension must be for the settle step to bring the site back. */
+const BILLING_RESTORE_WINDOW_DAYS = 30;
+
+/**
+ * The rows the public read serves and the sitemap lists, one predicate for both (V-187): LIVE,
+ * or GRACE while the courtesy window runs. A GRACE row whose portfolio subscription grace has
+ * lapsed is hidden until `jobs/portfolioAccessJob` moves it to the free tier (decision 6); a GRACE
+ * row with no portfolio subscription at all (an expired pass) has no provider clock and serves
+ * until the job does. A public GET never writes. A publication whose document is deleted is never
+ * served, whatever its status says.
+ */
+function servedPublicationWhere(now: Date) {
+  return {
+    document: { deletedAt: null },
+    OR: [
+      { status: "LIVE" as const },
+      {
+        status: "GRACE" as const,
+        user: { subscriptions: { none: { productKey: { in: [...PORTFOLIO_PRODUCT_KEYS] } } } },
+      },
+      {
+        status: "GRACE" as const,
+        user: { subscriptions: { some: governingSubscriptionWhere(now) } },
+      },
+    ],
+  } satisfies Prisma.PortfolioPublicationWhereInput;
+}
+
+/**
+ * Decision 6: a lapsed premium portfolio stays online on a free template. Each premium template
+ * maps to the free one closest in layout, so the site keeps its character as far as it can:
+ * Nimbus (an editorial broadsheet, serif display type) → Atelier (the editorial template);
+ * Cipher (a structured, technical terminal layout) → Signal (the structured, proof-first one).
+ * Anything unmapped falls back to Signal, the default template.
+ */
+const FREE_TEMPLATE_FOR_PREMIUM: Record<string, "signal" | "atelier"> = {
+  nimbus: "atelier",
+  cipher: "signal",
+};
+
+/** The public address of a published portfolio. */
+function publicPortfolioUrl(subdomain: string) {
+  return config.nodeEnv === "development"
+    ? `http://${subdomain}.localhost:3004`
+    : `https://${subdomain}.veriworkly.com`;
+}
+
+/** A template id as the template picker names it ("atelier" → "Atelier"). */
+function templateName(templateId: string) {
+  return templateId.charAt(0).toUpperCase() + templateId.slice(1);
+}
+
+export function freeTemplateFor(templateId: string): "signal" | "atelier" {
+  return FREE_TEMPLATE_FOR_PREMIUM[templateId] ?? "signal";
+}
+
+/** The SEO block a publisher without `seo_controls` gets (see `resolveSeo`). */
+const EMPTY_SEO: PortfolioContentInput["seo"] = { title: "", description: "", socialImage: null };
 
 function utcDay(date = new Date()) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -195,7 +322,28 @@ export function resolveSeo(
   requested: PortfolioContentInput["seo"],
   canControlSeo: boolean,
 ): PortfolioContentInput["seo"] {
-  return canControlSeo ? requested : { title: "", description: "", socialImage: null };
+  return canControlSeo ? requested : EMPTY_SEO;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** A published body moved to the free tier: free template, badge back, no paid SEO block. */
+function freeTierSnapshot(
+  snapshot: unknown,
+  templateId: string,
+  canRemoveWatermark: boolean,
+  canControlSeo: boolean,
+) {
+  const body = isRecord(snapshot) ? snapshot : {};
+
+  return {
+    ...body,
+    templateId,
+    removeWatermark: resolveWatermarkFlag(body.removeWatermark === true, canRemoveWatermark),
+    seo: canControlSeo ? body.seo : EMPTY_SEO,
+  };
 }
 
 export class PortfolioService {
@@ -210,7 +358,7 @@ export class PortfolioService {
 
     const build = async (): Promise<PublicListItem[]> => {
       const result = await prisma.portfolioPublication.findMany({
-        where: { status: { in: ["LIVE", "GRACE"] } },
+        where: servedPublicationWhere(new Date()),
         select: { subdomain: true, updatedAt: true },
         orderBy: { updatedAt: "desc" },
         take: limit ?? PUBLIC_LIST_MAX,
@@ -229,8 +377,13 @@ export class PortfolioService {
   /**
    * Read-only: rows are looked up by their stored key, so a reserved name is simply one with no
    * publication behind it (404) while a site published before the name was reserved still
-   * serves. A GRACE row whose subscription grace has lapsed is hidden here but suspended only
-   * by `jobs/portfolioAccessJob` — a public GET never writes.
+   * serves. Which rows serve is `servedPublicationWhere`, shared with the sitemap list.
+   *
+   * The billing state itself (LIVE/GRACE) is not public (V-187). The renderer gets two separate
+   * facts (V-174): `isPaid`, the owner's portfolio access is in effect (or the GRACE courtesy window
+   * runs), which decides the badge, the custom subdomain and the extra pages on any template;
+   * and `isPremiumTemplate`, which is about the template only. `isPremium` (both) is kept for
+   * renderers that have not moved to the two fields yet.
    */
   static async getPublicPortfolio(subdomain: string) {
     const normalized = portfolioSubdomainLookupKey(subdomain);
@@ -245,17 +398,19 @@ export class PortfolioService {
       subdomain: string;
       templateId: string;
       snapshot: unknown;
-      status: string;
       updatedAt: string;
+      isPaid: boolean;
+      isPremiumTemplate: boolean;
       isPremium: boolean;
     }>(cacheKey);
 
     if (cached) return cached;
 
-    const publication = await prisma.portfolioPublication.findUnique({
-      where: { subdomain: normalized },
+    const publication = await prisma.portfolioPublication.findFirst({
+      where: { subdomain: normalized, ...servedPublicationWhere(now) },
       select: {
         id: true,
+        userId: true,
         subdomain: true,
         templateId: true,
         snapshot: true,
@@ -263,25 +418,11 @@ export class PortfolioService {
         updatedAt: true,
         user: {
           select: {
-            // The latest portfolio subscription, whatever its state: a GRACE row is hidden once
-            // that subscription's grace has lapsed. A GRACE row with no subscription at all (an
-            // expired pass) has no provider clock and serves until the job suspends it.
+            // The furthest grace clock, which bounds how long a GRACE row may be cached.
             subscriptions: {
-              where: { productKey: { in: ["portfolio_pro", "bundle"] } },
-              select: { status: true, currentPeriodEnd: true, graceEndsAt: true },
-              orderBy: [{ graceEndsAt: "desc" }, { updatedAt: "desc" }],
-              take: 1,
-            },
-            // Premium rendering follows the publish grant whatever its source (subscription,
-            // pass, MANUAL comp), the same predicate `canPublish` uses.
-            entitlementGrants: {
-              where: {
-                key: PORTFOLIO_PUBLISH,
-                startsAt: { lte: now },
-                revokedAt: null,
-                OR: [{ endsAt: null }, { endsAt: { gt: now } }],
-              },
-              select: { id: true },
+              where: { productKey: { in: [...PORTFOLIO_PRODUCT_KEYS] }, graceEndsAt: { gt: now } },
+              select: { graceEndsAt: true },
+              orderBy: { graceEndsAt: "desc" },
               take: 1,
             },
           },
@@ -289,33 +430,31 @@ export class PortfolioService {
       },
     });
 
-    if (!publication || publication.status === "SUSPENDED") return null;
+    if (!publication) return null;
 
-    const subscription = publication.user.subscriptions[0];
-    const subscriptionGoverns = subscription ? governsPublication(subscription, now) : false;
-    const graceEndsAt =
-      subscription && subscription.status !== "ACTIVE" ? subscription.graceEndsAt : null;
-
-    if (publication.status === "GRACE" && subscription && !subscriptionGoverns) return null;
-
-    // Premium rendering is for premium templates only, while a publish grant is in effect
-    // (any source: subscription, pass, MANUAL comp) or during the GRACE courtesy window, when
-    // the grant is already gone but the site still renders as paid until the job suspends it.
-    const isPremium =
-      isPremiumPortfolioTemplate(publication.templateId) &&
-      (publication.user.entitlementGrants.length > 0 || publication.status === "GRACE");
+    // The site's paid features (no badge, subdomain redirect, sub-pages) are portfolio features,
+    // so they follow the portfolio entitlement (Creator Pro, the bundle, a pass, or an admin comp
+    // of one), not the account-wide `EntitlementService.isPaid`: an AI Credits subscription lifts
+    // the document limit but buys nothing on a portfolio. During GRACE the grant is already gone
+    // but the site still renders as paid until it moves to the free tier.
+    const isPaid =
+      publication.status === "GRACE" ||
+      (await EntitlementService.has(publication.userId, PORTFOLIO_PUBLISH, now));
+    const isPremiumTemplate = isPremiumPortfolioTemplate(publication.templateId);
 
     const result = {
       id: publication.id,
       subdomain: publication.subdomain,
       templateId: publication.templateId,
       snapshot: publication.snapshot,
-      status: publication.status,
       updatedAt: publication.updatedAt.toISOString(),
-      isPremium,
+      isPaid,
+      isPremiumTemplate,
+      isPremium: isPremiumTemplate && isPaid,
     };
 
     let ttl = 600;
+    const graceEndsAt = publication.user.subscriptions[0]?.graceEndsAt ?? null;
 
     if (publication.status === "GRACE" && graceEndsAt) {
       const msLeft = new Date(graceEndsAt).getTime() - Date.now();
@@ -498,10 +637,15 @@ export class PortfolioService {
 
     if (!document) throw new ApiError(404, "Portfolio draft not found.");
 
+    // A force-unpublish deletes the publication row, so the row's moderation lock below cannot
+    // see it; the takedown's audit record can. Lifted only by a moderator unlisting the document.
+    if (await madePrivateByModerator(document.id))
+      throw new ApiError(403, "This portfolio was taken down by a moderator.");
+
     if (isPremiumPortfolioTemplate(document.templateId) && !hasSubscription) {
       throw new ApiError(
         402,
-        `Publishing the premium template "${document.templateId}" requires an active Creator Pro subscription.`,
+        `Publishing the premium template "${templateName(document.templateId)}" requires ${UNLOCK_PHRASES.portfolioPro}.`,
       );
     }
 
@@ -623,10 +767,7 @@ export class PortfolioService {
           referencedAssetIds(existingPublication.snapshot),
         );
 
-      const publicUrl =
-        config.nodeEnv === "development"
-          ? `http://${publication.subdomain}.localhost:3004`
-          : `https://${publication.subdomain}.veriworkly.com`;
+      const publicUrl = publicPortfolioUrl(publication.subdomain);
 
       if (existingPublication?.status !== "LIVE") {
         void this.notifyPortfolioLive(userId, publicUrl);
@@ -685,6 +826,208 @@ export class PortfolioService {
     void revalidatePublicPortfolios([publication.subdomain]);
 
     return result;
+  }
+
+  /**
+   * Settles premium publications whose paid access has lapsed. Takes no lock and throws on
+   * failure: `jobs/portfolioAccessJob` runs it hourly under the portfolio-access lock.
+   *
+   * 1. A LIVE premium publication whose publish grant ran out without a provider event (a pass or a
+   *    time-boxed comp) moves to GRACE: the same courtesy window a failed renewal gets.
+   * 2. When that window is over, or billing suspended the row outright, the publication does not go
+   *    offline: it drops to the free tier and stays LIVE (owner decision 6, see
+   *    `PortfolioService.dropToFreeTier`). Moderation takedowns and the user's own unpublish are
+   *    not billing's, so they are never touched here.
+   */
+  static async settleLapsedPortfolios() {
+    const now = new Date();
+    const moved = await this.dropLapsedToFreeTier(lapsedForGoodWhere(now));
+
+    if (moved.length > 0)
+      logger.info("Moved lapsed premium portfolios to the free tier", { count: moved.length });
+
+    const lapsedLiveWhere = {
+      status: "LIVE" as const,
+      templateId: { in: [...PREMIUM_PORTFOLIO_TEMPLATE_IDS] },
+      user: {
+        entitlementGrants: noPublishGrantWhere(now),
+        subscriptions: { none: governingSubscriptionWhere(now) },
+      },
+    } satisfies Prisma.PortfolioPublicationWhereInput;
+
+    const lapsed = await prisma.portfolioPublication.findMany({
+      where: lapsedLiveWhere,
+      select: { id: true, subdomain: true },
+    });
+
+    if (lapsed.length > 0) {
+      await prisma.portfolioPublication.updateMany({
+        where: { id: { in: lapsed.map((publication) => publication.id) }, ...lapsedLiveWhere },
+        data: { status: "GRACE", suspensionReason: null, suspendedAt: null },
+      });
+
+      logger.info("Moved lapsed premium portfolios to grace", { count: lapsed.length });
+    }
+
+    const subdomains = [...moved, ...lapsed.map((publication) => publication.subdomain)];
+
+    if (subdomains.length > 0) {
+      await invalidatePublicPortfolioCaches(subdomains);
+      void revalidatePublicPortfolios(subdomains);
+    }
+  }
+
+  /**
+   * Step 2 of `settleLapsedPortfolios` for one user, run by billing right after a webhook or an
+   * admin edit lapses their premium portfolio (decision 6): the site moves to its free template
+   * at once instead of sitting offline until the hourly job. Only rows billing suspended, or a
+   * grace window that is over, qualify; a moderation takedown or the user's own unpublish never
+   * does. Returns the subdomains it moved, with their public caches already cleared.
+   */
+  static async settleLapsedPortfolioFor(userId: string) {
+    const moved = await this.dropLapsedToFreeTier({ userId, ...lapsedForGoodWhere(new Date()) });
+
+    if (moved.length > 0) {
+      await invalidatePublicPortfolioCaches(moved);
+      void revalidatePublicPortfolios(moved);
+    }
+
+    return moved;
+  }
+
+  private static async dropLapsedToFreeTier(where: Prisma.PortfolioPublicationWhereInput) {
+    const lapsedForGood = await prisma.portfolioPublication.findMany({
+      where,
+      select: { id: true, userId: true },
+    });
+
+    const moved: string[] = [];
+
+    for (const publication of lapsedForGood) {
+      // The full predicate is re-checked inside the write, so a renewal that set the row LIVE
+      // between this read and that write is not overwritten.
+      const subdomain = await this.dropToFreeTier(publication, where);
+      if (subdomain) moved.push(subdomain);
+    }
+
+    return moved;
+  }
+
+  /**
+   * Decision 6: a premium publication whose paid access has lapsed (grace over, or billing
+   * suspended it) goes back online on the free tier instead of staying offline. The template
+   * switches to `freeTemplateFor` in the row and in the snapshot, the badge comes back and the
+   * paid SEO block is dropped, as a free publish would store them. The rest of the snapshot is
+   * kept as published, so every image it shows stays referenced and protected from the asset
+   * sweep, and `publishedRevision` is unchanged (nothing new from the draft went live).
+   *
+   * The draft that was published follows, if it still sits on that premium template, so the
+   * owner can republish without an upgrade prompt; a draft already moved on is left alone. Its
+   * revision is bumped (a stale editor gets the usual 409, never a silent overwrite).
+   *
+   * `stillLapsed` is the caller's predicate, re-checked in the write under the user's billing
+   * lock (the advisory lock `BillingService` takes), so a renewal that lands first wins.
+   * Returns the subdomain when the row moved, `null` when it no longer qualified.
+   */
+  static async dropToFreeTier(
+    publication: { id: string; userId: string },
+    stillLapsed: Prisma.PortfolioPublicationWhereInput,
+  ) {
+    const row = await prisma.portfolioPublication.findFirst({
+      where: { id: publication.id, ...stillLapsed },
+      select: {
+        userId: true,
+        documentId: true,
+        subdomain: true,
+        templateId: true,
+        snapshot: true,
+        suspendedAt: true,
+        status: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!row) return null;
+
+    const freeTemplate = freeTemplateFor(row.templateId);
+    const [canRemoveWatermark, canControlSeo] = await Promise.all([
+      EntitlementService.has(row.userId, WATERMARK_REMOVAL),
+      EntitlementService.has(row.userId, SEO_CONTROLS),
+    ]);
+    const snapshot = freeTierSnapshot(
+      row.snapshot,
+      freeTemplate,
+      canRemoveWatermark,
+      canControlSeo,
+    );
+
+    const draftMoved = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${row.userId}))`;
+
+      const moved = await tx.portfolioPublication.updateMany({
+        where: { AND: [{ id: publication.id, templateId: row.templateId }, stillLapsed] },
+        data: {
+          status: "LIVE",
+          suspensionReason: null,
+          suspendedAt: null,
+          templateId: freeTemplate,
+          snapshot: snapshot as Prisma.InputJsonValue,
+        },
+      });
+
+      if (moved.count === 0) return null;
+
+      const draft = await tx.document.findFirst({
+        where: { id: row.documentId, templateId: row.templateId, deletedAt: null },
+        select: { revision: true, content: true },
+      });
+
+      if (!draft) return false;
+
+      const drafted = await tx.document.updateMany({
+        where: { id: row.documentId, revision: draft.revision },
+        data: {
+          templateId: freeTemplate,
+          content: {
+            ...(isRecord(draft.content) ? draft.content : {}),
+            templateId: freeTemplate,
+          } as Prisma.InputJsonValue,
+          revision: { increment: 1 },
+        },
+      });
+
+      return drafted.count > 0;
+    });
+
+    if (draftMoved === null) return null;
+
+    await Promise.all([
+      bumpGeneration(...documentCacheNamespaces(row.userId, row.documentId)),
+      cacheDel(userProfileCacheKey(row.userId)),
+    ]);
+
+    logger.info("Moved a lapsed premium portfolio to the free tier", {
+      publicationId: publication.id,
+      from: row.templateId,
+      to: freeTemplate,
+      draftMoved,
+    });
+
+    // The owner hears about it once per lapse: the claim is keyed on the publication and the
+    // moment it went offline or into grace, so a later lapse of the same site is a new email.
+    const lapsedAt = (row.suspendedAt ?? row.updatedAt).toISOString();
+    void notifyOnce("portfolio_free_tier", `${publication.id}:${lapsedAt}`, row.userId, {
+      template: "portfolio_free_tier",
+      details: {
+        freeTemplateName: templateName(freeTemplate),
+        previousTemplateName: templateName(row.templateId),
+        portfolioUrl: publicPortfolioUrl(row.subdomain),
+        // A GRACE row stayed online; only a suspended one is "back".
+        wasOffline: row.status === "SUSPENDED",
+      },
+    });
+
+    return row.subdomain;
   }
 
   static async recordView(subdomain: string, referrer?: string, ipAddress?: string) {

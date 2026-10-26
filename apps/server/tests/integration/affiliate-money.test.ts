@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+
 import request from "supertest";
 import { describe, expect, it } from "vitest";
 
@@ -443,6 +446,29 @@ describe("referral attribution (V-016)", () => {
     expect(await prisma.affiliateReferral.count({ where: { affiliateId: affiliate.id } })).toBe(0);
   });
 
+  it("ignores a code used by an account whose credits came from an annual plan's monthly grant", async () => {
+    const { user: affiliate, code } = await enrolledAffiliate();
+    const payer = await createUserWithSession();
+    const wallet = await prisma.creditWallet.create({
+      data: { userId: payer.id, balance: 1_000, lifetimeCredited: 1_000 },
+    });
+    await prisma.creditGrant.create({
+      data: {
+        walletId: wallet.id,
+        userId: payer.id,
+        amount: 1_000,
+        remaining: 1_000,
+        source: "subscription_monthly",
+        sourceId: `sched_${randomUUID()}:0`,
+        expiresAt: new Date(Date.now() + 20 * DAY_MS),
+      },
+    });
+
+    const response = await asUser(payer).post(`${BASE}/referral`).send({ code });
+    expect(response.status).toBe(409);
+    expect(await prisma.affiliateReferral.count({ where: { affiliateId: affiliate.id } })).toBe(0);
+  });
+
   it("records a referral from one of the affiliate's own addresses and holds its commissions", async () => {
     // One of the affiliate's sessions is loopback, exactly where the test request comes from.
     const { user: affiliate, code } = await enrolledAffiliate("203.0.113.9");
@@ -514,5 +540,256 @@ describe("referral attribution (V-016)", () => {
     const clicks = await prisma.affiliateClick.findMany({ where: { affiliateId: other.id } });
     expect(clicks).toHaveLength(1);
     expect(clicks[0].ipHash).toBe(referral.ipHash);
+  });
+});
+
+describe("tier auto-promotion (V-180)", () => {
+  /** `count` referred users whose referral already converted (seeded, no commission needed). */
+  /**
+   * Converted referrals, each with one commission: "clean" counts towards a tier; a reversed
+   * commission or one held for a shared address does not.
+   */
+  async function seedConverted(
+    affiliateId: string,
+    code: string,
+    count: number,
+    at = new Date(),
+    commission: "clean" | "reversed" | "shared" = "clean",
+  ) {
+    for (let i = 0; i < count; i += 1) {
+      const referred = await prisma.user.create({
+        data: { email: `conv-${randomUUID()}@example.test`, name: "Referred" },
+      });
+      const referral = await prisma.affiliateReferral.create({
+        data: {
+          affiliateId,
+          referredUserId: referred.id,
+          code,
+          status: "CONVERTED",
+          convertedAt: at,
+          sharedAddressWithAffiliate: commission === "shared",
+        },
+      });
+      await prisma.affiliateCommission.create({
+        data: {
+          affiliateId,
+          referralId: referral.id,
+          providerPaymentId: `pay_${randomUUID()}`,
+          amountCents: 100,
+          rateBps: 200,
+          status: commission === "reversed" ? "REVERSED" : "PENDING",
+          reversedAt: commission === "reversed" ? at : null,
+          reason: commission === "shared" ? SHARED_ADDRESS_REASON : null,
+          createdAt: at,
+        },
+      });
+    }
+  }
+
+  async function convertOne(code: string) {
+    const referred = await referredUser(code);
+    return AffiliateService.createCommission({
+      referredUserId: referred.id,
+      providerPaymentId: `pay_${randomUUID()}`,
+      purchaseAmountCents: 10_000,
+      status: "PENDING",
+    });
+  }
+
+  const tierOf = async (userId: string) =>
+    (await prisma.user.findUniqueOrThrow({ where: { id: userId } })).affiliateTier;
+
+  it("the 10th conversion promotes to TIER_2 and pays at its rate; the 50th to TIER_3; the dashboard follows", async () => {
+    const { user, code } = await enrolledAffiliate();
+
+    await seedConverted(user.id, code, 8);
+    await convertOne(code);
+    expect(await tierOf(user.id)).toBe("TIER_1");
+
+    const before = await asUser(user).get(`${BASE}/me`);
+    expect(before.body.data.tierProgress).toEqual({
+      currentConversions: 9,
+      nextTierConversions: 10,
+    });
+
+    await convertOne(code);
+    expect(await tierOf(user.id)).toBe("TIER_2");
+
+    const after = await asUser(user).get(`${BASE}/me`);
+    expect(after.body.data.affiliateTier).toBe("TIER_2");
+    expect(after.body.data.tierProgress).toEqual({
+      currentConversions: 10,
+      nextTierConversions: 50,
+    });
+
+    // The next commission is paid at the Growth rate (3%).
+    const next = await convertOne(code);
+    expect(next.rateBps).toBe(300);
+
+    await seedConverted(user.id, code, 38);
+    await convertOne(code);
+    expect(await tierOf(user.id)).toBe("TIER_3");
+    const top = await asUser(user).get(`${BASE}/me`);
+    expect(top.body.data.tierProgress.nextTierConversions).toBeNull();
+  });
+
+  it("never demotes, and a repeat commission on a converted referral changes nothing", async () => {
+    const { user, code } = await enrolledAffiliate();
+    await prisma.user.update({ where: { id: user.id }, data: { affiliateTier: "TIER_3" } });
+
+    const referred = await referredUser(code);
+    for (let i = 0; i < 2; i += 1) {
+      await AffiliateService.createCommission({
+        referredUserId: referred.id,
+        providerPaymentId: `pay_${randomUUID()}`,
+        purchaseAmountCents: 10_000,
+        status: "PENDING",
+      });
+      expect(await tierOf(user.id)).toBe("TIER_3");
+    }
+    expect(
+      await prisma.affiliateReferral.count({
+        where: { affiliateId: user.id, status: "CONVERTED" },
+      }),
+    ).toBe(1);
+  });
+
+  it("counts only clean conversions: reversed and shared-address ones do not promote", async () => {
+    const { user, code } = await enrolledAffiliate();
+    await seedConverted(user.id, code, 8);
+    await seedConverted(user.id, code, 5, new Date(), "reversed");
+    await seedConverted(user.id, code, 5, new Date(), "shared");
+
+    await convertOne(code);
+    expect(await tierOf(user.id)).toBe("TIER_1");
+    expect((await asUser(user).get(`${BASE}/me`)).body.data.tierProgress.currentConversions).toBe(
+      9,
+    );
+
+    await convertOne(code);
+    expect(await tierOf(user.id)).toBe("TIER_2");
+  });
+
+  it("two conversions landing together still cross the threshold", async () => {
+    const { user, code } = await enrolledAffiliate();
+    await seedConverted(user.id, code, 8);
+    const [first, second] = await Promise.all([referredUser(code), referredUser(code)]);
+
+    await Promise.all(
+      [first, second].map((referred) =>
+        AffiliateService.createCommission({
+          referredUserId: referred!.id,
+          providerPaymentId: `pay_${randomUUID()}`,
+          purchaseAmountCents: 10_000,
+          status: "PENDING",
+        }),
+      ),
+    );
+
+    expect(await tierOf(user.id)).toBe("TIER_2");
+  });
+
+  it("finds the admin's tier decision however many other affiliate edits followed it", async () => {
+    const { user, code } = await enrolledAffiliate();
+    await seedConverted(user.id, code, 12, new Date(Date.now() - 120_000));
+    await prisma.user.update({ where: { id: user.id }, data: { affiliateTier: "TIER_1" } });
+    await prisma.adminAuditEntry.create({
+      data: {
+        action: "affiliate.update",
+        targetType: "User",
+        targetId: user.id,
+        reason: "Self-referral pattern under review",
+        metadata: { tier: "TIER_1" },
+        createdAt: new Date(Date.now() - 90_000),
+      },
+    });
+    for (let i = 0; i < 25; i += 1)
+      await prisma.adminAuditEntry.create({
+        data: {
+          action: "affiliate.update",
+          targetType: "User",
+          targetId: user.id,
+          reason: "Payout details checked",
+          metadata: { status: "ACTIVE" },
+          createdAt: new Date(Date.now() - 60_000 + i),
+        },
+      });
+
+    await convertOne(code);
+    expect(await tierOf(user.id)).toBe("TIER_1");
+  });
+
+  it("an admin tier decision holds until a threshold is crossed after it", async () => {
+    const { user, code } = await enrolledAffiliate();
+    await seedConverted(user.id, code, 12, new Date(Date.now() - 60_000));
+
+    // The admin demotes an affiliate who had earned Growth.
+    const demote = await asUser(await adminUser())
+      .patch(`${ADMIN_BASE}/${user.id}`)
+      .send({ tier: "TIER_1", reason: "Self-referral pattern under review" });
+    expect(demote.status).toBe(200);
+
+    await convertOne(code);
+    expect(await tierOf(user.id)).toBe("TIER_1");
+
+    // Reaching Partner after the decision is a new milestone, and it promotes.
+    await seedConverted(user.id, code, 36);
+    await convertOne(code);
+    expect(await tierOf(user.id)).toBe("TIER_3");
+  });
+
+  it("the backfill migration promotes affiliates who crossed a threshold before promotion existed", async () => {
+    const earlier = new Date(Date.now() - 60_000);
+    const growth = await enrolledAffiliate();
+    await seedConverted(growth.user.id, growth.code, 12, earlier);
+    const partner = await enrolledAffiliate();
+    await seedConverted(partner.user.id, partner.code, 55, earlier);
+    const starter = await enrolledAffiliate();
+    await seedConverted(starter.user.id, starter.code, 9, earlier);
+    // Never demotes: an admin-set Partner with few conversions keeps Partner.
+    const raised = await enrolledAffiliate();
+    await seedConverted(raised.user.id, raised.code, 3, earlier);
+    await prisma.user.update({ where: { id: raised.user.id }, data: { affiliateTier: "TIER_3" } });
+
+    // An admin demotion after 12 conversions holds; one after which Partner was reached does not.
+    const demoted = await enrolledAffiliate();
+    await seedConverted(demoted.user.id, demoted.code, 12, earlier);
+    const demotedThenGrew = await enrolledAffiliate();
+    await seedConverted(demotedThenGrew.user.id, demotedThenGrew.code, 12, earlier);
+    for (const { user } of [demoted, demotedThenGrew])
+      await prisma.adminAuditEntry.create({
+        data: {
+          action: "affiliate.update",
+          targetType: "User",
+          targetId: user.id,
+          reason: "Self-referral pattern under review",
+          metadata: { tier: "TIER_1" },
+          createdAt: new Date(Date.now() - 30_000),
+        },
+      });
+    await seedConverted(demotedThenGrew.user.id, demotedThenGrew.code, 40);
+    // Conversions whose money was reversed or is held for a shared address do not count.
+    const unclean = await enrolledAffiliate();
+    await seedConverted(unclean.user.id, unclean.code, 6, earlier, "reversed");
+    await seedConverted(unclean.user.id, unclean.code, 6, earlier, "shared");
+
+    const sql = readFileSync(
+      new URL(
+        "../../prisma/migrations/20261026140000_promote_affiliates_to_earned_tiers/migration.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    for (let run = 0; run < 2; run += 1) {
+      await prisma.$executeRawUnsafe(sql);
+
+      expect(await tierOf(growth.user.id)).toBe("TIER_2");
+      expect(await tierOf(partner.user.id)).toBe("TIER_3");
+      expect(await tierOf(starter.user.id)).toBe("TIER_1");
+      expect(await tierOf(raised.user.id)).toBe("TIER_3");
+      expect(await tierOf(demoted.user.id)).toBe("TIER_1");
+      expect(await tierOf(demotedThenGrew.user.id)).toBe("TIER_3");
+      expect(await tierOf(unclean.user.id)).toBe("TIER_1");
+    }
   });
 });

@@ -12,14 +12,12 @@ import { addressBucket } from "#utils/requestIp";
 import { invalidateAffiliate } from "#services/affiliate/cache";
 import { AFFILIATE_ATTRIBUTION_DAYS } from "#services/affiliate/constants";
 import { getDashboard } from "#services/affiliate/dashboard";
+import { PAID_CREDIT_SOURCES } from "#services/creditSources";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Repeat clicks on one code from one address inside this window count once (V-015). */
 const CLICK_DEDUPE_SECONDS = 30 * 60;
-
-/** Credit-grant sources that mean the account has paid us money at least once. */
-const PAID_GRANT_SOURCES = ["credit_pack", "subscription_payment"];
 
 /** What a request tells us about who applied a code; hashed before it is stored or compared. */
 type ReferralSignals = { ip?: string | null; userAgent?: string | null };
@@ -164,7 +162,7 @@ export async function applyReferral(userId: string, code: string, signals?: Refe
   const [referred, subscriptions, paidGrants, affiliateSessions] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { createdAt: true } }),
     prisma.subscription.count({ where: { userId } }),
-    prisma.creditGrant.count({ where: { userId, source: { in: PAID_GRANT_SOURCES } } }),
+    prisma.creditGrant.count({ where: { userId, source: { in: [...PAID_CREDIT_SOURCES] } } }),
     prisma.session.findMany({
       where: { userId: affiliate.id, ipAddress: { not: null } },
       select: { ipAddress: true },

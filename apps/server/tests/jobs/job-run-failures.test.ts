@@ -9,19 +9,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
   recordJobSuccess: vi.fn(),
-  portfolio: { getPendingViewDates: vi.fn(), flushViewsForDate: vi.fn() },
+  portfolio: {
+    getPendingViewDates: vi.fn(),
+    flushViewsForDate: vi.fn(),
+    settleLapsedPortfolios: vi.fn(),
+  },
   share: { flushShareViews: vi.fn(), pruneShareViews: vi.fn() },
   analytics: { getPendingUsageMetricDates: vi.fn(), flushUsageMetricsForDate: vi.fn() },
   sweepExpiredCredits: vi.fn(),
   cleanupStaleAssets: vi.fn(),
-  findPublications: vi.fn(),
+  runAnnualCreditGrants: vi.fn(),
+  retryUnsentBillingNotifications: vi.fn(),
 }));
 
 vi.mock("node-cron", () => ({ default: { schedule: vi.fn() } }));
 vi.mock("#config", () => ({
   config: {
     metrics: { flushCron: "0 1 * * *", flushTimezone: "UTC" },
-    portfolio: { graceDays: 7 },
   },
 }));
 vi.mock("#lib/logger", () => ({ logger: mocks.logger }));
@@ -42,22 +46,22 @@ vi.mock("#lib/redis", () => {
 vi.mock("#services/portfolioService", () => ({ PortfolioService: mocks.portfolio }));
 vi.mock("#services/shareService", () => ({ ShareService: mocks.share }));
 vi.mock("#services/analyticsService", () => mocks.analytics);
-vi.mock("#lib/prisma", () => ({
-  prisma: { portfolioPublication: { findMany: mocks.findPublications, updateMany: vi.fn() } },
-}));
 vi.mock("#services/portfolioAssetService", () => ({
   PortfolioAssetService: { cleanupStaleAssets: mocks.cleanupStaleAssets },
 }));
-vi.mock("#utils/portfolioPublicationCache", () => ({
-  invalidatePublicPortfolioCaches: vi.fn(),
-  revalidatePublicPortfolios: vi.fn(),
-}));
 vi.mock("#services/creditService", () => ({ sweepExpiredCredits: mocks.sweepExpiredCredits }));
+vi.mock("#services/annualCreditService", () => ({
+  runAnnualCreditGrants: mocks.runAnnualCreditGrants,
+}));
+vi.mock("#services/billingNotifications", () => ({
+  retryUnsentBillingNotifications: mocks.retryUnsentBillingNotifications,
+}));
 
 const { runViewsFlush } = await import("#jobs/viewsFlushJob");
 const { runUsageMetricsFlush } = await import("#jobs/usageMetricsJob");
 const { runCreditSweep } = await import("#jobs/creditSweepJob");
 const { runPortfolioAccessSweep } = await import("#jobs/portfolioAccessJob");
+const { runAnnualCreditJob } = await import("#jobs/annualCreditJob");
 
 beforeEach(() => {
   mocks.portfolio.getPendingViewDates.mockResolvedValue(["2026-10-01", "2026-10-02"]);
@@ -153,7 +157,7 @@ describe("credit expiry sweep", () => {
 
 describe("portfolio access sweep", () => {
   beforeEach(() => {
-    mocks.findPublications.mockResolvedValue([]);
+    mocks.portfolio.settleLapsedPortfolios.mockResolvedValue(undefined);
     mocks.cleanupStaleAssets.mockResolvedValue(undefined);
   });
 
@@ -175,12 +179,34 @@ describe("portfolio access sweep", () => {
     );
   });
 
-  it("still cleans up assets after the suspension step fails, and is not a success", async () => {
-    mocks.findPublications.mockRejectedValueOnce(new Error("timeout"));
+  it("still cleans up assets after the lapsed-portfolio step fails, and is not a success", async () => {
+    mocks.portfolio.settleLapsedPortfolios.mockRejectedValueOnce(new Error("timeout"));
 
     await runPortfolioAccessSweep();
 
     expect(mocks.cleanupStaleAssets).toHaveBeenCalled();
+    expect(mocks.recordJobSuccess).not.toHaveBeenCalled();
+  });
+});
+
+describe("annual credits and billing email retries", () => {
+  it("still retries billing emails when the annual grants throw, and is not a success", async () => {
+    mocks.runAnnualCreditGrants.mockRejectedValueOnce(new Error("pool exhausted"));
+    mocks.retryUnsentBillingNotifications.mockResolvedValue({ retried: 1, sent: 1, failed: 0 });
+
+    await expect(runAnnualCreditJob("cron")).resolves.toBeUndefined();
+
+    expect(mocks.retryUnsentBillingNotifications).toHaveBeenCalledTimes(1);
+    expect(mocks.recordJobSuccess).not.toHaveBeenCalled();
+  });
+
+  it("still grants credits when the email retry throws, and is not a success", async () => {
+    mocks.runAnnualCreditGrants.mockResolvedValue({ schedules: 1, granted: 1, failed: 0 });
+    mocks.retryUnsentBillingNotifications.mockRejectedValueOnce(new Error("pool exhausted"));
+
+    await runAnnualCreditJob("cron");
+
+    expect(mocks.runAnnualCreditGrants).toHaveBeenCalledTimes(1);
     expect(mocks.recordJobSuccess).not.toHaveBeenCalled();
   });
 });

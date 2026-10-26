@@ -28,6 +28,9 @@ model User {
   ambassadorApplication AmbassadorApplication?
   lastLinkedinImportAt  DateTime?
   lastGithubImportAt    DateTime?
+  // The Dodo customer id, recorded from every successful payment (V-175): a pass or credit-pack
+  // buyer has no Subscription row, and the billing portal needs a customer to open.
+  billingCustomerId     String?
   createdAt             DateTime              @default(now())
   updatedAt             DateTime              @updatedAt
   sessions              Session[]
@@ -39,6 +42,8 @@ model User {
   apiKeys               ApiKey[]
   subscriptions         Subscription[]
   billingWebhookEvents  BillingWebhookEvent[]
+  billingNotifications  BillingNotification[]
+  creditSchedules       SubscriptionCreditSchedule[]
   entitlementGrants     EntitlementGrant[]
   creditWallet          CreditWallet?
   creditTransactions    CreditTransaction[]
@@ -201,10 +206,14 @@ enum BillingInterval {
   ANNUAL
 }
 
+// Billing rows (Subscription, EntitlementGrant, CreditWallet, CreditTransaction, CreditGrant and
+// their allocations) outlive the account: deleting a user detaches them (`userId` set null) so
+// the payment history is kept for tax and disputes (owner decision 5, V-183). Every reader must
+// treat a null `userId` as "the account was deleted", never as a user to recreate.
 model Subscription {
   id                 String             @id @default(cuid())
-  userId             String
-  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId             String?
+  user               User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
   provider           String
   providerCustomerId String?
   providerPriceId    String?
@@ -236,8 +245,8 @@ enum EntitlementSource {
 
 model EntitlementGrant {
   id        String            @id @default(cuid())
-  userId    String
-  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
   key       String
   source    EntitlementSource
   sourceId  String
@@ -263,8 +272,9 @@ enum CreditTransactionType {
 
 model CreditWallet {
   id               String              @id @default(cuid())
-  userId           String              @unique
-  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Detached, not deleted, with the account: its transactions and grants are billing records.
+  userId           String?             @unique
+  user             User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
   balance          Int                 @default(0)
   reserved         Int                 @default(0)
   lifetimeCredited Int                 @default(0)
@@ -314,8 +324,8 @@ model CreditTransaction {
   id           String                  @id @default(cuid())
   walletId     String
   wallet       CreditWallet            @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  userId       String
-  user         User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
   type         CreditTransactionType
   amount       Int
   balanceAfter Int
@@ -341,8 +351,8 @@ model CreditGrant {
   id          String                  @id @default(cuid())
   walletId    String
   wallet      CreditWallet            @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
   amount      Int
   remaining   Int
   source      String
@@ -595,6 +605,55 @@ model BillingWebhookEvent {
   @@index([status, createdAt])
   @@index([userId, createdAt])
   @@index([createdAt])
+}
+
+// One row per billing email (V-172, V-177): the unique (kind, reference) is what makes a
+// purchase confirmation or a payment-failed notice go out once per payment, however often the
+// provider redelivers the event. The row is the claim: `payload` holds what the email says (no
+// address, no name), `sentAt` is set once the send succeeded, and a claim left unsent (a failed
+// send, or a crash between claiming and sending) is retried by the hourly billing job
+// (services/billingNotifications). Kept, detached, when the account is deleted.
+model BillingNotification {
+  id        String    @id @default(cuid())
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  kind      String
+  reference String
+  payload   Json?
+  claimedAt DateTime  @default(now())
+  sentAt    DateTime?
+  attempts  Int       @default(1)
+  createdAt DateTime  @default(now())
+
+  @@unique([kind, reference])
+  @@index([userId, createdAt])
+  @@index([sentAt, claimedAt])
+}
+
+// Annual plans are paid once a year but deliver credits monthly (owner decision 4): one schedule
+// per paid annual period, opened by its payment, granting `monthlyCredits` at the start of each
+// month (services/annualCreditService, jobs/annualCreditJob). Each month's grant expires when the
+// month ends: nothing rolls over. Grants are keyed "<schedule id>:<month index>", so a retried
+// webhook or two job runs never grant a month twice. `openedByPaymentId` is the payment that
+// opened it, so a redelivery of that payment is never read as an early renewal. `stoppedAt` is
+// set once the paid period has ended or the plan moved to one without credits.
+model SubscriptionCreditSchedule {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerSubId     String
+  productKey        String
+  periodStart       DateTime
+  periodEnd         DateTime
+  monthlyCredits    Int
+  openedByPaymentId String?
+  stoppedAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([providerSubId, periodStart])
+  @@index([stoppedAt, periodEnd])
+  @@index([userId])
 }
 
 enum PortfolioAssetKind {

@@ -155,7 +155,8 @@ describe("password-protected share before verify (V-150)", () => {
     const user = await createUserWithSession({ username: `owner${suffix}` });
     const slug = `resume-${suffix}`;
     const document = await prisma.document.create({
-      data: { userId: user.id, title: "Secret Title", slug, content: {} },
+      // Shared documents are UNLISTED (sharing through the API unlists them, V-171).
+      data: { userId: user.id, title: "Secret Title", slug, content: {}, visibility: "UNLISTED" },
     });
     await prisma.shareLink.create({
       data: {

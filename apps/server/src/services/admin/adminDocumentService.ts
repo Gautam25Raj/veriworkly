@@ -18,7 +18,11 @@ import type {
   adminShareLinkListQuerySchema,
 } from "#validators/admin/adminDocumentValidator";
 import { listPage } from "#utils/pagination";
-import { getAuditHistory } from "#services/admin/adminAuditService";
+import {
+  getAuditHistory,
+  writeAdminAudit,
+  type AdminAuditInput,
+} from "#services/admin/adminAuditService";
 
 type ShareLinkListQuery = z.infer<typeof adminShareLinkListQuerySchema>;
 
@@ -216,16 +220,34 @@ async function loadDocumentForMutation(documentId: string) {
   return document;
 }
 
+/**
+ * A moderator's visibility decision. The audit entry is written in the same transaction as the
+ * change: it is the record that makes "Make private" a takedown the owner cannot undo
+ * (`madePrivateByModerator`), so a change without it must not happen.
+ */
 export async function updateDocumentVisibility(
   documentId: string,
   visibility: "PRIVATE" | "UNLISTED",
+  audit: AdminAuditInput,
 ) {
   const document = await loadDocumentForMutation(documentId);
 
-  const updated = await prisma.document.update({
-    where: { id: documentId },
-    data: { visibility },
-    select: DOCUMENT_LIST_SELECT,
+  const updated = await prisma.$transaction(async (tx) => {
+    const row = await tx.document.update({
+      where: { id: documentId },
+      data: { visibility },
+      select: DOCUMENT_LIST_SELECT,
+    });
+    await writeAdminAudit(tx, {
+      ...audit,
+      metadata: {
+        ...audit.metadata,
+        previousVisibility: document.visibility,
+        visibility,
+        ownerId: document.userId,
+      },
+    });
+    return row;
   });
 
   if (document.type === "PORTFOLIO")

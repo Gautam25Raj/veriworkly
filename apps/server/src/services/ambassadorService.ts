@@ -1,5 +1,7 @@
 import { ApiError } from "#lib/errors";
+import { logger } from "#lib/logger";
 import { prisma } from "#lib/prisma";
+import { sendAmbassadorDecisionEmail } from "#services/mail/ambassadorMail";
 import type { AmbassadorApplicationInput } from "#validators/ambassadorValidator";
 
 type Role = "USER" | "AMBASSADOR" | "ADMIN";
@@ -130,7 +132,7 @@ export class AmbassadorService {
   ) {
     const application = await prisma.ambassadorApplication.findUnique({
       where: { id: applicationId },
-      include: { user: { select: { role: true } } },
+      include: { user: { select: { role: true, email: true, name: true } } },
     });
     if (!application) throw new ApiError(404, "Ambassador application not found.");
     if (application.status !== "PENDING")
@@ -138,12 +140,17 @@ export class AmbassadorService {
 
     const status = action === "APPROVE" ? "APPROVED" : "REJECTED";
 
-    const [updatedApplication] = await prisma.$transaction([
-      prisma.ambassadorApplication.update({
-        where: { id: applicationId },
+    const updatedApplication = await prisma.$transaction(async (tx) => {
+      // The decision is a compare-and-set on PENDING, so two reviewers racing each other decide
+      // (and mail) once; the loser gets the same 409 as a late second review.
+      const decided = await tx.ambassadorApplication.updateMany({
+        where: { id: applicationId, status: "PENDING" },
         data: { status, reviewedBy: reviewerId, reviewedAt: new Date(), reviewNote },
-      }),
-      prisma.user.update({
+      });
+      if (decided.count !== 1)
+        throw new ApiError(409, "This application has already been reviewed.");
+
+      await tx.user.update({
         where: { id: application.userId },
         data: {
           ambassadorStatus: status,
@@ -152,8 +159,27 @@ export class AmbassadorService {
           // their admin access — on approval *and* on rejection.
           role: nextRoleAfterReview(application.user.role, action),
         },
-      }),
-    ]);
+      });
+
+      return tx.ambassadorApplication.findUniqueOrThrow({ where: { id: applicationId } });
+    });
+
+    // One mail per decision (V-181): only the review that won the transition sends it. A failed
+    // send is logged and never undoes the decision; the status page shows it either way.
+    if (application.user.email) {
+      try {
+        await sendAmbassadorDecisionEmail(application.user.email, {
+          decision: status,
+          firstName: application.user.name?.trim().split(/\s+/)[0] ?? "",
+          reviewNote: reviewNote?.trim() || null,
+        });
+      } catch (error) {
+        logger.warn("Failed to send the ambassador decision email", {
+          applicationId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
 
     return updatedApplication;
   }

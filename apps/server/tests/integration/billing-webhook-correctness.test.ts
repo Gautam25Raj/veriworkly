@@ -13,7 +13,8 @@ import { signDodoWebhook } from "./helpers/webhook.js";
 
 const { billingMailMock } = vi.hoisted(() => ({
   billingMailMock: {
-    sendSubscriptionPurchasedEmail: vi.fn().mockResolvedValue(undefined),
+    sendPurchaseConfirmationEmail: vi.fn().mockResolvedValue(undefined),
+    sendPaymentFailedEmail: vi.fn().mockResolvedValue(undefined),
     sendSubscriptionCancelledEmail: vi.fn().mockResolvedValue(undefined),
   },
 }));
@@ -344,7 +345,9 @@ describe("V-002 one-time bundle passes", () => {
     const me = await billingMe(user);
     expect(me.access).toEqual({
       tier: "free",
+      isPaid: false,
       isPaying: false,
+      paymentIssue: false,
       passEndsAt: null,
       portfolioAccessEndsAt: null,
       aiCreditsEndsAt: null,
@@ -454,7 +457,8 @@ describe("V-005 / V-006 status table", () => {
     stored: "ACTIVE" | "PAST_DUE" | "INACTIVE" | "CANCELED";
     grace: boolean;
     entitled: boolean;
-    publication: "LIVE" | "GRACE" | "SUSPENDED";
+    /** `FREE_TIER`: LIVE on the free template (Nimbus → Atelier), moved by the webhook itself (decision 6). */
+    publication: "LIVE" | "GRACE" | "FREE_TIER";
   }> = [
     {
       status: "active",
@@ -502,7 +506,7 @@ describe("V-005 / V-006 status table", () => {
       stored: "INACTIVE",
       grace: false,
       entitled: false,
-      publication: "SUSPENDED",
+      publication: "FREE_TIER",
     },
     {
       status: "cancelled",
@@ -518,7 +522,7 @@ describe("V-005 / V-006 status table", () => {
       stored: "CANCELED",
       grace: false,
       entitled: false,
-      publication: "SUSPENDED",
+      publication: "FREE_TIER",
     },
   ];
 
@@ -572,7 +576,13 @@ describe("V-005 / V-006 status table", () => {
       const publication = await prisma.portfolioPublication.findUnique({
         where: { userId: user.id },
       });
-      expect(publication?.status).toBe(row.publication);
+      if (row.publication === "FREE_TIER") {
+        expect(publication?.status).toBe("LIVE");
+        expect(publication?.templateId).toBe("atelier");
+      } else {
+        expect(publication?.status).toBe(row.publication);
+        expect(publication?.templateId).toBe("nimbus");
+      }
 
       const me = await billingMe(user);
       expect(me.canPublish).toBe(row.entitled);
@@ -628,7 +638,7 @@ describe("V-149 cancellation email", () => {
     };
     await deliver(subscriptionEvent({ ...base, status: "active", at: eventTime(0) }));
     await vi.waitFor(() =>
-      expect(billingMailMock.sendSubscriptionPurchasedEmail).toHaveBeenCalledTimes(1),
+      expect(billingMailMock.sendPurchaseConfirmationEmail).toHaveBeenCalledTimes(1),
     );
 
     await deliver(subscriptionEvent({ ...base, status: "cancelled", at: eventTime(1) }));
@@ -971,7 +981,7 @@ describe("free-template publications are not governed by non-portfolio or unpaid
     expect(await activePublishGrants(user.id)).toHaveLength(0);
   });
 
-  it("still suspends a premium-template publication when its portfolio_pro subscription is cancelled with the period over", async () => {
+  it("drops a premium-template publication to the free tier when its portfolio_pro subscription is cancelled with the period over", async () => {
     const user = await createUserWithSession();
     await createPublication(user.id, "nimbus");
     const base = {
@@ -997,8 +1007,10 @@ describe("free-template publications are not governed by non-portfolio or unpaid
     const publication = await prisma.portfolioPublication.findUnique({
       where: { userId: user.id },
     });
-    expect(publication?.status).toBe("SUSPENDED");
-    expect(publication?.suspensionReason).toBe("CANCELED");
+    // Decision 6: not offline until the hourly job; the webhook moves it to Atelier and it stays LIVE.
+    expect(publication?.status).toBe("LIVE");
+    expect(publication?.suspensionReason).toBeNull();
+    expect(publication?.templateId).toBe("atelier");
   });
 });
 

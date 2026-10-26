@@ -35,6 +35,10 @@ export const dodoSubscriptionSchema = z.object({
   // When the provider created the subscription: tells a late event about an older subscription
   // apart from one about the checkout that is open now.
   created_at: z.string().trim().nullable().optional(),
+  // The plan's price, for the purchase confirmation (V-177). Pre-tax unless `tax_inclusive`.
+  recurring_pre_tax_amount: z.number().int().nonnegative().nullable().optional(),
+  currency: z.string().trim().min(1).nullable().optional(),
+  tax_inclusive: z.boolean().nullable().optional(),
   metadata: z
     .object({
       veriworkly_user_id: z.string().trim().optional(),
@@ -76,6 +80,12 @@ export const dodoPaymentSchema = z
     // Set when the payment was made through a checkout session; matches the open checkout record.
     checkout_session_id: z.string().trim().nullable().optional(),
     created_at: z.string().trim().nullable().optional(),
+    // Recorded on the user so a one-time buyer can open the billing portal (V-175).
+    customer: z
+      .object({ customer_id: z.string().trim().min(1) })
+      .passthrough()
+      .nullable()
+      .optional(),
     service_periods: z
       .array(
         z

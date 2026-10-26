@@ -31,8 +31,10 @@ export const AdminBillingController = {
 
   /**
    * PATCH /admin/billing/subscriptions/:id — support override for an account whose webhook
-   * was lost. The provider stays authoritative: the next webhook will overwrite this. The audit
-   * entry is written in the service, in the same transaction as the edit (V-074).
+   * was lost. `cancelAtPeriodEnd` is changed at Dodo first and a provider failure is a 502 with
+   * nothing written (V-169); a status edit grants or revokes the plan's entitlements with it
+   * (V-170). The audit entry is written in the service, in the same transaction as the edit
+   * (V-074).
    */
   updateSubscription: adminHandler(async ({ req, actorId }) => {
     const { id } = adminIdParamSchema.parse(req.params);

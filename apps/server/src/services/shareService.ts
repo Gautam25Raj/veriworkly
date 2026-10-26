@@ -6,12 +6,17 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "#lib/prisma";
 import { getRedis } from "#lib/redis";
 import { acquireJobLock } from "#lib/jobLock";
+import { bumpGeneration } from "#lib/cacheGeneration";
+import { cacheNamespaces, documentCacheNamespaces } from "#lib/cacheKeys";
 import { ApiError } from "#lib/errors";
 import { logger } from "#lib/logger";
 import { normalizeSlug, normalizeUsername, buildUniqueSlugHelper } from "#utils/slugs";
 import { hashForAnalytics } from "#utils/analyticsHash";
 
 import { UserService } from "#services/userService";
+import { madePrivateByModerator } from "#services/moderationRecord";
+
+export { madePrivateByModerator };
 
 const scryptAsync = promisify(scrypt);
 const VIEW_BUFFER_TTL_SECONDS = 14 * 24 * 60 * 60;
@@ -21,6 +26,9 @@ const SHARE_FLUSH_LOCK_SECONDS = 300;
 const SHARE_VIEW_RETENTION_DAYS = 30;
 const SHARE_VIEW_PRUNE_BATCH_SIZE = 5_000;
 const SHARE_VIEW_PRUNE_BUDGET_MS = 20_000;
+
+/** Documents a share link can point at: a portfolio is published, never shared by link. */
+const SHAREABLE_DOCUMENT_TYPES = new Set(["RESUME", "COVER_LETTER"]);
 
 export class ShareService {
   static async hashPassword(password: string) {
@@ -150,14 +158,11 @@ export class ShareService {
       const shareLinkIds = [
         ...new Set([...parsedViews.map((view) => view.shareLinkId), ...Object.keys(counts)]),
       ];
-      const survivingShareLinks = new Set(
-        (
-          await prisma.shareLink.findMany({
-            where: { id: { in: shareLinkIds } },
-            select: { id: true },
-          })
-        ).map((shareLink) => shareLink.id),
-      );
+      const surviving = await prisma.shareLink.findMany({
+        where: { id: { in: shareLinkIds } },
+        select: { id: true, userId: true },
+      });
+      const survivingShareLinks = new Set(surviving.map((shareLink) => shareLink.id));
       const validViews = parsedViews.filter((view) => survivingShareLinks.has(view.shareLinkId));
       const validCounts = Object.entries(counts).filter(([shareLinkId]) =>
         survivingShareLinks.has(shareLinkId),
@@ -228,6 +233,15 @@ export class ShareService {
 
       await redis.del([viewsProcessingKey, countsProcessingKey, lastViewedProcessingKey, batchKey]);
 
+      // The owner's share list shows `viewCount`; it is cached, so the new counts reach it only
+      // through a bump (V-188), once per owner whose links were counted.
+      const owners = new Set(
+        surviving
+          .filter((shareLink) => counters.some((counter) => counter.id === shareLink.id))
+          .map((shareLink) => cacheNamespaces.shareList(shareLink.userId)),
+      );
+      if (owners.size > 0) await bumpGeneration(...owners);
+
       return { flushedViews, flushedLinks };
     } finally {
       await lock.release();
@@ -280,10 +294,29 @@ export class ShareService {
     const username = await UserService.requireUsernameForUser(userId);
     const document = await prisma.document.findFirst({
       where: { id: documentId, userId, deletedAt: null },
-      select: { id: true, slug: true },
+      select: { id: true, slug: true, visibility: true, type: true },
     });
 
     if (!document) throw new ApiError(404, "Document not found");
+    // Sharing unlists the document below; a portfolio goes public through publishing, and a
+    // share link would also be a way around a portfolio takedown.
+    if (!SHAREABLE_DOCUMENT_TYPES.has(document.type))
+      throw new ApiError(400, "Only résumés and cover letters can be shared by link.");
+
+    // A share link is reachable by anyone with the URL, so a shared document is UNLISTED, and the
+    // public lookup serves no link on a PRIVATE one (V-171). Documents start PRIVATE, so sharing
+    // unlists them here, unless a moderator made the document private: then sharing it again
+    // would undo the takedown.
+    if (document.visibility === "PRIVATE") {
+      if (await madePrivateByModerator(document.id))
+        throw new ApiError(403, "This document was made private by a moderator.");
+
+      await prisma.document.update({
+        where: { id: document.id },
+        data: { visibility: "UNLISTED" },
+      });
+      await bumpGeneration(...documentCacheNamespaces(userId, document.id));
+    }
 
     const existing = await prisma.shareLink.findUnique({
       where: { userId_documentId: { userId, documentId } },
@@ -408,6 +441,13 @@ export class ShareService {
     return { username, slug: existing.slug };
   }
 
+  /**
+   * A link on a PRIVATE document is answered exactly like a missing link (V-171). The link is
+   * filtered, not deleted: "Make private" is a reversible moderation step, and setting the
+   * document back to UNLISTED brings the same URL back (its password, expiry and view count
+   * intact) instead of making the owner share again and send a new URL to everyone. Every
+   * visibility change bumps the owner's public-share cache generation, so it applies at once.
+   */
   static async getPublicShareLinkByUsernameAndSlug(username: string, slug: string) {
     const user = await prisma.user.findUnique({
       where: { username: normalizeUsername(username) },
@@ -422,6 +462,7 @@ export class ShareService {
         slug: normalizeSlug(slug),
         document: {
           deletedAt: null,
+          visibility: { not: "PRIVATE" },
         },
       },
       include: { document: { select: { title: true, slug: true } } },

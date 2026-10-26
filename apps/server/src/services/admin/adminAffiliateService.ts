@@ -17,6 +17,10 @@ import type {
   adminWithdrawalListQuerySchema,
 } from "#validators/admin/adminAffiliateValidator";
 import { listPage } from "#utils/pagination";
+import {
+  withAccountPlaceholder,
+  withAffiliatePlaceholder,
+} from "#services/admin/deletedAccountPlaceholder";
 
 type AffiliateListQuery = z.infer<typeof adminAffiliateListQuerySchema>;
 type CommissionListQuery = z.infer<typeof adminCommissionListQuerySchema>;
@@ -293,7 +297,8 @@ export async function listCommissions(query: CommissionListQuery) {
   // records the USD amount by hand; the flag is what the list surfaces for that queue (V-017).
   const page = listPage(
     items.map((item) => ({
-      ...item,
+      // A deleted affiliate's money history is kept, detached (V-183).
+      ...withAffiliatePlaceholder(item),
       requiresManualConversion: item.currency !== AFFILIATE_WALLET_CURRENCY,
     })),
     total,
@@ -332,7 +337,15 @@ export async function listWithdrawals(query: WithdrawalListQuery) {
     prisma.affiliateWithdrawal.aggregate({ where, _sum: { amountCents: true } }),
   ]);
 
-  return { ...listPage(items, total, query), totalAmountCents: totals._sum.amountCents ?? 0 };
+  return {
+    // A deleted affiliate's payouts are kept, detached (V-183).
+    ...listPage(
+      items.map((item) => withAccountPlaceholder(item)),
+      total,
+      query,
+    ),
+    totalAmountCents: totals._sum.amountCents ?? 0,
+  };
 }
 
 export async function listReferrals(query: ReferralListQuery) {

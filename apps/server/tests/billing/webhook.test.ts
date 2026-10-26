@@ -8,7 +8,8 @@ const { affiliateMock, creditMock, apiKeyServiceMock, billingMailMock, loggerMoc
     creditMock: { grant: vi.fn(), getWallet: vi.fn() },
     apiKeyServiceMock: { invalidateAuthCacheForUser: vi.fn().mockResolvedValue(undefined) },
     billingMailMock: {
-      sendSubscriptionPurchasedEmail: vi.fn().mockResolvedValue(undefined),
+      sendPurchaseConfirmationEmail: vi.fn().mockResolvedValue(undefined),
+      sendPaymentFailedEmail: vi.fn().mockResolvedValue(undefined),
       sendSubscriptionCancelledEmail: vi.fn().mockResolvedValue(undefined),
     },
   }),
@@ -44,6 +45,10 @@ const prismaMock = {
   affiliateReferral: {
     findUnique: vi.fn(),
   },
+  // The subscription's earlier credit grants a renewal supersedes (no annual schedules here).
+  subscriptionCreditSchedule: {
+    findMany: vi.fn().mockResolvedValue([]),
+  },
   $executeRaw: vi.fn().mockResolvedValue(1),
   $transaction: vi.fn((cb) => cb(prismaMock)),
 };
@@ -51,6 +56,12 @@ const prismaMock = {
 vi.mock("#lib/prisma", () => ({
   prisma: prismaMock,
   default: prismaMock,
+}));
+
+// Every user here exists; the deleted-account path (V-183) is covered by the integration suite.
+vi.mock("#services/deletedAccount", () => ({
+  isDeletedAccount: vi.fn(async () => false),
+  redactIfForDeletedAccount: vi.fn(async () => undefined),
 }));
 
 vi.mock("#utils/portfolioPublicationCache", () => ({
@@ -83,6 +94,8 @@ vi.mock("#services/apiKeyService", () => ({
   ApiKeyService: apiKeyServiceMock,
 }));
 
+// billingService imports the deleted-account check from userService, which pulls in better-auth.
+vi.mock("#services/userService", () => ({ isDeletedAccount: vi.fn().mockResolvedValue(false) }));
 vi.mock("#services/mail/billingMail", () => billingMailMock);
 
 vi.mock("#config", () => ({
@@ -125,7 +138,7 @@ describe("billing webhook processing and idempotency", () => {
     prismaMock.affiliateReferral.findUnique.mockReset().mockResolvedValue(null);
     prismaMock.$executeRaw.mockReset().mockResolvedValue(1);
     apiKeyServiceMock.invalidateAuthCacheForUser.mockReset().mockResolvedValue(undefined);
-    billingMailMock.sendSubscriptionPurchasedEmail.mockReset().mockResolvedValue(undefined);
+    billingMailMock.sendPurchaseConfirmationEmail.mockReset().mockResolvedValue(undefined);
     billingMailMock.sendSubscriptionCancelledEmail.mockReset().mockResolvedValue(undefined);
     prismaMock.billingWebhookEvent.create.mockReset();
     prismaMock.billingWebhookEvent.findUnique.mockReset();
@@ -612,8 +625,21 @@ describe("billing webhook processing and idempotency", () => {
         expect.objectContaining({
           requestId: "subscription-credit:pay_1",
           source: "subscription_payment",
-          sourceId: "pay_1",
+          // Keyed under the subscription, so the next month's grant can replace it.
+          sourceId: "sub_ai:payment:pay_1",
           expiresAt: new Date("2026-07-11T12:00:00.000Z"),
+          supersedes: expect.objectContaining({
+            where: {
+              OR: [
+                {
+                  source: "subscription_payment",
+                  sourceId: { startsWith: "sub_ai:" },
+                  // Never a legacy annual up-front allowance (12,000).
+                  amount: { lte: 1_000 },
+                },
+              ],
+            },
+          }),
         }),
       );
     });

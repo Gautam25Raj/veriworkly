@@ -6,6 +6,7 @@ import { ApiError } from "#lib/errors";
 import { logger } from "#lib/logger";
 import { prisma } from "#lib/prisma";
 import { cacheDel, cacheGet, cacheSet } from "#lib/redis";
+import { CREDIT_SOURCES, PAID_CREDIT_SOURCES } from "#services/creditSources";
 
 const CREDIT_SUMMARY_TTL_SECONDS = 30;
 const CREDIT_HISTORY_TTL_SECONDS = 60;
@@ -48,6 +49,16 @@ type CreditGrantContext = CreditContext & {
   source: string;
   sourceId: string;
   expiresAt?: Date | null;
+  /**
+   * Earlier grants this one replaces: subscription credits reset monthly, so a new month's
+   * allowance ends whatever is left of the last one instead of adding to it. Matching grants
+   * still valid after `at` are cut to expire at `at`, or now when `at` has passed, never
+   * earlier: a reservation made before the cut was carved out of them and still commits from them
+   * (its commit draws on grants valid at its `createdAt`), and the expiry sweep removes the rest
+   * once no reservation is pending. Applied only when the new grant is written, so a replayed
+   * request id cuts nothing.
+   */
+  supersedes?: { where: Prisma.CreditGrantWhereInput; at: Date };
 };
 
 type LockedWallet = { id: string; balance: number; reserved: number };
@@ -317,6 +328,20 @@ export class CreditService {
     };
     await cacheSet(summaryCacheKey(userId), result, CREDIT_SUMMARY_TTL_SECONDS);
     return result;
+  }
+
+  /** Unexpired credits left from paid sources (`PAID_CREDIT_SOURCES`); goodwill grants excluded. */
+  static async paidCreditsRemaining(userId: string, at = new Date()) {
+    const paid = await prisma.creditGrant.aggregate({
+      where: {
+        userId,
+        source: { in: [...PAID_CREDIT_SOURCES] },
+        remaining: { gt: 0 },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: at } }],
+      },
+      _sum: { remaining: true },
+    });
+    return paid._sum.remaining ?? 0;
   }
 
   static async reserveAction(userId: string, action: AiActionKey, mode: AiMode, requestId: string) {
@@ -598,6 +623,23 @@ export class CreditService {
             expiresAt: context.expiresAt,
           },
         });
+        if (context.supersedes) {
+          const cutoff = new Date(Math.max(context.supersedes.at.getTime(), Date.now()));
+          await tx.creditGrant.updateMany({
+            where: {
+              AND: [
+                context.supersedes.where,
+                {
+                  walletId: wallet.id,
+                  id: { not: grant.id },
+                  remaining: { gt: 0 },
+                  OR: [{ expiresAt: null }, { expiresAt: { gt: cutoff } }],
+                },
+              ],
+            },
+            data: { expiresAt: cutoff },
+          });
+        }
         const transaction = await tx.creditTransaction.create({
           data: {
             walletId: wallet.id,
@@ -635,7 +677,7 @@ export class CreditService {
     if (amount > 0)
       return this.grant(userId, amount, {
         ...context,
-        source: "admin_adjustment",
+        source: CREDIT_SOURCES.adminAdjustment,
         sourceId: context.requestId,
         expiresAt: null,
       });

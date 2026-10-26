@@ -472,7 +472,7 @@ describe("rateLimitMiddleware without Redis", () => {
     "/api/v1/shares/public/alice/my-resume/verify",
     "/api/v1/contact",
     "/api/v1/auth/email-otp/send-verification-otp",
-    "/api/v1/auth/forget-password/email-otp",
+    "/api/v1/auth/email-otp/request-password-reset",
   ])("fails %s closed with 503 and Retry-After", async (path) => {
     const result = await call(path);
     expect(result.passed).toBe(false);

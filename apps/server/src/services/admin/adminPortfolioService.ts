@@ -294,10 +294,16 @@ export async function forceUnpublish(publicationId: string, audit?: AdminAuditIn
 
     await tx.portfolioPublication.delete({ where: { id: publicationId } });
 
+    // `documentId` is what `madePrivateByModerator` reads: the owner cannot make the document
+    // visible again after a takedown.
     if (audit)
       await writeAdminAudit(tx, {
         ...audit,
-        metadata: { ...audit.metadata, subdomain: publication.subdomain },
+        metadata: {
+          ...audit.metadata,
+          subdomain: publication.subdomain,
+          documentId: publication.documentId,
+        },
       });
   });
 

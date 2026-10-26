@@ -11,7 +11,8 @@ import { createUserWithSession, type TestUser } from "./helpers/auth.js";
 
 const { mailMock } = vi.hoisted(() => ({
   mailMock: {
-    sendSubscriptionPurchasedEmail: vi.fn().mockResolvedValue(undefined),
+    sendPurchaseConfirmationEmail: vi.fn().mockResolvedValue(undefined),
+    sendPaymentFailedEmail: vi.fn().mockResolvedValue(undefined),
     sendSubscriptionCancelledEmail: vi.fn().mockResolvedValue(undefined),
     sendPortfolioUpdatedEmail: vi.fn().mockResolvedValue(undefined),
   },

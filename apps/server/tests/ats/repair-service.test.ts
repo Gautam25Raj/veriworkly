@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { reserve, commitReservation, releaseReservation, requireEntitlement } = vi.hoisted(() => ({
+const { reserve, commitReservation, releaseReservation } = vi.hoisted(() => ({
   reserve: vi.fn(),
   commitReservation: vi.fn(),
   releaseReservation: vi.fn(),
-  requireEntitlement: vi.fn(),
 }));
 
 vi.mock("#config", () => ({
@@ -53,10 +52,6 @@ vi.mock("#services/creditService", () => ({
   CreditService: { reserve, commitReservation, releaseReservation },
 }));
 
-vi.mock("#services/entitlementService", () => ({
-  EntitlementService: { require: requireEntitlement },
-}));
-
 import { AtsRepairService } from "#services/ats/repair";
 import type { AtsReport } from "#services/ats/types";
 import { EMPTY_PARSED } from "./fixtures/ai-wire-inputs";
@@ -78,17 +73,25 @@ describe("AtsRepairService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     api = stubChatApi();
-    requireEntitlement.mockResolvedValue(undefined);
     reserve.mockResolvedValue(undefined);
     commitReservation.mockResolvedValue(undefined);
     releaseReservation.mockResolvedValue(undefined);
   });
 
-  it("requires the paid entitlement before spending anything", async () => {
-    requireEntitlement.mockRejectedValue(new Error("no plan"));
+  it("needs only credits, never the ai_credits grant (owner decision 1, V-178)", async () => {
+    respondWith({ name: "Jane Doe" });
+
+    await AtsRepairService.repair("u1", "r1", SOURCE, report);
+
+    expect(reserve).toHaveBeenCalledTimes(1);
+  });
+
+  it("spends nothing when the wallet cannot cover the repair", async () => {
+    reserve.mockRejectedValue(
+      Object.assign(new Error("Not enough AI credits."), { statusCode: 402 }),
+    );
 
     await expect(AtsRepairService.repair("u1", "r1", SOURCE, report)).rejects.toThrow();
-    expect(reserve).not.toHaveBeenCalled();
     expect(api.fetch).not.toHaveBeenCalled();
   });
 

@@ -40,6 +40,8 @@ vi.mock("#utils/portfolioPublicationCache", () => ({
 vi.mock("#services/affiliate/index", () => ({ AffiliateService: {} }));
 vi.mock("#services/creditService", () => ({ CreditService: {} }));
 vi.mock("#services/apiKeyService", () => ({ ApiKeyService: {} }));
+// billingService imports the deleted-account check from userService, which pulls in better-auth.
+vi.mock("#services/userService", () => ({ isDeletedAccount: vi.fn().mockResolvedValue(false) }));
 vi.mock("#services/mail/billingMail", () => ({}));
 
 import { ApiError } from "#lib/errors";

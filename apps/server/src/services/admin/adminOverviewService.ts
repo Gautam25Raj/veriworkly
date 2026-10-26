@@ -16,6 +16,7 @@ import { getAffiliateSummary } from "#services/admin/adminAffiliateService";
 import { getAmbassadorSummary } from "#services/admin/adminAmbassadorService";
 import { getApiKeySummary } from "#services/admin/adminApiKeyService";
 import { getBillingSummary } from "#services/admin/adminBillingService";
+import { withAccountPlaceholder } from "#services/admin/deletedAccountPlaceholder";
 import { getDocumentSummary } from "#services/admin/adminDocumentService";
 import { getPortfolioSummary } from "#services/admin/adminPortfolioService";
 import { getRecentAuditEntries } from "#services/admin/adminAuditService";
@@ -292,7 +293,13 @@ async function buildRecentActivity() {
     }),
   ]);
 
-  return { signups, publications, subscriptions, applications };
+  // An ACTIVE row can belong to a deleted account (V-183); the feed shows a placeholder for it.
+  return {
+    signups,
+    publications,
+    subscriptions: subscriptions.map(withAccountPlaceholder),
+    applications,
+  };
 }
 
 /* ── Cached entry points ──────────────────────────────────────────────────────────────

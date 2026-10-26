@@ -3,7 +3,6 @@ import type { AtsParsedResume, AtsReport } from "@veriworkly/ats-engine";
 import { getAtsAiPolicy } from "#services/ats/aiPolicy";
 import { createServerAtsAi, runReserved, taskRoute } from "#services/ats/atsAi";
 import { getAtsEnginePolicy } from "#services/ats/enginePolicy";
-import { EntitlementService } from "#services/entitlementService";
 import { logger } from "#lib/logger";
 
 /**
@@ -19,7 +18,8 @@ import { logger } from "#lib/logger";
  * documents. Those are the trigger conditions below.
  *
  * When to offer repair (`needsRepair`), the model call, and what to accept from the model
- * (`mergeGrounded`) live in `@veriworkly/ats-engine`; this module owns entitlement and billing.
+ * (`mergeGrounded`) live in `@veriworkly/ats-engine`; this module owns billing. Like every AI
+ * action it needs credits from any source and no plan (owner decision 1, V-178).
  * Everything the model returns is checked against the source text before it is used.
  */
 
@@ -58,12 +58,6 @@ export class AtsRepairService {
     /** Ends the provider call when the client leaves or the request deadline passes (V-034). */
     signal?: AbortSignal,
   ): Promise<RepairOutcome> {
-    await EntitlementService.require(
-      userId,
-      "ai_credits",
-      "AI parse repair requires an active AI Credits or Bundle plan.",
-    );
-
     const policy = getAtsAiPolicy();
     const route = policy.parseRepair;
     if (!route)

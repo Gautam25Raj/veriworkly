@@ -84,10 +84,15 @@ function loadAtsAiPolicy() {
     try {
       cached = atsPolicySchema.parse(getAtsAiPolicyJson());
     } catch (error) {
-      if (error instanceof ApiError) throw error;
+      // The loader's own errors name the file path and the JSON parse position (V-184): logged,
+      // never passed through to the client.
       if (error instanceof z.ZodError) {
         logger.error("ATS AI policy failed validation", {
           issues: error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).slice(0, 10),
+        });
+      } else {
+        logger.error("ATS AI policy could not be loaded", {
+          error: error instanceof Error ? error.message : String(error),
         });
       }
       throw new ApiError(503, "AI ATS policy is invalid.");

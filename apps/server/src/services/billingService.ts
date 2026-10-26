@@ -24,14 +24,23 @@ import { cacheDel, cacheGet, cacheSet, getRedis } from "#lib/redis";
 import { acquireJobLock } from "#lib/jobLock";
 import { userProfileCacheKey } from "#lib/cacheKeys";
 import { PREMIUM_PORTFOLIO_TEMPLATE_IDS } from "#validators/portfolioValidator";
-import { EntitlementService } from "#services/entitlementService";
+import { EntitlementService, isPaidAccessKey } from "#services/entitlementService";
 import { AffiliateService } from "#services/affiliate/index";
 import { AFFILIATE_TIER_RATE_BPS } from "#services/affiliate/constants";
 import { CreditService } from "#services/creditService";
+import { CREDIT_SOURCES } from "#services/creditSources";
+import { isDeletedAccount, redactIfForDeletedAccount } from "#services/deletedAccount";
 import {
-  sendSubscriptionPurchasedEmail,
+  grantDueMonths,
+  openAnnualCreditSchedule,
+  subscriptionCreditGrantsWhere,
+} from "#services/annualCreditService";
+import { notifyOnce } from "#services/billingNotifications";
+import {
   sendSubscriptionCancelledEmail,
+  type PurchaseConfirmation,
 } from "#services/mail/billingMail";
+import { PRODUCT_NAMES, PASS_NAMES, UNLOCK_PHRASES, purchaseName } from "#services/productNames";
 import {
   creditPackCatalog,
   isCreditPackKey,
@@ -54,8 +63,15 @@ import {
 } from "#utils/portfolioPublicationCache";
 
 type BillingIntervalInput = "one_day" | "seven_day" | "monthly" | "annual";
+/** The one field a `refund.succeeded` event is read for. */
+const refundEventSchema = z.object({
+  payment_id: z.string().trim().min(1),
+  is_partial: z.boolean().nullish(),
+  amount: z.number().int().nullish(),
+});
 const BILLING_SUMMARY_TTL_SECONDS = 60;
 const BILLING_HISTORY_TTL_SECONDS = 60;
+const DAY_MS = 24 * 60 * 60 * 1000;
 /**
  * One open checkout session per (user, product), remembered for as long as the provider keeps
  * the session payable (Dodo checkout sessions stay valid for 24 hours). Shorter, and a forgotten
@@ -175,6 +191,75 @@ function overlappingProductKeys(productKey: ProductKey): ProductKey[] {
   return productKey === "bundle" ? [...PRODUCT_KEYS] : [productKey, "bundle"];
 }
 
+/**
+ * Whether a new subscription or pass would overlap what the customer already pays for (V-176).
+ * Any live subscription (active in period, or in dunning) blocks a second one: the same product
+ * twice is a double charge, the bundle already contains both single products, and AI Credits
+ * plus Creator Pro is the bundle at a higher price. The error says what to do instead, and
+ * `details` carries the same in machine form for the clients:
+ * `{ code, activeProductKey, suggestedProductKey }`.
+ */
+function checkoutOverlap(
+  productKey: ProductKey,
+  interval: BillingIntervalInput,
+  live: Array<{
+    productKey: string;
+    status: PrismaSubscription["status"];
+    rawStatus: string | null;
+  }>,
+) {
+  const current = live.find((item) => item.status === "PAST_DUE") ?? live[0];
+  if (!current || !isProductKey(current.productKey)) return null;
+  const active = current.productKey;
+  const activeName = PRODUCT_NAMES[active];
+  const requestedName =
+    productKey === "bundle" && (interval === "one_day" || interval === "seven_day")
+      ? PASS_NAMES[interval]
+      : PRODUCT_NAMES[productKey];
+  const details = (code: string, suggestedProductKey: ProductKey | null) => ({
+    code,
+    activeProductKey: active,
+    suggestedProductKey,
+  });
+
+  // A pause maps to PAST_DUE (nothing is charged until it is resumed), but nothing is owed either.
+  if (current.status === "PAST_DUE" && current.rawStatus === "paused")
+    return new ApiError(
+      409,
+      `Your ${activeName} subscription is paused. Resume it from Manage billing instead of starting a new purchase.`,
+      details("SUBSCRIPTION_PAUSED", null),
+    );
+  if (current.status === "PAST_DUE")
+    return new ApiError(
+      409,
+      `Your ${activeName} subscription has a payment outstanding. Update your payment method from Manage billing instead of starting a new purchase.`,
+      details("PAYMENT_OUTSTANDING", null),
+    );
+  if (active === productKey && requestedName === activeName)
+    return new ApiError(
+      409,
+      `You already have an active ${activeName} subscription.`,
+      details("ALREADY_SUBSCRIBED", null),
+    );
+  if (active === "bundle")
+    return new ApiError(
+      409,
+      `Your ${activeName} already includes ${requestedName}.`,
+      details("ALREADY_INCLUDED", null),
+    );
+  if (requestedName !== PRODUCT_NAMES[productKey])
+    return new ApiError(
+      409,
+      `You already have an active ${activeName} subscription. For more AI credits, buy a credit pack instead of a pass.`,
+      details("SUBSCRIPTION_OVERLAP", null),
+    );
+  return new ApiError(
+    409,
+    `You already have an active ${activeName} subscription. ${PRODUCT_NAMES.ai_credits} and ${PRODUCT_NAMES.portfolio_pro} together are the ${PRODUCT_NAMES.bundle}: to switch, cancel ${activeName} from Manage billing and subscribe to the ${PRODUCT_NAMES.bundle} when it ends, or contact support to switch now.`,
+    details("SUBSCRIPTION_OVERLAP", "bundle"),
+  );
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -215,7 +300,7 @@ function getDodoCheckoutClient() {
 }
 
 function addDays(date: Date, days: number) {
-  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+  return new Date(date.getTime() + days * DAY_MS);
 }
 
 function addMonths(date: Date, months: number) {
@@ -343,13 +428,60 @@ function accessStatus(
   return { canPublish: false, publicationStatus: "SUSPENDED" as const };
 }
 
+type SubscriptionState = Pick<
+  PrismaSubscription,
+  "status" | "currentPeriodEnd" | "graceEndsAt" | "updatedAt"
+>;
+
+/**
+ * Whether a subscription still describes the customer's billing today: active inside its
+ * period, cancelled with paid time left, or in dunning while the grace window runs (V-172).
+ */
+function subscriptionInEffect(subscription: SubscriptionState, now: Date) {
+  if (subscription.status === "ACTIVE")
+    return !subscription.currentPeriodEnd || subscription.currentPeriodEnd > now;
+  if (subscription.status === "CANCELED")
+    return Boolean(subscription.currentPeriodEnd && subscription.currentPeriodEnd > now);
+  if (subscription.status === "PAST_DUE")
+    return Boolean(subscription.graceEndsAt && subscription.graceEndsAt > now);
+  return false;
+}
+
+const SUMMARY_STATUS_RANK: Record<PrismaSubscription["status"], number> = {
+  ACTIVE: 0,
+  PAST_DUE: 1,
+  CANCELED: 2,
+  INACTIVE: 3,
+};
+
+/**
+ * The subscription the billing summary describes (V-176): one in effect if there is any (active
+ * first, then dunning, then cancelled with time left; the latest-ending among equals), otherwise
+ * the one that ended last. Never simply the row updated last, which can be a dead subscription
+ * while another one is what `plan` reflects.
+ */
+function primarySubscription<T extends SubscriptionState>(subscriptions: T[], now: Date) {
+  const live = subscriptions.filter((subscription) => subscriptionInEffect(subscription, now));
+  const end = (subscription: T) =>
+    subscription.currentPeriodEnd?.getTime() ?? Number.POSITIVE_INFINITY;
+  const pool = live.length > 0 ? live : subscriptions;
+  return (
+    [...pool].sort(
+      (left, right) =>
+        SUMMARY_STATUS_RANK[left.status] - SUMMARY_STATUS_RANK[right.status] ||
+        end(right) - end(left) ||
+        right.updatedAt.getTime() - left.updatedAt.getTime(),
+    )[0] ?? null
+  );
+}
+
 /**
  * Two webhook events for one user (an old subscription cancelled while a new one activates)
  * each recompute the portfolio publication from every grant the user holds. Row locks are per
  * subscription, so without this they can read each other's pre-commit state and the last writer
  * suspends a paying customer. Taken first in every billing transaction; released at commit.
  */
-async function lockUserForBilling(tx: Prisma.TransactionClient, userId: string) {
+export async function lockUserForBilling(tx: Prisma.TransactionClient, userId: string) {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`;
 }
 
@@ -399,17 +531,128 @@ async function reconcilePortfolioPublication(
 
   // A lapse only reaches publications that needed the grant in the first place: free templates
   // (Signal, Atelier) publish without one and stay LIVE whatever happens to the subscription.
+  const lapsedWhere = {
+    userId,
+    templateId: { in: [...PREMIUM_PORTFOLIO_TEMPLATE_IDS] },
+    ...billingOwned,
+  };
+  if (fallback.publicationStatus !== "SUSPENDED") {
+    await tx.portfolioPublication.updateMany({
+      where: lapsedWhere,
+      data: { status: "GRACE", suspensionReason: null, suspendedAt: null },
+    });
+    return;
+  }
+  // `suspendedAt` is when the site went offline: the settle step only brings back a suspension
+  // from the last 30 days. A row billing already suspended keeps its date (a redelivered event or
+  // an admin reconcile must not restart that window); only its reason follows the latest event.
   await tx.portfolioPublication.updateMany({
-    where: { userId, templateId: { in: [...PREMIUM_PORTFOLIO_TEMPLATE_IDS] }, ...billingOwned },
-    data:
-      fallback.publicationStatus === "SUSPENDED"
-        ? {
-            status: "SUSPENDED",
-            suspensionReason: fallback.suspensionReason,
-            suspendedAt: new Date(),
-          }
-        : { status: "GRACE", suspensionReason: null, suspendedAt: null },
+    where: { ...lapsedWhere, NOT: { status: "SUSPENDED" } },
+    data: {
+      status: "SUSPENDED",
+      suspensionReason: fallback.suspensionReason,
+      suspendedAt: new Date(),
+    },
   });
+  // An undated suspension stays undated: stamping it now would make a long-dead site look recent
+  // to the 30-day restore window.
+  await tx.portfolioPublication.updateMany({
+    where: { ...lapsedWhere, status: "SUSPENDED" },
+    data: { suspensionReason: fallback.suspensionReason },
+  });
+}
+
+/**
+ * The SUBSCRIPTION entitlement grants one subscription earns in a given state: every grant keyed
+ * on it is revoked, then the product's entitlements are granted to the period end when the state
+ * gives access (active in period, or cancelled with paid time left). The webhook and the admin
+ * status override both go through here, so a label and the access it implies cannot disagree
+ * (V-170). Must run inside a transaction that holds `lockUserForBilling` for the user.
+ */
+export async function syncSubscriptionGrants(
+  tx: Prisma.TransactionClient,
+  input: {
+    userId: string;
+    /** The provider subscription id; a row the provider never knew uses its own id. */
+    sourceId: string;
+    productKey: ProductKey;
+    status: PrismaSubscription["status"];
+    currentPeriodEnd: Date | null;
+    graceEndsAt: Date | null;
+    at: Date;
+  },
+) {
+  const access = accessStatus(input);
+
+  await tx.entitlementGrant.updateMany({
+    where: { userId: input.userId, source: "SUBSCRIPTION", sourceId: input.sourceId },
+    data: { revokedAt: input.at },
+  });
+
+  if (access.canPublish) {
+    for (const key of productCatalog[input.productKey].entitlements) {
+      await tx.entitlementGrant.upsert({
+        where: {
+          userId_key_source_sourceId: {
+            userId: input.userId,
+            key,
+            source: "SUBSCRIPTION",
+            sourceId: input.sourceId,
+          },
+        },
+        create: {
+          userId: input.userId,
+          key,
+          source: "SUBSCRIPTION",
+          sourceId: input.sourceId,
+          startsAt: input.at,
+          endsAt: input.currentPeriodEnd,
+          metadata: { productKey: input.productKey },
+        },
+        update: {
+          startsAt: input.at,
+          endsAt: input.currentPeriodEnd,
+          revokedAt: null,
+          metadata: { productKey: input.productKey },
+        },
+      });
+    }
+  }
+
+  return access;
+}
+
+/**
+ * A successful payment for an account that has been deleted (a pass or credit pack bought just
+ * before the deletion, or any charge that landed after it): nothing is granted, so the money has
+ * to go back by hand. Logged at error and returned as the event's note so it shows in the admin
+ * webhook list. Ids and amounts only, no personal data. `null` for a zero-amount payment.
+ */
+function refundNeededNote(payment: z.infer<typeof dodoPaymentSchema>) {
+  if (!payment.total_amount) return null;
+  const currency = (payment.currency ?? payment.settlement_currency).toUpperCase();
+  const note = `Refund needed: payment ${payment.payment_id} (${payment.total_amount} ${currency} minor units) was taken for a deleted account and granted nothing. Refund it from the Dodo dashboard.`;
+  logger.error(note, {
+    paymentId: payment.payment_id,
+    subscriptionId: payment.subscription_id ?? null,
+    amountMinor: payment.total_amount,
+    currency,
+  });
+  return note;
+}
+
+/** The confirmation fields every one-time purchase (pass, pack) takes from its payment. */
+function oneTimePurchase(
+  payment: z.infer<typeof dodoPaymentSchema>,
+): Omit<PurchaseConfirmation, "kind" | "productName" | "accessEndsAt" | "credits"> {
+  return {
+    amountCents: payment.total_amount ?? null,
+    currency: payment.currency ?? null,
+    amountExcludesTax: false,
+    renewsAt: null,
+    billingPeriod: null,
+    creditsNote: null,
+  };
 }
 
 type AccessGrant = {
@@ -435,11 +678,34 @@ function latestEnd(grants: AccessGrant[]) {
   return new Date(Math.max(...grants.map((grant) => (grant.endsAt as Date).getTime())));
 }
 
+/** A grant someone paid for: a subscription's or a pass's. Admin comps (MANUAL) and promotions are not. */
+function isPurchasedGrant(grant: AccessGrant) {
+  return grant.source === "SUBSCRIPTION" || isPassGrant(grant);
+}
+
 /**
- * What the customer is paying for, derived from the grants in effect (any source) and the credit
- * wallet, so a pass holder or a credit-pack buyer is never described as a free user.
+ * What the customer has and whether they paid for it, derived from the grants in effect (any
+ * source) and the credit wallet, so a pass holder or a credit-pack buyer is never described as a
+ * free user (owner decision 2). Two separate answers:
+ *
+ * - `isPaid`: has Pro, the account-wide rule `EntitlementService.isPaid` applies (a subscription,
+ *   a pass, or an admin comp of one; an AI Credits subscription counts, as it lifts the document
+ *   limit). A credit pack never makes someone paid (owner decision 3).
+ * - `isPaying`: the customer actually paid us: a subscription, a pass, or credits that were paid
+ *   for (`paidCredits`: packs, plan allowances). An admin comp grant and goodwill credits (which
+ *   only add to `creditBalance`) do not (V-188).
  */
-function describeAccess(grants: AccessGrant[], creditBalance: number) {
+/**
+ * `dunning`: the product of a subscription in dunning with its grace window still running, or
+ * null. Its grants are revoked while the card is retried, but the customer is still a paying
+ * subscriber with a payment problem (decision 2), never shown as free.
+ */
+function describeAccess(
+  grants: AccessGrant[],
+  creditBalance: number,
+  paidCredits: number,
+  dunning: ProductKey | null = null,
+) {
   const portfolio = grants.filter((grant) => grant.key === ENTITLEMENT_KEYS.PORTFOLIO_PUBLISH);
   const ai = grants.filter((grant) => grant.key === ENTITLEMENT_KEYS.AI_CREDITS);
   const passes = grants.filter(isPassGrant);
@@ -455,13 +721,17 @@ function describeAccess(grants: AccessGrant[], creditBalance: number) {
           ? ("ai_credits" as const)
           : passes.length > 0
             ? ("pass" as const)
-            : creditBalance > 0
+            : paidCredits > 0
               ? ("credits" as const)
               : ("free" as const);
+  // In dunning the revoked grants say nothing about the plan: the subscription does.
+  const shownTier = dunning && (tier === "free" || tier === "credits") ? dunning : tier;
 
   return {
-    tier,
-    isPaying: grants.length > 0 || creditBalance > 0,
+    tier: shownTier,
+    isPaid: grants.some((grant) => isPaidAccessKey(grant.key)),
+    isPaying: grants.some(isPurchasedGrant) || paidCredits > 0 || dunning !== null,
+    paymentIssue: dunning !== null,
     passEndsAt: latestEnd(passes),
     portfolioAccessEndsAt: latestEnd(portfolio),
     aiCreditsEndsAt: latestEnd(ai),
@@ -511,40 +781,58 @@ export class BillingService {
 
   private static async buildSummary(userId: string) {
     const at = new Date();
-    const [user, subscription, activeSubscriptions, activeGrants, wallet] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true },
-      }),
-      this.getLatestSubscription(userId),
-      prisma.subscription.findMany({
-        where: {
-          userId,
-          status: { in: ["ACTIVE"] },
-          OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: at } }],
-        },
-        select: { productKey: true, currentPeriodEnd: true },
-      }),
-      // Same predicate as EntitlementService.listActive; the rows (not just the keys) are
-      // needed to tell a pass from a subscription and to report when access ends.
-      prisma.entitlementGrant.findMany({
-        where: {
-          userId,
-          startsAt: { lte: at },
-          revokedAt: null,
-          OR: [{ endsAt: null }, { endsAt: { gt: at } }],
-        },
-        select: { key: true, endsAt: true, source: true, metadata: true },
-        orderBy: { endsAt: "desc" },
-      }),
-      CreditService.getWallet(userId),
-    ]);
+    const [user, subscriptions, activeSubscriptions, activeGrants, wallet, paidCredits] =
+      await Promise.all([
+        prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true },
+        }),
+        prisma.subscription.findMany({
+          where: { userId },
+          orderBy: { updatedAt: "desc" },
+          take: 50,
+        }),
+        prisma.subscription.findMany({
+          where: {
+            userId,
+            status: { in: ["ACTIVE"] },
+            OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: at } }],
+          },
+          select: { productKey: true, currentPeriodEnd: true },
+        }),
+        // Same predicate as EntitlementService.listActive; the rows (not just the keys) are
+        // needed to tell a pass from a subscription and to report when access ends.
+        prisma.entitlementGrant.findMany({
+          where: {
+            userId,
+            startsAt: { lte: at },
+            revokedAt: null,
+            OR: [{ endsAt: null }, { endsAt: { gt: at } }],
+          },
+          select: { key: true, endsAt: true, source: true, metadata: true },
+          orderBy: { endsAt: "desc" },
+        }),
+        CreditService.getWallet(userId),
+        CreditService.paidCreditsRemaining(userId, at),
+      ]);
 
     if (!user) throw new ApiError(404, "User not found");
     const entitlements = [...new Set(activeGrants.map((grant) => grant.key))];
     // `available` not `balance`: reads no longer sweep (V-107), so `balance` can still hold
     // expired credits for a while, and those must never make a user look paying.
-    const access = describeAccess(activeGrants, wallet.available);
+    const dunning = subscriptions.find(
+      (item) =>
+        item.status === "PAST_DUE" &&
+        item.graceEndsAt &&
+        item.graceEndsAt > at &&
+        isProductKey(item.productKey),
+    );
+    const access = describeAccess(
+      activeGrants,
+      wallet.available,
+      paidCredits,
+      dunning ? (dunning.productKey as ProductKey) : null,
+    );
     const entitlementCurrent = entitlements.includes(ENTITLEMENT_KEYS.PORTFOLIO_PUBLISH);
     const hasAiCredits = entitlements.includes(ENTITLEMENT_KEYS.AI_CREDITS);
     const portfolioAccessEndsAt =
@@ -562,11 +850,12 @@ export class BillingService {
             ? "AI_CREDITS"
             : "FREE";
 
-    const now = new Date();
-    const isExpired = Boolean(
-      subscription?.currentPeriodEnd && subscription.currentPeriodEnd < now,
-    );
-    const resolvedStatus = isExpired ? "INACTIVE" : (subscription?.status ?? "INACTIVE");
+    // Status, period and grace describe one subscription, chosen the same way `plan` is
+    // derived: what is in effect today (V-176). A subscription that is no longer in effect
+    // reports INACTIVE, except dunning, which stays PAST_DUE while its grace runs (V-172).
+    const subscription = primarySubscription(subscriptions, at);
+    const resolvedStatus =
+      subscription && subscriptionInEffect(subscription, at) ? subscription.status : "INACTIVE";
 
     return {
       plan,
@@ -602,7 +891,7 @@ export class BillingService {
     return EntitlementService.require(
       userId,
       ENTITLEMENT_KEYS.PORTFOLIO_PUBLISH,
-      "Publishing requires an active VeriWorkly Creator Pro subscription.",
+      `Publishing this template requires ${UNLOCK_PHRASES.portfolioPro}.`,
     );
   }
 
@@ -649,21 +938,24 @@ export class BillingService {
     const user = await prisma.user.findUnique({ where: { id: userId } });
 
     if (!user) throw new ApiError(404, "User not found");
-    const activeProduct = await prisma.subscription.findFirst({
+    const now = new Date();
+    const liveSubscriptions = await prisma.subscription.findMany({
       where: {
         userId,
-        productKey:
-          productKey === "bundle"
-            ? undefined
-            : {
-                in: [productKey, "bundle"],
-              },
-        status: { in: ["ACTIVE"] },
-        OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: new Date() } }],
+        OR: [
+          {
+            status: "ACTIVE",
+            OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: now } }],
+          },
+          // Dunning is live whether or not the grace window is still running: Dodo keeps
+          // retrying the card, the same rule account deletion applies (V-168).
+          { status: "PAST_DUE" },
+        ],
       },
-      select: { id: true },
+      select: { productKey: true, status: true, rawStatus: true },
     });
-    if (activeProduct) throw new ApiError(409, "You already have an active subscription.");
+    const overlap = checkoutOverlap(productKey, interval, liveSubscriptions);
+    if (overlap) throw overlap;
 
     const redis = getRedis();
     const recordKey = checkoutRecordKey(userId, productKey);
@@ -861,18 +1153,77 @@ export class BillingService {
     }
   }
 
+  /**
+   * The customer portal (receipts, invoices, cancellation). A subscriber's customer id is on the
+   * subscription row; a pass or credit-pack buyer's is the one recorded from their payment
+   * (V-175).
+   */
   static async createPortal(userId: string) {
-    const subscription = await this.getLatestSubscription(userId);
+    const [subscription, user] = await Promise.all([
+      prisma.subscription.findFirst({
+        where: { userId, providerCustomerId: { not: null } },
+        orderBy: { updatedAt: "desc" },
+        select: { providerCustomerId: true },
+      }),
+      prisma.user.findUnique({ where: { id: userId }, select: { billingCustomerId: true } }),
+    ]);
+    const customerId = subscription?.providerCustomerId ?? user?.billingCustomerId ?? null;
 
-    if (!subscription?.providerCustomerId)
-      throw new ApiError(409, "No billing account exists yet.");
+    if (!customerId) throw new ApiError(409, "No billing account exists yet.");
 
-    const portal = await getDodoClient().customers.customerPortal.create(
-      subscription.providerCustomerId,
-      { return_url: config.dodo.portalReturnUrl },
-    );
+    const portal = await getDodoClient().customers.customerPortal.create(customerId, {
+      return_url: config.dodo.portalReturnUrl,
+    });
 
     return { url: portal.link };
+  }
+
+  /**
+   * Schedules (or withdraws) a cancellation at the end of the paid period at the provider, and
+   * returns what the provider now reports (V-169). Dodo is the system that charges the card, so
+   * a cancellation that only exists in our database cancels nothing. Any failure is a 502 before
+   * anything local changes; the caller writes the provider's answer, not its own request.
+   */
+  static async setProviderCancelAtPeriodEnd(providerSubId: string, cancelAtPeriodEnd: boolean) {
+    let result: Awaited<ReturnType<DodoPayments["subscriptions"]["update"]>>;
+    try {
+      result = await getDodoClient().subscriptions.update(providerSubId, {
+        cancel_at_next_billing_date: cancelAtPeriodEnd,
+      });
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(
+        502,
+        "The billing provider did not confirm the change, so nothing was changed. Try again.",
+        { reason: error instanceof Error ? error.message : "provider unavailable" },
+      );
+    }
+
+    return {
+      cancelAtPeriodEnd: Boolean(result.cancel_at_next_billing_date),
+      status: result.status,
+      nextBillingDate: result.next_billing_date ? new Date(result.next_billing_date) : null,
+    };
+  }
+
+  /**
+   * What the provider reports for a subscription right now, as its raw status and the status it
+   * maps to. Admin edits that end a subscription locally check this first (the provider charges
+   * the card, so only its word can say a subscription has ended). Any failure is a 502.
+   */
+  static async getProviderSubscriptionState(providerSubId: string) {
+    let result: Awaited<ReturnType<DodoPayments["subscriptions"]["retrieve"]>>;
+    try {
+      result = await getDodoClient().subscriptions.retrieve(providerSubId);
+    } catch (error) {
+      throw new ApiError(
+        502,
+        "The billing provider could not be asked about this subscription, so nothing was changed. Try again.",
+        { reason: error instanceof Error ? error.message : "provider unavailable" },
+      );
+    }
+
+    return { rawStatus: result.status, status: statusFromDodo(result.status)?.status ?? null };
   }
 
   static async createCreditPackCheckout(
@@ -1026,6 +1377,8 @@ export class BillingService {
       }
 
       try {
+        let attributedUserId: string | null = null;
+        let note: string | null = null;
         if (parsedEvent.type.startsWith("subscription.")) {
           const subscriptionData = dodoSubscriptionSchema.parse(parsedEvent.data);
           const userId = await this.applySubscriptionEvent(
@@ -1036,16 +1389,38 @@ export class BillingService {
             where: { id: stored.id },
             data: { userId },
           });
+          attributedUserId = userId;
         }
         if (parsedEvent.type === "payment.succeeded") {
           const payment = dodoPaymentSchema.parse(parsedEvent.data);
           const userId = await this.applyPaymentEvent(payment, new Date(parsedEvent.timestamp));
           await prisma.billingWebhookEvent.update({ where: { id: stored.id }, data: { userId } });
+          attributedUserId = userId;
+          // Applied to nobody: the account is gone, but the money was taken.
+          if (!userId) note = refundNeededNote(payment);
+        }
+        if (parsedEvent.type === "refund.succeeded") {
+          const refund = refundEventSchema.parse(parsedEvent.data);
+          const userId = await this.applyRefund(refund);
+          if (userId)
+            await prisma.billingWebhookEvent.update({ where: { id: stored.id }, data: { userId } });
+          attributedUserId = userId;
+        }
+        if (parsedEvent.type === "payment.failed") {
+          const payment = dodoPaymentSchema.parse(parsedEvent.data);
+          const userId = await this.applyPaymentFailed(payment);
+          await prisma.billingWebhookEvent.update({ where: { id: stored.id }, data: { userId } });
+          attributedUserId = userId;
         }
 
+        // Decision 5: an event for a deleted account is kept without the personal data in it.
+        if (!attributedUserId) await redactIfForDeletedAccount(stored.id, parsedEvent.data);
+
+        // The note rides on the event's `error` field, which the admin webhook list shows and
+        // searches: a processed event with a note is one a human still has to act on.
         await prisma.billingWebhookEvent.update({
           where: { id: stored.id },
-          data: { status: "PROCESSED", processedAt: new Date() },
+          data: { status: "PROCESSED", processedAt: new Date(), ...(note ? { error: note } : {}) },
         });
 
         return { duplicate: false };
@@ -1076,6 +1451,10 @@ export class BillingService {
 
   /** Post-commit work, safe to repeat: every call here is an invalidation, not a mutation. */
   private static async invalidateAfterBillingChange(userId: string) {
+    // Grants first: the free-tier move below reads them through the entitlement cache.
+    await EntitlementService.invalidateEntitlements(userId);
+    await this.settleLapsedPortfolio(userId);
+
     const publication = await prisma.portfolioPublication.findUnique({
       where: { userId },
       select: { subdomain: true },
@@ -1091,8 +1470,29 @@ export class BillingService {
       cacheDel(billingSummaryCacheKey(userId)),
       cacheDel(billingHistoryCacheKey(userId)),
       // Every grant write in this file and in reconcileAccess's callers ends here (V-108).
+      // Bumped again: a reader between the first bump and the writes above may have re-cached.
       EntitlementService.invalidateEntitlements(userId),
     ]);
+  }
+
+  /**
+   * Decision 6: a premium portfolio this change lapsed (billing suspended it, or its grace is
+   * over) moves to its free template now rather than sitting offline until the hourly
+   * `portfolioAccessJob`. Moderation and the user's own unpublish are never touched (see
+   * `PortfolioService.settleLapsedPortfolioFor`). Never throws: the billing change is committed,
+   * and the job settles the row on its next run if this fails.
+   */
+  private static async settleLapsedPortfolio(userId: string) {
+    try {
+      // Imported here: portfolioService imports this module at load time.
+      const { PortfolioService } = await import("#services/portfolioService");
+      await PortfolioService.settleLapsedPortfolioFor(userId);
+    } catch (error) {
+      logger.warn("Could not move a lapsed portfolio to the free tier; the job will retry", {
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   private static async applySubscriptionEvent(
@@ -1105,6 +1505,8 @@ export class BillingService {
 
     const userId = subscription.metadata.veriworkly_user_id || existing?.userId;
 
+    if (await isDeletedAccount(userId, existing, { subscriptionId: subscription.subscription_id }))
+      return null;
     if (!userId) {
       logger.error("Subscription webhook is missing VeriWorkly user metadata", {
         subscriptionId: subscription.subscription_id,
@@ -1233,42 +1635,16 @@ export class BillingService {
 
         const access = accessStatus({ status: normalizedStatus, currentPeriodEnd, graceEndsAt });
 
-        if (touchesGrants) {
-          await tx.entitlementGrant.updateMany({
-            where: { userId, source: "SUBSCRIPTION", sourceId: subscription.subscription_id },
-            data: { revokedAt: eventTime },
+        if (touchesGrants)
+          await syncSubscriptionGrants(tx, {
+            userId,
+            sourceId: subscription.subscription_id,
+            productKey,
+            status: normalizedStatus,
+            currentPeriodEnd,
+            graceEndsAt,
+            at: eventTime,
           });
-
-          if (access.canPublish) {
-            for (const key of productCatalog[productKey].entitlements) {
-              await tx.entitlementGrant.upsert({
-                where: {
-                  userId_key_source_sourceId: {
-                    userId,
-                    key,
-                    source: "SUBSCRIPTION",
-                    sourceId: subscription.subscription_id,
-                  },
-                },
-                create: {
-                  userId,
-                  key,
-                  source: "SUBSCRIPTION",
-                  sourceId: subscription.subscription_id,
-                  startsAt: eventTime,
-                  endsAt: currentPeriodEnd,
-                  metadata: { productKey },
-                },
-                update: {
-                  startsAt: eventTime,
-                  endsAt: currentPeriodEnd,
-                  revokedAt: null,
-                  metadata: { productKey },
-                },
-              });
-            }
-          }
-        }
 
         // Free templates publish with no publish grant at all, so only an event about a plan
         // that carries `portfolio_publish` may move the publication to GRACE/SUSPENDED, and
@@ -1299,8 +1675,31 @@ export class BillingService {
 
     if (staleEvent) return userId;
 
-    if (isNewSubscription && normalizedStatus === "ACTIVE") {
-      void this.notifySubscriptionPurchased(userId, productKey);
+    // A purchase is a subscription that becomes ACTIVE for the first time: new, or out of
+    // `pending` (V-177). Renewals and recoveries from dunning are not purchases. The claim row
+    // keys it on the subscription, so a redelivered activation mails once.
+    if (normalizedStatus === "ACTIVE" && (isNewSubscription || previousStatus === "INACTIVE")) {
+      const amountFromProvider = subscription.recurring_pre_tax_amount ?? null;
+      const allowance = productCatalog[productKey].creditAllowance?.[rawInterval] ?? 0;
+      void notifyOnce("purchase_subscription", subscription.subscription_id, userId, {
+        template: "purchase_confirmation",
+        details: {
+          kind: "subscription",
+          productName: purchaseName(productKey, rawInterval),
+          amountCents: amountFromProvider ?? productCatalog[productKey].prices[rawInterval] ?? null,
+          currency: (amountFromProvider !== null && subscription.currency) || "USD",
+          amountExcludesTax: amountFromProvider === null || !subscription.tax_inclusive,
+          accessEndsAt: currentPeriodEnd,
+          renewsAt: subscription.cancel_at_next_billing_date ? null : currentPeriodEnd,
+          billingPeriod: rawInterval === "annual" ? "year" : "month",
+          credits: null,
+          creditsNote:
+            allowance <= 0
+              ? null
+              : (productCatalog[productKey].creditNotes?.[rawInterval] ??
+                `${allowance.toLocaleString("en-US")} credits each month. Unused credits expire at the end of the month; nothing rolls over.`),
+        },
+      });
     } else if (
       previousStatus &&
       previousStatus !== "CANCELED" &&
@@ -1315,24 +1714,6 @@ export class BillingService {
     }
 
     return userId;
-  }
-
-  private static async notifySubscriptionPurchased(userId: string, productKey: ProductKey) {
-    try {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { email: true, name: true },
-      });
-      if (!user?.email) return;
-
-      await sendSubscriptionPurchasedEmail(
-        user.email,
-        user.name || "there",
-        productCatalog[productKey].name,
-      );
-    } catch (error) {
-      logger.warn("Failed to send subscription purchased email", error);
-    }
   }
 
   private static async notifySubscriptionCancelled(userId: string) {
@@ -1357,6 +1738,8 @@ export class BillingService {
         })
       : null;
     const userId = payment.metadata.veriworkly_user_id || subscription?.userId;
+    if (await isDeletedAccount(userId, subscription, { paymentId: payment.payment_id }))
+      return null;
     if (!userId) {
       logger.error("Payment webhook cannot be attributed to a user", {
         paymentId: payment.payment_id,
@@ -1364,6 +1747,18 @@ export class BillingService {
       });
       throw new ApiError(400, "Payment webhook is missing VeriWorkly user metadata.");
     }
+
+    // The billing portal needs a Dodo customer; a pass or pack buyer has no subscription row to
+    // carry one (V-175). The latest payment's customer wins.
+    const customerId = payment.customer?.customer_id;
+    if (customerId)
+      await prisma.user.updateMany({
+        where: {
+          id: userId,
+          OR: [{ billingCustomerId: null }, { billingCustomerId: { not: customerId } }],
+        },
+        data: { billingCustomerId: customerId },
+      });
 
     // The account settles in USD; customers may still pay in INR by UPI and adaptive pricing can
     // settle elsewhere. Grants are per product, never per currency, so a non-USD settlement is
@@ -1387,12 +1782,23 @@ export class BillingService {
     const purchasedProduct = payment.metadata.veriworkly_product;
     if (purchasedProduct && isCreditPackKey(purchasedProduct)) {
       const pack = creditPackCatalog[purchasedProduct];
+      const expiresAt = addDays(paidAt, pack.expiresInDays);
       await CreditService.grant(userId, pack.credits, {
         requestId: `payment-credit:${payment.payment_id}`,
-        source: "credit_pack",
+        source: CREDIT_SOURCES.creditPack,
         sourceId: payment.payment_id,
-        expiresAt: addDays(paidAt, pack.expiresInDays),
+        expiresAt,
         reason: pack.name,
+      });
+      void notifyOnce("purchase_payment", payment.payment_id, userId, {
+        template: "purchase_confirmation",
+        details: {
+          ...oneTimePurchase(payment),
+          kind: "credit_pack",
+          productName: pack.name,
+          accessEndsAt: expiresAt,
+          credits: pack.credits,
+        },
       });
     } else {
       // The stored row already follows the provider's product id (plan changes included); a
@@ -1431,7 +1837,7 @@ export class BillingService {
       // `subscription.renewed` have no ordering guarantee, and after dunning recovery the row
       // still holds the period that just ended, so a grant keyed on it would expire at once.
       const intervalEnd = addCatalogInterval(paidAt, interval);
-      const expiresAt =
+      const periodEndGuess =
         subscription?.currentPeriodEnd && subscription.currentPeriodEnd > intervalEnd
           ? subscription.currentPeriodEnd
           : intervalEnd;
@@ -1510,24 +1916,63 @@ export class BillingService {
           paymentId: payment.payment_id,
           subscriptionId: payment.subscription_id,
         });
+      } else if (allowance > 0 && interval === "annual" && payment.subscription_id) {
+        // Annual plans deliver 1,000 a month, not the year's allowance up front (owner
+        // decision 4): the payment opens the schedule for the period it pays for and grants
+        // month one now; `jobs/annualCreditJob` grants the rest as each month starts.
+        const schedule = await openAnnualCreditSchedule({
+          userId,
+          providerSubId: payment.subscription_id,
+          productKey,
+          paymentId: payment.payment_id,
+          periodStart: servicePeriod ? new Date(servicePeriod.starts_at) : paidAt,
+          periodEnd: servicePeriod ? new Date(servicePeriod.ends_at) : periodEndGuess,
+          servicePeriodKnown: Boolean(servicePeriod),
+        });
+        // Month one arrives with the payment, or with its period when that starts within a day
+        // (a renewal charged just ahead of it); a period further out is the job's to start.
+        // No schedule: a legacy up-front year still covers this period.
+        if (schedule) {
+          const now = new Date();
+          const startsSoon =
+            schedule.periodStart > now && schedule.periodStart.getTime() - now.getTime() <= DAY_MS;
+          await grantDueMonths(schedule.id, startsSoon ? schedule.periodStart : now);
+        }
       } else if (allowance > 0) {
-        // One allowance per service period: when the payload names the period this payment
-        // pays for, the grant is keyed on it so a second successful charge in the same period
-        // cannot mint a second allowance. The request id stays per payment, so a retry of this
-        // event returns the grant it already made. Without a service period the payment id is
-        // the only stable key (the stored period end moves with webhook order and would
-        // collide across renewals).
+        // One allowance per credit month, and nothing rolls over: the grant expires when the
+        // month it pays for ends (the service period's end when the payload names one), and it
+        // replaces whatever is left of the subscription's earlier credits. When the payload names
+        // the service period, the grant is keyed on it so a second successful charge in the same
+        // period cannot mint a second allowance. The request id stays per payment, so a retry of
+        // this event returns the grant it already made. Without a service period the payment id
+        // is the only stable key (the stored period end moves with webhook order and would
+        // collide across renewals); a pass has no subscription to key on.
         const sourceId = servicePeriod
           ? `${payment.subscription_id}:${servicePeriod.starts_at}`
-          : payment.payment_id;
+          : payment.subscription_id
+            ? `${payment.subscription_id}:payment:${payment.payment_id}`
+            : payment.payment_id;
+        const creditMonthStart = servicePeriod ? new Date(servicePeriod.starts_at) : paidAt;
+        // Accepted, customer-favourable: grants have no start date, so a renewal charged before
+        // its month starts is spendable at once, and until that start (the cut below never moves
+        // earlier than it) last month's remainder is spendable too. For that short overlap two
+        // months' credits can be spent; from the new month's start only the new 1,000 is left.
 
         try {
           await CreditService.grant(userId, allowance, {
             requestId: `subscription-credit:${payment.payment_id}`,
-            source: "subscription_payment",
+            source: CREDIT_SOURCES.subscriptionPayment,
             sourceId,
-            expiresAt,
+            expiresAt: servicePeriod ? new Date(servicePeriod.ends_at) : periodEndGuess,
             reason: `${productCatalog[productKey].name} credit allowance`,
+            ...(payment.subscription_id
+              ? {
+                  supersedes: {
+                    where: await subscriptionCreditGrantsWhere(payment.subscription_id),
+                    at: creditMonthStart,
+                  },
+                }
+              : {}),
           });
         } catch (error) {
           if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"))
@@ -1539,10 +1984,115 @@ export class BillingService {
           });
         }
       }
+
+      // Passes have no subscription event, so their confirmation hangs on the payment (V-177).
+      if (isPass)
+        void notifyOnce("purchase_payment", payment.payment_id, userId, {
+          template: "purchase_confirmation",
+          details: {
+            ...oneTimePurchase(payment),
+            kind: "pass",
+            productName: PASS_NAMES[interval as "one_day" | "seven_day"],
+            accessEndsAt: intervalEnd,
+            credits: earnsAllowance && allowance > 0 ? allowance : null,
+          },
+        });
     }
 
     await this.recordAffiliateCommission(userId, payment);
     await this.invalidateAfterBillingChange(userId);
+    return userId;
+  }
+
+  /**
+   * A fully refunded annual payment stops the monthly credit schedule it opened: no further month
+   * is granted for a year that was paid back. A partial refund (a goodwill credit, a proration)
+   * leaves it running. Full means the provider's `is_partial` is false, or, without that flag, a
+   * refund amount at least the payment's total as its stored `payment.succeeded` event recorded
+   * it. Credits already granted stay (their month expires on its own). Every other refund needs
+   * nothing here: access follows the provider's subscription events, and a refunded pack or pass
+   * is handled by hand as before. Returns the schedule's user, or null when nothing applies.
+   */
+  private static async applyRefund(refund: z.infer<typeof refundEventSchema>) {
+    const paymentId = refund.payment_id;
+    const schedule = await prisma.subscriptionCreditSchedule.findFirst({
+      where: { openedByPaymentId: paymentId },
+      select: { id: true, userId: true, providerSubId: true },
+    });
+    if (!schedule) return null;
+
+    let full = refund.is_partial === false;
+    if (refund.is_partial == null && refund.amount != null) {
+      const paid = await prisma.billingWebhookEvent.findFirst({
+        where: {
+          type: "payment.succeeded",
+          payload: { path: ["data", "payment_id"], equals: paymentId },
+        },
+        select: { payload: true },
+      });
+      const data = (paid?.payload as { data?: { total_amount?: unknown } } | null)?.data;
+      full = typeof data?.total_amount === "number" && refund.amount >= data.total_amount;
+    }
+    if (!full) {
+      logger.info("Partial refund of an annual payment; its monthly credits continue", {
+        scheduleId: schedule.id,
+        paymentId,
+      });
+      return schedule.userId;
+    }
+
+    const stopped = await prisma.subscriptionCreditSchedule.updateMany({
+      where: { id: schedule.id, stoppedAt: null },
+      data: { stoppedAt: new Date() },
+    });
+    if (stopped.count)
+      logger.info("Annual credit schedule stopped: its payment was refunded", {
+        scheduleId: schedule.id,
+        providerSubId: schedule.providerSubId,
+        paymentId,
+      });
+    return schedule.userId;
+  }
+
+  /**
+   * A subscription charge failed: dunning has started (V-172). Nothing changes in access here
+   * (the subscription's own `on_hold`/`past_due` event does that); the customer gets one email
+   * per failed payment saying what failed and until when the plan is kept. A failed one-time
+   * checkout is not mailed: the customer is still on the checkout page and sees it there.
+   */
+  private static async applyPaymentFailed(payment: z.infer<typeof dodoPaymentSchema>) {
+    const subscription = payment.subscription_id
+      ? await prisma.subscription.findUnique({
+          where: { providerSubId: payment.subscription_id },
+          select: { userId: true, productKey: true, graceEndsAt: true },
+        })
+      : null;
+    const userId = payment.metadata.veriworkly_user_id || subscription?.userId;
+    // Before anything is attributed: a deleted account's event is recorded as processed (and
+    // redacted), never written against a user id that no longer exists.
+    if (await isDeletedAccount(userId, subscription, { paymentId: payment.payment_id }))
+      return null;
+    if (!userId || !subscription) return userId ?? null;
+
+    const now = new Date();
+    const graceEndsAt =
+      subscription.graceEndsAt && subscription.graceEndsAt > now
+        ? subscription.graceEndsAt
+        : addDays(now, config.portfolio.graceDays);
+    const productName = isProductKey(subscription.productKey)
+      ? PRODUCT_NAMES[subscription.productKey]
+      : "VeriWorkly";
+
+    void notifyOnce("payment_failed", payment.payment_id, userId, {
+      template: "payment_failed",
+      subscriptionId: payment.subscription_id ?? undefined,
+      details: {
+        productName,
+        amountCents: payment.total_amount ?? null,
+        currency: payment.currency ?? null,
+        graceEndsAt,
+      },
+    });
     return userId;
   }
 

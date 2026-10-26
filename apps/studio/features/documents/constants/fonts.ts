@@ -85,13 +85,13 @@ const FONT_ALIAS_MAP: Record<string, FontFamilyId> = {
 
 const FONT_ID_SET = new Set<FontFamilyId>(fontDefinitions.map((font) => font.id));
 
-export const DEFAULT_FONT_FAMILY: FontFamilyId = "geist";
+const DEFAULT_FONT_FAMILY: FontFamilyId = "geist";
 
 export const FONT_REGISTRY: Record<FontFamilyId, FontRegistryEntry> = Object.fromEntries(
   fontDefinitions.map((font) => [font.id, font]),
 ) as Record<FontFamilyId, FontRegistryEntry>;
 
-export function isFontFamilyId(value: string): value is FontFamilyId {
+function isFontFamilyId(value: string): value is FontFamilyId {
   return FONT_ID_SET.has(value as FontFamilyId);
 }
 

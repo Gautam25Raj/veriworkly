@@ -15,6 +15,7 @@ import type { ResumeRenderItem } from "./model";
 import type { ResumeTokens } from "./tokens";
 import type { ResumeTypeScale } from "./typography";
 import type { ResumeSectionStart } from "./keep-together";
+import type { StackedHeaderOptions } from "./stacked-header";
 
 import {
   RESUME_PAGE_HEIGHT_PX,
@@ -389,6 +390,56 @@ function WebSection({
       <Stack gap={gap}>{children}</Stack>
     </section>
   );
+}
+
+/** See {@link StackedHeaderOptions}. */
+export function createStackedWebHeader({
+  geometry,
+  ruleWeight = 1,
+  ruleColor = "borderColor",
+  headlineWeight,
+}: StackedHeaderOptions) {
+  return function StackedHeader(ctx: ResumeWebContext) {
+    const { model, scale, style, tokens } = ctx;
+
+    return (
+      <header
+        style={{
+          borderBottom: `${scale.hairline * ruleWeight}px solid ${style[ruleColor]}`,
+          display: "flex",
+          flexDirection: "column",
+          marginBottom: px(geometry.headerGap),
+          paddingBottom: px(geometry.headerPadBottom),
+        }}
+      >
+        {model.showBasics && (
+          <>
+            <div
+              style={{ display: "flex", flexDirection: "column", rowGap: px(geometry.nameGapY) }}
+            >
+              <h1 style={webText(tokens.name)}>{model.name}</h1>
+
+              {model.headline && (
+                <p
+                  style={
+                    headlineWeight === undefined
+                      ? webText(tokens.role)
+                      : { ...webText(tokens.role), fontWeight: headlineWeight }
+                  }
+                >
+                  {model.headline}
+                </p>
+              )}
+            </div>
+
+            <WebContactRow ctx={ctx} style={{ marginTop: px(geometry.contactTop) }} />
+          </>
+        )}
+
+        <WebLinkRow ctx={ctx} style={{ marginTop: px(geometry.linksTop) }} />
+      </header>
+    );
+  };
 }
 
 export function createResumeWebTemplate(skin: ResumeWebSkin): React.FC<TemplateRenderProps> {

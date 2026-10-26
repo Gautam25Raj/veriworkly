@@ -24,7 +24,7 @@ import {
   createProjectItem,
   createEducationItem,
   createExperienceItem,
-  createAdditionalItem,
+  createCustomItem,
   createCustomSection,
   createTypedSectionItem,
   type ResumeTypedSectionKey,
@@ -41,12 +41,6 @@ import { getResumeSectionKey } from "@/features/documents/rendering/resume-rende
 import { normalizeResumeData } from "@/features/resume/utils/normalize-data";
 import { reorderItems, withTimestamp } from "@/features/resume/store/resume-store-utils";
 
-/*
- * No `selectedSection` / `selectSection`. Audited independently of the cover-letter store
- * rather than by assuming symmetry: nothing read either one — every panel tracks its open
- * section with local `useState` — and `resetResume`/`emptyResume` each reset a value no
- * component observed.
- */
 interface ResumeStoreState {
   resume: ResumeData;
   setResume: (resume: ResumeData) => void;
@@ -86,8 +80,7 @@ interface ResumeStoreState {
   removeTypedItem: (key: ResumeTypedSectionKey, index: number) => void;
   /*
    * Custom sections are addressed by their own id, not by `kind`. Every custom section has
-   * kind "custom", so a kind-keyed action could only ever reach the first one — which is
-   * why a resume could hold just one.
+   * kind "custom", so a kind-keyed action could only ever reach the first one.
    */
   addCustomSection: () => void;
   removeCustomSection: (sectionId: string) => void;
@@ -144,9 +137,6 @@ export const useResumeStore = create<ResumeStoreState>((set, get) => ({
   resume: blankResume,
   setResume: (resume) => set({ resume: withTimestamp(normalizeResumeData(resume)) }),
 
-  // No `hydrateFromStorage`: it loaded the active-or-newest resume regardless of the id
-  // the editor route asked for, which silently opened (and then autosaved over) a
-  // different document. Editors hydrate by id via `loadResumeById` instead.
   saveToStorage: (options) => saveResumeToLocalStorage(get().resume, options),
 
   resetResume: (master) => {
@@ -466,7 +456,7 @@ export const useResumeStore = create<ResumeStoreState>((set, get) => ({
 
           return {
             ...section,
-            items: [...section.items, createAdditionalItem("custom")],
+            items: [...section.items, createCustomItem()],
           };
         }),
       }),

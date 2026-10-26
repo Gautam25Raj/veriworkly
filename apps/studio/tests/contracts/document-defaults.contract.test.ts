@@ -13,6 +13,7 @@ import {
   loadWorkspaceSettingsFromLocalStorage,
   setAutoSyncEnabledInLocalStorage,
 } from "@/features/documents/services/workspace-settings";
+import { createLocalStorageMock } from "@/tests/utils/local-storage";
 
 /**
  * What a new or reset document starts from, and the small local state around it: the cover
@@ -25,23 +26,6 @@ vi.mock("@/lib/invalid-session", () => ({
   isInvalidSessionResponse: (_path: string, status: number) => status === 401,
   clearInvalidSessionAndRedirect,
 }));
-
-function createLocalStorageMock() {
-  const store = new Map<string, string>();
-
-  return {
-    getItem: vi.fn((key: string) => store.get(key) ?? null),
-    setItem: vi.fn((key: string, value: string) => {
-      store.set(key, value);
-    }),
-    removeItem: vi.fn((key: string) => {
-      store.delete(key);
-    }),
-    clear: vi.fn(() => {
-      store.clear();
-    }),
-  };
-}
 
 let localStorageMock: ReturnType<typeof createLocalStorageMock>;
 

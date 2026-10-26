@@ -1,17 +1,13 @@
 "use client";
 
-import { toast } from "sonner";
 import { memo } from "react";
 import { useRouter } from "next/navigation";
-
-import { useUserStore } from "@/store/useUserStore";
 
 import {
   saveResume,
   toResumeDocument,
   importResumeFromMarkdownFile,
 } from "@/features/resume/services/resume-service";
-import { syncDocumentNow } from "@/features/documents/services/document-sync";
 
 import ToolbarHeader from "@/features/documents/editor/toolbar/ToolbarHeader";
 import ToolbarActionsMenu from "@/features/documents/editor/toolbar/ToolbarActionsMenu";
@@ -20,6 +16,7 @@ import { getSaveFailureMessage } from "@/features/documents/services/save-failur
 import { useDocumentDownloads } from "@/features/documents/editor/toolbar/useDocumentDownloads";
 import { useDocumentJsonImport } from "@/features/documents/editor/toolbar/useDocumentJsonImport";
 import { useHiddenFileInput } from "@/features/documents/editor/toolbar/useHiddenFileInput";
+import { useSyncNowAction } from "@/features/documents/editor/toolbar/useSyncNowAction";
 import ToolbarSaveButton from "@/features/documents/editor/toolbar/ToolbarSaveButton";
 
 import { useResumeStore } from "@/features/resume/store/resume-store";
@@ -64,33 +61,7 @@ const ResumeToolbar = memo(function ResumeToolbar({
   const updateTitle = useResumeStore((state) => state.updateTitle);
   const saveToStorage = useResumeStore((state) => state.saveToStorage);
 
-  const isLoggedIn = useUserStore((state) => state.isLoggedIn);
-
-  async function handleSync() {
-    if (!isLoggedIn) {
-      toast.error("Please log in to sync documents.");
-      return;
-    }
-
-    onSetMessage("Syncing with cloud...");
-
-    try {
-      const result = await syncDocumentNow("RESUME", resumeId);
-
-      if (!result.ok) {
-        onSetMessage(`Sync failed: ${result.message}`);
-        toast.error(result.message);
-        return;
-      }
-
-      onSetMessage("Synced successfully");
-      toast.success("Synced successfully");
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : "Sync failed";
-      onSetMessage(`Sync failed: ${errMsg}`);
-      toast.error(errMsg);
-    }
-  }
+  const handleSync = useSyncNowAction("RESUME", resumeId, onSetMessage);
 
   const {
     activeDownload,

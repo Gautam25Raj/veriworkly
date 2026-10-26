@@ -65,7 +65,7 @@ import {
 import { saveResume, readResumeById } from "@/features/resume/services/resume-service";
 import { describeSaveResult } from "@/features/documents/services/save-failure-message";
 import { createRequestId } from "@/features/ai/ai-api";
-import { cn } from "@/lib/utils";
+import { cn } from "@veriworkly/ui";
 
 export function AtsWorkspace() {
   const router = useRouter();

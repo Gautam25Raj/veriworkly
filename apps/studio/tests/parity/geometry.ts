@@ -15,7 +15,7 @@ export interface GeomNode {
   height: number;
 }
 
-export const PT_PER_PX = 0.75;
+const PT_PER_PX = 0.75;
 
 /** react-pdf works in points; every record is normalized back to CSS pixels. */
 export const ptToPx = (value = 0) => Number((value / PT_PER_PX).toFixed(3));

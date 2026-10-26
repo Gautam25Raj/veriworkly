@@ -1,33 +1,35 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useTheme } from "next-themes";
+import type { LucideIcon } from "lucide-react";
 import {
   ChevronDown,
   Coins,
   CreditCard,
   LogIn,
   LogOut,
+  Moon,
+  Sun,
   User,
   UserRound,
   Settings,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { Menu, MenuItem, cn } from "@veriworkly/ui";
+
 import type { DocumentMeta } from "@/features/documents/core/types";
 
-import ConfirmationModal from "@/components/modals/ConfirmationModal";
+import ConfirmDialog from "@/components/modals/ConfirmDialog";
 import { downloadWorkspaceBackup, signOutCurrentUser } from "@/features/auth/services/current-user";
 import {
   flushPendingSaves,
   listDocuments,
 } from "@/features/documents/services/document-workspace-service";
 import { siteConfig } from "@/config/site";
-import { cn } from "@/lib/utils";
 import { useUserStore } from "@/store/useUserStore";
-
-import AccountMenuItem from "./AccountMenuItem";
-import AccountMenuTheme from "./AccountMenuTheme";
 
 interface AccountMenuProps {
   collapsed: boolean;
@@ -38,52 +40,13 @@ interface AccountMenuProps {
 
 export function AccountMenu({ collapsed, displayName, email, version }: AccountMenuProps) {
   const router = useRouter();
-  const pathname = usePathname();
-
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const { resolvedTheme, setTheme } = useTheme();
 
   const { isLoggedIn } = useUserStore();
 
   const [unsyncedDocuments, setUnsyncedDocuments] = useState<DocumentMeta[] | null>(null);
   const [backupFailure, setBackupFailure] = useState<string | null>(null);
   const [signingOut, setSigningOut] = useState(false);
-
-  const [prevPathname, setPrevPathname] = useState(pathname);
-
-  // Dismiss the menu whenever navigation occurs
-  if (prevPathname !== pathname) {
-    setPrevPathname(pathname);
-    setOpen(false);
-  }
-
-  // Handle outside clicks and Escape key
-  useEffect(() => {
-    const handlePointerDown = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, []);
-
-  const navigateAndClose = (path: string) => {
-    setOpen(false);
-    router.push(path);
-  };
 
   const signOut = async () => {
     setSigningOut(true);
@@ -103,7 +66,6 @@ export function AccountMenu({ collapsed, displayName, email, version }: AccountM
   // Signing out deletes this device's copies, so anything the cloud does not hold yet is
   // offered as a download first.
   const handleLogout = () => {
-    setOpen(false);
     flushPendingSaves();
 
     const unsynced = listDocuments().filter((item) => item.sync.status !== "synced");
@@ -131,136 +93,146 @@ export function AccountMenu({ collapsed, displayName, email, version }: AccountM
     await signOut();
   };
 
+  const themeLabel = resolvedTheme === "dark" ? "Light mode" : "Dark mode";
+
   return (
-    <div className="relative" ref={rootRef}>
-      {open ? (
-        <div
-          className="border-border bg-card absolute bottom-full left-0 z-50 mb-2 w-64 rounded-xl border p-2 shadow-2xl ring-1 ring-black/5"
-          role="menu"
-          aria-label="Account options"
-        >
-          <div className="border-border/70 flex items-center gap-3 border-b px-2 py-2.5">
+    <>
+      <Menu
+        align="left"
+        size="sm"
+        panelClassName="bottom-full mt-0 mb-2 w-64 p-2 shadow-2xl"
+        trigger={({ menuId, open, toggle }) => (
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-haspopup="menu"
+            aria-controls={open ? menuId : undefined}
+            aria-label="Open account menu"
+            onClick={toggle}
+            className={cn(
+              "border-border bg-card hover:bg-background flex w-full items-center gap-2 rounded-lg border p-2 text-left shadow-sm transition",
+              collapsed && "justify-center p-1.5",
+            )}
+          >
             <span
               className={cn(
-                "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold",
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold",
                 isLoggedIn ? "bg-accent/10 text-accent" : "bg-muted/30 text-muted",
               )}
             >
               {isLoggedIn ? (
                 displayName.slice(0, 1).toUpperCase()
               ) : (
-                <UserRound className="h-5 w-5" />
+                <UserRound className="h-4 w-4" />
               )}
             </span>
 
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-bold">{displayName}</span>
-              <span className="text-muted block truncate text-xs">{email}</span>
-            </span>
-          </div>
+            {!collapsed ? (
+              <>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-semibold">{displayName}</span>
+                  <span className="text-muted block truncate text-[11px]">{email}</span>
+                </span>
 
-          {isLoggedIn ? (
-            <>
-              <AccountMenuItem
-                icon={User}
-                label="Profile"
-                onClick={() => navigateAndClose("/profile")}
-              />
-
-              <AccountMenuItem
-                icon={CreditCard}
-                label="Billing"
-                onClick={() => navigateAndClose("/billing")}
-              />
-
-              <AccountMenuItem
-                icon={Coins}
-                label="AI credits"
-                onClick={() => navigateAndClose("/credits")}
-              />
-            </>
-          ) : null}
-
-          <AccountMenuItem
-            icon={Settings}
-            label="Settings"
-            onClick={() => navigateAndClose("/settings")}
-          />
-
-          <AccountMenuTheme setOpen={setOpen} />
-
-          {isLoggedIn ? (
-            <AccountMenuItem danger icon={LogOut} label="Logout" onClick={handleLogout} />
-          ) : (
-            <AccountMenuItem
-              icon={LogIn}
-              label="Log In"
-              onClick={() => navigateAndClose("/login")}
-            />
-          )}
-
-          <div className="text-muted border-border/70 mt-1 border-t px-3 pt-2 text-[11px]">
-            {version} -{" "}
-            <a
-              href={`${siteConfig.links.main}/terms`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-foreground underline-offset-2 hover:underline"
-            >
-              Terms
-            </a>
-          </div>
-        </div>
-      ) : null}
-
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-haspopup="menu"
-        aria-label="Open account menu"
-        onClick={() => setOpen((value) => !value)}
-        className={cn(
-          "border-border bg-card hover:bg-background flex w-full items-center gap-2 rounded-lg border p-2 text-left shadow-sm transition",
-          collapsed && "justify-center p-1.5",
+                <ChevronDown className="text-muted h-4 w-4" />
+              </>
+            ) : null}
+          </button>
         )}
       >
-        <span
-          className={cn(
-            "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold",
-            isLoggedIn ? "bg-accent/10 text-accent" : "bg-muted/30 text-muted",
-          )}
-        >
-          {isLoggedIn ? displayName.slice(0, 1).toUpperCase() : <UserRound className="h-4 w-4" />}
-        </span>
+        {({ close }) => {
+          const item = (icon: LucideIcon, label: string, onSelect: () => void, danger = false) => {
+            const Icon = icon;
 
-        {!collapsed ? (
-          <>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-semibold">{displayName}</span>
-              <span className="text-muted block truncate text-[11px]">{email}</span>
-            </span>
+            return (
+              <MenuItem
+                onClick={() => {
+                  close();
+                  onSelect();
+                }}
+                className={cn(
+                  "rounded-lg font-normal",
+                  danger &&
+                    "text-destructive hover:bg-destructive/10 focus-visible:bg-destructive/10",
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span>{label}</span>
+              </MenuItem>
+            );
+          };
 
-            <ChevronDown className="text-muted h-4 w-4" />
-          </>
-        ) : null}
-      </button>
+          return (
+            <>
+              <div className="border-border/70 flex items-center gap-3 border-b px-2 py-2.5">
+                <span
+                  className={cn(
+                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-bold",
+                    isLoggedIn ? "bg-accent/10 text-accent" : "bg-muted/30 text-muted",
+                  )}
+                >
+                  {isLoggedIn ? (
+                    displayName.slice(0, 1).toUpperCase()
+                  ) : (
+                    <UserRound className="h-5 w-5" />
+                  )}
+                </span>
 
-      <ConfirmationModal
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-bold">{displayName}</span>
+                  <span className="text-muted block truncate text-xs">{email}</span>
+                </span>
+              </div>
+
+              {isLoggedIn ? (
+                <>
+                  {item(User, "Profile", () => router.push("/profile"))}
+                  {item(CreditCard, "Billing", () => router.push("/billing"))}
+                  {item(Coins, "AI credits", () => router.push("/credits"))}
+                </>
+              ) : null}
+
+              {item(Settings, "Settings", () => router.push("/settings"))}
+              {item(resolvedTheme === "dark" ? Sun : Moon, themeLabel, () =>
+                setTheme(resolvedTheme === "dark" ? "light" : "dark"),
+              )}
+
+              {isLoggedIn
+                ? item(LogOut, "Logout", handleLogout, true)
+                : item(LogIn, "Log In", () => router.push("/login"))}
+
+              <div className="text-muted border-border/70 mt-1 border-t px-3 pt-2 text-[11px]">
+                {version} -{" "}
+                <a
+                  href={`${siteConfig.links.main}/terms`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-foreground underline-offset-2 hover:underline"
+                >
+                  Terms
+                </a>
+              </div>
+            </>
+          );
+        }}
+      </Menu>
+
+      <ConfirmDialog
         open={unsyncedDocuments !== null}
         onClose={() => {
           if (!signingOut) setUnsyncedDocuments(null);
         }}
         onConfirm={() => void downloadThenSignOut()}
         loading={signingOut}
-        variant="warning"
+        tone="warning"
         title={backupFailure === null ? "Back up before signing out?" : "Download failed"}
         description={
           backupFailure === null
             ? `${unsyncedDocuments?.length ?? 0} document(s) on this device have changes that are not in the cloud. Signing out removes them from this device, so they will be downloaded as one JSON backup file first.`
             : `${backupFailure} Signing out now permanently removes the unsynced documents from this device.`
         }
-        confirmText={backupFailure === null ? "Download and sign out" : "Sign out anyway"}
+        confirmLabel={backupFailure === null ? "Download and sign out" : "Sign out anyway"}
       />
-    </div>
+    </>
   );
 }

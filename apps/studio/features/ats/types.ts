@@ -4,24 +4,13 @@
  */
 import type { AtsFullReport, AtsParsedField, AtsParsedResume } from "@veriworkly/ats-engine";
 
-export type {
-  AtsCategoryScore,
-  AtsLayoutSignals,
-  AtsParsedDate,
-  AtsParsedEducation,
-  AtsParsedField,
-  AtsParsedResume,
-  AtsParsedRole,
-  AtsProvenance,
-  AtsRuleResult,
-  AtsVerdict,
-} from "@veriworkly/ats-engine";
+export type { AtsLayoutSignals, AtsParsedField, AtsParsedResume } from "@veriworkly/ats-engine";
 
 /**
  * Studio only ever scans while logged in, so it always receives the full report. `parsed` is
  * optional so a server one deploy behind renders an empty panel rather than throwing.
  */
-export type AtsReport = Omit<AtsFullReport, "parsed"> & { parsed?: AtsParsedResume };
+type AtsReport = Omit<AtsFullReport, "parsed"> & { parsed?: AtsParsedResume };
 
 /** Outcome of the optional AI parse repair. Returned by /ats/analyze only. */
 export type AtsRepairSummary = {

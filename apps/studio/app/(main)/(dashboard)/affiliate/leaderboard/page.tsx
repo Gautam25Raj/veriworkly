@@ -2,8 +2,7 @@ import { AffiliateNav } from "@/features/affiliate/AffiliateNav";
 import type { LeaderboardEntry } from "@/features/affiliate/types";
 import { getProgramServerData, PROGRAM_UNAVAILABLE } from "@/features/billing/billing-server";
 import { ProgramUnavailable } from "@/features/billing/ProgramUnavailable";
-const money = (cents: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+import { formatCents } from "@/features/admin/utils/admin-format";
 export default async function AffiliateLeaderboardPage() {
   const [monthly, allTime] = await Promise.all([
     getProgramServerData<LeaderboardEntry[]>("/affiliates/leaderboard?period=monthly"),
@@ -41,7 +40,7 @@ function Board({ title, entries }: { title: string; entries: LeaderboardEntry[] 
             >
               <strong>#{entry.rank}</strong>
               <span>{entry.user?.name || entry.user?.username || "Affiliate"}</span>
-              <strong>{money(entry.earningsCents)}</strong>
+              <strong>{formatCents(entry.earningsCents)}</strong>
             </div>
           ))
         ) : (

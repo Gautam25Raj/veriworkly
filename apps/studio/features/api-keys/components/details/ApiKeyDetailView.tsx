@@ -4,8 +4,7 @@ import { toast } from "sonner";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import DestructiveModal from "@/components/modals/DestructiveModal";
-import ConfirmationModal from "@/components/modals/ConfirmationModal";
+import ConfirmDialog from "@/components/modals/ConfirmDialog";
 
 import type { ApiKeyDetailRecord } from "../ApiKeyTypes";
 
@@ -112,10 +111,10 @@ export default function ApiKeyDetailView({ initialData }: { initialData: ApiKeyD
         onCloseAction={() => actions.setRotateTarget(null)}
       />
 
-      <ConfirmationModal
-        variant="warning"
+      <ConfirmDialog
+        tone="warning"
         title="Revoke API key?"
-        confirmText="Revoke key"
+        confirmLabel="Revoke key"
         onConfirm={actions.revokeKey}
         loading={actions.revokeSubmitting}
         open={Boolean(actions.revokeTarget)}
@@ -123,13 +122,15 @@ export default function ApiKeyDetailView({ initialData }: { initialData: ApiKeyD
         description="This disables the key immediately while keeping the record for audit and history."
       />
 
-      <DestructiveModal
-        entityName="API key"
+      <ConfirmDialog
+        tone="destructive"
+        confirmPhrase="DELETE"
         title="Delete API key?"
+        cancelLabel="Keep API key"
         loading={actions.deleteSubmitting}
         open={Boolean(actions.deleteTarget)}
-        onConfirmAction={actions.deleteKey}
-        onCloseAction={() => actions.setDeleteTarget(null)}
+        onConfirm={actions.deleteKey}
+        onClose={() => actions.setDeleteTarget(null)}
         warningText="This action permanently deletes the key from the database."
         description="Use this only when you no longer need the key at all. Permanent deletion cannot be undone."
       />

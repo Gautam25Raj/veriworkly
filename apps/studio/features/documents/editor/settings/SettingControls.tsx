@@ -4,7 +4,7 @@ import type { CSSProperties, InputHTMLAttributes, ReactNode, SelectHTMLAttribute
 
 import { ChevronDown } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@veriworkly/ui";
 
 /**
  * Design-panel controls shared by every document editor: a labelled colour swatch, a range
@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
  * are built on `features/documents/`. Same reasoning, and the same destination, as
  * `SectionAccordion`, the form primitives, and `DocumentTemplatePickerModal`.
  */
-export function SettingsField({
+function SettingsField({
   children,
   className,
   hint,

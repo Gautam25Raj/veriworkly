@@ -1,6 +1,6 @@
 "use client";
 
-import type { MasterProfileData } from "@veriworkly/profile-core";
+import { createId, type MasterProfileData } from "@veriworkly/profile-core";
 
 import type { DocumentIndexEntry } from "@/types/document";
 import type { DocumentType } from "@/features/documents/core/document-types";
@@ -29,7 +29,6 @@ import { loadWorkspaceSettingsFromLocalStorage } from "@/features/documents/serv
 import { DOCUMENT_TYPES } from "@/features/documents/core/document-types";
 import { MASTER_PROFILE_STORAGE_KEY } from "@/lib/constants";
 import {
-  DOCUMENT_ACTIVE_STORAGE_KEY,
   DOCUMENT_INDEX_STORAGE_KEY,
   DOCUMENT_MOVES_STORAGE_KEY,
   DOCUMENT_STORAGE_UPDATED_EVENT,
@@ -38,7 +37,6 @@ import {
   getLegacyDocumentCollectionKey,
 } from "@/features/documents/services/storage-keys";
 
-const ACTIVE_KEY = DOCUMENT_ACTIVE_STORAGE_KEY;
 const pendingSaves = new Map<
   string,
   {
@@ -55,7 +53,7 @@ function pendingSaveKey(type: DocumentType, id: string) {
 
 /** Fresh document id. Exported because import assigns one too — see import-service.ts. */
 export function buildDocumentId(type: DocumentType): string {
-  return `${type.toLowerCase()}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  return createId(type.toLowerCase());
 }
 
 function toIndexEntry(type: DocumentType, document: BaseDocument): DocumentIndexEntry {
@@ -85,8 +83,6 @@ export function getWorkspaceStorage(type: DocumentType): LocalStorageService<Bas
       documentKey: (id) => getDocumentKey(type, id),
       documentKeyPrefix: getDocumentKeyPrefix(type),
       legacyCollectionKey: getLegacyDocumentCollectionKey(type),
-      activeIdKey: ACTIVE_KEY,
-      activeIdScope: type,
       updatedEventName: DOCUMENT_STORAGE_UPDATED_EVENT,
       parseItem: getDocumentDefinition(type).parse,
       toIndexEntry: (document) => toIndexEntry(type, document),
@@ -228,10 +224,10 @@ export function saveDocument(
 /**
  * Persists every pending debounced save right now, synchronously.
  *
- * Autosave debounces at 300ms via a `setTimeout` held in {@link pendingSaves}. Nothing
- * used to force that timer to run early, so closing the tab, reloading, or backgrounding
- * on mobile (where the browser may discard the page outright) dropped whatever was typed
- * in the last 300ms — the moment it hurts most, since users finish a sentence and leave.
+ * Autosave debounces at 300ms via a `setTimeout` held in {@link pendingSaves}. Without
+ * forcing that timer early, closing the tab, reloading, or backgrounding on mobile (where
+ * the browser may discard the page outright) would drop whatever was typed in the last
+ * 300ms — the moment it hurts most, since users finish a sentence and leave.
  *
  * Deliberately synchronous: `localStorage.setItem` already is, and an unload path must not
  * await anything. Each pending entry still reports through its own `onFlush`, so an editor
@@ -350,7 +346,7 @@ export function rekeyDocument(type: DocumentType, id: string): BaseDocument | nu
 }
 
 /**
- * Builds, persists, and activates a new document.
+ * Builds and persists a new document.
  *
  * `master` is the profile to seed from. Synchronous on purpose — the registry's
  * `createDefault` cannot await — so callers that want the *database* copy resolve it first;
@@ -381,7 +377,6 @@ export function createDocument(type: DocumentType, master?: MasterProfileData): 
   };
 
   const saveResult = saveDocument(doc);
-  if (saveResult.ok) setActiveDocument(type, id);
 
   return { ...doc, saveResult };
 }
@@ -444,15 +439,6 @@ export async function deleteDocumentEverywhere(
   }
 }
 
-/** Removes every document of a type, its index entries, and the active-id pointer. */
-export function clearDocuments(type: DocumentType): LocalStorageWriteResult {
-  for (const key of [...pendingSaves.keys()]) {
-    if (key.startsWith(`${type}:`)) clearPendingSave(type, key.slice(type.length + 1));
-  }
-
-  return getWorkspaceStorage(type).clear();
-}
-
 const WORKSPACE_KEY_PREFIXES = [
   "veriworkly:docs:",
   "veriworkly:cloud-hydrate-meta:",
@@ -483,24 +469,6 @@ export function clearWorkspaceStorage(): void {
     }
   }
 
-  window.localStorage.removeItem(DOCUMENT_ACTIVE_STORAGE_KEY);
   invalidateDocumentIndexCache();
   window.dispatchEvent(new Event(DOCUMENT_STORAGE_UPDATED_EVENT));
-}
-
-export function setActiveDocument(type: DocumentType, id: string) {
-  if (typeof window === "undefined") return;
-
-  getWorkspaceStorage(type).setActiveId(id);
-}
-
-/**
- * Every document body of a type. O(library size) — only for callers that genuinely
- * need content (bulk sync-flag updates, export-all). List views want
- * {@link listDocumentIndexEntries} instead.
- */
-export function listFullDocuments(type: DocumentType): BaseDocument[] {
-  return getWorkspaceStorage(type)
-    .list()
-    .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
 }

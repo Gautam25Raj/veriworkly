@@ -6,7 +6,6 @@ import {
   saveDocument,
   createDocument,
   deleteDocument,
-  setActiveDocument,
   loadDocumentById,
   flushPendingSaves,
   deleteDocumentEverywhere,
@@ -14,6 +13,7 @@ import {
   rekeyDocument,
 } from "@/features/documents/services/document-workspace-service";
 import { DocumentApi, DocumentApiError } from "@/features/documents/services/document-api";
+import { createLocalStorageMock } from "@/tests/utils/local-storage";
 
 vi.mock("@/features/documents/services/document-api", async (importOriginal) => {
   const actual =
@@ -24,23 +24,6 @@ vi.mock("@/features/documents/services/document-api", async (importOriginal) => 
     DocumentApi: { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   };
 });
-
-function createLocalStorageMock() {
-  const store = new Map<string, string>();
-
-  return {
-    getItem: vi.fn((key: string) => store.get(key) ?? null),
-    setItem: vi.fn((key: string, value: string) => {
-      store.set(key, value);
-    }),
-    removeItem: vi.fn((key: string) => {
-      store.delete(key);
-    }),
-    clear: vi.fn(() => {
-      store.clear();
-    }),
-  };
-}
 
 function createResumeDocument(id: string): BaseDocument {
   const now = new Date().toISOString();
@@ -208,16 +191,6 @@ describe("document workspace service", () => {
     vi.advanceTimersByTime(300);
 
     expect(loadDocumentById("RESUME", resume.id)?.title).toBe(resume.title);
-  });
-
-  it("does not throw when setting the active document fails under quota pressure", () => {
-    const quotaError = new DOMException("Storage quota exceeded", "QuotaExceededError");
-
-    vi.mocked(localStorage.setItem).mockImplementation(() => {
-      throw quotaError;
-    });
-
-    expect(() => setActiveDocument("RESUME", "resume-quota")).not.toThrow();
   });
 
   it("creates generic documents with sync enabled when workspace auto-sync is enabled", () => {

@@ -18,7 +18,7 @@ export interface AdminRoadmapPayload {
 }
 
 // Roadmap writes live under the single admin router (`/admin/roadmap`); the public
-// `/roadmap` router now serves reads only.
+// `/roadmap` router serves reads only.
 
 export async function createRoadmapFeature(payload: AdminRoadmapPayload) {
   return fetchApiData<RoadmapFeature>("/admin/roadmap", {

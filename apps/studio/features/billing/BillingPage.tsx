@@ -12,7 +12,7 @@ import {
   ShieldCheck,
   LockKeyhole,
 } from "lucide-react";
-import { Button } from "@veriworkly/ui";
+import { Button, cn } from "@veriworkly/ui";
 
 import { siteConfig } from "@/config/site";
 import { useUserStore } from "@/store/useUserStore";
@@ -23,14 +23,10 @@ import {
   recordPurchaseBaseline,
   takePurchaseBaseline,
 } from "@/features/billing/purchase-baseline";
-import {
-  formatPrice,
-  isPaymentsClosedError,
-  PAYMENTS_OPEN_SOON,
-} from "@/features/billing/checkout-rules";
-import { LocalDate } from "@/features/billing/LocalDate";
-import { cn } from "@/lib/utils";
+import { isPaymentsClosedError, PAYMENTS_OPEN_SOON } from "@/features/billing/checkout-rules";
+import { LocalDate } from "@/components/LocalDate";
 import { ApiRequestError, fetchApiData } from "@/utils/fetchApiData";
+import { formatCents } from "@/features/admin/utils/admin-format";
 
 const CHECKOUT_LOCK_CONFLICT_STATUS = 409;
 // The plan changes only when the payment webhook lands, which can trail the redirect back
@@ -393,7 +389,7 @@ export function BillingPage({
                         <Link
                           href={user ? `/checkout?productKey=ai_credits&interval=${interval}` : "#"}
                         >
-                          {formatPrice(cents, aiCreditsProduct.currency)} /{" "}
+                          {formatCents(cents, aiCreditsProduct.currency)} /{" "}
                           {interval === "monthly" ? "month" : "year"}
                         </Link>
                       </Button>

@@ -17,6 +17,7 @@ import {
 import { createResume } from "@/features/resume/services/resume-core";
 import { resolveDocumentsPerType } from "@/features/documents/editor/toolbar/useDocumentJsonImport";
 import { useUserStore } from "@/store/useUserStore";
+import { createLocalStorageMock } from "@/tests/utils/local-storage";
 
 const { fetchApiData } = vi.hoisted(() => ({ fetchApiData: vi.fn() }));
 
@@ -31,23 +32,6 @@ vi.mock("@/utils/fetchApiData", () => ({ fetchApiData }));
  * therefore through the registry, so a user who filled in a master profile got generic
  * placeholder content everywhere except the post-delete fallback nobody would discover.
  */
-
-function createLocalStorageMock() {
-  const store = new Map<string, string>();
-
-  return {
-    getItem: vi.fn((key: string) => store.get(key) ?? null),
-    setItem: vi.fn((key: string, value: string) => {
-      store.set(key, value);
-    }),
-    removeItem: vi.fn((key: string) => {
-      store.delete(key);
-    }),
-    clear: vi.fn(() => {
-      store.clear();
-    }),
-  };
-}
 
 function storeMasterProfile(overrides: Record<string, unknown>) {
   localStorage.setItem(

@@ -1,8 +1,6 @@
 import { ReactNode } from "react";
 
-import { Card } from "@veriworkly/ui";
-
-import { cn } from "@/lib/utils";
+import { Card, cn } from "@veriworkly/ui";
 
 interface AuthCardProps {
   children: ReactNode;

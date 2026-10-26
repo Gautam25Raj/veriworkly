@@ -4,7 +4,7 @@ import { Grid2X2, LayoutList, Upload } from "lucide-react";
 
 import { Card, Select, Button } from "@veriworkly/ui";
 
-import DestructiveModal from "@/components/modals/DestructiveModal";
+import ConfirmDialog, { documentDeleteNotice } from "@/components/modals/ConfirmDialog";
 import SyncDetailsModal from "@/components/modals/SyncDetailsModal";
 import ShareDocumentModal from "@/components/modals/ShareDocumentModal";
 import RenameDocumentModal from "@/components/modals/RenameDocumentModal";
@@ -180,13 +180,16 @@ export default function DocumentsWorkspace() {
         )}
       </Card>
 
-      <DestructiveModal
+      <ConfirmDialog
+        tone="destructive"
+        confirmPhrase="DELETE"
         loading={isDeleting}
         open={Boolean(deleteTarget)}
-        onConfirmAction={handleConfirmDelete}
-        onCloseAction={() => setDeleteTarget(null)}
-        entityName={deleteTarget?.title ?? "document"}
-        cloudBacked={Boolean(deleteTarget?.sync.cloudDocumentId)}
+        onConfirm={handleConfirmDelete}
+        onClose={() => setDeleteTarget(null)}
+        title={`Delete ${deleteTarget?.title ?? "document"}?`}
+        cancelLabel={`Keep ${deleteTarget?.title ?? "document"}`}
+        description={documentDeleteNotice(Boolean(deleteTarget?.sync.cloudDocumentId))}
       />
 
       {syncDetailsTarget ? (

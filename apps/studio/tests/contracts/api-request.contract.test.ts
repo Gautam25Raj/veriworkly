@@ -12,23 +12,9 @@ import {
   resolveCheckoutRequest,
 } from "@/features/billing/checkout-rules";
 import type { CatalogProduct } from "@/features/billing/types";
+import { createLocalStorageMock } from "@/tests/utils/local-storage";
 
 const ORIGINAL_FETCH = globalThis.fetch;
-
-function createLocalStorageMock() {
-  const store = new Map<string, string>();
-
-  return {
-    getItem: vi.fn((key: string) => store.get(key) ?? null),
-    setItem: vi.fn((key: string, value: string) => void store.set(key, value)),
-    removeItem: vi.fn((key: string) => void store.delete(key)),
-    clear: vi.fn(() => store.clear()),
-    key: vi.fn((index: number) => [...store.keys()][index] ?? null),
-    get length() {
-      return store.size;
-    },
-  };
-}
 
 let fetchMock: ReturnType<typeof vi.fn>;
 let replaceMock: ReturnType<typeof vi.fn>;

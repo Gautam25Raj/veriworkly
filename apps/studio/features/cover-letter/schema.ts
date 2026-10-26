@@ -1,14 +1,12 @@
 import type { BaseDocument } from "@/features/documents/core/types";
 import type { CoverLetterContent, CoverLetterSectionId } from "./types";
-import type { ResumeLinkDisplayMode, ResumeLinkItem, ResumeLinkType } from "@/types/resume";
+import type { ResumeLinkDisplayMode, ResumeLinkItem } from "@/types/resume";
 
 import { normalizeFontFamilyId } from "@/features/documents/constants/fonts";
 import { documentSyncStatusSchema } from "@/features/resume/schemas/resume-storage-schema";
 import { clampCoverLetterNumber, isHexColor } from "@/templates/cover-letter/shared";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
+import { isDocumentLinkType } from "@/features/documents/core/link-types";
+import { isRecord } from "@/lib/is-record";
 
 function asText(value: unknown): string {
   return typeof value === "string" ? value : "";
@@ -18,18 +16,6 @@ function asText(value: unknown): string {
 function asHexColor(value: unknown, fallback: string): string {
   return isHexColor(value) ? value.trim() : fallback;
 }
-
-const LINK_TYPES: ResumeLinkType[] = [
-  "github",
-  "linkedin",
-  "dribbble",
-  "twitter",
-  "portfolio",
-  "behance",
-  "medium",
-  "youtube",
-  "custom",
-];
 
 const COVER_LETTER_SECTION_IDS: CoverLetterSectionId[] = ["profile", "links", "target", "letter"];
 
@@ -55,9 +41,7 @@ function parseLinks(value: unknown): CoverLetterContent["links"] {
   const items = Array.isArray(value.items)
     ? value.items.filter(isRecord).map((item, index): ResumeLinkItem => ({
         id: asText(item.id) || `cover-letter-link-${index + 1}`,
-        type: LINK_TYPES.includes(item.type as ResumeLinkType)
-          ? (item.type as ResumeLinkType)
-          : "custom",
+        type: isDocumentLinkType(item.type) ? item.type : "custom",
         label: asText(item.label),
         url: asText(item.url),
       }))

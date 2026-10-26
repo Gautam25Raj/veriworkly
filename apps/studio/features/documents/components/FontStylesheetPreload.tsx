@@ -1,8 +1,8 @@
 /**
- * Document fonts live in `app/globals.css` as local `@font-face` rules that
- * point at the same files the PDF embeds, so there is nothing to fetch from
- * Google Fonts. Preloading the default family keeps the first measurement of
- * the paged preview from running against a fallback face.
+ * The editor preview renders with local `@font-face` rules in `app/globals.css` that point
+ * at the same files the PDF embeds (only an exported cover-letter HTML file links Google
+ * Fonts). Preloading the default family keeps the first measurement of the paged preview
+ * from running against a fallback face.
  */
 const DOCUMENT_FONT_FILES = [
   "/fonts/geist/Geist-Regular.ttf",

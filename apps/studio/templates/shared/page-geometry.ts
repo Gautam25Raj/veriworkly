@@ -16,7 +16,7 @@ export const DOCUMENT_PAGE_WIDTH_PX = 794;
 export const DOCUMENT_PAGE_HEIGHT_PX = 1122;
 
 /** CSS px -> PDF points. */
-export const DOCUMENT_PDF_SCALE = 72 / 96;
+const DOCUMENT_PDF_SCALE = 72 / 96;
 
 export function pxToPt(value: number): number {
   return value * DOCUMENT_PDF_SCALE;

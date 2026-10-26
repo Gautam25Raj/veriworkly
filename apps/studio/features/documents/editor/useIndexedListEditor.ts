@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-interface IndexedListEditor<T> {
+export interface IndexedListEditor<T> {
   /** Always in range for the current list, even after items are removed. */
   index: number;
   activeItem: T | undefined;

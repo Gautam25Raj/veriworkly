@@ -1,7 +1,5 @@
-import { join } from "node:path";
-
 import { createElement } from "react";
-import { Document, Font, Page, Text, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Page, Text, renderToBuffer } from "@react-pdf/renderer";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import type { DocumentProps } from "@react-pdf/renderer";
@@ -15,10 +13,10 @@ import { extractResume } from "@veriworkly/ats-engine/node";
 
 import { toAtsDocument } from "@/features/ats/resume-document";
 import { buildResumeDocx } from "@/features/documents/export/docx/resume-docx";
-import { FONT_IDS, FONT_REGISTRY } from "@/features/documents/constants/fonts";
+import { FONT_IDS } from "@/features/documents/constants/fonts";
 import { defaultResume } from "@/features/resume/constants/default-resume";
-import { registerPdfHyphenation } from "@/templates/pdf/fonts";
 import { loadTemplatePdfComponentById, pdfTemplateIds } from "@/templates/resume/pdf";
+import { registerPdfTestFonts } from "@/tests/utils/pdf";
 
 /**
  * Every template's exported PDF, read back the way an applicant tracking system reads it.
@@ -96,16 +94,7 @@ function fields({ parsed }: AtsReport) {
 }
 
 beforeAll(() => {
-  // Production disables hyphenation; without it these measure a different document.
-  registerPdfHyphenation();
-  for (const font of Object.values(FONT_REGISTRY))
-    Font.register({
-      family: font.primaryFamily,
-      fonts: font.pdfFonts.map((face) => ({
-        src: join(process.cwd(), "public", face.src),
-        fontWeight: face.fontWeight,
-      })),
-    });
+  registerPdfTestFonts();
 });
 
 describe("template ATS read-back", () => {

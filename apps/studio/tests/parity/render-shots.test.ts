@@ -12,7 +12,7 @@ import type { CoverLetterContent } from "@/features/cover-letter/types";
 
 import { PARITY_FIXTURES } from "./fixtures";
 import { launchParityBrowser } from "./browser";
-import { registerParityFonts } from "./pdf-layout";
+import { registerPdfTestFonts } from "@/tests/utils/pdf";
 import { startParityServer } from "./server";
 import { loadTemplatePdfComponentById, pdfTemplateIds } from "@/templates/resume/pdf";
 import { coverLetterTemplateRegistry } from "@/templates/cover-letter/registry";
@@ -34,7 +34,7 @@ afterAll(async () => {
 });
 
 async function writePdf(name: string, element: React.ReactElement) {
-  registerParityFonts();
+  registerPdfTestFonts();
 
   const stream = await pdf(element as never).toBuffer();
   const chunks: Buffer[] = [];

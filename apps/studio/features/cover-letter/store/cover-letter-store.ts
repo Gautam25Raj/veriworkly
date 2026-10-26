@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-import type { MasterProfileData } from "@veriworkly/profile-core";
+import { createId, type MasterProfileData } from "@veriworkly/profile-core";
 
 import type { ResumeLinkItem } from "@/types/resume";
 import type { BaseDocument } from "@/features/documents/core/types";
@@ -32,9 +32,7 @@ export type CoverLetterDocument = BaseDocument<CoverLetterContent>;
  *
  * Deliberately the same shape as `features/resume/store/resume-store.ts`: a store
  * holding one document, granular field actions, and `saveToStorage` returning the
- * storage result so callers can surface quota failures. Cover letters previously used
- * a local `useState` hook instead, which is why they had no quota handling and a
- * different autosave shape from the resume editor.
+ * storage result so callers can surface quota failures.
  */
 interface CoverLetterStoreState {
   document: CoverLetterDocument | null;
@@ -232,7 +230,7 @@ export const useCoverLetterStore = create<CoverLetterStoreState>((set, get) => (
 
     const links = document.content.links ?? EMPTY_LINKS;
     const next: ResumeLinkItem = {
-      id: `cover-link-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      id: createId("cover-link"),
       type: "linkedin",
       label: "",
       url: "",

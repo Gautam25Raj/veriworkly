@@ -3,28 +3,17 @@ import type { DocumentLinkItem } from "@/features/documents/core/link-types";
 /**
  * Field rules shared by every document editor.
  *
- * The rules themselves now live in `@veriworkly/profile-core` — they are not resume-specific
- * (an email is an email) and they are not studio-specific either: the server validates the
- * same fields with the same predicates, and until the package existed the two copies had
- * drifted apart. Re-exported here so the studio's existing import sites are unchanged, and
- * so there is still one obvious place to look for "how does this app validate a field".
- *
- * What stays local is what genuinely belongs to the editors: the link-item check, which
- * takes a `DocumentLinkItem`, and the `ValidationErrors` shape the form components consume.
+ * The predicates live in `@veriworkly/profile-core`, which the server validates with too;
+ * they are re-exported here as the one place to look for "how does this app validate a
+ * field". What stays local belongs to the editors: the link-item check, which takes a
+ * `DocumentLinkItem`, and the `ValidationErrors` shape the form components consume.
  */
 export {
   isEmail,
-  isEmailOrEmpty,
   isHttpUrl,
   isMonthDate,
   isYearDate,
   isValidPhoneValue,
-  normalizePhoneValue,
-  formatPhoneForDisplay,
-  isLegacyUnqualifiedPhone,
-  countPhoneDigits,
-  monthDatePattern,
-  yearDatePattern,
   VALIDATION_MESSAGES,
 } from "@veriworkly/profile-core";
 

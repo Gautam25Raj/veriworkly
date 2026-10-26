@@ -1,6 +1,8 @@
+import type { AffiliateStatus, AffiliateTier } from "@/features/admin/types/admin-types";
+
 export type AffiliateDashboard = {
-  affiliateStatus: "NOT_ENROLLED" | "PENDING" | "ACTIVE" | "SUSPENDED";
-  affiliateTier: "TIER_1" | "TIER_2" | "TIER_3";
+  affiliateStatus: AffiliateStatus;
+  affiliateTier: AffiliateTier;
   affiliateCode: string | null;
   clicks: number;
   conversions: number;

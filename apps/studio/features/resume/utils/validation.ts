@@ -18,11 +18,6 @@ export type { ValidationErrors } from "@/features/documents/validation/rules";
 
 import type { ValidationErrors } from "@/features/documents/validation/rules";
 
-// Link validation is shared with the cover letter now — both editors render the same
-// `LinksEditor` — so it lives with the other document-generic rules. Re-exported for the
-// resume's existing callers.
-export { validateLinkItem } from "@/features/documents/validation/rules";
-
 export function validateBasics(
   basics: ResumeBasics,
 ): ValidationErrors<"fullName" | "role" | "headline" | "email" | "phone" | "location"> {

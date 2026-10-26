@@ -29,10 +29,8 @@ export default function EditorPreviewNotFound() {
           </Button>
 
           {/*
-            Absolute, to the marketing site. Studio has no `/templates` route — template
-            browsing here happens inside the editor's Design panel — so the previous
-            relative link sent a user who had already hit a not-found page to another one.
-            `siteConfig.links` is the established way to cross apps; see StudioNavigation.
+            Absolute, to the marketing site: Studio has no `/templates` route — template
+            browsing here happens inside the editor's Design panel.
           */}
           <Button asChild variant="ghost">
             <Link href={`${siteConfig.links.main}/templates`}>View Templates</Link>

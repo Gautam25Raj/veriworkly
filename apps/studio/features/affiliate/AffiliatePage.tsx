@@ -6,9 +6,7 @@ import { AffiliateNav } from "@/features/affiliate/AffiliateNav";
 import { EnrollButton } from "@/features/affiliate/EnrollButton";
 import { CopyReferralLinkButton } from "@/features/affiliate/CopyReferralLinkButton";
 import type { AffiliateDashboard } from "@/features/affiliate/types";
-
-const money = (cents: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+import { formatCents } from "@/features/admin/utils/admin-format";
 
 export function AffiliatePage({ dashboard }: { dashboard: AffiliateDashboard | null }) {
   if (!dashboard || dashboard.affiliateStatus === "NOT_ENROLLED")
@@ -79,7 +77,7 @@ export function AffiliatePage({ dashboard }: { dashboard: AffiliateDashboard | n
         <Metric
           icon={DollarSign}
           label="Available earnings"
-          value={money(dashboard.wallet.availableCents)}
+          value={formatCents(dashboard.wallet.availableCents)}
         />
       </section>
       <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -117,9 +115,9 @@ export function AffiliatePage({ dashboard }: { dashboard: AffiliateDashboard | n
         </article>
         <article className="border-border bg-card rounded-2xl border p-5">
           <p className="text-muted text-xs font-bold">Wallet</p>
-          <p className="mt-2 text-3xl font-black">{money(dashboard.wallet.availableCents)}</p>
+          <p className="mt-2 text-3xl font-black">{formatCents(dashboard.wallet.availableCents)}</p>
           <p className="text-muted mt-2 text-sm">
-            {money(dashboard.wallet.pendingCents)} pending review
+            {formatCents(dashboard.wallet.pendingCents)} pending review
           </p>
           <Button
             asChild={!isPending && !isSuspended}

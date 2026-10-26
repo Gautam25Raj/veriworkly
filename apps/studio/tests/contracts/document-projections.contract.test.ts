@@ -16,6 +16,7 @@ import {
   createCoverLetterFromProfile,
 } from "@/features/cover-letter/defaults";
 import { createDocument } from "@/features/documents/services/document-workspace-service";
+import { createLocalStorageMock } from "@/tests/utils/local-storage";
 
 /**
  * The projections are the whole point of the master profile: they are the only way data
@@ -398,23 +399,6 @@ describe("projectToCoverLetter", () => {
 });
 
 describe("cover letter creation", () => {
-  function createLocalStorageMock() {
-    const store = new Map<string, string>();
-
-    return {
-      getItem: vi.fn((key: string) => store.get(key) ?? null),
-      setItem: vi.fn((key: string, value: string) => {
-        store.set(key, value);
-      }),
-      removeItem: vi.fn((key: string) => {
-        store.delete(key);
-      }),
-      clear: vi.fn(() => {
-        store.clear();
-      }),
-    };
-  }
-
   beforeEach(() => {
     const localStorageMock = createLocalStorageMock();
 

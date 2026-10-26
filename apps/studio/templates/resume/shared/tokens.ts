@@ -3,7 +3,6 @@ import type { TextToken } from "@/templates/shared/text-tokens";
 import type { ResumeTypeScale } from "./typography";
 
 export { webText } from "@/templates/shared/text-tokens";
-export type { TextToken as ResumeTextToken } from "@/templates/shared/text-tokens";
 
 export interface ResumeTokens {
   name: TextToken;

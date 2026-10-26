@@ -25,11 +25,9 @@ export type DocumentExporter = (
 /**
  * What a parsed import file yields: content and presentation, and *no identity*.
  *
- * The omission is the point. "Import JSON" used to mean two opposite things — the resume
- * created a fresh document, the cover letter merged into the open one while keeping its
- * `id` and `cloudDocumentId`, so an imported file could be pushed over an unrelated cloud
- * document on the next sync. Because this shape cannot express an id or a sync block, no
- * parser can leak one, whatever the file contains. The guarantee is structural rather than
+ * The omission is the point: an imported file that kept an `id` or `cloudDocumentId` could
+ * be pushed over an unrelated cloud document on the next sync. Because this shape cannot
+ * express an id or a sync block, no parser can leak one, whatever the file contains. The guarantee is structural rather than
  * a list of fields some future `importJson` has to remember to clear.
  */
 export interface DocumentImportDraft<TContent = unknown> {
@@ -79,8 +77,8 @@ export interface DocumentDefinition<TContent = unknown> {
    * Resolves the handler for one export format, behind a dynamic `import()`.
    *
    * Must stay lazy. The export path statically pulls in `@react-pdf/renderer`
-   * (~1.8MB) plus `docx` (~390KB); reaching it through a static import chain is
-   * what previously put both on every route that merely *listed* documents.
+   * (~1.8MB) plus `docx` (~390KB); a static import chain would put both on every route
+   * that merely *lists* documents.
    */
   loadExporter: (format: ExportFormat) => Promise<DocumentExporter>;
 }

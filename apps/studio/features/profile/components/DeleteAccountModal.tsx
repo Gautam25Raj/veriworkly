@@ -32,7 +32,7 @@ interface DeleteAccountModalProps {
   userEmail: string;
 }
 
-export const DeleteAccountModal = ({ open, onClose, userEmail }: DeleteAccountModalProps) => {
+const DeleteAccountModal = ({ open, onClose, userEmail }: DeleteAccountModalProps) => {
   const [confirmationInput, setConfirmationInput] = React.useState("");
   const [prevOpen, setPrevOpen] = React.useState(open);
   const [isDeleting, setIsDeleting] = React.useState(false);

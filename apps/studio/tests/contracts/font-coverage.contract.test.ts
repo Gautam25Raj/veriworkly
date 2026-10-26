@@ -1,18 +1,12 @@
-import { join } from "node:path";
 import { createRequire } from "node:module";
 
 import { createElement } from "react";
 import { Document, Font, Page, Text, pdf } from "@react-pdf/renderer";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import {
-  FONT_IDS,
-  FONT_REGISTRY,
-  getPdfFontStack,
-  type FontFamilyId,
-} from "@/features/documents/constants/fonts";
+import { FONT_IDS, getPdfFontStack, type FontFamilyId } from "@/features/documents/constants/fonts";
 import { cleanResumeText } from "@/features/documents/rendering/resume-rendering";
-import { registerPdfHyphenation } from "@/templates/pdf/fonts";
+import { registerPdfTestFonts } from "@/tests/utils/pdf";
 
 /**
  * What the export can actually draw.
@@ -109,17 +103,7 @@ async function blanksFor(fontId: FontFamilyId, text: string) {
 
 describe("the PDF can draw every script the editor is meant to accept", () => {
   beforeAll(() => {
-    registerPdfHyphenation();
-
-    for (const font of Object.values(FONT_REGISTRY)) {
-      Font.register({
-        family: font.primaryFamily,
-        fonts: font.pdfFonts.map((face) => ({
-          src: join(process.cwd(), "public", face.src),
-          fontWeight: face.fontWeight,
-        })),
-      });
-    }
+    registerPdfTestFonts();
   });
 
   for (const fontId of FONT_IDS) {

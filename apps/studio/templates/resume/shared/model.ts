@@ -24,25 +24,14 @@ import {
  * Templates keep importing them from here.
  */
 export {
-  getSkillLines,
-  getCustomRenderItems,
   getProjectRenderItems,
   getEducationRenderItems,
   getExperienceRenderItems,
-  getCertificateRenderItems,
-  getAwardRenderItems,
-  getPublicationRenderItems,
-  getLanguageRenderItems,
-  getInterestRenderItems,
-  getVolunteerRenderItems,
-  getReferenceRenderItems,
-  getAchievementRenderItems,
 } from "@/features/documents/rendering/resume-render-items";
 export type {
   ResumeRenderItem,
   ResumeSkillLine,
 } from "@/features/documents/rendering/resume-render-items";
-export { getOrderedResumeSections } from "@/features/documents/rendering/resume-rendering";
 
 export interface ResumeSectionBlock<T> {
   /** Unique across the document: several sections share the id "custom". */

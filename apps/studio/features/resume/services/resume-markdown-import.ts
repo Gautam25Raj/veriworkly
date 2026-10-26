@@ -12,6 +12,8 @@ import type {
   ResumeExperienceItem,
 } from "@/types/resume";
 
+import { createId } from "@veriworkly/profile-core";
+
 import { blankResume } from "@/features/resume/constants/default-resume";
 import { normalizeResumeData } from "@/features/resume/utils/normalize-data";
 import { getResumeSectionKey } from "@/features/documents/rendering/resume-rendering";
@@ -29,10 +31,6 @@ import { FLUENCY_LABELS } from "@/features/documents/rendering/resume-render-ite
  *   summary lines
  *   - bullet
  */
-
-function createImportedResumeId(): string {
-  return `resume-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
 
 /** Reverses `escapeMarkdown` in the exporter. */
 function unescapeMarkdown(value: string): string {
@@ -415,7 +413,7 @@ export function parseResumeMarkdown(markdown: string, currentResume?: ResumeData
           sections: currentResume.sections,
         }
       : {}),
-    id: createImportedResumeId(),
+    id: createId("resume"),
     updatedAt: new Date().toISOString(),
   });
 

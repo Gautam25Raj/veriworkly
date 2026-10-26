@@ -7,13 +7,13 @@ import { useRouter } from "next/navigation";
 import { useResumeStore } from "@/features/resume/store/resume-store";
 import { getDocumentEditorPath } from "@/features/documents/core/routes";
 import { trackUsageEvent } from "@/features/analytics/services/usage-metrics";
-import { createResume, loadResumeById } from "@/features/resume/services/resume-service";
+import { createResume, readResumeById } from "@/features/resume/services/resume-service";
 import {
   deleteDocumentEverywhere,
   listDocumentIndexEntries,
 } from "@/features/documents/services/document-workspace-service";
 
-import DestructiveModal from "@/components/modals/DestructiveModal";
+import ConfirmDialog, { documentDeleteNotice } from "@/components/modals/ConfirmDialog";
 import ShareDocumentModal from "@/components/modals/ShareDocumentModal";
 
 interface EditorModalsProps {
@@ -45,7 +45,7 @@ const EditorModals = memo(function EditorModals({
       await deleteDocumentEverywhere("RESUME", resume);
 
       const nextId = listDocumentIndexEntries("RESUME")[0]?.id;
-      const nextResume = nextId ? loadResumeById(nextId) : null;
+      const nextResume = nextId ? readResumeById(nextId) : null;
 
       if (!nextResume) {
         const fallback = await createResume();
@@ -79,14 +79,16 @@ const EditorModals = memo(function EditorModals({
         />
       )}
 
-      <DestructiveModal
-        open={deleteModalOpen}
-        onConfirmAction={onDeleteResume}
-        onCloseAction={onDeleteModalClose}
+      <ConfirmDialog
+        tone="destructive"
+        confirmPhrase="DELETE"
         loading={isDeleting}
-        entityName={resume.title || "resume"}
-        cloudBacked={Boolean(resume.sync.cloudDocumentId)}
-        title="Delete Resume?"
+        open={deleteModalOpen}
+        onConfirm={onDeleteResume}
+        onClose={onDeleteModalClose}
+        title={"Delete Resume?"}
+        cancelLabel={`Keep ${resume.title || "resume"}`}
+        description={documentDeleteNotice(Boolean(resume.sync.cloudDocumentId))}
       />
     </>
   );

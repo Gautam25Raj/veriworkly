@@ -17,11 +17,9 @@ import {
 import { useState } from "react";
 import { useParams } from "next/navigation";
 
-import { Button, Menu, MenuItem, MenuSeparator } from "@veriworkly/ui";
+import { Button, Menu, MenuItem, MenuSeparator, cn } from "@veriworkly/ui";
 
-import { cn } from "@/lib/utils";
-
-import ConfirmModal from "@/components/modals/ConfirmModal";
+import ConfirmDialog from "@/components/modals/ConfirmDialog";
 
 import { toastSignInRequired } from "@/lib/sign-in";
 import { useUserStore } from "@/store/useUserStore";
@@ -96,10 +94,10 @@ const ToolbarActionsMenu = ({
         onRequestEmpty={() => setPendingWipe("empty")}
       />
 
-      <ConfirmModal
+      <ConfirmDialog
         open={pendingWipe !== null}
-        onConfirmAction={confirmPendingWipe}
-        onCloseAction={() => setPendingWipe(null)}
+        onConfirm={confirmPendingWipe}
+        onClose={() => setPendingWipe(null)}
         title={pendingWipe === "empty" ? "Empty all fields?" : "Reset to defaults?"}
         description={
           pendingWipe === "empty"

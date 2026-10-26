@@ -3,9 +3,7 @@
 import { useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
 
-import { cn } from "@/lib/utils";
-
-import { buttonClassName } from "@veriworkly/ui";
+import { buttonClassName, cn } from "@veriworkly/ui";
 
 interface ThemeToggleProps {
   className?: string;

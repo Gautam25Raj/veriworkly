@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, LockKeyhole } from "lucide-react";
 import { useUserStore } from "@/store/useUserStore";
-import { cn } from "@/lib/utils";
 
-import type { ApiKeyRecord, OffsetPaginationPayload } from "./ApiKeyTypes";
+import type { ApiKeyRecord } from "./ApiKeyTypes";
+import type { OffsetPaginationPayload } from "@/utils/fetchApiData";
 
-import { Button } from "@veriworkly/ui";
+import { Button, cn } from "@veriworkly/ui";
 
 import { useApiKeys } from "../hooks/useApiKeys";
 
@@ -16,8 +16,7 @@ import ApiKeyList from "./ApiKeyList";
 import ApiKeyRotateModal from "./ApiKeyRotateModal";
 import GeneratedApiKeyCard from "./GeneratedApiKeyCard";
 
-import DestructiveModal from "@/components/modals/DestructiveModal";
-import ConfirmationModal from "@/components/modals/ConfirmationModal";
+import ConfirmDialog from "@/components/modals/ConfirmDialog";
 
 type ApiKeySectionProps = {
   initialKeys: ApiKeyRecord[];
@@ -89,21 +88,23 @@ export default function ApiKeySection({
           submitting={apiKeys.rotateSubmitting}
           onCloseAction={() => apiKeys.setRotateTarget(null)}
         />
-        <DestructiveModal
-          entityName="API key"
+        <ConfirmDialog
+          tone="destructive"
+          confirmPhrase="DELETE"
           title="Delete API key?"
+          cancelLabel="Keep API key"
           loading={apiKeys.deleteSubmitting}
-          onConfirmAction={apiKeys.deleteKey}
           open={Boolean(apiKeys.deleteTarget)}
-          onCloseAction={() => apiKeys.setDeleteTarget(null)}
+          onConfirm={apiKeys.deleteKey}
+          onClose={() => apiKeys.setDeleteTarget(null)}
           warningText="This action permanently deletes the key from the database."
           description="Use this only when you no longer need the key at all. Permanent deletion cannot be undone."
         />
 
-        <ConfirmationModal
+        <ConfirmDialog
           title="Revoke API key?"
-          variant="warning"
-          confirmText="Revoke key"
+          tone="warning"
+          confirmLabel="Revoke key"
           loading={apiKeys.revokeSubmitting}
           open={Boolean(apiKeys.revokeTarget)}
           onConfirm={apiKeys.revokeKey}

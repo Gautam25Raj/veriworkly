@@ -18,14 +18,6 @@ export function formatDateRange(startDate: string, endDate: string, current: boo
   return start || end;
 }
 
-/** Joins only the non-empty parts — never substitutes a placeholder for a blank one. */
-export function joinTruthy(parts: Array<string | undefined | null>, separator: string): string {
-  return parts
-    .map((part) => safeText(part ?? ""))
-    .filter(Boolean)
-    .join(separator);
-}
-
 /**
  * A file name from a title in any script: letters, marks and digits are kept, every other
  * run of characters becomes one "-". An ASCII-only rule turned "Résumé" into "rsum" and a

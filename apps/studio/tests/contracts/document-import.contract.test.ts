@@ -10,6 +10,7 @@ import { importDocumentFromJsonFile } from "@/features/documents/services/import
 import { loadDocumentById } from "@/features/documents/services/document-workspace-service";
 import { buildMarkdown } from "@/features/documents/export/export-markdown";
 import { parseResumeMarkdown } from "@/features/resume/services/resume-markdown-import";
+import { createLocalStorageMock } from "@/tests/utils/local-storage";
 
 /**
  * "Import JSON" is one shared menu item and must mean one thing.
@@ -20,23 +21,6 @@ import { parseResumeMarkdown } from "@/features/resume/services/resume-markdown-
  * document on the next sync. Both types now go through `DocumentDefinition.importJson`
  * plus `sanitizeImportedDocument`, which is the only place identity is minted.
  */
-
-function createLocalStorageMock() {
-  const store = new Map<string, string>();
-
-  return {
-    getItem: vi.fn((key: string) => store.get(key) ?? null),
-    setItem: vi.fn((key: string, value: string) => {
-      store.set(key, value);
-    }),
-    removeItem: vi.fn((key: string) => {
-      store.delete(key);
-    }),
-    clear: vi.fn(() => {
-      store.clear();
-    }),
-  };
-}
 
 /** Minimal stand-in for the browser `File` the toolbar hands to the importer. */
 function jsonFile(value: unknown): File {

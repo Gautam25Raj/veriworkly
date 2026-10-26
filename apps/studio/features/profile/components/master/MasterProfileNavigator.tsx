@@ -4,9 +4,7 @@ import { ArrowUp, Circle, Compass } from "lucide-react";
 
 import type { CountKey, MasterSectionNavItem } from "./master-section-nav";
 
-import { Card } from "@veriworkly/ui";
-
-import { cn } from "@/lib/utils";
+import { Card, cn } from "@veriworkly/ui";
 
 type SectionCounts = Record<CountKey, number>;
 

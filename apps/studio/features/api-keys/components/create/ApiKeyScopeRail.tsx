@@ -2,11 +2,9 @@
 
 import { ShieldCheck } from "lucide-react";
 
-import { Button, Card, Checkbox } from "@veriworkly/ui";
+import { Button, Card, Checkbox, cn } from "@veriworkly/ui";
 
 import { API_KEY_SCOPE_GROUPS, API_KEY_SCOPE_OPTIONS } from "../ApiKeyScopes";
-
-import { cn } from "@/lib/utils";
 
 type ApiKeyScopeRailProps = {
   selectedScopes: string[];

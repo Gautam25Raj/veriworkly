@@ -11,6 +11,7 @@ import type { DocumentDefinition, DocumentExporter, DocumentImportDraft } from "
 
 import { templateCatalogByType } from "./template-catalog";
 
+import { isRecord } from "@/lib/is-record";
 import { useUserStore } from "@/store/useUserStore";
 
 import {
@@ -37,10 +38,6 @@ import {
 
 const ResumeEditor = dynamic(() => import("@/features/resume/editor/ResumeEditor"));
 const CoverLetterEditor = dynamic(() => import("@/features/cover-letter/editor/CoverLetterEditor"));
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 /**
  * The one place a new resume is constructed.
@@ -212,7 +209,7 @@ async function loadCoverLetterExporter(format: ExportFormat): Promise<DocumentEx
   return (document) => exportCoverLetterDocument(document, format);
 }
 
-export const documentRegistry: Record<DocumentType, DocumentDefinition> = {
+const documentRegistry: Record<DocumentType, DocumentDefinition> = {
   RESUME: {
     type: "RESUME",
     label: "Resume",

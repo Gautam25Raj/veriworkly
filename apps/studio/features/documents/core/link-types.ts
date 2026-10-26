@@ -1,10 +1,9 @@
+import { linkTypeSchema } from "@veriworkly/profile-core";
+
 /**
- * Link data, shared by every document type.
- *
- * These lived in `@/types/resume` as `ResumeLinkItem` / `ResumeLinkDisplayMode`, which the
- * cover letter imported verbatim — a shared shape wearing one type's name. `@/types/resume`
- * now aliases these, so the resume side is unchanged and every generic surface (the shared
- * `LinksEditor`, the cover letter, the templates' link rendering) can name them neutrally.
+ * Link data, shared by every document type. `@/types/resume` aliases these as
+ * `ResumeLinkItem` / `ResumeLinkDisplayMode`, so generic surfaces (the shared `LinksEditor`,
+ * the cover letter, the templates' link rendering) can name them neutrally.
  */
 
 export type DocumentLinkType =
@@ -18,10 +17,15 @@ export type DocumentLinkType =
   | "youtube"
   | "custom";
 
+const DOCUMENT_LINK_TYPES: readonly DocumentLinkType[] = linkTypeSchema.options;
+
+export function isDocumentLinkType(value: unknown): value is DocumentLinkType {
+  return DOCUMENT_LINK_TYPES.includes(value as DocumentLinkType);
+}
+
 /**
  * All three modes are rendered by both document types' templates — resume and cover letter
- * alike go through `getLinkDisplayText`. The cover-letter editor used to offer only two,
- * which made `"url"` unreachable for cover letters despite working end to end.
+ * alike go through `getLinkDisplayText`.
  */
 export type DocumentLinkDisplayMode = "icon" | "url" | "icon-username";
 

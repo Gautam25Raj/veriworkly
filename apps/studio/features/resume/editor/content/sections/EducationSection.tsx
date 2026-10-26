@@ -3,13 +3,12 @@
 import { useMemo } from "react";
 
 import type { BaseSectionProps } from "./section-types";
-import type { ResumeSectionId } from "@/types/resume";
+
+import ListSection from "./ListSection";
 
 import { useResumeStore } from "@/features/resume/store/resume-store";
 import { validateEducation } from "@/features/resume/utils/validation";
 
-import SectionAccordion from "@/features/documents/editor/SectionAccordion";
-import { ListEditorControls } from "@/features/documents/editor/ListEditorControls";
 import { useIndexedListEditor } from "@/features/documents/editor/useIndexedListEditor";
 import { CheckboxField, TextAreaField, TextInputField } from "@/features/documents/editor/form";
 
@@ -25,30 +24,25 @@ const EducationSection = ({ isOpen, onToggle }: BaseSectionProps) => {
   const updateEducation = useResumeStore((state) => state.updateEducation);
 
   const list = useIndexedListEditor(education, addEducation);
-  const activeEducation = list.activeItem;
 
   const educationErrors = useMemo(
-    () => (activeEducation ? validateEducation(activeEducation) : {}),
-    [activeEducation],
+    () => (list.activeItem ? validateEducation(list.activeItem) : {}),
+    [list.activeItem],
   );
 
   return (
-    <SectionAccordion
+    <ListSection
       id="education"
-      isOpen={isOpen}
       label="Education"
-      onToggle={(nextId) => onToggle(nextId as ResumeSectionId)}
+      isOpen={isOpen}
+      onToggle={onToggle}
+      list={list}
+      items={education}
+      onRemove={removeEducation}
+      labelFor={(item, index) => item.school || item.degree || `Education ${index + 1}`}
+      emptyMessage="No education entries yet. Click Add to create one."
     >
-      <ListEditorControls
-        items={education}
-        index={list.index}
-        onAdd={list.add}
-        onSelect={list.select}
-        onRemove={removeEducation}
-        labelFor={(item, index) => item.school || item.degree || `Education ${index + 1}`}
-      />
-
-      {activeEducation ? (
+      {(activeEducation) => (
         <>
           <div className="grid gap-4 md:grid-cols-2">
             <TextInputField
@@ -118,10 +112,8 @@ const EducationSection = ({ isOpen, onToggle }: BaseSectionProps) => {
             />
           </div>
         </>
-      ) : (
-        <p className="text-muted text-sm">No education entries yet. Click Add to create one.</p>
       )}
-    </SectionAccordion>
+    </ListSection>
   );
 };
 

@@ -3,11 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResumeData } from "@/types/resume";
 import type { BaseDocument } from "@/features/documents/core/types";
 import { defaultResume } from "@/features/resume/constants/default-resume";
-import { saveResume, setAllResumesSyncEnabled } from "@/features/resume/services/resume-core";
+import { saveResume } from "@/features/resume/services/resume-core";
 
 const state = {
   byId: new Map<string, BaseDocument>(),
-  activeId: defaultResume.id,
   lastSaveOptions: undefined as { debounceMs?: number; flush?: boolean } | undefined,
   nextSaveResult: { ok: true, queued: false } as
     { ok: true; queued: boolean } | { ok: false; reason: "quota-exceeded" | "unknown" },
@@ -42,34 +41,6 @@ vi.mock("@/features/documents/services/document-workspace-service", () => {
     }),
     loadDocumentById: vi.fn((_type: string, id: string) => {
       return state.byId.get(id) ?? null;
-    }),
-    deleteDocument: vi.fn((_type: string, id: string) => {
-      void _type;
-      state.byId.delete(id);
-    }),
-    listFullDocuments: vi.fn((_type: string) => {
-      void _type;
-      return Array.from(state.byId.values()).map((doc) => cloneDoc(doc));
-    }),
-    listDocumentIndexEntries: vi.fn((_type?: string) => {
-      void _type;
-      return Array.from(state.byId.values()).map((doc) => ({
-        id: doc.id,
-        type: doc.type,
-        title: doc.title,
-        templateId: doc.templateId,
-        description: (doc.content as ResumeData).basics?.role ?? "",
-        updatedAt: doc.updatedAt,
-        sync: doc.sync,
-      }));
-    }),
-    clearDocuments: vi.fn((_type: string) => {
-      void _type;
-      state.byId.clear();
-    }),
-    setActiveDocument: vi.fn((_type: string, id: string) => {
-      void _type;
-      state.activeId = id;
     }),
   };
 });
@@ -106,29 +77,6 @@ describe("resume sync contract", () => {
 
     state.byId.set(first.id, wrapResume(first));
     state.byId.set(second.id, wrapResume(second));
-    state.activeId = first.id;
-  });
-
-  it("enables sync for all saved resumes", () => {
-    const result = setAllResumesSyncEnabled(true);
-
-    expect(result.ok).toBe(true);
-
-    const items = Array.from(state.byId.values());
-
-    expect(items.every((doc) => doc.sync.enabled)).toBe(true);
-    expect(items.every((doc) => doc.sync.status === "pending")).toBe(true);
-  });
-
-  it("disables sync for all saved resumes", () => {
-    const result = setAllResumesSyncEnabled(false);
-
-    expect(result.ok).toBe(true);
-
-    const items = Array.from(state.byId.values());
-
-    expect(items.every((doc) => !doc.sync.enabled)).toBe(true);
-    expect(items.every((doc) => doc.sync.status === "local-only")).toBe(true);
   });
 
   it("passes save options and storage failures through saveResume", () => {

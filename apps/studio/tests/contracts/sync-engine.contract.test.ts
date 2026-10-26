@@ -9,6 +9,7 @@ import {
   type CloudDocument,
 } from "@/features/documents/services/document-api";
 import type { BaseDocument } from "@/features/documents/core/types";
+import { createLocalStorageMock } from "@/tests/utils/local-storage";
 
 vi.mock("@/features/documents/services/document-api", async (importOriginal) => {
   const actual =
@@ -19,23 +20,6 @@ vi.mock("@/features/documents/services/document-api", async (importOriginal) => 
     DocumentApi: { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   };
 });
-
-function createLocalStorageMock() {
-  const store = new Map<string, string>();
-
-  return {
-    getItem: vi.fn((key: string) => store.get(key) ?? null),
-    setItem: vi.fn((key: string, value: string) => {
-      store.set(key, value);
-    }),
-    removeItem: vi.fn((key: string) => {
-      store.delete(key);
-    }),
-    clear: vi.fn(() => {
-      store.clear();
-    }),
-  };
-}
 
 describe("sync engine contract", () => {
   beforeEach(() => {
@@ -94,44 +78,6 @@ describe("sync engine contract", () => {
       reason: "quota-exceeded",
     });
     expect(SyncEngine.updateTelemetry("doc", { lastAttemptAt: "x" }, "RESUME").ok).toBe(false);
-  });
-
-  it("stores active document ids with their document scope", () => {
-    const localStorageMock = createLocalStorageMock();
-    vi.stubGlobal("localStorage", localStorageMock);
-    vi.stubGlobal("window", {
-      localStorage: localStorageMock,
-      dispatchEvent: vi.fn(),
-    });
-
-    const storage = new LocalStorageService<BaseDocument>({
-      scope: "RESUME",
-      documentKey: (id) => `veriworkly:docs:v3:doc:resume:${id}`,
-      documentKeyPrefix: "veriworkly:docs:v3:doc:resume:",
-      legacyCollectionKey: "veriworkly:docs:v2:resume",
-      activeIdKey: "veriworkly:docs:v2:active",
-      activeIdScope: "RESUME",
-      updatedEventName: "veriworkly:docs-storage-updated",
-      parseItem: (input: unknown) => input as BaseDocument,
-      toIndexEntry: (item) => ({
-        id: item.id,
-        type: "RESUME",
-        title: item.title,
-        templateId: item.templateId,
-        description: "",
-        updatedAt: item.updatedAt,
-        sync: item.sync,
-      }),
-    });
-
-    storage.setActiveId("shared-id");
-
-    expect(localStorageMock.getItem("veriworkly:docs:v2:active")).toBe("RESUME:shared-id");
-    expect(storage.getActiveId()).toBe("shared-id");
-
-    localStorageMock.setItem("veriworkly:docs:v2:active", "COVER_LETTER:shared-id");
-
-    expect(storage.getActiveId()).toBeNull();
   });
 });
 
@@ -202,8 +148,6 @@ function createSyncHarness() {
     documentKey: (id) => `veriworkly:docs:v3:doc:resume:${id}`,
     documentKeyPrefix: "veriworkly:docs:v3:doc:resume:",
     legacyCollectionKey: "veriworkly:docs:v2:resume",
-    activeIdKey: "veriworkly:docs:v2:active",
-    activeIdScope: "RESUME",
     updatedEventName: UPDATED_EVENT,
     parseItem: parseDoc,
     cloudContentRevision: (id) => SyncEngine.getCloudContentRevision(id, "RESUME"),

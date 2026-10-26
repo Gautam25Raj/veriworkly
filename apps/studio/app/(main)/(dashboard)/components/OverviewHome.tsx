@@ -9,7 +9,7 @@ import { Card } from "@veriworkly/ui";
 
 import { siteConfig } from "@/config/site";
 
-import DestructiveModal from "@/components/modals/DestructiveModal";
+import ConfirmDialog, { documentDeleteNotice } from "@/components/modals/ConfirmDialog";
 import SyncDetailsModal from "@/components/modals/SyncDetailsModal";
 import ShareDocumentModal from "@/components/modals/ShareDocumentModal";
 import RenameDocumentModal from "@/components/modals/RenameDocumentModal";
@@ -128,13 +128,16 @@ const OverviewHome = () => {
         </div>
       </Card>
 
-      <DestructiveModal
+      <ConfirmDialog
+        tone="destructive"
+        confirmPhrase="DELETE"
         loading={isDeleting}
         open={Boolean(deleteTarget)}
-        onConfirmAction={handleConfirmDelete}
-        onCloseAction={() => setDeleteTarget(null)}
-        entityName={deleteTarget?.title ?? "document"}
-        cloudBacked={Boolean(deleteTarget?.sync.cloudDocumentId)}
+        onConfirm={handleConfirmDelete}
+        onClose={() => setDeleteTarget(null)}
+        title={`Delete ${deleteTarget?.title ?? "document"}?`}
+        cancelLabel={`Keep ${deleteTarget?.title ?? "document"}`}
+        description={documentDeleteNotice(Boolean(deleteTarget?.sync.cloudDocumentId))}
       />
 
       {syncDetailsTarget ? (

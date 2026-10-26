@@ -73,10 +73,10 @@ function optionalWebsiteLink(website: string | undefined, showLink: boolean) {
  * a placeholder word.
  *
  * Entries reaching here are pre-filtered by `hasExperienceContent` and friends, which
- * pass an entry that has *any* content — so a row with a company and bullets but no
- * role would previously render the literal text "Role" into the preview and, worse,
- * into the exported PDF/DOCX/HTML. Renderers skip an empty title (see `renderItem` in
- * shared/web.tsx and shared/pdf.tsx).
+ * pass an entry that has *any* content — so a row with a company and bullets but no role
+ * reaches here; a placeholder word would print into the preview and the exported
+ * PDF/DOCX/HTML. Renderers skip an empty title (see `renderItem` in shared/web.tsx and
+ * shared/pdf.tsx).
  */
 export function getExperienceRenderItems(items: ResumeData["experience"]): ResumeRenderItem[] {
   return items.map((item) => ({
@@ -142,15 +142,7 @@ export function getSkillLines(groups: ResumeData["skills"]): ResumeSkillLine[] {
   }));
 }
 
-/*
- * The eight typed sections, each with its own mapping.
- *
- * These used to share one mapping, because they shared one storage shape: every optional
- * section was squeezed into `{name, issuer, date, link, referenceId, description, details}`
- * and rendered as `title = name`, `subtitle = issuer | referenceId`. That is why a
- * reference's phone number printed in the date column. Each section now says what its
- * fields mean.
- */
+/* The eight typed sections, each with its own mapping: each section says what its fields mean. */
 
 export const FLUENCY_LABELS: Record<ResumeLanguage["fluency"], string> = {
   elementary: "Elementary",
@@ -160,7 +152,7 @@ export const FLUENCY_LABELS: Record<ResumeLanguage["fluency"], string> = {
   native: "Native",
 };
 
-export function getCertificateRenderItems(items: ResumeData["certificates"]): ResumeRenderItem[] {
+function getCertificateRenderItems(items: ResumeData["certificates"]): ResumeRenderItem[] {
   return items.filter(hasCertificateContent).map((item) => ({
     id: item.id,
     title: cleanResumeText(item.title),
@@ -174,7 +166,7 @@ export function getCertificateRenderItems(items: ResumeData["certificates"]): Re
   }));
 }
 
-export function getAwardRenderItems(items: ResumeData["awards"]): ResumeRenderItem[] {
+function getAwardRenderItems(items: ResumeData["awards"]): ResumeRenderItem[] {
   return items.filter(hasAwardContent).map((item) => ({
     id: item.id,
     title: cleanResumeText(item.title),
@@ -186,7 +178,7 @@ export function getAwardRenderItems(items: ResumeData["awards"]): ResumeRenderIt
   }));
 }
 
-export function getPublicationRenderItems(items: ResumeData["publications"]): ResumeRenderItem[] {
+function getPublicationRenderItems(items: ResumeData["publications"]): ResumeRenderItem[] {
   return items.filter(hasPublicationContent).map((item) => ({
     id: item.id,
     title: cleanResumeText(item.title),
@@ -210,7 +202,7 @@ export function getLanguageRenderItems(items: ResumeData["languages"]): ResumeRe
   }));
 }
 
-export function getInterestRenderItems(items: ResumeData["interests"]): ResumeRenderItem[] {
+function getInterestRenderItems(items: ResumeData["interests"]): ResumeRenderItem[] {
   return items.filter(hasInterestContent).map((item) => ({
     id: item.id,
     title: cleanResumeText(item.name),
@@ -226,9 +218,7 @@ export function getVolunteerRenderItems(items: ResumeData["volunteer"]): ResumeR
   return items.filter(hasVolunteerContent).map((item) => ({
     id: item.id,
     title: cleanResumeText(item.organization),
-    // A real date range, formatted the same way experience is. The flattened model stored
-    // the two dates pre-joined into a display string, so this column used to print whatever
-    // the concatenation happened to produce.
+    // A real date range, formatted the same way experience is.
     meta: formatDateRange(item.startDate, item.endDate, item.current),
     subtitle: joinMeta([item.role, item.location]),
     link: null,
@@ -245,8 +235,6 @@ export function getReferenceRenderItems(items: ResumeData["references"]): Resume
     return {
       id: item.id,
       title: cleanResumeText(item.name),
-      // The phone number, in the field a phone number belongs in. It used to be written to
-      // — and printed from — a property called `date`.
       meta: phone,
       subtitle: joinMeta([item.title, item.organization]),
       link: email ? { href: `mailto:${email}`, text: email } : null,
@@ -256,7 +244,7 @@ export function getReferenceRenderItems(items: ResumeData["references"]): Resume
   });
 }
 
-export function getAchievementRenderItems(items: ResumeData["achievements"]): ResumeRenderItem[] {
+function getAchievementRenderItems(items: ResumeData["achievements"]): ResumeRenderItem[] {
   return items.filter(hasAchievementContent).map((item) => ({
     id: item.id,
     title: cleanResumeText(item.title),

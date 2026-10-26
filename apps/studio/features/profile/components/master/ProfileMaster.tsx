@@ -12,9 +12,7 @@ import type {
 } from "./types";
 import type { MasterProfileData } from "@/types/resume";
 
-import { Card, Button } from "@veriworkly/ui";
-
-import { cn } from "@/lib/utils";
+import { Card, Button, cn } from "@veriworkly/ui";
 
 import { CoreSections } from "./CoreSections";
 import { AdditionalSections } from "./AdditionalSections";

@@ -2,10 +2,26 @@ import { siteConfig } from "@/config/site";
 import { backendApiUrl } from "@/lib/constants";
 import { clearInvalidSessionAndRedirect, isInvalidSessionResponse } from "@/lib/invalid-session";
 
-interface ApiSuccessResponse<T> {
+export interface ApiSuccessResponse<T> {
   success: boolean;
   message: string;
   data: T;
+}
+
+export interface OffsetPaginationPayload<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  hasMore: boolean;
+  pagination: {
+    mode: "offset";
+    nextOffset: number | null;
+    nextCursor: string | null;
+  };
 }
 
 export class ApiRequestError extends Error {

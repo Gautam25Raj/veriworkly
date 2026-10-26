@@ -34,41 +34,27 @@ type Resolved =
   | { status: "ready"; document: BaseDocument | null };
 
 export function PreviewClient({ documentId, type }: PreviewClientProps) {
-  // Narrow selectors: this route only needs these two, and subscribing to the whole store
-  // re-rendered the preview on every unrelated mutation.
+  // Narrow selectors: subscribing to the whole store re-renders on every unrelated mutation.
   const resume = useResumeStore((state) => state.resume);
   const setResume = useResumeStore((state) => state.setResume);
 
   const [resolved, setResolved] = useState<Resolved>({ status: "loading" });
 
   /*
-   * Resolution lives in an effect, not a `useMemo`.
-   *
-   * A memo runs during render, which React is free to run twice, discard, or re-run —
-   * and `reactStrictMode` does exactly that in development. `readResumeById` (rather than
-   * `loadResumeById`) is the other half of the fix: merely previewing a document must not
-   * repoint the workspace's active document, which decides what other surfaces open.
+   * Resolution lives in an effect, not a `useMemo`: a memo runs during render, which React
+   * is free to run twice, discard, or re-run — and `reactStrictMode` does exactly that in
+   * development.
    */
   useEffect(() => {
-    let cancelled = false;
-
     const routeResume = type === "RESUME" ? readResumeById(documentId) : null;
     const routeDocument = type === "RESUME" ? null : loadDocumentById(type, documentId);
     const found = type === "RESUME" ? routeResume : routeDocument;
 
-    if (!cancelled) {
-      if (routeResume) setResume(routeResume);
+    if (routeResume) setResume(routeResume);
 
-      // Reading local storage on mount is exactly the external-system read this rule
-      // carves out; the alternative it steers toward is the render-phase memo this
-      // replaced, which wrote to storage during render.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setResolved(found ? { status: "ready", document: routeDocument } : { status: "not-found" });
-    }
-
-    return () => {
-      cancelled = true;
-    };
+    // Reading local storage on mount is exactly the external-system read this rule carves out.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setResolved(found ? { status: "ready", document: routeDocument } : { status: "not-found" });
   }, [documentId, type, setResume]);
 
   const status = resolved.status;

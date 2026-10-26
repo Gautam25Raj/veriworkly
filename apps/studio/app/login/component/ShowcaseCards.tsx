@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { FileText, Globe, Check, Lock, ShieldCheck, Link2 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@veriworkly/ui";
 
 interface Slide {
   icon: React.ReactNode;

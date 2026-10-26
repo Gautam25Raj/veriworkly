@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Sparkles, CalendarDays, LayoutDashboard } from "lucide-react";
 
-import { useSyncExternalStore, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { Button } from "@veriworkly/ui";
 
@@ -10,27 +10,12 @@ import { siteConfig } from "@/config/site";
 import { ThemeToggle } from "@/components/dashboard/ThemeToggle";
 
 import { authClient } from "@/lib/auth-client";
+import { LocalDate } from "@/components/LocalDate";
 
 interface ShareHeaderBarProps {
   title?: string;
   expiresAt: string | null;
   actions?: ReactNode;
-}
-
-const subscribeNever = () => () => {};
-
-/**
- * The reader's own date format exists only in the browser, so the server renders the UTC
- * calendar date and the client swaps in the local one without a hydration mismatch.
- */
-function LocalDate({ iso }: { iso: string }) {
-  const text = useSyncExternalStore(
-    subscribeNever,
-    () => new Date(iso).toLocaleDateString(),
-    () => new Date(iso).toISOString().slice(0, 10),
-  );
-
-  return <time dateTime={iso}>{text}</time>;
 }
 
 export const ShareHeaderBar = ({ title, expiresAt, actions }: ShareHeaderBarProps) => {
@@ -48,7 +33,7 @@ export const ShareHeaderBar = ({ title, expiresAt, actions }: ShareHeaderBarProp
             {expiresAt ? (
               <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs font-medium">
                 <CalendarDays className="h-3.5 w-3.5" />
-                Available until <LocalDate iso={expiresAt} />
+                Available until <LocalDate value={expiresAt} />
               </span>
             ) : null}
           </div>

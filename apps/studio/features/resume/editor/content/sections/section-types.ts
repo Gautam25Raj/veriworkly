@@ -1,6 +1,5 @@
-import type { ResumeSectionId } from "@/types/resume";
-
 export interface BaseSectionProps {
   isOpen: boolean;
-  onToggle: (id: ResumeSectionId) => void;
+  /** Called with the section key: the section id, or `custom:<id>` for a custom section. */
+  onToggle: (sectionKey: string) => void;
 }

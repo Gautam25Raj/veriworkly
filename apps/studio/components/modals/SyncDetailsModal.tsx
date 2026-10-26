@@ -19,10 +19,9 @@ import { useRouter } from "next/navigation";
 import type { SyncTelemetry } from "@/features/documents/services/document-sync";
 import type { DocumentLibraryItem } from "@/features/documents/services/document-library";
 
-import { cn } from "@/lib/utils";
 import { getDocumentEditorPath } from "@/features/documents/core/routes";
 
-import { Modal, Button } from "@veriworkly/ui";
+import { Modal, Button, cn } from "@veriworkly/ui";
 
 interface SyncDetailsModalProps {
   document: DocumentLibraryItem;

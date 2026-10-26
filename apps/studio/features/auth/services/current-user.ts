@@ -27,7 +27,6 @@ export type SessionUser = {
   email: string;
   name?: string;
   username?: string;
-  image?: string | null;
   createdAt?: string;
   emailVerified?: boolean;
   autoSyncEnabled?: boolean;

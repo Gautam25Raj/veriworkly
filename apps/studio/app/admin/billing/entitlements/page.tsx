@@ -30,7 +30,6 @@ const FILTERS = [
       { label: "Any", value: "" },
       { label: "Portfolio publish", value: "portfolio_publish" },
       { label: "AI credits", value: "ai_credits" },
-      { label: "Custom subdomain", value: "custom_subdomain" },
       { label: "SEO controls", value: "seo_controls" },
       { label: "Analytics", value: "analytics" },
       { label: "Watermark removal", value: "watermark_removal" },
@@ -96,7 +95,15 @@ const columns: Array<AdminTableColumn<AdminEntitlementRow>> = [
     header: "State",
     render: (row) => (
       <AdminStatusBadge
-        status={row.revokedAt ? "REJECTED" : isActive(row) ? "ACTIVE" : "INACTIVE"}
+        status={
+          row.revokedAt
+            ? "REVOKED"
+            : isActive(row)
+              ? "ACTIVE"
+              : row.endsAt && new Date(row.endsAt).getTime() <= Date.now()
+                ? "EXPIRED"
+                : "INACTIVE"
+        }
       />
     ),
   },

@@ -11,7 +11,12 @@ import ApiKeyActions from "@/app/admin/api-keys/ApiKeyActions";
 
 import { fetchAdminApiKeySummary, fetchAdminApiKeys } from "@/features/admin/services/admin-server";
 import type { AdminApiKeyRow } from "@/features/admin/types/admin-types";
-import { formatDate, formatNumber, formatRelativeTime } from "@/features/admin/utils/admin-format";
+import {
+  apiKeyState,
+  formatDate,
+  formatNumber,
+  formatRelativeTime,
+} from "@/features/admin/utils/admin-format";
 import {
   toSingleValueParams,
   type AdminSearchParams,
@@ -81,16 +86,16 @@ const columns: Array<AdminTableColumn<AdminApiKeyRow>> = [
     key: "limit",
     header: "Rate limit",
     hideOnMobile: true,
-    render: (row) => <span className="text-muted text-xs">{formatNumber(row.rateLimit)}/min</span>,
+    render: (row) => (
+      <span className="text-muted text-xs">{formatNumber(row.rateLimit)}/15 min</span>
+    ),
   },
   {
     key: "state",
     header: "State",
     render: (row) => (
       <div className="space-y-1">
-        <AdminStatusBadge
-          status={row.revokedAt ? "REJECTED" : row.isActive ? "ACTIVE" : "INACTIVE"}
-        />
+        <AdminStatusBadge status={apiKeyState(row)} />
         <p className="text-muted text-xs">used {formatRelativeTime(row.lastUsed)}</p>
       </div>
     ),

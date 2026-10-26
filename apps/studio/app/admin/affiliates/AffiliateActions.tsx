@@ -77,36 +77,50 @@ export function AffiliateStandingActions({
   );
 }
 
-/** Release or reverse a pending commission. Non-pending rows are terminal server-side. */
+/**
+ * Release or reverse a pending commission. Non-pending rows are terminal server-side. The
+ * wallet is a USD balance, so a commission in another currency cannot be released: the server
+ * keeps it PENDING until it is converted and recorded in USD.
+ */
 export function CommissionActions({
   id,
   status,
   amountCents,
+  currency,
 }: {
   id: string;
   status: string;
   amountCents: number;
+  currency: string;
 }) {
   if (status !== "PENDING") return <span className="text-muted text-xs">No action</span>;
 
+  const amount = formatCents(amountCents, currency);
+
   return (
     <div className="flex flex-wrap gap-2">
-      <AdminActionDialog
-        trigger="Release"
-        triggerVariant="primary"
-        title="Release this commission"
-        description={`${formatCents(amountCents)} moves from the affiliate's pending balance to available, making it withdrawable.`}
-        confirmLabel="Release commission"
-        reasonRequired={false}
-        onConfirm={async (reason) => {
-          await updateAdminCommission(id, "AVAILABLE", reason || undefined);
-        }}
-      />
+      {currency === "USD" ? (
+        <AdminActionDialog
+          trigger="Release"
+          triggerVariant="primary"
+          title="Release this commission"
+          description={`${amount} moves from the affiliate's pending balance to available, making it withdrawable.`}
+          confirmLabel="Release commission"
+          reasonRequired={false}
+          onConfirm={async (reason) => {
+            await updateAdminCommission(id, "AVAILABLE", reason || undefined);
+          }}
+        />
+      ) : (
+        <span className="text-muted max-w-48 text-xs">
+          In {currency}: it stays pending until it is converted to USD and recorded by hand.
+        </span>
+      )}
 
       <AdminActionDialog
         trigger="Reverse"
         title="Reverse this commission"
-        description={`${formatCents(amountCents)} is removed from the affiliate's pending balance. Use this when the underlying payment was refunded or fraudulent.`}
+        description={`${amount} is removed from the affiliate's pending balance. Use this when the underlying payment was refunded or fraudulent.`}
         confirmLabel="Reverse commission"
         onConfirm={async (reason) => {
           await updateAdminCommission(id, "REVERSED", reason);

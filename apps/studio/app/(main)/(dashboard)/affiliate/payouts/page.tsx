@@ -1,11 +1,13 @@
 import { AffiliateNav } from "@/features/affiliate/AffiliateNav";
 import { AffiliatePayoutForm } from "@/features/affiliate/AffiliatePayoutForm";
 import type { AffiliateDashboard } from "@/features/affiliate/types";
-import { getBillingServerData } from "@/features/billing/billing-server";
-const money = (cents: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+import { getProgramServerData, PROGRAM_UNAVAILABLE } from "@/features/billing/billing-server";
+import { ProgramUnavailable } from "@/features/billing/ProgramUnavailable";
+const money = (cents: number, currency = "USD") =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
 export default async function AffiliatePayoutsPage() {
-  const data = await getBillingServerData<AffiliateDashboard>("/affiliates/me");
+  const data = await getProgramServerData<AffiliateDashboard>("/affiliates/me");
+  if (data === PROGRAM_UNAVAILABLE) return <ProgramUnavailable program="affiliate" />;
   return (
     <main className="space-y-5">
       <AffiliateNav />
@@ -40,8 +42,11 @@ export default async function AffiliatePayoutsPage() {
                     <p className="text-muted text-xs">
                       {new Date(item.createdAt).toLocaleDateString()}
                     </p>
+                    {item.payoutNote ? (
+                      <p className="text-muted mt-1 text-xs">Note: {item.payoutNote}</p>
+                    ) : null}
                   </div>
-                  <strong>{money(item.amountCents)}</strong>
+                  <strong>{money(item.amountCents, item.currency)}</strong>
                 </div>
               ))
             ) : (

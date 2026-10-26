@@ -24,7 +24,6 @@ export async function createRoadmapFeature(payload: AdminRoadmapPayload) {
   return fetchApiData<RoadmapFeature>("/admin/roadmap", {
     method: "POST",
     body: JSON.stringify(payload),
-    errorMessage: "Failed to create roadmap feature",
   });
 }
 
@@ -32,13 +31,11 @@ export async function updateRoadmapFeature(id: string, payload: Partial<AdminRoa
   return fetchApiData<RoadmapFeature>(`/admin/roadmap/${id}`, {
     method: "PUT",
     body: JSON.stringify(payload),
-    errorMessage: "Failed to update roadmap feature",
   });
 }
 
 export async function deleteRoadmapFeature(id: string) {
   return fetchApiData<{ id: string }>(`/admin/roadmap/${id}`, {
     method: "DELETE",
-    errorMessage: "Failed to delete roadmap feature",
   });
 }

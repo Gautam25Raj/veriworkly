@@ -1,41 +1,74 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
 
 import { Select } from "@veriworkly/ui";
 
 import AdminActionDialog from "@/components/admin/AdminActionDialog";
-import { flushAdminCache, triggerAdminGithubSync } from "@/features/admin/services/admin-actions";
+import {
+  fetchAdminGithubSyncRunning,
+  flushAdminCache,
+  triggerAdminGithubSync,
+} from "@/features/admin/services/admin-actions";
 
 const subscribeNever = () => () => {};
 
 type CachePrefix =
   "portfolio:public" | "user:profile" | "affiliate" | "credits" | "changelog" | "roadmap";
 
-const CACHE_PREFIXES: Array<{ value: CachePrefix; label: string; description: string }> = [
+/**
+ * `targets` are the server's names for what each choice flushes (`FLUSH_TARGETS` in the admin
+ * system service): `…:` entries are key prefixes that are deleted, the rest are cache
+ * generations that are bumped so every key under them goes stale at once.
+ */
+const CACHE_PREFIXES: Array<{
+  value: CachePrefix;
+  label: string;
+  description: string;
+  targets: string[];
+}> = [
   {
     value: "portfolio:public",
     label: "Public portfolios",
-    description: "Cached public portfolio pages and the public portfolio list.",
+    description: "Cached public portfolio sites and the public portfolio list.",
+    targets: ["portfolio:public:list", "portfolio:public:site:"],
   },
   {
     value: "user:profile",
     label: "User profiles",
     description: "Per-user profile snapshots, including entitlement state.",
+    targets: ["user:profile:"],
   },
   {
     value: "affiliate",
     label: "Affiliate dashboards",
     description: "Affiliate dashboard and leaderboard aggregates.",
+    targets: ["affiliate:dashboard:", "affiliate:leaderboard:"],
   },
-  { value: "credits", label: "Credit wallets", description: "Cached credit wallet balances." },
-  { value: "changelog", label: "Changelog", description: "Public changelog reads." },
-  { value: "roadmap", label: "Roadmap", description: "Public roadmap reads." },
+  {
+    value: "credits",
+    label: "Credit summaries",
+    description: "Cached credit summaries and credit history pages.",
+    targets: ["credits:summary:", "credits:history:"],
+  },
+  {
+    value: "changelog",
+    label: "Changelog",
+    description: "Public changelog list, entries and stats.",
+    targets: ["changelog:list", "changelog:entry", "changelog:stats"],
+  },
+  {
+    value: "roadmap",
+    label: "Roadmap",
+    description: "Public roadmap list, items and stats.",
+    targets: ["roadmap:list", "roadmap:feature", "roadmap:stats"],
+  },
 ];
 
 /**
  * Session records are deliberately not flushable from here — the server only accepts these
- * six prefixes, so no combination of clicks on this page can sign every user out.
+ * six names, so no combination of clicks on this page can sign every user out.
  */
 export function CacheFlushControls() {
   const [prefix, setPrefix] = useState<CachePrefix>("portfolio:public");
@@ -61,8 +94,8 @@ export function CacheFlushControls() {
 
       <AdminActionDialog
         trigger="Flush cache"
-        title="Flush this cache prefix"
-        description={`Every key under "${prefix}" is deleted. The next request for each rebuilds from the database — expect a brief latency spike, not data loss.`}
+        title="Flush this cache"
+        description={`Flushes ${selected?.targets.join(", ")}. The next request for each rebuilds from the database — expect a brief latency spike, not data loss.`}
         confirmLabel="Flush"
         onConfirm={async (reason) => {
           await flushAdminCache(prefix, reason);
@@ -72,8 +105,44 @@ export function CacheFlushControls() {
   );
 }
 
-export function GithubSyncControls({ nextSyncAt }: { nextSyncAt: string | null }) {
+const SYNC_POLL_MS = 3000;
+
+/**
+ * A manual sync answers 202 and runs in the background for up to several minutes, so the
+ * control polls the status endpoint while one is running and refreshes the page once it ends.
+ */
+export function GithubSyncControls({
+  running: initiallyRunning,
+  nextSyncAt,
+}: {
+  running: boolean;
+  nextSyncAt: string | null;
+}) {
+  const router = useRouter();
+
   const [force, setForce] = useState(false);
+  const [running, setRunning] = useState(initiallyRunning);
+  const [pollError, setPollError] = useState("");
+
+  useEffect(() => {
+    if (!running) return;
+
+    const timer = window.setInterval(async () => {
+      try {
+        if (await fetchAdminGithubSyncRunning()) return;
+
+        setRunning(false);
+        router.refresh();
+      } catch (error) {
+        setRunning(false);
+        setPollError(
+          `Could not check the sync's progress: ${error instanceof Error ? error.message : "unknown error"}. Reload to see its result.`,
+        );
+      }
+    }, SYNC_POLL_MS);
+
+    return () => window.clearInterval(timer);
+  }, [running, router]);
 
   return (
     <div className="space-y-3">
@@ -92,18 +161,33 @@ export function GithubSyncControls({ nextSyncAt }: { nextSyncAt: string | null }
         </p>
       ) : null}
 
+      {running ? (
+        <p role="status" className="text-accent text-xs">
+          A sync is running. This panel updates when it finishes.
+        </p>
+      ) : null}
+
+      {pollError ? (
+        <p role="alert" className="text-destructive text-xs">
+          {pollError}
+        </p>
+      ) : null}
+
       <AdminActionDialog
         trigger="Sync now"
         triggerVariant="primary"
+        disabled={running}
         title="Trigger a GitHub sync"
         description={
           force
-            ? "A full re-fetch of every issue and pull request. Slower, and it spends more of the GitHub API quota."
-            : "An incremental sync — only changes since the last run are fetched."
+            ? "A full re-fetch of every issue and pull request. Slower, and it spends more of the GitHub API quota. It runs in the background."
+            : "An incremental sync — only changes since the last run are fetched. It runs in the background."
         }
         confirmLabel="Run sync"
         onConfirm={async (reason) => {
           await triggerAdminGithubSync(reason, force);
+          setPollError("");
+          setRunning(true);
         }}
       />
     </div>

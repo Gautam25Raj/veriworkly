@@ -13,13 +13,13 @@ export const metadata: Metadata = {
 };
 
 const AdminLayout = async ({ children }: { children: ReactNode }) => {
-  // Fails closed (404) for any non-admin session before rendering anything below —
-  // the backend independently re-enforces this on every admin API call, but the
-  // frontend must not rely on that alone (see requireAdminUser's doc comment).
+  // Fails closed (404) for any non-admin session — the backend independently re-enforces this
+  // on every admin API call, but the frontend must not rely on that alone. Pages are gated too:
+  // every admin read awaits the same cached check (see requireAdminUser's doc comment).
   const admin = await requireAdminUser();
 
-  // Drives the sidebar's queue badges. Safe to run on every navigation: it is six counts, and
-  // it degrades to zeros rather than throwing, so a counting hiccup cannot break the nav.
+  // Drives the sidebar's queue badges. This layout is not re-run on client navigations inside
+  // `/admin`, so the counts refresh with `router.refresh()`. An unreadable count is "—", never 0.
   const queue = await fetchAdminActionQueue();
 
   return (

@@ -1,10 +1,12 @@
 import { AffiliateNav } from "@/features/affiliate/AffiliateNav";
 import type { AffiliateDashboard } from "@/features/affiliate/types";
-import { getBillingServerData } from "@/features/billing/billing-server";
-const money = (cents: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+import { getProgramServerData, PROGRAM_UNAVAILABLE } from "@/features/billing/billing-server";
+import { ProgramUnavailable } from "@/features/billing/ProgramUnavailable";
+const money = (cents: number, currency: string) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
 export default async function AffiliateCommissionsPage() {
-  const data = await getBillingServerData<AffiliateDashboard>("/affiliates/me");
+  const data = await getProgramServerData<AffiliateDashboard>("/affiliates/me");
+  if (data === PROGRAM_UNAVAILABLE) return <ProgramUnavailable program="affiliate" />;
   return (
     <main className="space-y-5">
       <AffiliateNav />
@@ -12,7 +14,8 @@ export default async function AffiliateCommissionsPage() {
         <h1 className="text-3xl font-black">Commissions</h1>
         <p className="text-muted mt-2 text-sm">
           Commissions are created from successful paid purchases, then reviewed before becoming
-          available.
+          available. A commission is shown in the currency the customer paid in; your balance is
+          paid out in USD, so one in another currency stays pending until we convert it.
         </p>
       </header>
       <section className="border-border bg-card rounded-2xl border p-5">
@@ -27,7 +30,7 @@ export default async function AffiliateCommissionsPage() {
                   </p>
                 </div>
                 <span>{item.rateBps / 100}% rate</span>
-                <strong>{money(item.amountCents)}</strong>
+                <strong>{money(item.amountCents, item.currency)}</strong>
               </div>
             ))
           ) : (

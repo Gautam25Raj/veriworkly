@@ -16,18 +16,26 @@ interface AdminSidebarProps {
   onNavigate?: () => void;
 }
 
-/** Badge counts are affordances, not data — a queue at zero shows nothing rather than "0". */
-function QueueBadge({ count, critical }: { count: number; critical?: boolean }) {
-  if (count <= 0) return null;
+/**
+ * Badge counts are affordances, not data — a queue at zero shows nothing rather than "0". A
+ * count that could not be read (`null`) shows "—", so an unknown queue never looks empty.
+ */
+function QueueBadge({ count, critical }: { count: number | null; critical?: boolean }) {
+  if (count !== null && count <= 0) return null;
 
   return (
     <span
+      title={count === null ? "Count unavailable" : undefined}
       className={cn(
         "admin-numeric ml-auto inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums",
-        critical ? "bg-destructive/12 text-destructive" : "bg-warning/12 text-warning",
+        count === null
+          ? "bg-admin-inset text-muted"
+          : critical
+            ? "bg-destructive/12 text-destructive"
+            : "bg-warning/12 text-warning",
       )}
     >
-      {count > 99 ? "99+" : count}
+      {count === null ? "—" : count > 99 ? "99+" : count}
     </span>
   );
 }
@@ -53,8 +61,12 @@ function resolveBadge(item: AdminNavItem, queue: AdminActionQueue, expanded: boo
       : (item.children ?? []).flatMap((child) => (child.badge ? [child.badge] : []))),
   ];
 
+  const counts = keys.map((key) => queue[key]);
+
   return {
-    count: keys.reduce((sum, key) => sum + (queue[key] ?? 0), 0),
+    count: counts.includes(null)
+      ? null
+      : counts.reduce<number>((sum, count) => sum + (count ?? 0), 0),
     critical: keys.includes("failedWebhooks"),
   };
 }

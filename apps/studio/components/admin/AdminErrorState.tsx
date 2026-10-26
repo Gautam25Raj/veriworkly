@@ -67,11 +67,9 @@ const AdminErrorState = ({ error, reset, surface = "this page" }: AdminErrorStat
             Try again
           </Button>
 
-          <Link href="/admin">
-            <Button size="sm" variant="secondary">
-              Back to dashboard
-            </Button>
-          </Link>
+          <Button asChild size="sm" variant="secondary">
+            <Link href="/admin">Back to dashboard</Link>
+          </Button>
         </div>
       </div>
     </div>

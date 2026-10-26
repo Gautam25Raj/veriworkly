@@ -9,7 +9,10 @@ import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
 import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
 import DocumentModerationActions from "@/app/admin/documents/DocumentModerationActions";
 
-import { fetchAdminDocuments, fetchAdminOverview } from "@/features/admin/services/admin-server";
+import {
+  fetchAdminDocumentSummary,
+  fetchAdminDocuments,
+} from "@/features/admin/services/admin-server";
 import type { AdminDocumentRow } from "@/features/admin/types/admin-types";
 import {
   formatCompactNumber,
@@ -101,7 +104,7 @@ const columns: Array<AdminTableColumn<AdminDocumentRow>> = [
     render: (row) => (
       <div className="flex flex-wrap items-center gap-1">
         <AdminStatusBadge status={row.visibility} />
-        {row.deletedAt ? <AdminStatusBadge status="REJECTED" tone="danger" /> : null}
+        {row.deletedAt ? <AdminStatusBadge status="DELETED" /> : null}
       </div>
     ),
   },
@@ -143,9 +146,10 @@ export default async function AdminDocumentsPage({
 }) {
   const params = toSingleValueParams(await searchParams);
 
-  const [overview, data] = await Promise.all([fetchAdminOverview(30), fetchAdminDocuments(params)]);
-
-  const summary = overview.documents;
+  const [summary, data] = await Promise.all([
+    fetchAdminDocumentSummary(),
+    fetchAdminDocuments(params),
+  ]);
 
   return (
     <div className="space-y-5">

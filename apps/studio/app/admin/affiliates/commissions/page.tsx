@@ -40,17 +40,20 @@ const columns: Array<AdminTableColumn<AdminCommissionRow>> = [
   {
     key: "affiliate",
     header: "Affiliate",
-    render: (row) => (
-      <div className="min-w-0">
-        <Link
-          href={`/admin/affiliates/${row.affiliate.id}`}
-          className="text-foreground font-medium hover:underline"
-        >
-          {row.affiliate.name || row.affiliate.email}
-        </Link>
-        <p className="text-muted truncate text-xs">{row.affiliate.affiliateCode || "no code"}</p>
-      </div>
-    ),
+    render: (row) =>
+      row.affiliate ? (
+        <div className="min-w-0">
+          <Link
+            href={`/admin/affiliates/${row.affiliate.id}`}
+            className="text-foreground font-medium hover:underline"
+          >
+            {row.affiliate.name || row.affiliate.email}
+          </Link>
+          <p className="text-muted truncate text-xs">{row.affiliate.affiliateCode || "no code"}</p>
+        </div>
+      ) : (
+        <span className="text-muted text-xs">Deleted account</span>
+      ),
   },
   {
     key: "referred",
@@ -65,7 +68,7 @@ const columns: Array<AdminTableColumn<AdminCommissionRow>> = [
     header: "Commission",
     render: (row) => (
       <div>
-        <p className="text-foreground font-medium">{formatCents(row.amountCents)}</p>
+        <p className="text-foreground font-medium">{formatCents(row.amountCents, row.currency)}</p>
         <p className="text-muted text-xs">{(row.rateBps / 100).toFixed(1)}% rate</p>
       </div>
     ),
@@ -85,7 +88,12 @@ const columns: Array<AdminTableColumn<AdminCommissionRow>> = [
     header: "",
     className: "text-right",
     render: (row) => (
-      <CommissionActions id={row.id} status={row.status} amountCents={row.amountCents} />
+      <CommissionActions
+        id={row.id}
+        status={row.status}
+        amountCents={row.amountCents}
+        currency={row.currency}
+      />
     ),
   },
 ];
@@ -120,7 +128,7 @@ export default async function AdminCommissionsPage({
             rows={data.items}
             rowKey={(row) => row.id}
             emptyMessage="No commissions match these filters."
-            caption={`${formatCents(data.totalAmountCents)} across ${data.total} matching commission(s).`}
+            caption={`${data.total} matching commission(s); ${formatCents(data.totalAmountCents)} of them in USD (other currencies are not added in).`}
           />
 
           <AdminPagination

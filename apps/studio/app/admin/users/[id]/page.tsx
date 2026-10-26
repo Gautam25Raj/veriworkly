@@ -10,11 +10,13 @@ import UserAdminActions from "@/app/admin/users/[id]/UserAdminActions";
 
 import { fetchAdminUserDetail, loadAdminDetail } from "@/features/admin/services/admin-server";
 import {
+  apiKeyState,
   formatCents,
   formatDate,
   formatDateTime,
   formatNumber,
   formatRelativeTime,
+  formatSuspensionReason,
   humanizeKey,
   truncate,
 } from "@/features/admin/utils/admin-format";
@@ -179,7 +181,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {document.deletedAt ? <AdminStatusBadge status="REJECTED" /> : null}
+                      {document.deletedAt ? <AdminStatusBadge status="DELETED" /> : null}
                       <AdminStatusBadge status={document.visibility} />
                     </div>
                   </div>
@@ -269,7 +271,9 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
               <AdminStatusBadge status={detail.publication.status} />
 
               {detail.publication.suspensionReason ? (
-                <p className="text-muted text-xs">{detail.publication.suspensionReason}</p>
+                <p className="text-muted text-xs">
+                  {formatSuspensionReason(detail.publication.suspensionReason)}
+                </p>
               ) : null}
             </Panel>
           ) : null}
@@ -300,9 +304,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
                   <div key={key.id} className="space-y-1 py-2 text-sm">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-foreground font-medium">{key.name}</span>
-                      <AdminStatusBadge
-                        status={key.revokedAt ? "REJECTED" : key.isActive ? "ACTIVE" : "INACTIVE"}
-                      />
+                      <AdminStatusBadge status={apiKeyState(key)} />
                     </div>
                     <p className="text-muted font-mono text-xs">
                       {key.keyPrefix}…{key.keySuffix}

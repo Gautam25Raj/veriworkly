@@ -7,6 +7,8 @@ import { Button, Input, Modal, TextArea } from "@veriworkly/ui";
 
 import type { ButtonVariant } from "@veriworkly/ui";
 
+import { isAdminReasonValid } from "@/components/admin/admin-reason";
+
 export interface AdminActionDialogProps {
   /** Label on the button that opens the dialog. */
   trigger: ReactNode;
@@ -33,8 +35,16 @@ export interface AdminActionDialogProps {
   reasonPlaceholder?: string;
   /** Off for the few endpoints whose reason field is genuinely optional. */
   reasonRequired?: boolean;
+  /** The server's minimum for this action's reason (3 for most, more where it is shown to a user). */
+  minReasonLength?: number;
+  /** Off for an endpoint that takes no reason at all, so the dialog does not ask for one. */
+  askReason?: boolean;
 
-  onConfirm: (reason: string) => Promise<unknown>;
+  /**
+   * `attemptKey` is created when the dialog opens and reused for every retry until it closes,
+   * so an endpoint that accepts an idempotency key applies a retried submit only once.
+   */
+  onConfirm: (reason: string, attemptKey: string) => Promise<unknown>;
 }
 
 /**
@@ -60,18 +70,23 @@ const AdminActionDialog = ({
   reasonLabel = "Audit reason",
   reasonPlaceholder = "Why are you doing this? Recorded in the admin audit log.",
   reasonRequired = true,
+  minReasonLength = 3,
+  askReason = true,
   onConfirm,
 }: AdminActionDialogProps) => {
   const router = useRouter();
   const titleId = useId();
 
   const [open, setOpen] = useState(false);
+  const [attemptKey, setAttemptKey] = useState("");
   const [reason, setReason] = useState("");
   const [phrase, setPhrase] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
-  const reasonSatisfied = !reasonRequired || reason.trim().length >= 3;
+  const reasonSatisfied =
+    !askReason ||
+    isAdminReasonValid(reason, { required: reasonRequired, minLength: minReasonLength });
   const phraseSatisfied = !confirmPhrase || phrase.trim() === confirmPhrase;
 
   const close = () => {
@@ -90,7 +105,7 @@ const AdminActionDialog = ({
     setError("");
 
     try {
-      await onConfirm(reason.trim());
+      await onConfirm(reason.trim(), attemptKey);
 
       setOpen(false);
       setReason("");
@@ -112,7 +127,10 @@ const AdminActionDialog = ({
         variant={triggerVariant}
         className={triggerClassName}
         disabled={disabled}
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setAttemptKey(crypto.randomUUID());
+          setOpen(true);
+        }}
       >
         {trigger}
       </Button>
@@ -127,24 +145,28 @@ const AdminActionDialog = ({
           <Modal.Body className="space-y-4">
             {children}
 
-            <div className="space-y-1.5">
-              <label htmlFor={`${titleId}-reason`} className="text-muted text-xs font-medium">
-                {reasonLabel}
-                {reasonRequired ? <span className="text-destructive"> *</span> : null}
-              </label>
+            {askReason ? (
+              <div className="space-y-1.5">
+                <label htmlFor={`${titleId}-reason`} className="text-muted text-xs font-medium">
+                  {reasonLabel}
+                  {reasonRequired ? <span className="text-destructive"> *</span> : null}
+                </label>
 
-              <TextArea
-                id={`${titleId}-reason`}
-                rows={3}
-                value={reason}
-                placeholder={reasonPlaceholder}
-                onChange={(event) => setReason(event.target.value)}
-              />
+                <TextArea
+                  id={`${titleId}-reason`}
+                  rows={3}
+                  value={reason}
+                  placeholder={reasonPlaceholder}
+                  onChange={(event) => setReason(event.target.value)}
+                />
 
-              {reasonRequired && reason.length > 0 && !reasonSatisfied ? (
-                <p className="text-warning text-xs">Give at least 3 characters of context.</p>
-              ) : null}
-            </div>
+                {reason.length > 0 && !reasonSatisfied ? (
+                  <p className="text-warning text-xs">
+                    Give at least {minReasonLength} characters of context.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
 
             {confirmPhrase ? (
               <div className="space-y-1.5">

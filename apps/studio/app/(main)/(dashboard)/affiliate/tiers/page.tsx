@@ -1,15 +1,18 @@
 import { AffiliateNav } from "@/features/affiliate/AffiliateNav";
 import type { AffiliateDashboard } from "@/features/affiliate/types";
-import { getBillingServerData } from "@/features/billing/billing-server";
+import { getProgramServerData, PROGRAM_UNAVAILABLE } from "@/features/billing/billing-server";
+import { ProgramUnavailable } from "@/features/billing/ProgramUnavailable";
 export default async function AffiliateTiersPage() {
-  const data = await getBillingServerData<AffiliateDashboard>("/affiliates/me");
+  const data = await getProgramServerData<AffiliateDashboard>("/affiliates/me");
+  if (data === PROGRAM_UNAVAILABLE) return <ProgramUnavailable program="affiliate" />;
   return (
     <main className="space-y-5">
       <AffiliateNav />
       <header className="border-border bg-card rounded-2xl border p-5">
         <h1 className="text-3xl font-black">Affiliate tiers</h1>
         <p className="text-muted mt-2 text-sm">
-          Tier progress is based on referred users who complete paid purchases.
+          Tiers count referred users who complete paid purchases. Moving up is not automatic: once
+          you reach a tier&apos;s count, our team reviews your account and promotes it by hand.
         </p>
       </header>
       <section className="grid gap-4 lg:grid-cols-3">
@@ -24,7 +27,7 @@ export default async function AffiliateTiersPage() {
             </div>
             <p className="text-muted mt-2 text-sm">
               {tier.requiredConversions
-                ? `${tier.requiredConversions} paid conversions required`
+                ? `Reviewed for promotion at ${tier.requiredConversions} paid conversions`
                 : "Starting tier"}
             </p>
             <div className="mt-5 space-y-2">

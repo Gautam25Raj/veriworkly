@@ -67,8 +67,8 @@ export function AffiliatePage({ dashboard }: { dashboard: AffiliateDashboard | n
         )}
         {isPending && (
           <p className="text-muted mt-4 text-sm leading-6">
-            Your affiliate application is being reviewed. You&apos;ll be able to share your referral
-            link and request payouts once it&apos;s approved.
+            Your affiliate account is on hold while our team reviews it. You&apos;ll be able to
+            share your referral link and request payouts once it&apos;s active again.
           </p>
         )}
       </header>
@@ -105,7 +105,10 @@ export function AffiliatePage({ dashboard }: { dashboard: AffiliateDashboard | n
           </div>
           <p className="text-muted mt-3 text-xs">
             {dashboard.tierProgress.nextTierConversions
-              ? `${dashboard.tierProgress.currentConversions} of ${dashboard.tierProgress.nextTierConversions} paid conversions toward the next tier.`
+              ? dashboard.tierProgress.currentConversions >=
+                dashboard.tierProgress.nextTierConversions
+                ? `${dashboard.tierProgress.currentConversions} paid conversions: you have reached the next tier's count. Promotion is reviewed by our team, not automatic.`
+                : `${dashboard.tierProgress.currentConversions} of ${dashboard.tierProgress.nextTierConversions} paid conversions toward the next tier. Promotion is reviewed by our team, not automatic.`
               : "Highest tier reached."}
           </p>
           <Link className="text-accent mt-4 inline-block text-sm font-bold" href="/affiliate/tiers">

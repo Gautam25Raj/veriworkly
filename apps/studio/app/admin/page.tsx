@@ -20,12 +20,13 @@ import {
   fetchAdminRecentActivity,
   fetchAdminTimeSeries,
 } from "@/features/admin/services/admin-server";
-import type { AdminActionQueueKey } from "@/features/admin/types/admin-types";
+import { adminSection, type AdminActionQueueKey } from "@/features/admin/types/admin-types";
 import {
   formatCents,
   formatCompactNumber,
   formatDuration,
   formatNumber,
+  formatQueueCount,
   formatRelativeTime,
   humanizeKey,
 } from "@/features/admin/utils/admin-format";
@@ -72,6 +73,19 @@ const ACTION_QUEUE_ITEMS: Array<{
   { key: "pendingPortfolioAssets", label: "Pending assets", href: "/admin/system" },
 ];
 
+/** What a card shows when its overview section failed to load on the server. */
+const UNAVAILABLE = "Unavailable";
+
+function SectionUnavailable() {
+  return (
+    <PanelBody align="center">
+      <p className="text-muted py-6 text-center text-sm">
+        {UNAVAILABLE}: this section failed to load. Reload to try again.
+      </p>
+    </PanelBody>
+  );
+}
+
 /** Subscription lifecycle, ordered healthiest first so the bar reads left-to-right as decay. */
 const SUBSCRIPTION_SERIES: Array<{ status: string; series: ChartSeries }> = [
   { status: "ACTIVE", series: 3 },
@@ -101,8 +115,30 @@ export default async function AdminPage({
 
   const { series, buckets } = timeSeries;
 
-  const openQueues = ACTION_QUEUE_ITEMS.filter((item) => overview.actionQueue[item.key] > 0);
-  const totalOpen = openQueues.reduce((sum, item) => sum + overview.actionQueue[item.key], 0);
+  // Each section loads independently on the server; a failed one is `null` here and its cards
+  // say "Unavailable" instead of the whole dashboard failing or showing zeros.
+  const users = adminSection(overview.users);
+  const billing = adminSection(overview.billing);
+  const portfolios = adminSection(overview.portfolios);
+  const documents = adminSection(overview.documents);
+  const affiliates = adminSection(overview.affiliates);
+  const ambassadors = adminSection(overview.ambassadors);
+  const apiKeys = adminSection(overview.apiKeys);
+  const jobs = adminSection(overview.jobs);
+  const health = adminSection(overview.health);
+  const recentActivity = adminSection(overview.recentActivity);
+
+  // A queue whose count could not be read (`null`) is listed too: "every queue is clear" would
+  // be a claim nobody checked.
+  const openQueues = ACTION_QUEUE_ITEMS.filter((item) => {
+    const count = overview.actionQueue[item.key];
+    return count === null || count > 0;
+  });
+  const totalOpen = openQueues.reduce(
+    (sum, item) => sum + (overview.actionQueue[item.key] ?? 0),
+    0,
+  );
+  const hasUnknownQueue = openQueues.some((item) => overview.actionQueue[item.key] === null);
 
   const commissionInWindow = series.commissionCents.reduce((sum, value) => sum + value, 0);
 
@@ -151,10 +187,11 @@ export default async function AdminPage({
               <span className="text-muted admin-numeric ml-2 font-normal">
                 {formatNumber(totalOpen)} open across {openQueues.length}{" "}
                 {openQueues.length === 1 ? "queue" : "queues"}
+                {hasUnknownQueue ? " · some counts unavailable" : ""}
               </span>
             </h2>
 
-            <AdminStatusBadge status={overview.health.status} dot />
+            <AdminStatusBadge status={health?.status} dot />
           </div>
 
           {/*
@@ -183,7 +220,7 @@ export default async function AdminPage({
                         : "text-warning admin-numeric text-sm font-semibold"
                     }
                   >
-                    {formatNumber(overview.actionQueue[item.key])}
+                    {formatQueueCount(overview.actionQueue[item.key])}
                   </span>
 
                   <ArrowUpRight
@@ -204,9 +241,9 @@ export default async function AdminPage({
       >
         <MetricCard
           label="Total users"
-          value={formatNumber(overview.users.total)}
-          delta={overview.users.growthPercent}
-          hint={`${formatNumber(overview.users.newInWindow)} joined in ${days} days`}
+          value={users ? formatNumber(users.total) : UNAVAILABLE}
+          delta={users?.growthPercent ?? null}
+          hint={users ? `${formatNumber(users.newInWindow)} joined in ${days} days` : undefined}
           trend={series.signups}
           series={1}
           href="/admin/users"
@@ -214,9 +251,13 @@ export default async function AdminPage({
 
         <MetricCard
           label="Paying subscriptions"
-          value={formatNumber(overview.billing.subscriptions.paying)}
+          value={billing ? formatNumber(billing.subscriptions.paying) : UNAVAILABLE}
           delta={trendFromSeries(series.subscriptions)}
-          hint={`${formatNumber(overview.billing.subscriptions.cancelingAtPeriodEnd)} canceling at period end`}
+          hint={
+            billing
+              ? `${formatNumber(billing.subscriptions.cancelingAtPeriodEnd)} canceling at period end`
+              : undefined
+          }
           trend={series.subscriptions}
           series={3}
           href="/admin/billing"
@@ -224,9 +265,13 @@ export default async function AdminPage({
 
         <MetricCard
           label="Live portfolios"
-          value={formatNumber(overview.portfolios.live)}
+          value={portfolios ? formatNumber(portfolios.live) : UNAVAILABLE}
           delta={trendFromSeries(series.publications)}
-          hint={`${formatCompactNumber(overview.portfolios.views.last30Days)} views in 30 days`}
+          hint={
+            portfolios
+              ? `${formatCompactNumber(portfolios.views.last30Days)} views in 30 days`
+              : undefined
+          }
           trend={series.publications}
           series={2}
           href="/admin/portfolios?status=LIVE"
@@ -236,7 +281,11 @@ export default async function AdminPage({
           label={`Commission earned · ${days}d`}
           value={formatCents(commissionInWindow)}
           delta={trendFromSeries(series.commissionCents)}
-          hint={`${formatCents(overview.affiliates.wallets.pendingCents + overview.affiliates.wallets.availableCents)} owed to affiliates`}
+          hint={
+            affiliates
+              ? `${formatCents(affiliates.wallets.pendingCents + affiliates.wallets.availableCents)} owed to affiliates`
+              : `Amount owed to affiliates ${UNAVAILABLE.toLowerCase()}`
+          }
           trend={series.commissionCents}
           series={4}
           href="/admin/affiliates"
@@ -294,31 +343,30 @@ export default async function AdminPage({
             }
           />
 
-          <PanelBody align="between" className="gap-4">
-            <BarList
-              items={Object.entries(overview.users.byRole).map(([role, count]) => ({
-                label: humanizeKey(role),
-                value: count,
-                href: `/admin/users?role=${role}`,
-              }))}
-              series={1}
-            />
+          {users ? (
+            <PanelBody align="between" className="gap-4">
+              <BarList
+                items={Object.entries(users.byRole).map(([role, count]) => ({
+                  label: humanizeKey(role),
+                  value: count,
+                  href: `/admin/users?role=${role}`,
+                }))}
+                series={1}
+              />
 
-            <div className="border-border space-y-0.5 border-t pt-3">
-              <PanelRow
-                label="Verified email"
-                value={`${formatNumber(overview.users.verified)} · ${
-                  overview.users.total > 0
-                    ? Math.round((overview.users.verified / overview.users.total) * 100)
-                    : 0
-                }%`}
-              />
-              <PanelRow
-                label="Active sessions"
-                value={formatNumber(overview.users.activeSessions)}
-              />
-            </div>
-          </PanelBody>
+              <div className="border-border space-y-0.5 border-t pt-3">
+                <PanelRow
+                  label="Verified email"
+                  value={`${formatNumber(users.verified)} · ${
+                    users.total > 0 ? Math.round((users.verified / users.total) * 100) : 0
+                  }%`}
+                />
+                <PanelRow label="Active sessions" value={formatNumber(users.activeSessions)} />
+              </div>
+            </PanelBody>
+          ) : (
+            <SectionUnavailable />
+          )}
         </Panel>
       </section>
 
@@ -329,29 +377,41 @@ export default async function AdminPage({
       >
         <AdminStatCard
           label="Documents"
-          value={formatNumber(overview.documents.active)}
-          hint={`${formatNumber(overview.documents.shareLinks)} share links · ${formatCompactNumber(overview.documents.shareViews)} views`}
+          value={documents ? formatNumber(documents.active) : UNAVAILABLE}
+          hint={
+            documents
+              ? `${formatNumber(documents.shareLinks)} share links · ${formatCompactNumber(documents.shareViews)} views`
+              : undefined
+          }
           href="/admin/documents"
         />
 
         <AdminStatCard
           label="Active ambassadors"
-          value={formatNumber(overview.ambassadors.activeAmbassadors)}
-          hint={`${formatNumber(overview.ambassadors.applicationsLast7Days)} applications in 7 days`}
+          value={ambassadors ? formatNumber(ambassadors.activeAmbassadors) : UNAVAILABLE}
+          hint={
+            ambassadors
+              ? `${formatNumber(ambassadors.applicationsLast7Days)} applications in 7 days`
+              : undefined
+          }
           href="/admin/ambassadors/roster"
         />
 
         <AdminStatCard
           label="Credit float"
-          value={formatNumber(overview.billing.credits.balance)}
-          hint={`${formatNumber(overview.billing.credits.spentLast30Days)} spent in 30 days`}
+          value={billing ? formatNumber(billing.credits.balance) : UNAVAILABLE}
+          hint={
+            billing
+              ? `${formatNumber(billing.credits.spentLast30Days)} spent in 30 days`
+              : undefined
+          }
           href="/admin/billing/credits"
         />
 
         <AdminStatCard
           label="Active API keys"
-          value={formatNumber(overview.apiKeys.active)}
-          hint={`${formatNumber(overview.apiKeys.usedLast7Days)} used in 7 days`}
+          value={apiKeys ? formatNumber(apiKeys.active) : UNAVAILABLE}
+          hint={apiKeys ? `${formatNumber(apiKeys.usedLast7Days)} used in 7 days` : undefined}
           href="/admin/api-keys"
         />
       </section>
@@ -370,19 +430,23 @@ export default async function AdminPage({
             }
           />
 
-          <PanelBody align="center">
-            <StackedBar
-              segments={SUBSCRIPTION_SERIES.map((entry) => ({
-                label: humanizeKey(entry.status),
-                value:
-                  overview.billing.subscriptions.byStatus[
-                    entry.status as keyof typeof overview.billing.subscriptions.byStatus
-                  ] ?? 0,
-                series: entry.series,
-              }))}
-              emptyMessage="No subscriptions yet."
-            />
-          </PanelBody>
+          {billing ? (
+            <PanelBody align="center">
+              <StackedBar
+                segments={SUBSCRIPTION_SERIES.map((entry) => ({
+                  label: humanizeKey(entry.status),
+                  value:
+                    billing.subscriptions.byStatus[
+                      entry.status as keyof typeof billing.subscriptions.byStatus
+                    ] ?? 0,
+                  series: entry.series,
+                }))}
+                emptyMessage="No subscriptions yet."
+              />
+            </PanelBody>
+          ) : (
+            <SectionUnavailable />
+          )}
         </Panel>
 
         <Panel padding="none">
@@ -398,35 +462,43 @@ export default async function AdminPage({
             }
           />
 
-          <PanelBody align="center">
-            <StackedBar
-              segments={VISIBILITY_SERIES.map((entry) => ({
-                label: humanizeKey(entry.visibility),
-                value:
-                  overview.documents.byVisibility[
-                    entry.visibility as keyof typeof overview.documents.byVisibility
-                  ] ?? 0,
-                series: entry.series,
-              }))}
-              emptyMessage="No documents yet."
-            />
-          </PanelBody>
+          {documents ? (
+            <PanelBody align="center">
+              <StackedBar
+                segments={VISIBILITY_SERIES.map((entry) => ({
+                  label: humanizeKey(entry.visibility),
+                  value:
+                    documents.byVisibility[
+                      entry.visibility as keyof typeof documents.byVisibility
+                    ] ?? 0,
+                  series: entry.series,
+                }))}
+                emptyMessage="No documents yet."
+              />
+            </PanelBody>
+          ) : (
+            <SectionUnavailable />
+          )}
         </Panel>
 
         <Panel padding="none">
           <PanelHeader title="Top portfolio templates" />
 
-          <PanelBody align="center">
-            <BarList
-              items={overview.portfolios.topTemplates.map((template) => ({
-                label: humanizeKey(template.templateId),
-                value: template.count,
-              }))}
-              series={2}
-              limit={6}
-              emptyMessage="No portfolios published yet."
-            />
-          </PanelBody>
+          {portfolios ? (
+            <PanelBody align="center">
+              <BarList
+                items={portfolios.topTemplates.map((template) => ({
+                  label: humanizeKey(template.templateId),
+                  value: template.count,
+                }))}
+                series={2}
+                limit={6}
+                emptyMessage="No portfolios published yet."
+              />
+            </PanelBody>
+          ) : (
+            <SectionUnavailable />
+          )}
         </Panel>
       </section>
 
@@ -498,7 +570,10 @@ export default async function AdminPage({
               groups rather than being shared out between individual rows. */}
           <PanelBody align="between" className="gap-3">
             <div className="space-y-0.5">
-              {overview.health.checks.map((check) => (
+              {health ? null : (
+                <p className="text-muted py-1.5 text-sm">Health {UNAVAILABLE.toLowerCase()}.</p>
+              )}
+              {health?.checks.map((check) => (
                 <div key={check.name} className="flex items-center justify-between gap-3 py-1.5">
                   <span className="text-muted min-w-0 truncate text-sm">
                     {humanizeKey(check.name)}
@@ -513,14 +588,19 @@ export default async function AdminPage({
             </div>
 
             <div className="border-border space-y-0.5 border-t pt-2">
-              <PanelRow label="Uptime" value={formatDuration(overview.health.uptimeSeconds)} />
+              <PanelRow
+                label="Uptime"
+                value={health ? formatDuration(health.uptimeSeconds) : UNAVAILABLE}
+              />
               <PanelRow
                 label="Last metric flush"
-                value={formatRelativeTime(overview.jobs.lastUsageMetricFlush?.createdAt)}
+                value={
+                  jobs ? formatRelativeTime(jobs.lastUsageMetricFlush?.createdAt) : UNAVAILABLE
+                }
               />
               <PanelRow
                 label="Last view flush"
-                value={formatRelativeTime(overview.jobs.lastViewFlush?.createdAt)}
+                value={jobs ? formatRelativeTime(jobs.lastViewFlush?.createdAt) : UNAVAILABLE}
               />
             </div>
           </PanelBody>
@@ -623,12 +703,16 @@ export default async function AdminPage({
           />
 
           <ul className="divide-border flex-1 divide-y">
-            {overview.recentActivity.length === 0 ? (
+            {!recentActivity ? (
+              <li className="text-muted px-4 py-8 text-center text-sm">
+                Recent admin activity {UNAVAILABLE.toLowerCase()}.
+              </li>
+            ) : recentActivity.length === 0 ? (
               <li className="text-muted px-4 py-8 text-center text-sm">
                 No admin actions recorded yet.
               </li>
             ) : (
-              overview.recentActivity.slice(0, 6).map((entry) => (
+              recentActivity.slice(0, 6).map((entry) => (
                 <li key={entry.id} className="px-4 py-2.5">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-foreground min-w-0 truncate text-sm font-medium">

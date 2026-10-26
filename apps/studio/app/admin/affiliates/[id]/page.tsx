@@ -94,7 +94,7 @@ export default async function AdminAffiliateDetailPage({
                   >
                     <div>
                       <p className="text-foreground font-medium">
-                        {formatCents(commission.amountCents)}
+                        {formatCents(commission.amountCents, commission.currency)}
                       </p>
                       <p className="text-muted text-xs">
                         {(commission.rateBps / 100).toFixed(1)}% ·{" "}
@@ -160,7 +160,7 @@ export default async function AdminAffiliateDetailPage({
                   >
                     <div>
                       <p className="text-foreground font-medium">
-                        {formatCents(withdrawal.amountCents)}
+                        {formatCents(withdrawal.amountCents, withdrawal.currency)}
                       </p>
                       <p className="text-muted text-xs">{formatDateTime(withdrawal.createdAt)}</p>
                     </div>

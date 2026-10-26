@@ -53,7 +53,7 @@ export function AmbassadorPage({ status }: { status: AmbassadorStatus | null }) 
                 ? `Welcome to the crew${firstName ? `, ${firstName}` : ""}. Your share toolkit is below — everything you need to start repping VeriWorkly on campus.`
                 : isRejected
                   ? "This round didn't work out, but applications reopen — you can send a new one whenever you're ready."
-                  : "Your application is in review. We'll email you the moment a decision is made."}
+                  : "Your application is in review. Check back here for the decision."}
             </p>
           </div>
 
@@ -95,7 +95,7 @@ export function AmbassadorPage({ status }: { status: AmbassadorStatus | null }) 
             title="Decision"
             detail={
               isPending
-                ? "You'll get an email either way."
+                ? "It will appear on this page."
                 : isRejected
                   ? "Not accepted this round."
                   : "Approved — you're in."
@@ -103,7 +103,7 @@ export function AmbassadorPage({ status }: { status: AmbassadorStatus | null }) 
           />
         </ol>
 
-        {isRejected && application?.reviewNote && (
+        {!isPending && application?.reviewNote && (
           <div className="mt-5 rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
             <p className="text-[10px] font-black tracking-widest text-amber-600 uppercase">
               Note from the reviewer
@@ -184,8 +184,8 @@ export function AmbassadorPage({ status }: { status: AmbassadorStatus | null }) 
       <section className="border-border bg-card rounded-2xl border p-5 sm:p-6">
         <h2 className="text-lg font-black">Coming to this dashboard</h2>
         <p className="text-muted mt-2 text-sm leading-6">
-          Being straight with you: these are built out, but not live yet. Nothing here is being
-          counted in the background.
+          Being straight with you: these are planned, not built yet. Nothing here is being counted
+          in the background.
         </p>
         <ul className="text-muted mt-4 grid gap-2 text-sm sm:grid-cols-2">
           {[

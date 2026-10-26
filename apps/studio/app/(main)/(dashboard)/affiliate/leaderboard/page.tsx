@@ -1,13 +1,17 @@
 import { AffiliateNav } from "@/features/affiliate/AffiliateNav";
 import type { LeaderboardEntry } from "@/features/affiliate/types";
-import { getBillingServerData } from "@/features/billing/billing-server";
+import { getProgramServerData, PROGRAM_UNAVAILABLE } from "@/features/billing/billing-server";
+import { ProgramUnavailable } from "@/features/billing/ProgramUnavailable";
 const money = (cents: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 export default async function AffiliateLeaderboardPage() {
   const [monthly, allTime] = await Promise.all([
-    getBillingServerData<LeaderboardEntry[]>("/affiliates/leaderboard?period=monthly"),
-    getBillingServerData<LeaderboardEntry[]>("/affiliates/leaderboard?period=all_time"),
+    getProgramServerData<LeaderboardEntry[]>("/affiliates/leaderboard?period=monthly"),
+    getProgramServerData<LeaderboardEntry[]>("/affiliates/leaderboard?period=all_time"),
   ]);
+  if (monthly === PROGRAM_UNAVAILABLE || allTime === PROGRAM_UNAVAILABLE) {
+    return <ProgramUnavailable program="affiliate" />;
+  }
   return (
     <main className="space-y-5">
       <AffiliateNav />

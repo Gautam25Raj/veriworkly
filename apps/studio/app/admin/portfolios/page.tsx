@@ -9,7 +9,10 @@ import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
 import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
 import PortfolioModerationActions from "@/app/admin/portfolios/PortfolioModerationActions";
 
-import { fetchAdminOverview, fetchAdminPortfolios } from "@/features/admin/services/admin-server";
+import {
+  fetchAdminPortfolioSummary,
+  fetchAdminPortfolios,
+} from "@/features/admin/services/admin-server";
 import type { AdminPortfolioRow } from "@/features/admin/types/admin-types";
 import {
   formatCompactNumber,
@@ -125,12 +128,10 @@ export default async function AdminPortfoliosPage({
 }) {
   const params = toSingleValueParams(await searchParams);
 
-  const [overview, data] = await Promise.all([
-    fetchAdminOverview(30),
+  const [summary, data] = await Promise.all([
+    fetchAdminPortfolioSummary(),
     fetchAdminPortfolios(params),
   ]);
-
-  const summary = overview.portfolios;
 
   return (
     <div className="space-y-5">

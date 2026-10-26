@@ -59,6 +59,7 @@ const PortfolioModerationActions = ({
         }
         confirmLabel={nextStatus === "SUSPENDED" ? "Suspend portfolio" : "Update status"}
         confirmVariant={nextStatus === "SUSPENDED" ? "secondary" : "primary"}
+        minReasonLength={nextStatus === "SUSPENDED" ? 10 : 3}
         reasonPlaceholder={
           nextStatus === "SUSPENDED"
             ? "At least 10 characters — shown to the owner and recorded in the audit log."

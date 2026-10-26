@@ -1,68 +1,146 @@
-# VeriWorkly Resume Studio
+# VeriWorkly Studio
 
-The primary authenticated workspace (app.veriworkly.com) — resumes and cover letters, the Master Profile, the ATS checker, AI writing assistance, GitHub/LinkedIn import, sharing, billing/credits, developer API keys, and the affiliate/ambassador dashboards. Built with Next.js 16, Zustand, and Tailwind CSS 4.
+The studio is the editor at app.veriworkly.com. People build resumes and cover letters here, keep their Master Profile, run ATS checks, use AI writing help, share documents, and manage billing, credits and API keys. Admins run the `/admin` console from here too.
 
-## 🚀 Quick Start
+It is a Next.js 16 app (App Router, React 19, Tailwind CSS 4). Guests can use the editor with no account; their documents stay in the browser.
 
-1. **Install dependencies** (from monorepo root):
+## Run it locally
+
+From the repository root:
+
+```bash
+npm install
+cp apps/studio/.env.example apps/studio/.env
+npm run dev:studio
+```
+
+Open http://localhost:3001. `predev` builds `packages/profile-core` first.
+
+Guest mode works with no backend. Sign-in, sync, sharing, AI, ATS and billing need the API running on port 8080 (`npm run dev:server`, see [`apps/server/README.md`](../server/README.md)).
+
+## Architecture
+
+**Local-first storage.** Every document lives in `localStorage` first. `LocalStorageService` (`features/documents/services/local-storage-service.ts`) stores one key per document plus an index. It owns each document's `sync` block: editors save content, and only the sync APIs change sync fields (`patchSync`, bulk toggles, keep-local-only). Storage parsing is lenient so a half-typed email or date is never thrown away. Strict validation runs only in the editor UI and at export.
+
+**Per-document sync.** Signed-in users with sync on get a background sync engine (`sync-engine.ts`, `document-sync-service.ts`). It syncs each document on its own, at most 4 at a time, with a lock so two tabs never send the same document twice. It follows the server's contracts: 409 is a revision conflict, 402 (free-tier limit), 403 and other rejected requests stop retrying until the user syncs by hand, 404 removes a clean copy and keeps an edited one. Edits typed while a request is in flight stay pending.
+
+**One template skin engine.** All 7 resume templates are skins on `templates/resume/shared/`. The live preview (`web.tsx`) and the PDF (`pdf.tsx`) use the same type scale, spacing model and content model. Both use the same keep-together rule (`keep-together.ts`), so a section breaks across pages in the same place in the preview and in the PDF. The 5 cover letter templates share `templates/cover-letter/shared.ts`. Each registry (`templates/*/registry.ts`) loads renderers on demand.
+
+**One source per export.** `buildResumeSections` (`templates/resume/shared/model.ts`) and `getCoverLetterState` (`templates/cover-letter/shared.ts`) decide what every format prints: preview, PDF, DOCX, HTML, Markdown and text. `exportDocumentByType` loads each format's exporter with a dynamic `import()`, so `@react-pdf/renderer` and `docx` stay out of the editor bundle until someone exports.
+
+**Server calls from server renders.** Every backend call made during a server render goes through `lib/server-fetch.ts`. It forwards the visitor's cookies, sends the studio `Origin`, times out after 5 seconds, and throws on failure so the page shows an error instead of an empty account. With `INTERNAL_API_KEY` set it also sends the visitor's IP, so the API rate-limits each visitor separately. Browser calls use `utils/fetchApiData.ts`.
+
+**Signed out means 401 or 403.** `fetchCurrentUser` returns `null` only for those. Any other failure throws to an error boundary. A rejected session cookie goes to `app/auth/session-expired`, which clears it and sends the user to `/login`.
+
+**Error boundaries.** `app/error.tsx`, `app/global-error.tsx`, `app/(main)/(dashboard)/error.tsx`, `app/admin/error.tsx`, `app/share/error.tsx` and the preview's `error.tsx`.
+
+**Security headers** (CSP, HSTS, `X-Frame-Options`, and others) are set in `next.config.ts`, so they ship with the app.
+
+## Folders
+
+| Folder       | What is in it                                                                                                        |
+| ------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `app/`       | Routes. `(main)/(dashboard)` holds the signed-in pages, `(main)/editor` the editors, plus `admin`, `login`, `share`. |
+| `app/parity` | A dev-only page the parity tests measure. It returns 404 in production.                                              |
+| `components` | Shared UI: dashboard shell, admin pieces, modals.                                                                    |
+| `config/`    | `site.ts` (origins and links), `templates.ts` (template summaries).                                                  |
+| `features/`  | One folder per area: `documents`, `resume`, `cover-letter`, `profile`, `ats`, `ai`, `billing`, `credits`, `admin`.   |
+| `lib/`       | `server-fetch.ts`, `auth-client.ts`, `auth-redirect.ts`, `feature-flags.ts`.                                         |
+| `providers/` | Auth and theme providers.                                                                                            |
+| `store/`     | `useUserStore` (Zustand). Documents are not in a store; they live in `LocalStorageService`.                          |
+| `templates/` | `resume/`, `cover-letter/`, `shared/` (registry, pagination, geometry) and `pdf/` (fonts, glyph widths).             |
+| `types/`     | Shared types.                                                                                                        |
+| `utils/`     | `fetchApiData.ts`, the browser-side API client.                                                                      |
+| `tests/`     | `contracts/` (fast, node), `browser/` and `parity/` (boot the app and drive Chrome).                                 |
+| `scripts/`   | `check-env-example.mjs`.                                                                                             |
+| `public/`    | Fonts, template previews, `llms.txt` and `.well-known/agent.json`. A contract test checks the last two.              |
+
+## Environment variables
+
+Copy `.env.example` to `.env`. `NEXT_PUBLIC_*` values are built into the browser bundle, so changing one needs a rebuild. The rest are read at runtime.
+
+| Variable                     | Required      | Meaning                                                                                                                                         |
+| ---------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_BACKEND_URL`    | Yes           | API base URL the browser calls, for example `https://api.veriworkly.com/api/v1`. Also added to the CSP `connect-src`.                           |
+| `BACKEND_INTERNAL_URL`       | No            | API base URL for server renders. Falls back to `NEXT_PUBLIC_BACKEND_URL`. On the VPS, point it at the API on loopback.                          |
+| `NEXT_PUBLIC_APP_URL`        | Yes in prod   | The studio's own origin. Used for metadata, sitemap, robots and the `Origin` header on API calls, so it must be in the API's `ALLOWED_ORIGINS`. |
+| `INTERNAL_API_KEY`           | Yes in prod   | Server only. Must equal the API's `INTERNAL_API_KEY`. Without it every visitor shares the studio's IP and one rate-limit bucket.                |
+| `ADMIN_EMAIL`                | For `/admin`  | Server only. The one account that sees `/admin`. Unset means `/admin` is a 404 for everyone.                                                    |
+| `AFFILIATE_PROGRAM_ENABLED`  | No            | `true` or `false`. Unset or empty means on outside production and off in production. Keep it equal to the API's flag.                           |
+| `AMBASSADOR_PROGRAM_ENABLED` | No            | Same rule as the affiliate flag.                                                                                                                |
+| `SITE_URL`                   | No (not read) | Listed in `.env.example` as the marketing site's origin, but no studio code reads it. Links to the marketing site come from `config/site.ts`.   |
+| `SHOT`, `SHOT_FIXTURE`       | Tests only    | `SHOT=1` makes the parity run write preview and PDF images to `tests/parity/shots/`. `SHOT_FIXTURE` picks the fixture (default `default`).      |
+| `PARITY_ORIGIN`              | Tests only    | Reuse a studio dev server you already started, for example `http://localhost:3001`, instead of booting one on port 4311.                        |
+
+`node apps/studio/scripts/check-env-example.mjs` fails when the code reads a variable that `.env.example` does not list. The contract suite runs the same check.
+
+## Tests
+
+Run from the repository root.
+
+| Command                                         | What it does                                                                       |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `npm run test:contracts -w @veriworkly/studio`  | Fast node tests in `tests/contracts/`. Runs on every pull request.                 |
+| `npm run test:browser -w @veriworkly/studio`    | Boots `next dev` on port 4311 and drives Chrome through the editor.                |
+| `npm run test:parity -w @veriworkly/studio`     | Boots `next dev` on port 4311 and compares the preview with the PDF, page by page. |
+| `npx tsc --noEmit -p apps/studio/tsconfig.json` | Type check.                                                                        |
+| `npm run lint -w @veriworkly/studio`            | ESLint.                                                                            |
+
+Browser and parity tests:
+
+- They launch your installed Chrome (then Edge), not Playwright's bundled Chromium. Windows Application Control blocks the bundled one on some machines.
+- They use `localhost`, never `127.0.0.1`. Next's dev server blocks `/_next/` for the second origin, the page never hydrates, and the measurements are of dead markup.
+- They set the `veriworkly-guest-mode=true` cookie to skip the login redirect.
+- Only one dev server can run per checkout. If port 4311 is taken the run stops and says so. Set `PARITY_ORIGIN` to reuse a server on purpose.
+- CI runs both nightly and on demand (`.github/workflows/studio-browser.yaml`).
+
+## Deploy (VPS + nginx + pm2)
+
+Production runs `next start` under pm2 as `veriworkly-app` on port 7046, behind nginx. There is no Docker image and no standalone build for the studio.
+
+1. Put the production values in `apps/studio/.env` on the server (see the table above).
+2. Build from the repository root. `build:studio` builds `packages/profile-core` first.
 
    ```bash
-   npm install
+   cd /root/veriworkly-resume
+   git pull
+   npm ci
+   npm run build:studio
    ```
 
-2. **Setup environment variables**:
-   Copy the example environment file:
+3. Start it the first time, then restart after each build:
 
    ```bash
-   cp apps/studio/.env.example apps/studio/.env
+   pm2 start npm --name veriworkly-app --cwd /root/veriworkly-resume/apps/studio -- run start -- -p 7046
+   pm2 restart veriworkly-app
    ```
 
-   ```env
-   SITE_URL=http://localhost:3000
-   NEXT_PUBLIC_BACKEND_URL=http://localhost:8080/api/v1
-   BACKEND_INTERNAL_URL=http://localhost:8080/api/v1
-   ADMIN_EMAIL=example@veriworkly.com
-   AUTH_SECRET=your-secure-secret
-   ```
+4. Check it answers with the security headers:
 
-3. **Start development server**:
    ```bash
-   npm run dev:studio
+   curl -sI http://127.0.0.1:7046/login
    ```
 
-The app will be available at `http://localhost:3001`.
+nginx:
 
-## 🏗️ Architecture
+```nginx
+server {
+    server_name app.veriworkly.com;
 
-- **Next.js 16 (App Router)**: Server Components for initial load, Client Components for the editors.
-- **Zustand**: Local-first state for the document being edited, with localStorage persistence and a background cloud-sync engine (retry handling, per-document conflict detection, opt-out).
-- **react-pdf** / `docx`: Powers fully client/server-JS document export — no headless-browser dependency.
-- **Dual-Engine Templates**: Each template contains separate logic for Web (`web.tsx`) and PDF (`pdf.tsx`) to keep visual parity between the live preview and the exported file.
-- **Better-Auth Client**: Handles the passwordless OTP login flow plus OAuth.
+    location / {
+        proxy_pass http://127.0.0.1:7046;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
 
-## 📦 What's in here
+Rules:
 
-Beyond the resume editor (Executive Clarity, Precision ATS, Modern Minimal, Timeline Focus, Corporate Brief, Bold Impact, VeriWorkly Special) and cover letter editor (Professional, VeriWorkly Special, Minimalist, Executive, ATS Essential):
-
-- **Master Profile** (`/profile/master`, `/profile/advanced`) — the single canonical career-facts record every new document auto-seeds from. Editing a document never writes back to it (the one-way rule) — only an explicit import-with-replace or a direct Master Profile edit updates it.
-- **Import** — generic JSON, hand-authored Markdown, file extraction (PDF/DOCX/TXT/MD/JSON), GitHub OAuth import (real API, deterministic mapping, free tier capped 1x/day), and LinkedIn paste/PDF import (AI-parsed, not an API integration, free tier capped 1x/month).
-- **ATS Checker** (`/ats`) — a deterministic core scan (free, no AI cost) plus an AI-powered deep-analysis layer; both draw from the same scan-quota bucket. Quotas: 1/48h anonymous, 2/24h free, 300/billing-period paid.
-- **AI writing assistant** — "Improve with AI" across the editors, Standard/Expert modes with cost shown before generating, dynamically routed across Anthropic Claude and OpenAI GPT models.
-- **Sharing** — password-protected, expiring, revocable public links (`/share/{username}/{slug}`) with view analytics.
-- **Export** — PDF, DOCX, HTML, Markdown, plain text, JSON.
-- **Credits & billing** (`/credits`, `/billing`, `/checkout`) — wallet balance, per-action costs, transaction history, plan/entitlement management, credit top-up purchase.
-- **Developer API keys** (`/api-keys`) — self-serve key creation, scoping, rotation, and revocation.
-- **Affiliate & Ambassador dashboards** (`/affiliate`, `/ambassador`) — feature-flag gated; show a "Coming Soon" screen when the corresponding flag is off in production.
-- **Admin tools** (`/admin/*`) — usage metrics, GitHub repo stats, the monetization console, roadmap CMS — real role-gated, not just client-hidden.
-
-## 📁 Folder Structure
-
-- `app/`: Next.js routes and layouts.
-- `components/`: UI components (Editor panels, Previewer, etc.).
-- `features/`: Domain-specific logic (documents, ATS, AI, billing, affiliate, ambassador, admin).
-- `templates/`: Dual-engine resume/cover-letter templates (`pdf.tsx`, `web.tsx`).
-- `public/`: Static assets and template previews.
-
-## 📖 Full Documentation
-
-For a deep dive into the builder's architecture and template system, visit [docs.veriworkly.com/docs/architecture/monorepo](https://docs.veriworkly.com/docs/architecture/monorepo).
+- **Set `X-Real-IP $remote_addr`, and overwrite `X-Forwarded-For` with `$remote_addr`.** The studio forwards that address to the API as the visitor's IP. Appending with `$proxy_add_x_forwarded_for` lets a visitor put any address first. Behind Cloudflare, configure nginx's `real_ip` module (`set_real_ip_from` Cloudflare's ranges, `real_ip_header CF-Connecting-IP`) so `$remote_addr` is the visitor.
+- **Use the same `INTERNAL_API_KEY` in the studio and the API.** The API ignores the forwarded IP without it.
+- **Do not add security headers in nginx.** `next.config.ts` already sets them; a second CSP would apply on top of the first.
+- **`NEXT_PUBLIC_*` changes need `npm run build:studio` again**, not just a restart.

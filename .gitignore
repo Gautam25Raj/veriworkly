@@ -64,7 +64,7 @@ next-env.d.ts
 .gemini
 skills-lock.json
 studio_audit_report.md
-server_audit_report.md
+SERVER_AUDIT_REPORT.md
 github_issues_to_create.md
 portfolio_subdomains_plan.md
 portfolio_static_rendering.md

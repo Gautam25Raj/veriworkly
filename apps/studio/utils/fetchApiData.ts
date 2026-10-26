@@ -105,13 +105,17 @@ export async function fetchApiData<T>(
   const url = backendApiUrl(path);
 
   // A GET with a JSON Content-Type is not a "simple" request, so each one cost a CORS preflight.
-  const hasBody = fetchOptions.body !== undefined && fetchOptions.body !== null;
+  // FormData sets its own multipart Content-Type with the boundary.
+  const hasJsonBody =
+    fetchOptions.body !== undefined &&
+    fetchOptions.body !== null &&
+    !(fetchOptions.body instanceof FormData);
 
   const response = await fetch(url, {
     ...fetchOptions,
     credentials: fetchOptions.credentials ?? "include",
     headers: {
-      ...(hasBody ? { "Content-Type": "application/json" } : {}),
+      ...(hasJsonBody ? { "Content-Type": "application/json" } : {}),
       ...firstPartyServerHeaders(fetchOptions.headers),
     },
   });

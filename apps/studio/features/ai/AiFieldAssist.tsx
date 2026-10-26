@@ -17,7 +17,10 @@ import {
   type AiActionPolicy,
   type AiMode,
 } from "@/features/ai/ai-api";
+import { describePaidActionError, type PaidActionError } from "@/features/credits/credit-errors";
+import type { CreditWallet } from "@/features/credits/types";
 import { useUserStore } from "@/store/useUserStore";
+import { fetchApiData } from "@/utils/fetchApiData";
 
 /**
  * Callers render this with `key` set to the entry it edits, so the open panel, the draft and
@@ -51,6 +54,10 @@ export function AiFieldAssist({
   const [loading, setLoading] = useState(false);
   const [actions, setActions] = useState<AiActionPolicy | null>(null);
   const [actionsError, setActionsError] = useState("");
+  // Shown next to the price. "error" keeps a failed read visible rather than looking like a
+  // balance that is still loading.
+  const [wallet, setWallet] = useState<CreditWallet | "error" | null>(null);
+  const [failure, setFailure] = useState<PaidActionError | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -71,11 +78,19 @@ export function AiFieldAssist({
       });
   }, []);
 
+  const loadWallet = useCallback(() => {
+    fetchApiData<CreditWallet>("/billing/credits")
+      .then(setWallet)
+      .catch(() => setWallet("error"));
+  }, []);
+
   function openPanel() {
     setOpen(true);
     // AI runs on account credits. A guest's request would only come back 401, which signs out
     // and leaves for /login in the middle of an edit, so the panel asks them to sign in instead.
-    if (isLoggedIn && !actions) loadActions();
+    if (!isLoggedIn) return;
+    if (!actions) loadActions();
+    loadWallet();
   }
 
   const costFor = (option: AiMode) => actions?.[action]?.costs[option];
@@ -92,6 +107,7 @@ export function AiFieldAssist({
     const controller = new AbortController();
     abortRef.current = controller;
     setLoading(true);
+    setFailure(null);
 
     try {
       const response = await generateAiContent(
@@ -107,13 +123,19 @@ export function AiFieldAssist({
 
       pendingRequestRef.current = null;
       setResult(response.content);
-      toast.success(`Draft generated. ${response.credits.spent} credits reserved and used.`);
+      toast.success(`Draft generated. ${response.credits.spent} credits used.`);
     } catch (error) {
       if (!canRetryWithSameRequestId(error)) pendingRequestRef.current = null;
       if (controller.signal.aborted) return;
-      toast.error(error instanceof Error ? error.message : "AI generation failed.");
+      const described = describePaidActionError(error, "AI generation failed.");
+      // A 402 stays in the panel with the way to buy credits; anything else is a toast.
+      if (described.buyCredits) setFailure(described);
+      else toast.error(described.message);
     } finally {
-      if (!controller.signal.aborted) setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+        loadWallet();
+      }
     }
   }
 
@@ -191,6 +213,19 @@ export function AiFieldAssist({
           This AI action is not available on the server.
         </p>
       ) : null}
+      {failure ? (
+        <p className="text-xs text-red-500" role="alert">
+          {failure.message}
+          {failure.buyCredits ? (
+            <>
+              {" "}
+              <Link className="font-bold underline" href="/billing">
+                Get credits
+              </Link>
+            </>
+          ) : null}
+        </p>
+      ) : null}
       <input
         aria-label="Instructions for the AI draft (optional)"
         className="border-border bg-background text-foreground focus:border-accent h-10 w-full rounded-lg border px-3 text-sm outline-none"
@@ -234,6 +269,13 @@ export function AiFieldAssist({
           Generate draft{cost == null ? "" : ` · ${cost} credits`}
         </Button>
       )}
+      <p className="text-muted text-xs">
+        {wallet === "error"
+          ? "Your credit balance could not be loaded."
+          : wallet
+            ? `You have ${wallet.available} credits available.`
+            : "Loading your credit balance…"}
+      </p>
       <p className="text-muted text-xs">
         Generation sends this field and relevant editor context to the configured AI provider. Your
         current text stays unchanged until you replace the field.

@@ -1,5 +1,10 @@
 export type CreditWallet = {
+  /** Can still hold expired credits until the next sweep; never shown as spendable. */
   balance: number;
+  /** Held by actions still in progress. */
+  reserved: number;
+  /** What an AI action can spend right now. */
+  available: number;
   lifetimeCredited: number;
   lifetimeDebited: number;
   updatedAt: string;

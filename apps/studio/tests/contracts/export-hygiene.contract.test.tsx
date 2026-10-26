@@ -1,12 +1,27 @@
+import { join } from "node:path";
+
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { Font } from "@react-pdf/renderer";
+import { beforeAll, describe, expect, it } from "vitest";
+
+import { extractResume } from "@veriworkly/ats-engine/node";
 
 import type { ResumeData } from "@/types/resume";
+import type { BaseDocument, ExportFormat } from "@/features/documents/core/types";
 
-import { defaultResume } from "@/features/resume/constants/default-resume";
+import { blankResume, defaultResume } from "@/features/resume/constants/default-resume";
+import { FONT_REGISTRY } from "@/features/documents/constants/fonts";
+import { exportResumeDocument } from "@/features/documents/export/resume-exporters";
+import { buildHtml } from "@/features/documents/export/export-html";
+import { buildText } from "@/features/documents/export/export-text";
+import { registerPdfHyphenation } from "@/templates/pdf/fonts";
+import { buildResumeSections } from "@/templates/resume/shared/model";
+import { captureDownloads } from "@/tests/utils/downloads";
 import {
   cleanResumeText,
+  getLinkDisplayText,
   getResumeRenderModel,
+  getResumeRenderStyle,
   normalizeLinkHref,
 } from "@/features/documents/rendering/resume-rendering";
 import {
@@ -168,5 +183,240 @@ describe("cleanResumeText", () => {
       "First paragraph here.\n\nSecond line",
     );
     expect(cleanResumeText("  Jane   Doe  ")).toBe("Jane Doe");
+  });
+});
+
+/**
+ * A resume as a user leaves it mid-edit: no name, a project with no title or link label, a
+ * custom entry with only a description. Every format must print what is there and nothing
+ * the user did not type.
+ */
+function unfinishedResume(): ResumeData {
+  const resume = structuredClone(blankResume);
+
+  resume.basics = {
+    ...resume.basics,
+    fullName: "",
+    role: "Platform Engineer",
+    email: "a_b.c@x.com",
+    phone: "+1 415 555 0142",
+    location: "Lisbon",
+  };
+  resume.experience = [
+    {
+      id: "exp-1",
+      role: "Staff Engineer",
+      company: "Northwind_Trading",
+      location: "Remote",
+      startDate: "Jan 2020",
+      endDate: "",
+      current: true,
+      summary: "",
+      highlights: ["Cut p99 latency by 40% - and kept it there."],
+    },
+  ];
+  resume.projects = [
+    {
+      id: "proj-1",
+      name: "",
+      role: "",
+      link: "https://github.com/acme/tool_kit?tab=readme",
+      linkLabel: "",
+      showLinkAsText: true,
+      summary: "An internal tool.",
+      highlights: [],
+      skills: ["TypeScript", "Rust"],
+    },
+  ];
+  resume.customSections = [
+    {
+      id: "custom-1",
+      kind: "custom",
+      title: "Extras",
+      editableTitle: true,
+      items: [
+        {
+          id: "custom-item-1",
+          name: "",
+          issuer: "",
+          date: "",
+          link: "",
+          referenceId: "",
+          description: "Organised the city meetup.",
+          details: [],
+        },
+      ],
+    },
+  ];
+  resume.sections = resume.sections.map((section) =>
+    section.id === "custom" ? { ...section, customSectionId: "custom-1" } : section,
+  );
+
+  return resume;
+}
+
+function resumeDocument(resume: ResumeData): BaseDocument {
+  return {
+    id: resume.id,
+    type: "RESUME",
+    title: "",
+    templateId: resume.templateId,
+    content: resume,
+    updatedAt: resume.updatedAt,
+    sync: resume.sync,
+  };
+}
+
+/** The text of every file the six exporters write, as a reader or a parser would see it. */
+async function exportAllFormats(resume: ResumeData): Promise<Record<ExportFormat, string>> {
+  const downloads = captureDownloads();
+  const out = {} as Record<ExportFormat, string>;
+
+  for (const format of RESUME_FORMATS) {
+    await exportResumeDocument(resumeDocument(resume), format);
+    const { blob } = downloads[downloads.length - 1];
+
+    out[format] =
+      format === "pdf" || format === "docx"
+        ? (await extractResume(new Uint8Array(await blob.arrayBuffer()), format)).text
+        : await blob.text();
+  }
+
+  return out;
+}
+
+const RESUME_FORMATS: ExportFormat[] = ["pdf", "docx", "html", "markdown", "json", "txt"];
+
+const EXPORT_PLACEHOLDERS = [
+  ...PLACEHOLDER_WORDS,
+  "Your Name",
+  "Item",
+  "Link",
+  "Application",
+  "Open role",
+];
+
+describe("every resume export format", () => {
+  beforeAll(() => {
+    registerPdfHyphenation();
+
+    for (const font of Object.values(FONT_REGISTRY)) {
+      Font.register({
+        family: font.primaryFamily,
+        fonts: font.pdfFonts.map((face) => ({
+          src: join(process.cwd(), "public", face.src),
+          fontWeight: face.fontWeight,
+        })),
+      });
+    }
+  });
+
+  it("S-108: prints no placeholder in any of the six formats", async () => {
+    const files = await exportAllFormats(unfinishedResume());
+
+    for (const format of RESUME_FORMATS) {
+      // Tags and attributes out, so markup cannot produce a false positive.
+      const text = files[format].replace(/<[^>]*>/g, " ");
+
+      for (const word of EXPORT_PLACEHOLDERS) {
+        expect(
+          new RegExp(`(^|[^\\p{L}])${word}([^\\p{L}]|$)`, "u").test(text),
+          `${format} must not print the placeholder "${word}": ${text.match(new RegExp(`.{0,40}${word}.{0,40}`))?.[0]}`,
+        ).toBe(false);
+      }
+
+      expect(text, format).toContain("Organised the city meetup");
+    }
+  }, 60_000);
+
+  it("S-102: DOCX, Markdown, text and HTML carry the preview's sections, in its order", async () => {
+    const resume = unfinishedResume();
+    resume.basics.fullName = "Ada Lovelace";
+    resume.summary = "Builds reliable systems.";
+    // Projects ahead of experience, and the header hidden.
+    resume.sections = resume.sections.map((section) =>
+      section.id === "projects"
+        ? { ...section, order: 2 }
+        : section.id === "summary"
+          ? { ...section, order: 5 }
+          : section.id === "basics"
+            ? { ...section, visible: false }
+            : section,
+    );
+
+    const expected = buildResumeSections(resume, getResumeRenderModel(resume), {
+      items: () => null,
+      skills: () => null,
+      summary: () => null,
+    }).map((section) => section.title);
+
+    expect(expected).toEqual(["Projects", "Experience", "Summary", "Extras"]);
+
+    const files = await exportAllFormats(resume);
+    const positions = (text: string, titles: string[]) =>
+      titles.map((title) => text.search(new RegExp(`^(## )?${title}$`, "im")));
+
+    for (const format of ["docx", "markdown", "txt"] as const) {
+      const found = positions(files[format], expected);
+
+      expect(
+        found.every((index) => index >= 0),
+        `${format}\n${files[format]}`,
+      ).toBe(true);
+      expect(
+        [...found].sort((a, b) => a - b),
+        format,
+      ).toEqual(found);
+    }
+
+    const htmlTitles = [...files.html.matchAll(/<h2>(.*?)<\/h2>/g)].map((match) => match[1]);
+    expect(htmlTitles).toEqual(expected);
+
+    for (const format of ["docx", "html", "markdown", "txt"] as const) {
+      // Hidden basics: neither the name nor any contact detail.
+      expect(files[format], format).not.toContain("Ada Lovelace");
+      expect(files[format], format).not.toMatch(/a\\?_b\\?\.c@x\\?\.com/);
+      // The project's stack, and its link shown as the address the preview shows.
+      expect(files[format], format).toMatch(/TypeScript, Rust/);
+      expect(files[format], format).toContain("github");
+    }
+  }, 60_000);
+
+  it("S-009: plain text is built from the data, not from escaped Markdown", async () => {
+    const resume = unfinishedResume();
+    resume.basics.fullName = "Ada Lovelace";
+    const text = buildText(resume);
+
+    expect(text).not.toContain("\\");
+    expect(text).toContain("a_b.c@x.com");
+    expect(text).toContain("Northwind_Trading");
+    expect(text).toContain("Jan 2020 - Present");
+    expect(text).toContain("Cut p99 latency by 40% - and kept it there.");
+    expect(text).toContain("tool_kit");
+  });
+
+  it("escapes markup in the generated HTML", () => {
+    const resume = unfinishedResume();
+    resume.basics.fullName = '<img src=x onerror="alert(1)">';
+
+    const html = buildHtml(resume);
+
+    expect(html).not.toContain("<img");
+    expect(html).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
+  });
+});
+
+describe("render model details", () => {
+  it("S-110: keeps a spacing or page padding of zero", () => {
+    const resume = structuredClone(blankResume);
+    resume.customization = { ...resume.customization, sectionSpacing: 0, pagePadding: 0 };
+
+    expect(getResumeRenderStyle(resume)).toMatchObject({ sectionSpacing: 0, pagePadding: 0 });
+  });
+
+  it("prints a link address with its query string", () => {
+    const link = { id: "l", type: "custom" as const, label: "", url: "example.com/jobs?id=42" };
+
+    expect(getLinkDisplayText(link, "url")).toBe("example.com/jobs?id=42");
   });
 });

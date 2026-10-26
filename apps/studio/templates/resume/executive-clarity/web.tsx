@@ -4,13 +4,12 @@ import React from "react";
 
 import type { ResumeWebContext } from "../shared/web";
 
-import { cleanResumeText } from "@/features/documents/rendering/resume-rendering";
 import { WebContactRow, WebLinkRow, createResumeWebTemplate, px } from "../shared/web";
 import { webText } from "../shared/tokens";
 import { executiveClarityGeometry as geometry, executiveClarityScale } from "./skin";
 
 function Header(ctx: ResumeWebContext) {
-  const { model, resume, scale, style, tokens } = ctx;
+  const { model, scale, style, tokens } = ctx;
 
   return (
     <header
@@ -34,14 +33,10 @@ function Header(ctx: ResumeWebContext) {
               rowGap: px(geometry.nameGapY),
             }}
           >
-            <h1 style={webText(tokens.name)}>
-              {cleanResumeText(resume.basics.fullName) || "Your Name"}
-            </h1>
+            <h1 style={webText(tokens.name)}>{model.name}</h1>
 
-            {(resume.basics.headline || resume.basics.role) && (
-              <p style={{ ...webText(tokens.role), fontWeight: 400 }}>
-                {cleanResumeText(resume.basics.headline || resume.basics.role)}
-              </p>
+            {model.headline && (
+              <p style={{ ...webText(tokens.role), fontWeight: 400 }}>{model.headline}</p>
             )}
           </div>
 

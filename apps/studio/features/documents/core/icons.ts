@@ -1,13 +1,15 @@
-import * as LucideIcons from "lucide-react";
-import { FileText, type LucideIcon } from "lucide-react";
+import { FileText, Mail, type LucideIcon } from "lucide-react";
 
 import type { DocumentType } from "./document-types";
 
 import { getDocumentDefinition } from "./registry";
 
-export function getDocumentIcon(type: DocumentType): LucideIcon {
-  const iconName = getDocumentDefinition(type).icon;
-  const icon = (LucideIcons as unknown as Record<string, LucideIcon | undefined>)[iconName];
+/**
+ * Named imports only: a namespace import with a lookup by string defeats tree-shaking and
+ * puts the whole lucide set into every route that shows a document icon.
+ */
+const DOCUMENT_ICONS: Record<string, LucideIcon> = { FileText, Mail };
 
-  return icon ?? FileText;
+export function getDocumentIcon(type: DocumentType): LucideIcon {
+  return DOCUMENT_ICONS[getDocumentDefinition(type).icon] ?? FileText;
 }

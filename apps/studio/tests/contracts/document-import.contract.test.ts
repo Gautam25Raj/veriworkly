@@ -8,6 +8,8 @@ import { createDefaultCoverLetter } from "@/features/cover-letter/defaults";
 import { getDocumentDefinition } from "@/features/documents/core/registry";
 import { importDocumentFromJsonFile } from "@/features/documents/services/import-service";
 import { loadDocumentById } from "@/features/documents/services/document-workspace-service";
+import { buildMarkdown } from "@/features/documents/export/export-markdown";
+import { parseResumeMarkdown } from "@/features/resume/services/resume-markdown-import";
 
 /**
  * "Import JSON" is one shared menu item and must mean one thing.
@@ -211,5 +213,166 @@ describe("document import contract", () => {
     expect(document.sync.status).toBe("pending");
     expect(document.sync.cloudDocumentId).toBeNull();
     expect((document.content as ResumeData).sync.enabled).toBe(true);
+  });
+});
+
+describe("resume Markdown import", () => {
+  it("S-010: reads back the app's own Markdown export — roles, companies and dates", () => {
+    const original = structuredClone(defaultResume);
+    original.experience[0].startDate = "2021-03";
+    original.experience[0].endDate = "2023-11";
+    original.experience[0].current = false;
+    original.experience[0].company = "Acme_Labs (EU)";
+
+    const imported = parseResumeMarkdown(buildMarkdown(original));
+    const visibleRoles = original.experience.filter((item) => item.role || item.company);
+
+    expect(imported.basics.fullName).toBe(original.basics.fullName);
+    expect(imported.basics.email).toBe(original.basics.email);
+    expect(
+      imported.experience.map(({ role, company, location, startDate, endDate, current }) => ({
+        role,
+        company,
+        location,
+        startDate,
+        endDate,
+        current,
+      })),
+    ).toEqual(
+      visibleRoles.map(({ role, company, location, startDate, endDate, current }) => ({
+        role,
+        company,
+        location,
+        startDate,
+        endDate: current ? "" : endDate,
+        current,
+      })),
+    );
+    expect(imported.experience[0].highlights).toEqual(original.experience[0].highlights);
+    expect(imported.skills.map((group) => group.name)).toEqual(
+      original.skills.map((group) => group.name),
+    );
+
+    // Nothing comes back escaped.
+    expect(JSON.stringify(imported)).not.toMatch(/\\\\[-.()_|]/);
+  });
+
+  it("S-010: starts from an empty resume and adds no sample content", () => {
+    const imported = parseResumeMarkdown("# Ada Lovelace\n\n## Experience\n\n### Analyst\n");
+
+    expect(imported.basics.fullName).toBe("Ada Lovelace");
+    expect(imported.experience).toHaveLength(1);
+    expect(imported.experience[0]).toMatchObject({ role: "Analyst", company: "" });
+    expect(imported.summary).toBe("");
+    expect(imported.education).toEqual([]);
+    expect(imported.projects).toEqual([]);
+    expect(imported.skills).toEqual([]);
+    expect(imported.links.items).toEqual([]);
+    expect(JSON.stringify(imported)).not.toContain(defaultResume.basics.fullName);
+  });
+});
+
+describe("resume Markdown import, every printed section", () => {
+  /** One entry in each optional section and a custom one, the fields each prints filled in. */
+  function everySectionResume(): ResumeData {
+    const resume = structuredClone(defaultResume);
+
+    resume.certificates = [
+      {
+        id: "c1",
+        title: "AWS Certified Developer",
+        issuer: "Amazon",
+        date: "2024-05",
+        website: "https://verify.example.com/aws",
+        showLink: true,
+        referenceId: "CRED-1",
+        description: "Associate level.",
+      },
+    ];
+    resume.awards = [
+      {
+        id: "a1",
+        title: "Hackathon winner",
+        awarder: "Acme",
+        date: "2023-02",
+        website: "",
+        showLink: false,
+        description: "First of forty teams.",
+      },
+    ];
+    resume.publications = [
+      {
+        id: "p1",
+        title: "Fast tables",
+        publisher: "ACM",
+        date: "2022-09",
+        website: "https://doi.example.org/1",
+        showLink: true,
+        description: "",
+      },
+    ];
+    resume.languages = [{ id: "l1", language: "Portuguese", fluency: "professional" }];
+    resume.interests = [{ id: "i1", name: "Climbing", keywords: ["bouldering", "alpine"] }];
+    resume.volunteer = [
+      {
+        id: "v1",
+        organization: "Code Club",
+        role: "Mentor",
+        location: "Lisbon",
+        startDate: "2021-01",
+        endDate: "",
+        current: true,
+        summary: "Weekly sessions.",
+      },
+    ];
+    resume.references = [
+      {
+        id: "r1",
+        name: "Grace Hopper",
+        title: "Rear Admiral",
+        organization: "US Navy",
+        email: "grace@example.com",
+        phone: "+1 202 555 0100",
+        relationship: "Former manager",
+      },
+    ];
+    resume.achievements = [{ id: "ac1", title: "Cut costs 30%", description: "Across all teams." }];
+    resume.customSections = [
+      {
+        id: "custom-default",
+        kind: "custom",
+        title: "Speaking",
+        editableTitle: true,
+        items: [
+          {
+            id: "s1",
+            name: "RenderConf keynote",
+            issuer: "RenderConf",
+            date: "2024",
+            link: "https://renderconf.example.com/talks/50%off",
+            referenceId: "",
+            description: "On page layout.",
+            details: ["Two thousand attendees."],
+          },
+        ],
+      },
+    ];
+
+    return resume;
+  }
+
+  it("round-trips every section the Markdown export prints", () => {
+    const markdown = buildMarkdown(everySectionResume());
+    const imported = parseResumeMarkdown(markdown);
+
+    // What the import reads back prints exactly what was exported.
+    expect(buildMarkdown(imported)).toBe(markdown);
+  });
+
+  it("does not fail on a link with a bare percent sign", () => {
+    const markdown = "# Ada\n\n## Projects\n\n### Tool\n[Sale](https://x.com/50%off)\n";
+
+    expect(() => parseResumeMarkdown(markdown)).not.toThrow();
+    expect(parseResumeMarkdown(markdown).projects[0].link).toBe("https://x.com/50%off");
   });
 });

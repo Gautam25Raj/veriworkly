@@ -19,10 +19,9 @@ import {
 } from "@/features/documents/rendering/resume-render-items";
 
 /*
- * Re-exports, not declarations. The item builders moved to
- * `features/documents/rendering/resume-render-items.ts` so the DOCX, HTML and Markdown
- * exporters can read the same mappings the two renderers do — those exporters cannot import
- * from `templates/`. Templates keep importing them from here.
+ * Re-exports, not declarations: the item builders live in
+ * `features/documents/rendering/resume-render-items.ts`, beside the render model they read.
+ * Templates keep importing them from here.
  */
 export {
   getSkillLines,
@@ -64,8 +63,9 @@ export interface ResumeSectionRenderers<T> {
 /**
  * The sections a resume actually prints, in order, with the empty ones dropped.
  *
- * Shared so the two renderers cannot disagree about which sections exist or
- * what order they come in — and so each of them can tell which section is
+ * Shared so the two renderers and every exporter (see `getResumeExportDocument`)
+ * cannot disagree about which sections exist or what order they come in — and so
+ * each renderer can tell which section is
  * *first*, which decides where the spacing between sections goes. Spacing sits
  * above a section rather than below it, because a trailing margin on the last
  * one is invisible on screen yet still counts against the page in react-pdf.

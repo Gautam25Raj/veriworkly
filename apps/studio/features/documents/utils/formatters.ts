@@ -26,14 +26,17 @@ export function joinTruthy(parts: Array<string | undefined | null>, separator: s
     .join(separator);
 }
 
+/**
+ * A file name from a title in any script: letters, marks and digits are kept, every other
+ * run of characters becomes one "-". An ASCII-only rule turned "Résumé" into "rsum" and a
+ * name in Devanagari or kanji into nothing at all.
+ */
 export function sanitizeFileName(value: string): string {
   return value
-    .trim()
+    .normalize("NFC")
     .toLowerCase()
-    .replace(/[^a-z0-9\s-_]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+    .replace(/[^\p{L}\p{M}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 export function escapeHtml(value: string): string {

@@ -337,13 +337,7 @@ describe("cover letter pdf geometry matches the shared scale", () => {
     }
   });
 
-  for (const templateId of [
-    "professional",
-    "veriworkly-special",
-    "minimalist",
-    "executive",
-    "ats-essential",
-  ]) {
+  for (const templateId of coverLetterTemplateRegistry.ids) {
     it(`${templateId} uses the preview's page box and fixed columns`, async () => {
       const content = createDefaultCoverLetter("geometry").content as CoverLetterContent;
       const palette = getCoverLetterPalette(content.appearance);

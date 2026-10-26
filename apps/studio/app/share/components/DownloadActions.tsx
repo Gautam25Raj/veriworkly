@@ -81,7 +81,7 @@ export const DownloadActions = ({ resume, sharePreviewId }: DownloadActionsProps
   const downloadHtml = () =>
     runExport("HTML", async () => {
       const { exportResumeAsHtml } = await import("@/features/documents/export/export-html");
-      exportResumeAsHtml(resume, sharePreviewId);
+      await exportResumeAsHtml(resume, sharePreviewId);
     });
 
   const downloadText = () =>

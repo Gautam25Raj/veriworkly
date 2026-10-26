@@ -136,12 +136,22 @@ export function measureResume(options: WebMeasureOptions): GeomNode[] {
   return out;
 }
 
-/** Page count and per-page block count of the paginated preview. */
-export function measurePagination(): { pages: number; blocksPerPage: number[] } {
+/**
+ * Page count and per-page block count of the paginated preview, and the pages whose content
+ * runs past their bottom edge — which a page cuts off.
+ */
+export function measurePagination(): {
+  pages: number;
+  blocksPerPage: number[];
+  clippedPages: number[];
+} {
   const pages = Array.from(document.querySelectorAll("article.resume-page-preview"));
 
   return {
     pages: pages.length,
     blocksPerPage: pages.map((page) => page.children.length),
+    clippedPages: pages.flatMap((page, index) =>
+      page.scrollHeight > page.clientHeight + 1 ? [index + 1] : [],
+    ),
   };
 }

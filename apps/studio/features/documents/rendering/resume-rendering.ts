@@ -40,6 +40,10 @@ export interface RenderContactItem {
 
 export interface ResumeRenderModel {
   style: ResumeRenderStyle;
+  /** Empty when the user has not entered one: nothing substitutes a placeholder. */
+  name: string;
+  /** The headline, or the role when there is no headline. */
+  headline: string;
   contactItems: RenderContactItem[];
   renderedLinks: ResumeLinkItem[];
   showBasics: boolean;
@@ -99,8 +103,9 @@ export function getResumeRenderStyle(resume: ResumeData): ResumeRenderStyle {
     sectionHeadingColor:
       customization?.sectionHeadingColor || customization?.accentColor || "#2563eb",
     fontFamily: normalizeFontFamilyId(customization?.fontFamily),
-    sectionSpacing: customization?.sectionSpacing || RESUME_LAYOUT.sectionSpacing,
-    pagePadding: customization?.pagePadding || RESUME_LAYOUT.pagePadding,
+    // `??`, not `||`: zero is a spacing the user can choose.
+    sectionSpacing: customization?.sectionSpacing ?? RESUME_LAYOUT.sectionSpacing,
+    pagePadding: customization?.pagePadding ?? RESUME_LAYOUT.pagePadding,
     bodyLineHeight: customization?.bodyLineHeight || RESUME_LAYOUT.bodyLineHeight,
     headingLineHeight: customization?.headingLineHeight || RESUME_LAYOUT.headingLineHeight,
   };
@@ -175,10 +180,9 @@ function getUrlDisplayText(url: string): string {
 
   try {
     const parsed = new URL(normalizeLinkHref(cleanUrl));
-    return `${parsed.hostname.replace(/^www\./, "")}${parsed.pathname === "/" ? "" : parsed.pathname}`.replace(
-      /\/$/,
-      "",
-    );
+    const path = parsed.pathname === "/" ? "" : parsed.pathname.replace(/\/$/, "");
+
+    return `${parsed.hostname.replace(/^www\./, "")}${path}${parsed.search}`;
   } catch {
     return cleanUrl.replace(/^https?:\/\//i, "").replace(/\/$/, "");
   }
@@ -221,7 +225,7 @@ export function getProjectTitle(item: ResumeData["projects"][number]): string {
 
 export function getProjectLinkText(item: ResumeData["projects"][number]): string {
   if (item.showLinkAsText ?? true) {
-    return cleanResumeText(item.linkLabel) || "Link";
+    return cleanResumeText(item.linkLabel);
   }
 
   return cleanResumeText(item.link);
@@ -408,6 +412,8 @@ export function getResumeRenderModel(resume: ResumeData): ResumeRenderModel {
 
   return {
     style,
+    name: cleanResumeText(resume.basics.fullName),
+    headline: cleanResumeText(resume.basics.headline) || cleanResumeText(resume.basics.role),
     contactItems: getContactItems(resume.basics),
     renderedLinks: resume.links.items.filter((link) => normalizeLinkHref(link.url)),
     showBasics: hasResumeSectionContent(resume, "basics"),

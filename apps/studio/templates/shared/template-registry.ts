@@ -57,7 +57,21 @@ export function createTemplateRegistry<TWebProps, TPdfProps>(
   const webCache = new Map<string, Promise<ComponentType<TWebProps>>>();
   const pdfCache = new Map<string, Promise<ComponentType<TPdfProps>>>();
 
-  const resolve = (id: string | undefined) => byId.get(id ?? "") ?? fallback;
+  const reportedUnknownIds = new Set<string>();
+
+  const resolve = (id: string | undefined) => {
+    const entry = byId.get(id ?? "");
+
+    if (entry) return entry;
+
+    // Once per id: `getMeta` runs on every render of a picker or a card.
+    if (id && !reportedUnknownIds.has(id)) {
+      reportedUnknownIds.add(id);
+      console.warn(`Unknown template "${id}"; rendering "${fallback.meta.id}" instead.`);
+    }
+
+    return fallback;
+  };
 
   function load<TProps>(
     id: string | undefined,

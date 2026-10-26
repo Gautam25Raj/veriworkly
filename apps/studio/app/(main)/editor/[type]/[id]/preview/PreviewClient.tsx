@@ -1,15 +1,15 @@
 "use client";
 
-import type { TemplateComponent } from "@/types/template";
 import type { BaseDocument } from "@/features/documents/core/types";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { createElement, useEffect, useState } from "react";
 import { FileSearch } from "lucide-react";
 
 import { Card } from "@veriworkly/ui";
 
 import { loadTemplateComponentById } from "@/templates";
+import { useTemplateComponent } from "@/templates/shared/use-template-component";
 
 import { useResumeStore } from "@/features/resume/store/resume-store";
 import { readResumeById } from "@/features/resume/services/resume-service";
@@ -38,7 +38,6 @@ export function PreviewClient({ documentId, type }: PreviewClientProps) {
   // re-rendered the preview on every unrelated mutation.
   const resume = useResumeStore((state) => state.resume);
   const setResume = useResumeStore((state) => state.setResume);
-  const [templateComponent, setTemplateComponent] = useState<TemplateComponent | null>(null);
 
   const [resolved, setResolved] = useState<Resolved>({ status: "loading" });
 
@@ -75,25 +74,10 @@ export function PreviewClient({ documentId, type }: PreviewClientProps) {
   const status = resolved.status;
   const routeDocument = resolved.status === "ready" ? resolved.document : null;
 
-  useEffect(() => {
-    if (type !== "RESUME") return;
-    let cancelled = false;
-
-    loadTemplateComponentById(resume.templateId)
-      .then((nextTemplate) => {
-        // Updater form: a component is a function, so a bare setState would call it.
-        if (!cancelled) setTemplateComponent(() => nextTemplate);
-      })
-      .catch(() => {
-        if (!cancelled) setTemplateComponent(null);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [resume.templateId, type]);
-
-  const TemplateComponent = templateComponent;
+  const TemplateComponent = useTemplateComponent(
+    loadTemplateComponentById,
+    type === "RESUME" ? resume.templateId : null,
+  );
   const title =
     type === "RESUME"
       ? resume.title || resume.basics.fullName || "Untitled Resume"
@@ -166,7 +150,7 @@ export function PreviewClient({ documentId, type }: PreviewClientProps) {
           <div className="bg-background rounded-3xl p-4 md:p-6">
             <div className="mx-auto w-full max-w-212.5">
               {type === "RESUME" && TemplateComponent ? (
-                <TemplateComponent resume={resume} />
+                createElement(TemplateComponent, { resume })
               ) : type === "COVER_LETTER" && routeDocument ? (
                 <CoverLetterPreview
                   content={routeDocument.content as CoverLetterContent}

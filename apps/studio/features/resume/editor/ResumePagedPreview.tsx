@@ -12,7 +12,12 @@ import {
   EXPORT_EXCLUDE_ATTRIBUTE,
   EXPORT_ROOT_ATTRIBUTE,
 } from "@/features/documents/export/export-dom-markers";
-import { paginateIncremental, type IncrementalPageProbe } from "@/templates/shared/pagination";
+import {
+  HEADING_PRESENCE_LINES,
+  SPLIT_ATTRIBUTE,
+  paginateIncremental,
+  type IncrementalPageProbe,
+} from "@/templates/shared/pagination";
 
 interface ResumePreviewPage {
   content: string;
@@ -125,6 +130,113 @@ function renderUnitsToHtml(units: ResumeFlowUnit[], sectionsWithHeader: Set<numb
   return html;
 }
 
+/** Whether the template marked this unit (or the item inside it) as allowed to flow. */
+function isSplittable(unit: ResumeFlowUnit): boolean {
+  const element = unit.kind === "block" ? unit.element : unit.item;
+
+  return (
+    element.hasAttribute(SPLIT_ATTRIBUTE) || Boolean(element.querySelector(`[${SPLIT_ATTRIBUTE}]`))
+  );
+}
+
+/** The offset in `node` of the first character drawn below `limit`, or -1 if none is. */
+function textCutOffset(node: Text, limit: number): number {
+  const range = document.createRange();
+  const bottomAt = (offset: number) => {
+    range.setStart(node, offset);
+    range.setEnd(node, offset + 1);
+    return range.getBoundingClientRect().bottom;
+  };
+
+  const length = node.data.length;
+  if (length === 0 || bottomAt(length - 1) <= limit) return -1;
+
+  // Line bottoms only grow along the text, so the first overflowing character is found
+  // by bisection rather than by measuring each one.
+  let low = 0;
+  let high = length - 1;
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (bottomAt(middle) > limit) high = middle;
+    else low = middle + 1;
+  }
+
+  return low;
+}
+
+/**
+ * Breaks a rendered element at `limit` (a viewport y), the way react-pdf breaks a view that
+ * runs off a page: what is drawn above the line stays in `element`, and everything below
+ * moves, inside shallow copies of its ancestors, into the element returned. Null when
+ * nothing had to move.
+ *
+ * Children stacked in a column move in order — once one moves, every later one does. In a
+ * row (an item's date gutter beside its body) each column breaks on its own, and a column
+ * with nothing left over keeps an empty copy so the continuation keeps its geometry.
+ */
+function splitElementAt(element: HTMLElement, limit: number): HTMLElement | null {
+  const rest = element.cloneNode(false) as HTMLElement;
+  const computed = window.getComputedStyle(element);
+  const isRow = computed.display.includes("flex") && computed.flexDirection.startsWith("row");
+  let moving = false;
+  let moved = false;
+
+  for (const child of Array.from(element.childNodes)) {
+    if (moving && !isRow) {
+      rest.appendChild(child);
+      continue;
+    }
+
+    if (child instanceof Text) {
+      const offset = textCutOffset(child, limit);
+
+      if (offset === -1) continue;
+
+      rest.appendChild(offset === 0 ? child : child.splitText(offset));
+      moving = moved = true;
+      continue;
+    }
+
+    if (!(child instanceof HTMLElement)) continue;
+
+    const box = child.getBoundingClientRect();
+
+    if (box.bottom <= limit + 0.5) {
+      if (isRow) rest.appendChild(child.cloneNode(false));
+      continue;
+    }
+
+    if (box.top >= limit - 0.5) {
+      rest.appendChild(child);
+    } else {
+      const childRest = splitElementAt(child, limit);
+
+      if (!childRest) {
+        if (isRow) rest.appendChild(child.cloneNode(false));
+        continue;
+      }
+
+      rest.appendChild(childRest);
+    }
+
+    moving = moved = true;
+  }
+
+  if (!moved) return null;
+
+  // A continuation starts flush with the top of its page, as react-pdf's does.
+  rest.style.marginTop = "0px";
+  rest.style.paddingTop = "0px";
+
+  return rest;
+}
+
+/** `unit` carrying `element` in place of the node it was built from. */
+function withElement(unit: ResumeFlowUnit, element: HTMLElement): ResumeFlowUnit {
+  return unit.kind === "block" ? { ...unit, element } : { ...unit, item: element };
+}
+
 /**
  * Append-only measuring probe over a real off-screen page-sized element.
  *
@@ -146,9 +258,10 @@ function createDomPageProbe(
    * exactly that append, including whether it opened a new section wrapper.
    */
   type AppendRecord =
-    | { type: "block" }
+    | { type: "block"; unit: ResumeFlowUnit }
     | {
         type: "item";
+        unit: ResumeFlowUnit;
         createdSection: boolean;
         shell: HTMLElement | null;
         items: HTMLElement | null;
@@ -159,6 +272,27 @@ function createDomPageProbe(
 
   const appends: AppendRecord[] = [];
 
+  /** The heading drawn above `target` when `target` opens its section on this page. */
+  const sectionHeadingOf = (
+    unit: ResumeFlowUnit,
+    target: HTMLElement,
+    record: AppendRecord,
+  ): Element | null => {
+    // Continuations are detached copies; only the original unit carries the opening.
+    if (unit.kind === "block") {
+      return unit.element.isConnected && target.tagName === "SECTION"
+        ? target.firstElementChild
+        : null;
+    }
+
+    const opensSection =
+      unit.item.isConnected && unit.item.parentElement?.firstElementChild === unit.item;
+
+    return opensSection && record.type === "item" && (record.shell?.children.length ?? 0) > 1
+      ? (record.shell?.firstElementChild ?? null)
+      : null;
+  };
+
   return {
     append(unit) {
       if (unit.kind === "block") {
@@ -166,7 +300,7 @@ function createDomPageProbe(
         openSectionIndex = null;
         openShell = null;
         openItems = null;
-        appends.push({ type: "block" });
+        appends.push({ type: "block", unit });
         return;
       }
 
@@ -191,6 +325,7 @@ function createDomPageProbe(
 
       appends.push({
         type: "item",
+        unit,
         createdSection,
         shell: openShell,
         items: openItems,
@@ -224,6 +359,41 @@ function createDomPageProbe(
         openShell = record.previousShell;
         openItems = record.previousItems;
       }
+    },
+
+    split() {
+      const record = appends[appends.length - 1];
+      const target =
+        record?.type === "block" ? probe.lastElementChild : record?.items?.lastElementChild;
+
+      if (!record || !(target instanceof HTMLElement)) return null;
+
+      const limit =
+        probe.getBoundingClientRect().top +
+        RESUME_PAGE_HEIGHT_PX -
+        Number.parseFloat(window.getComputedStyle(probe).paddingBottom || "0");
+
+      // A section's opening keeps a few lines under its heading, or moves with it — the
+      // `minPresenceAhead` the PDF puts on the heading.
+      const heading = sectionHeadingOf(record.unit, target, record);
+      const presence =
+        HEADING_PRESENCE_LINES * Number.parseFloat(window.getComputedStyle(probe).lineHeight);
+
+      if (heading && limit - heading.getBoundingClientRect().bottom < presence) return null;
+
+      const whole = target.cloneNode(true) as HTMLElement;
+      const rest = splitElementAt(target, limit);
+
+      // Nothing of it fits here: it moves to the next page whole, as react-pdf moves it.
+      if (!rest || !target.textContent?.trim()) {
+        target.replaceWith(whole);
+        return null;
+      }
+
+      return [
+        withElement(record.unit, target.cloneNode(true) as HTMLElement),
+        withElement(record.unit, rest),
+      ];
     },
 
     reset() {
@@ -307,6 +477,8 @@ export function ResumePagedPreview({ children }: { children: ReactNode }) {
       const measuredPages = paginateIncremental(
         units,
         createDomPageProbe(probe, sectionsWithHeader),
+        undefined,
+        isSplittable,
       );
 
       probe.remove();

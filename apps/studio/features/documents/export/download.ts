@@ -1,3 +1,9 @@
+/**
+ * How long the object URL outlives the click. The browser reads it after `click()` returns,
+ * and a large file can still be reading seconds later; revoking sooner truncates it.
+ */
+const REVOKE_AFTER_MS = 30_000;
+
 export function downloadBlob(blob: Blob, fileName: string): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -10,8 +16,5 @@ export function downloadBlob(blob: Blob, fileName: string): void {
   link.click();
   link.remove();
 
-  // Revoke on the next tick rather than synchronously — revoking immediately after
-  // click() is a known source of flaky/truncated downloads for larger blobs in some
-  // browsers, since the download may not have finished reading the object URL yet.
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  setTimeout(() => URL.revokeObjectURL(url), REVOKE_AFTER_MS);
 }

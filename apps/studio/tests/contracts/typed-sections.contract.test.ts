@@ -11,11 +11,21 @@ import {
   parseResumeDataForExport,
 } from "@/features/resume/schemas/resume-storage-schema";
 import {
-  getResumeAdditionalBlocks,
   getLanguageRenderItems,
   getReferenceRenderItems,
   getVolunteerRenderItems,
 } from "@/features/documents/rendering/resume-render-items";
+import { getResumeRenderModel } from "@/features/documents/rendering/resume-rendering";
+import { buildResumeSections } from "@/templates/resume/shared/model";
+
+/** The sections a resume prints, as the preview, the PDF and every exporter list them. */
+function printedSections(resume: ResumeData) {
+  return buildResumeSections(resume, getResumeRenderModel(resume), {
+    items: () => null,
+    skills: () => null,
+    summary: () => null,
+  });
+}
 
 /**
  * A resume as it was stored before the typed section model: every optional section squeezed
@@ -287,7 +297,7 @@ describe("typed sections render as what they are", () => {
 
   it("emits a block for every typed and custom section that has content", () => {
     const resume = normalizeResumeData(legacyStoredResume());
-    const blocks = getResumeAdditionalBlocks(resume);
+    const blocks = printedSections(resume);
     const titles = blocks.map((block) => block.title);
 
     expect(titles).toContain("Certifications");
@@ -303,7 +313,7 @@ describe("typed sections render as what they are", () => {
     expect(titles).not.toContain("Publications");
 
     // Block keys are unique — several sections share the id "custom".
-    expect(new Set(blocks.map((block) => block.key)).size).toBe(blocks.length);
+    expect(new Set(blocks.map((block) => block.id)).size).toBe(blocks.length);
   });
 
   it("hides one custom section without hiding the others", () => {
@@ -316,7 +326,7 @@ describe("typed sections render as what they are", () => {
       ),
     };
 
-    const titles = getResumeAdditionalBlocks(withHidden).map((block) => block.title);
+    const titles = printedSections(withHidden).map((block) => block.title);
 
     expect(titles).not.toContain("Speaking");
     expect(titles).toContain("Certifications");

@@ -14,6 +14,7 @@ import type {
 import type { ResumeRenderItem } from "./model";
 import type { ResumeTokens } from "./tokens";
 import type { ResumeTypeScale } from "./typography";
+import type { ResumeSectionStart } from "./keep-together";
 
 import {
   RESUME_PAGE_HEIGHT_PX,
@@ -28,6 +29,8 @@ import {
 import { SOCIAL_ICON_SRC_BY_TYPE } from "../../shared/social-icons";
 import { buildResumeSections } from "./model";
 import { createResumeTokens, webText } from "./tokens";
+import { createResumeKeepTogether } from "./keep-together";
+import { SPLIT_ATTRIBUTE } from "@/templates/shared/pagination";
 import { webFixedWidth, webFlexible } from "@/templates/shared/box";
 import { BULLET_MARKER } from "./typography";
 
@@ -51,6 +54,8 @@ export interface ResumeWebSkin {
 }
 
 export const px = (value: number) => `${value}px`;
+
+const splitProps = (split: boolean) => (split ? { [SPLIT_ATTRIBUTE]: "" } : {});
 
 /**
  * A column whose children are separated by `gap` — and nothing else. No
@@ -232,10 +237,12 @@ function WebItem({
   ctx,
   item,
   layout,
+  split,
 }: {
   ctx: ResumeWebContext;
   item: ResumeRenderItem;
   layout: "stacked" | "gutter";
+  split: boolean;
 }) {
   const { scale, tokens } = ctx;
 
@@ -316,6 +323,7 @@ function WebItem({
       <article
         className="break-inside-avoid"
         style={{ columnGap: px(scale.gutterGap), display: "flex" }}
+        {...splitProps(split)}
       >
         <div style={webFixedWidth(scale.gutterWidth)}>
           {item.meta ? <p style={webText(ctx.tokens.gutterMeta)}>{item.meta}</p> : null}
@@ -332,6 +340,7 @@ function WebItem({
     <article
       className="break-inside-avoid"
       style={{ display: "flex", flexDirection: "column", gap: px(scale.itemRowGap) }}
+      {...splitProps(split)}
     >
       {rows}
     </article>
@@ -354,6 +363,7 @@ function WebSection({
   heading,
   isFirst,
   spacing,
+  split,
 }: {
   children: React.ReactNode;
   ctx: ResumeWebContext;
@@ -361,6 +371,7 @@ function WebSection({
   heading: React.ReactNode;
   isFirst: boolean;
   spacing: number;
+  split: boolean;
 }) {
   return (
     <section
@@ -372,6 +383,7 @@ function WebSection({
         // export, which is how the preview and the PDF came to disagree.
         ...(isFirst ? {} : { marginTop: px(spacing) }),
       }}
+      {...splitProps(split)}
     >
       {heading}
       <Stack gap={gap}>{children}</Stack>
@@ -397,17 +409,37 @@ export function createResumeWebTemplate(skin: ResumeWebSkin): React.FC<TemplateR
       skin.sectionSpacing?.(style.sectionSpacing) ?? style.sectionSpacing,
     );
 
+    const keepTogether = createResumeKeepTogether(ctx, pagePadding, layout);
+
     const renderItems = (items: ResumeRenderItem[]) =>
-      items.map((item) => <WebItem ctx={ctx} item={item} key={item.id} layout={layout} />);
+      items.map((item) => (
+        <WebItem
+          ctx={ctx}
+          item={item}
+          key={item.id}
+          layout={layout}
+          split={!keepTogether.item(item)}
+        />
+      ));
 
     /** Sections carry their own inner gap: skill lines sit tighter than items. */
-    const sections = buildResumeSections<{ nodes: React.ReactNode; gap: number }>(resume, model, {
-      items: (items) => ({ nodes: renderItems(items), gap: scale.itemGap }),
+    const sections = buildResumeSections<{
+      nodes: React.ReactNode;
+      gap: number;
+      start: ResumeSectionStart | null;
+    }>(resume, model, {
+      items: (items) => ({
+        nodes: renderItems(items),
+        gap: scale.itemGap,
+        start: items[0] ? { item: items[0] } : null,
+      }),
       summary: (value) => ({
         nodes: <p style={webText(tokens.body)}>{value}</p>,
         gap: scale.itemGap,
+        start: { text: value },
       }),
       skills: (lines) => ({
+        start: lines[0] ? { text: `${lines[0].label}: ${lines[0].value}` } : null,
         nodes: lines.map((line) => (
           <article className="break-inside-avoid" key={line.id}>
             <p style={webText(tokens.body)}>
@@ -449,6 +481,7 @@ export function createResumeWebTemplate(skin: ResumeWebSkin): React.FC<TemplateR
             isFirst={index === 0}
             key={section.id}
             spacing={sectionSpacing}
+            split={!keepTogether.sectionStart(section.title, section.children.start)}
           >
             {section.children.nodes}
           </WebSection>

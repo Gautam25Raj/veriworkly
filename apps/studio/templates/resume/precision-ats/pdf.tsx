@@ -5,7 +5,6 @@ import { Text, View } from "@react-pdf/renderer";
 
 import type { ResumePdfContext } from "../shared/pdf";
 
-import { cleanResumeText } from "@/features/documents/rendering/resume-rendering";
 import { pxToPt } from "@/features/resume/constants/resume-layout";
 import { PdfContactRow, PdfLinkRow, createResumePdfTemplate } from "../shared/pdf";
 import {
@@ -16,7 +15,7 @@ import {
 } from "./skin";
 
 function Header(ctx: ResumePdfContext) {
-  const { model, resume, scale, style, styles } = ctx;
+  const { model, scale, style, styles } = ctx;
 
   return (
     <View
@@ -33,15 +32,9 @@ function Header(ctx: ResumePdfContext) {
               baseline as one line, so a headline beside the name became part of
               it and the ATS lost the name. */}
           <View style={{ flexDirection: "column", rowGap: pxToPt(geometry.nameGapY) }}>
-            <Text style={styles.name}>
-              {cleanResumeText(resume.basics.fullName) || "Your Name"}
-            </Text>
+            <Text style={styles.name}>{model.name}</Text>
 
-            {(resume.basics.headline || resume.basics.role) && (
-              <Text style={styles.role}>
-                {cleanResumeText(resume.basics.headline || resume.basics.role)}
-              </Text>
-            )}
+            {model.headline && <Text style={styles.role}>{model.headline}</Text>}
           </View>
 
           <PdfContactRow ctx={ctx} style={{ marginTop: pxToPt(geometry.contactTop) }} />

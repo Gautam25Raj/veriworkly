@@ -4,6 +4,10 @@ import { useRef, useState } from "react";
 import { ArrowLeft, Pencil } from "lucide-react";
 
 import { Button } from "@veriworkly/ui";
+import {
+  SAVE_PERSISTED_MESSAGE,
+  SAVE_QUEUED_MESSAGE,
+} from "@/features/documents/services/save-failure-message";
 
 interface ToolbarHeaderProps {
   message: string;
@@ -41,8 +45,8 @@ const ToolbarHeader = ({
         size="sm"
         variant="ghost"
         onClick={onBack}
-        title="Back to dashboard"
-        aria-label="Back to dashboard"
+        title="Back to documents"
+        aria-label="Back to documents"
         className="h-9 w-9 shrink-0 rounded-xl px-0"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -53,6 +57,7 @@ const ToolbarHeader = ({
           {editing ? (
             <input
               ref={inputRef}
+              aria-label="Document title"
               value={draft}
               autoFocus
               className="text-foreground w-full bg-transparent text-sm font-semibold outline-none"
@@ -90,6 +95,11 @@ const ToolbarHeader = ({
             toolbar, so autosave can report through it — see `ResumeEditor`. */}
         <p className="text-muted truncate text-xs" data-testid="editor-status">
           {message}
+        </p>
+        {/* Announced only when it matters: routine "Saving…/Saved" after every pause in typing
+            would talk over the user's own typing echo. */}
+        <p role="status" aria-live="polite" className="sr-only">
+          {message === SAVE_QUEUED_MESSAGE || message === SAVE_PERSISTED_MESSAGE ? "" : message}
         </p>
       </div>
     </div>

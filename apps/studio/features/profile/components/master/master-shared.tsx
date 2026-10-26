@@ -100,7 +100,11 @@ export function ColorField({
           className="border-border h-10 w-14 cursor-pointer rounded-lg border bg-transparent p-1"
           aria-label={`${label} picker`}
         />
-        <Input value={value} onChange={(event) => onChange(event.target.value)} />
+        <Input
+          aria-label={label}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
       </div>
     </div>
   );

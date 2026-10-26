@@ -52,6 +52,7 @@ export function BasicsAndSummarySections({
           <div className="space-y-2">
             <label className="text-sm font-medium">Template</label>
             <Select
+              aria-label="Template"
               value={localProfile.templateId}
               onChange={(event) =>
                 updateProfile((prev) => ({
@@ -71,6 +72,7 @@ export function BasicsAndSummarySections({
           <div className="space-y-2">
             <label className="text-sm font-medium">Display Mode</label>
             <Select
+              aria-label="Display Mode"
               value={localProfile.links.displayMode}
               onChange={(event) =>
                 updateLinkDisplayMode(event.target.value as ResumeLinkDisplayMode)
@@ -85,6 +87,7 @@ export function BasicsAndSummarySections({
           <div className="space-y-2">
             <label className="text-sm font-medium">Full Name</label>
             <Input
+              aria-label="Full Name"
               value={localProfile.basics.fullName}
               onChange={(event) => setBasicField("fullName", event.target.value)}
             />
@@ -93,6 +96,7 @@ export function BasicsAndSummarySections({
           <div className="space-y-2">
             <label className="text-sm font-medium">Role</label>
             <Input
+              aria-label="Role"
               value={localProfile.basics.role}
               onChange={(event) => setBasicField("role", event.target.value)}
             />
@@ -101,6 +105,7 @@ export function BasicsAndSummarySections({
           <div className="space-y-2 md:col-span-2">
             <label className="text-sm font-medium">Headline</label>
             <Input
+              aria-label="Headline"
               value={localProfile.basics.headline}
               onChange={(event) => setBasicField("headline", event.target.value)}
             />
@@ -109,6 +114,7 @@ export function BasicsAndSummarySections({
           <div className="space-y-2 md:col-span-2">
             <label className="text-sm font-medium">Email</label>
             <Input
+              aria-label="Email"
               type="email"
               value={localProfile.basics.email}
               onChange={(event) => setBasicField("email", event.target.value)}
@@ -124,6 +130,7 @@ export function BasicsAndSummarySections({
           <div className="space-y-2">
             <label className="text-sm font-medium">Phone</label>
             <Input
+              aria-label="Phone"
               value={localProfile.basics.phone}
               onChange={(event) => setBasicField("phone", event.target.value)}
             />
@@ -132,6 +139,7 @@ export function BasicsAndSummarySections({
           <div className="space-y-2">
             <label className="text-sm font-medium">Location</label>
             <Input
+              aria-label="Location"
               value={localProfile.basics.location}
               onChange={(event) => setBasicField("location", event.target.value)}
             />
@@ -200,6 +208,7 @@ export function BasicsAndSummarySections({
                 <div key={type} className="space-y-2">
                   <label className="text-sm font-medium capitalize">{type}</label>
                   <Input
+                    aria-label={type}
                     type="url"
                     value={rawUrl}
                     onChange={(event) => updateLink(type, event.target.value)}

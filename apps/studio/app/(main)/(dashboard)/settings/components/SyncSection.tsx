@@ -23,6 +23,7 @@ import {
 import { getAutoSyncControlState } from "./sync-section-state";
 
 import { updateAutoSyncPreference } from "@/features/profile/services/update-profile";
+import { pluralize } from "@/lib/pluralize";
 
 interface TelemetryState {
   lastAttemptAt: string | null;
@@ -107,7 +108,7 @@ export default function SyncSection() {
       const failed = results.filter((result) => !result.ok && result.reason !== "in-progress");
 
       if (failed.length > 0) {
-        toast.error(`${failed.length} document(s) did not sync: ${failed[0].message}`);
+        toast.error(`${pluralize(failed.length, "document")} did not sync: ${failed[0].message}`);
       }
     } finally {
       setLoading(false);

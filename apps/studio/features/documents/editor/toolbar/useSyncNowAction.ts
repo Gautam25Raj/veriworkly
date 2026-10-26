@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import type { DocumentType } from "@/features/documents/core/document-types";
 
+import { toastSignInRequired } from "@/lib/sign-in";
 import { useUserStore } from "@/store/useUserStore";
 import { syncDocumentNow } from "@/features/documents/services/document-sync";
 
@@ -17,7 +18,7 @@ export function useSyncNowAction(
 
   return async function syncNow() {
     if (!isLoggedIn) {
-      toast.error("Please log in to sync documents.");
+      toastSignInRequired("Sign in to back up documents.");
       return;
     }
 

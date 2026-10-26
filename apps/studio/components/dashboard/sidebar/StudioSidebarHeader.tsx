@@ -19,7 +19,7 @@ export function StudioSidebarHeader({ collapsed, onToggleCollapse }: StudioSideb
     >
       <Link href="/" className="shrink-0" aria-label="Go to VeriWorkly dashboard">
         <Image
-          priority
+          preload
           width={36}
           height={36}
           aria-hidden="true"

@@ -40,7 +40,6 @@ const RecentCard = ({
           <Image
             fill
             alt=""
-            priority
             sizes="80vw"
             src={doc.previewImage}
             className="object-cover object-top p-2"

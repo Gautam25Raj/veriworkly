@@ -124,6 +124,7 @@ export function DocumentActionsMenu({
                 "h-8 rounded-lg text-xs",
                 !isLoggedIn && "opacity-50 hover:bg-transparent focus-visible:bg-transparent",
               )}
+              aria-disabled={!isLoggedIn || undefined}
               onClick={(e) => {
                 if (!isLoggedIn) {
                   e.preventDefault();
@@ -140,6 +141,7 @@ export function DocumentActionsMenu({
             >
               <Share2 className="h-4 w-4" />
               Share Document
+              {!isLoggedIn ? <span className="text-muted ml-auto text-[10px]">Sign in</span> : null}
             </MenuItem>
 
             <MenuItem
@@ -147,6 +149,7 @@ export function DocumentActionsMenu({
                 "h-8 rounded-lg text-xs",
                 !isLoggedIn && "opacity-50 hover:bg-transparent focus-visible:bg-transparent",
               )}
+              aria-disabled={!isLoggedIn || undefined}
               disabled={isLoggedIn && syncing}
               onClick={(e) => {
                 if (!isLoggedIn) {
@@ -161,6 +164,7 @@ export function DocumentActionsMenu({
             >
               <RefreshCw className="h-4 w-4" />
               {syncing ? "Backing up..." : "Back up now"}
+              {!isLoggedIn ? <span className="text-muted ml-auto text-[10px]">Sign in</span> : null}
             </MenuItem>
 
             <MenuItem
@@ -169,6 +173,7 @@ export function DocumentActionsMenu({
                 (!isLoggedIn || !hasCloudId) &&
                   "opacity-50 hover:bg-transparent focus-visible:bg-transparent",
               )}
+              aria-disabled={!isLoggedIn || !hasCloudId || undefined}
               onClick={(e) => {
                 if (!isLoggedIn) {
                   e.preventDefault();
@@ -188,6 +193,7 @@ export function DocumentActionsMenu({
             >
               <Cloud className="h-4 w-4" />
               Backup details
+              {!isLoggedIn ? <span className="text-muted ml-auto text-[10px]">Sign in</span> : null}
             </MenuItem>
 
             <MenuItem

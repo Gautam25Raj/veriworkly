@@ -13,6 +13,7 @@ import {
   toSingleValueParams,
   type AdminSearchParams,
 } from "@/features/admin/utils/admin-search-params";
+import { pluralize } from "@/lib/pluralize";
 
 export const metadata: Metadata = {
   title: "Admin · Withdrawals",
@@ -124,7 +125,7 @@ export default async function AdminWithdrawalsPage({
       columns={columns}
       rowKey={(row) => row.id}
       emptyMessage="No withdrawal requests match these filters."
-      caption={`${formatCents(data.totalAmountCents)} across ${data.total} matching request(s). Payouts are sent out of band — this queue records the decision and the transfer.`}
+      caption={`${formatCents(data.totalAmountCents)} across ${pluralize(data.total, "matching request")}. Payouts are sent out of band — this queue records the decision and the transfer.`}
     />
   );
 }

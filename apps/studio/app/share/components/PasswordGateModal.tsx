@@ -40,11 +40,15 @@ const PasswordGateModal = ({
 
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-muted ml-1 text-[9px] font-black tracking-[0.25em] uppercase md:text-[10px]">
+                <label
+                  htmlFor="share-password"
+                  className="text-muted ml-1 text-[9px] font-black tracking-[0.25em] uppercase md:text-[10px]"
+                >
                   Password
                 </label>
 
                 <Input
+                  id="share-password"
                   autoFocus
                   type="password"
                   value={password}
@@ -56,7 +60,10 @@ const PasswordGateModal = ({
               </div>
 
               {error ? (
-                <p className="text-accent text-center text-[9px] font-black tracking-widest uppercase md:text-[10px]">
+                <p
+                  role="alert"
+                  className="text-accent text-center text-[9px] font-black tracking-widest uppercase md:text-[10px]"
+                >
                   {error}
                 </p>
               ) : null}

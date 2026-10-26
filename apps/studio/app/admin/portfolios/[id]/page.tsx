@@ -17,6 +17,7 @@ import {
   formatNumber,
   formatSuspensionReason,
 } from "@/features/admin/utils/admin-format";
+import { pluralize } from "@/lib/pluralize";
 
 export const metadata: Metadata = {
   title: "Admin · Portfolio",
@@ -95,7 +96,7 @@ export default async function AdminPortfolioDetailPage({
                     key={point.date}
                     className="bg-accent/70 hover:bg-accent min-h-[2px] flex-1 rounded-t transition"
                     style={{ height: `${peakDay ? (point.count / peakDay) * 100 : 0}%` }}
-                    title={`${point.date}: ${point.count} view(s)`}
+                    title={`${point.date}: ${pluralize(point.count, "view")}`}
                   />
                 ))}
               </div>

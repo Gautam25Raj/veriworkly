@@ -6,13 +6,17 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** Read by the code but never set in `.env`: the runtime's own, or set on the test command line. */
+/**
+ * Read by the code but never set in `.env`: the runtime's own, inlined by `next.config.ts` `env`,
+ * or set on the test command line.
+ */
 export const ENV_EXAMPLE_EXEMPT = new Set([
   "NODE_ENV",
   "TZ",
   "SHOT",
   "SHOT_FIXTURE",
   "PARITY_ORIGIN",
+  "STUDIO_VERSION",
 ]);
 
 const SOURCE_EXTENSIONS = /\.(ts|tsx|mts|mjs|js)$/;

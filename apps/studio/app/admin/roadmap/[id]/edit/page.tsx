@@ -42,9 +42,9 @@ export default async function AdminRoadmapEditPage({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-2">
             <Badge className="bg-background/70">Roadmap Edit</Badge>
-            <h2 className="text-foreground text-2xl font-semibold md:text-3xl">
+            <h1 className="text-foreground text-2xl font-semibold md:text-3xl">
               Edit {feature.title}
-            </h2>
+            </h1>
             <p className="text-muted text-sm md:text-base">
               Update all roadmap fields, including schema-backed detail columns and JSON content.
             </p>

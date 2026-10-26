@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+import packageJson from "./package.json";
+
 // The backend origin is added to connect-src explicitly rather than opening the directive to all of `https:`.
 const backendOrigin = (() => {
   try {
@@ -50,6 +52,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+
+  // Inlined at build time so the version shown in the account menu is the one that shipped.
+  env: { STUDIO_VERSION: packageJson.version },
 
   async redirects() {
     return [

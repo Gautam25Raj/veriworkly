@@ -201,7 +201,9 @@ const SyncDetailsModal = ({
                 size="sm"
                 variant="ghost"
                 onClick={() => router.push(editorHref)}
-                className="h-8 w-8 rounded-full p-0 opacity-0 transition-all group-hover:opacity-100"
+                aria-label="Open in editor"
+                title="Open in editor"
+                className="h-8 w-8 rounded-full p-0 opacity-0 transition-all group-hover:opacity-100 focus-visible:opacity-100"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
               </Button>

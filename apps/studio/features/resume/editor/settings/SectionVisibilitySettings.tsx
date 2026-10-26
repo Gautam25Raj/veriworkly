@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { ResumeSection } from "@/types/resume";
 import { getResumeSectionKey } from "@/features/documents/rendering/resume-rendering";
 import { cn } from "@veriworkly/ui";
+import { pluralize } from "@/lib/pluralize";
 
 /*
  * Every callback here takes a section KEY (see `getResumeSectionKey`), not a section id.
@@ -171,7 +172,7 @@ const SectionVisibilitySettings = ({
                   Column 1
                 </p>
                 <span className="text-muted text-[9px] font-bold">
-                  {leftSections.length} sections
+                  {pluralize(leftSections.length, "section")}
                 </span>
               </div>
               {leftSections.map((section) => renderSectionCard(section))}
@@ -191,7 +192,7 @@ const SectionVisibilitySettings = ({
                   Column 2
                 </p>
                 <span className="text-muted text-[9px] font-bold">
-                  {rightSections.length} sections
+                  {pluralize(rightSections.length, "section")}
                 </span>
               </div>
               {rightSections.map((section) => renderSectionCard(section))}

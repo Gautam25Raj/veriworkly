@@ -59,6 +59,7 @@ export function ListEditorControls<T>({
     <div className="mb-3 flex flex-wrap gap-2">
       {items.length ? (
         <Select
+          aria-label="Entry to edit"
           className="h-10 min-w-0 flex-1"
           onChange={(event) => onSelect(Number(event.target.value))}
           value={index}

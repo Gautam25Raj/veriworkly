@@ -106,7 +106,7 @@ export function PreviewClient({ documentId, type }: PreviewClientProps) {
             href="/documents"
             className="bg-card text-foreground ring-border hover:bg-background inline-flex h-9 items-center justify-center rounded-full px-3 text-sm font-medium ring-1 transition ring-inset"
           >
-            Dashboard
+            Documents
           </Link>
         </div>
       </div>
@@ -120,14 +120,14 @@ export function PreviewClient({ documentId, type }: PreviewClientProps) {
         <Card className="space-y-3 text-center">
           <h1 className="text-foreground text-xl font-semibold">Document not found</h1>
           <p className="text-muted text-sm">
-            This document may have been deleted. Return to dashboard to pick another one.
+            This document may have been deleted. Return to your documents to pick another one.
           </p>
           <div>
             <Link
               className="bg-card text-foreground ring-border hover:bg-background inline-flex h-9 items-center justify-center rounded-full px-3 text-sm font-medium ring-1 transition ring-inset"
               href="/documents"
             >
-              Go to dashboard
+              Go to documents
             </Link>
           </div>
         </Card>

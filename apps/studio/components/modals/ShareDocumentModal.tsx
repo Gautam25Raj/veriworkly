@@ -44,6 +44,7 @@ import EditProfileUsernameModal from "@/features/profile/components/EditProfileU
 import { useUserStore } from "@/store/useUserStore";
 
 import ConfirmDialog from "./ConfirmDialog";
+import { pluralize } from "@/lib/pluralize";
 
 interface ShareDocumentModalProps {
   documentId: string | null;
@@ -126,7 +127,7 @@ const ActiveLinkRow = ({
 
         <div className="text-muted-foreground mt-1.5 flex items-center gap-2.5 text-[10px] font-bold tracking-wider uppercase">
           <span className="flex items-center gap-1">
-            <Eye className="h-3 w-3 opacity-60" /> {link.viewCount} views
+            <Eye className="h-3 w-3 opacity-60" /> {pluralize(link.viewCount, "view")}
           </span>
 
           <span className="opacity-30">/</span>
@@ -539,11 +540,15 @@ const ShareDocumentModal = ({
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-bold tracking-widest uppercase">
+                  <label
+                    htmlFor="share-password-input"
+                    className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-bold tracking-widest uppercase"
+                  >
                     <Lock className="h-3.5 w-3.5 opacity-70" /> Password
                   </label>
 
                   <Input
+                    id="share-password-input"
                     inputSize="sm"
                     type="password"
                     value={password}
@@ -588,7 +593,10 @@ const ShareDocumentModal = ({
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-bold tracking-widest uppercase">
+                    <label
+                      htmlFor="share-expiry-input"
+                      className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-bold tracking-widest uppercase"
+                    >
                       <Calendar className="h-3.5 w-3.5 opacity-70" /> Expiry
                     </label>
 
@@ -602,6 +610,7 @@ const ShareDocumentModal = ({
                   </div>
 
                   <Input
+                    id="share-expiry-input"
                     type="date"
                     min={todayLocalDateInput()}
                     inputSize="sm"

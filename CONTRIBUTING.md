@@ -61,10 +61,15 @@ Before getting started, please **star our repository** to show your support for 
 ### 5. Local Setup & Verification 🛠️
 
 - Install dependencies: `npm install`
-- Copy environment variables: copy all `.env.example` files to `.env` in root and across `apps/` (see `ENV_SETUP.md` or `QUICK_START.md`).
-- Run the app locally to test your changes:
-  - **Frontend-only (Site/Templates at port 3000)**: `npm run dev`
-  - **Full-stack (All apps/databases)**: `npm run dev:all` _(Requires running `npm run db:push && npm run db:generate`)_
+- Copy each app's `.env.example` to `.env` in the same folder. The steps are in the [README](README.md#run-it-locally), and each variable is described in its `.env.example`.
+- Run what your change touches:
+  - Marketing site only (port 3000): `npm run dev:site`
+  - Studio only (port 3001, guest mode needs no API): `npm run dev:studio`
+  - With the API: set `DATABASE_URL` and `REDIS_URL` in `apps/server/.env`, run `npm run db:migrate`, then `npm run dev:server` next to the app you are testing.
+
+#### Why the root `package.json` lists Linux binaries
+
+`optionalDependencies` in the root `package.json` names the Linux x64 native binaries of esbuild, Rolldown, Tailwind's oxide and Lightning CSS. A lockfile written on Windows or macOS can leave them out, and then `npm ci` on Linux (CI, Docker, the VPS) installs no binary and the build fails. Listing them keeps them in `package-lock.json`. Other platforms skip them. Do not remove them.
 
 ---
 
@@ -99,7 +104,7 @@ PR titles **must** follow the format:
 ## ✍️ Sign your commits (DCO)
 
 We use the [Developer Certificate of Origin](https://developercertificate.org/). It is a
-one-line sign-off, not a contributor licence agreement — you keep the copyright in your
+one-line sign-off, not a contributor licence agreement. You keep the copyright in your
 work, and there is no paperwork to sign or email to us.
 
 Add a `Signed-off-by` line to each commit:
@@ -119,7 +124,7 @@ distributed under the MIT License along with your sign-off record.
 which matters if we ever need to relicense, dual-license, or defend the project's origin.
 The DCO closes that gap from today forward at the cost of one line per commit. It does
 not give us your copyright and it does not let us relicense your contribution without
-your agreement — see [`LICENSING.md`](LICENSING.md).
+your agreement. See [`LICENSING.md`](LICENSING.md).
 
 ---
 

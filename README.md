@@ -6,18 +6,18 @@
   <br />
   <br />
 
-  <h1>🚀 VeriWorkly</h1>
+  <h1>VeriWorkly</h1>
 
-  <p><strong>Professional, privacy-first, and open-source career workspace & document engineering platform.</strong></p>
+  <p><strong>A privacy-first, open-source career workspace.</strong></p>
 
   <p>
-    <a href="https://veriworkly.com">✨ Main Application</a>
+    <a href="https://veriworkly.com">Website</a>
     ·
-    <a href="https://docs.veriworkly.com">📖 Documentation</a>
+    <a href="https://docs.veriworkly.com">Documentation</a>
     ·
-    <a href="https://blog.veriworkly.com">📰 Official Blog</a>
+    <a href="https://blog.veriworkly.com">Blog</a>
     ·
-    <a href="https://veriworkly.com/roadmap">🗺️ Product Roadmap</a>
+    <a href="https://veriworkly.com/roadmap">Roadmap</a>
   </p>
 
   <p>
@@ -29,29 +29,23 @@
 
 ---
 
-## 🎯 System Overview
+## What VeriWorkly is
 
-VeriWorkly is a **local-first career workspace ecosystem**: a resume and cover letter builder, a public portfolio website builder, an ATS scoring engine, AI-assisted writing tools, and GitHub/LinkedIn import utilities — all centered around a single, canonical **Master Profile**.
+VeriWorkly is an open-source career workspace: a resume and cover letter editor, a portfolio website builder, an ATS checker and AI writing help. Everything starts from one Master Profile.
 
-Instead of mandatory logins and data tracking, VeriWorkly operates on a **local-first principle**: documents reside in your browser (`localStorage`) by default, requiring no account to build, edit, or export. Logged-in users unlock cloud synchronization, per-document revision control, AI features, ATS deep analysis, and custom portfolio publishing on `*.veriworkly.com` subdomains.
+It is local-first. Documents live in your browser's `localStorage`, and you can build, edit and export with no account. Signing in adds cloud sync, sharing, AI features, ATS deep analysis and imports.
 
----
+## Features
 
-## ✨ Key Capabilities
+- **Local-first editor.** Resumes and cover letters save to the browser as you type. Guest mode is remembered by a 30-day `veriworkly-guest-mode` cookie, set in the browser with `document.cookie`.
+- **Master Profile.** One record of your career history. New documents start from it; editing a document never changes it.
+- **Portfolios.** Website templates Signal and Atelier (free, with a "Built with VeriWorkly" badge), Nimbus and Cipher (paid). Publishing is not yet enabled in production.
+- **ATS checker.** A deterministic scan from the open-source [`@veriworkly/ats-engine`](https://www.npmjs.com/package/@veriworkly/ats-engine), plus optional AI analysis against a job description.
+- **Exports in the browser.** PDF (`@react-pdf/renderer`), DOCX (`docx`), HTML, Markdown, plain text and JSON. No headless browser on the server.
+- **Cloud sync.** Per-document sync to PostgreSQL with revision numbers, conflict detection and a "keep local only" option.
+- **Developer API.** Scoped API keys and an OpenAPI reference at [docs.veriworkly.com/api-reference](https://docs.veriworkly.com/api-reference).
 
-- **⚡ Local-First Engine & Instant Previews**: Build resumes, cover letters, and portfolios in real time with client-side state management (Zustand + `localStorage`). Guest sessions persist via a 30-day HttpOnly cookie (`veriworkly-guest-mode`).
-- **🧠 Canonical Master Profile**: Maintain one authoritative record of your career history that automatically seeds new resumes, cover letters, and portfolios without mutating your core profile facts.
-- **🌐 Portfolio Platform**: Create, customize, and publish personal websites across templates (Signal, Atelier, Nimbus, Cipher) with custom subdomains or path routing (`portfolio.veriworkly.com/portfolio/{username}`).
-- **🤖 Deterministic & AI ATS Scoring**: Analyze resumes against target job descriptions with keyword optimization, extraction quotas, and AI-assisted rewriting (routed dynamically across Anthropic Claude & OpenAI GPT models).
-- **📥 Client-Side Dual Engine Exports**: Generate high-fidelity PDFs (`@react-pdf/renderer`), Word documents (`docx`), HTML, Markdown, Plain Text, and JSON directly in the browser — **zero headless browser (Puppeteer) server dependencies**.
-- **☁️ Cloud Sync & Conflict Resolution**: Synchronize documents securely via Express and PostgreSQL with revision counters, optimistic concurrency, conflict resolution, and per-document "keep local only" opt-outs.
-- **🔧 OpenAPI & Developer API**: Extensible backend with scoped API keys — explore interactive OpenAPI documentation at [docs.veriworkly.com/api-reference](https://docs.veriworkly.com/api-reference).
-
----
-
-## 🎨 Resume & Cover Letter Templates
-
-### Resume Templates
+## Templates
 
 <table width="100%">
   <tr>
@@ -76,62 +70,55 @@ Instead of mandatory logins and data tracking, VeriWorkly operates on a **local-
   </tr>
 </table>
 
----
+The studio ships 7 resume templates and 5 cover letter templates.
 
-## ⚙️ Architecture & Monorepo Layout
+## Repository layout
 
-VeriWorkly uses an **npm workspaces monorepo** consisting of **6 applications** and **1 shared design system package**:
+An npm workspaces monorepo: 6 apps and 2 shared packages.
 
 ```
 veriworkly/
 ├── apps/
-│   ├── site/             # [Port 3000] Marketing & Landing Site (Next.js 16)
-│   ├── studio/           # [Port 3001] Document Builder, Master Profile, ATS & Admin (Next.js 16)
-│   ├── docs-platform/    # [Port 3002] Technical Documentation & OpenAPI Hub (Next.js 16 / Fumadocs)
-│   ├── blog-platform/    # [Port 3003] Official Product & Engineering Blog (Next.js 16 / Fumadocs)
-│   ├── portfolio/        # [Port 3004] Portfolio Builder, Gallery & Subdomain Publisher (Next.js 16)
-│   └── server/           # [Port 8080] Express 4 API, Sync Engine & Background Jobs (Node.js 22.12+)
+│   ├── site/            # Marketing site, port 3000 (Next.js 16)
+│   ├── studio/          # Editor, Master Profile, ATS, billing, admin, port 3001 (Next.js 16)
+│   ├── docs-platform/   # Documentation and API reference, port 3002 (Next.js 16, Fumadocs)
+│   ├── blog-platform/   # Blog, port 3003 (Next.js 16, Fumadocs)
+│   ├── portfolio/       # Portfolio builder and public portfolios, port 3004 (Next.js 16)
+│   └── server/          # Express API, sync, billing, scheduled jobs, port 8080 (Node.js 22)
 └── packages/
-    └── ui/               # In-house Shared Design System & Components (@veriworkly/ui)
+    ├── profile-core/    # Shared profile and document schemas (@veriworkly/profile-core)
+    └── ui/              # Shared design system (@veriworkly/ui)
 ```
 
-### Technology Stack
+Each app has its own README with setup details, for example [`apps/studio/README.md`](apps/studio/README.md) and [`apps/server/README.md`](apps/server/README.md).
 
-| Component              | Technology                  | Description                                                                      |
-| :--------------------- | :-------------------------- | :------------------------------------------------------------------------------- |
-| **Frontend Framework** | **Next.js 16 (App Router)** | React 19 meta-framework with SSR & route handlers across all 5 frontends         |
-| **Styling & Tokens**   | **Tailwind CSS 4**          | Utility-first CSS using native `@theme` directives & shared design tokens        |
-| **Design System**      | **`@veriworkly/ui`**        | In-house UI component primitives & layout shells (no Radix or MUI dependencies)  |
-| **State & Storage**    | **Zustand**                 | Lightweight frontend state management, persisted to browser `localStorage`       |
-| **PDF Generation**     | **`@react-pdf/renderer`**   | Pure client-side high-fidelity PDF rendering engine                              |
-| **DOCX Generation**    | **`docx`**                  | Client-side Microsoft Word document generator                                    |
-| **Backend Runtime**    | **Node.js 22.12+**          | TypeScript Express 4 server, clustered with `throng` in production               |
-| **Database & ORM**     | **PostgreSQL + Prisma 7**   | Type-safe relational database storage & migrations                               |
-| **Cache & Queues**     | **Redis**                   | Auth sessions, rate limiting, ATS quotas, view counts, and distributed job locks |
-| **Authentication**     | **Better-Auth**             | Passwordless Email OTP plus Google, GitHub, and LinkedIn OAuth providers         |
-| **File Parsing**       | **`pdf-parse`, `mammoth`**  | Server-side text extraction for PDF and Word resume uploads                      |
-| **Payments**           | **Dodo Payments**           | Credit purchases, subscription management, and billing portal                    |
-| **Object Storage**     | **Cloudflare R2**           | Presigned S3-compatible image uploads for custom portfolios                      |
-| **Background Tasks**   | **`node-cron`**             | 5 automated background cron jobs guarded by Redis distributed locks              |
-| **Docs & Search**      | **Fumadocs + MDX**          | Content engine powering documentation, API reference, and blog platform          |
+### Stack
 
----
+| Part          | Technology                                                                     |
+| :------------ | :----------------------------------------------------------------------------- |
+| Frontends     | Next.js 16 (App Router), React 19, Tailwind CSS 4                              |
+| UI            | `@veriworkly/ui`, in-house components                                          |
+| Browser state | Zustand for UI state; documents saved by a hand-written `localStorage` service |
+| Export        | `@react-pdf/renderer` and `docx`, in the browser                               |
+| API           | Node.js 22, Express 4, TypeScript, clustered with `throng`                     |
+| Database      | PostgreSQL with Prisma 7                                                       |
+| Cache         | Redis 7: sessions, rate limits, quotas, view counts, job locks                 |
+| Auth          | Better Auth: email one-time code, plus Google, GitHub and LinkedIn sign-in     |
+| Payments      | Dodo Payments                                                                  |
+| File storage  | Cloudflare R2, for portfolio images                                            |
+| Docs and blog | Fumadocs and MDX                                                               |
 
-## 🚀 Local Development Setup
+## Run it locally
 
-### Prerequisites
+You need:
 
-- **Node.js**: v22.12.0 or higher
-- **npm**: v11 or higher (`npm@11.16.0`); repository uses npm workspaces (`npm install` from root)
-- **PostgreSQL**: Required for backend API functionality ([Neon](https://neon.tech) managed Postgres supported)
-- **Redis**: Required for backend sessions, rate limiting, quotas, and job locking
+- Node.js 22.12 or later
+- npm 11 (`npm@11.16.0`)
+- PostgreSQL and Redis 7, for the API only
 
-> [!TIP]
-> **Frontend-Only Development**: You can run `apps/site` or `apps/studio` independently without PostgreSQL or Redis if you are working purely on UI, layout, or resume templates.
+The site and the studio run without the API. The studio works in guest mode; sign-in and sync need the API.
 
-### Quick Start Instructions
-
-1. **Clone the Repository & Install Dependencies**
+1. Clone and install:
 
    ```bash
    git clone https://github.com/VeriWorkly/veriworkly.git
@@ -139,10 +126,11 @@ veriworkly/
    npm install
    ```
 
-2. **Configure Environment Files**
+   `npm install` also generates the Prisma client (the root `postinstall` script).
+
+2. Copy each app's environment file. Each app reads only its own `.env`.
 
    ```bash
-   cp .env.example .env
    cp apps/server/.env.example apps/server/.env
    cp apps/site/.env.example apps/site/.env
    cp apps/studio/.env.example apps/studio/.env
@@ -151,107 +139,76 @@ veriworkly/
    cp apps/blog-platform/.env.example apps/blog-platform/.env
    ```
 
-3. **Initialize Database Schema**
+   Every variable is described in the `.env.example` comments and in the app's README.
+
+3. For the API: set `DATABASE_URL` and `REDIS_URL` in `apps/server/.env`, then apply the migrations:
 
    ```bash
-   npm run db:push
-   npm run db:generate
+   npm run db:migrate
    ```
 
-4. **Launch Development Servers**
-
-   **Launch all services simultaneously**:
+4. Start what you need, each in its own terminal:
 
    ```bash
-   npm run dev:all
+   npm run dev:site       # http://localhost:3000
+   npm run dev:studio     # http://localhost:3001
+   npm run dev:docs       # http://localhost:3002
+   npm run dev:blog       # http://localhost:3003
+   npm run dev:portfolio  # http://localhost:3004
+   npm run dev:server     # http://localhost:8080
    ```
 
-   **Or run specific application workspaces individually**:
+API health checks:
 
-   ```bash
-   npm run dev            # Marketing Site    → http://localhost:3000
-   npm run dev:studio     # Document Builder  → http://localhost:3001
-   npm run dev:docs       # Technical Docs    → http://localhost:3002
-   npm run dev:blog       # Product Blog      → http://localhost:3003
-   npm run dev:portfolio  # Portfolio Builder → http://localhost:3004
-   npm run dev:server     # Express API       → http://localhost:8080
-   ```
+| URL                                       | Checks                                 |
+| :---------------------------------------- | :------------------------------------- |
+| http://localhost:8080/api/v1/health       | The API process answers                |
+| http://localhost:8080/api/v1/health/ready | The API can reach PostgreSQL and Redis |
 
----
-
-## 🛠️ Verification & Useful Scripts
-
-### Service Probes & Health Check
-
-| Endpoint          | URL                                                                                    | Purpose                                                       |
-| :---------------- | :------------------------------------------------------------------------------------- | :------------------------------------------------------------ |
-| **API Liveness**  | [http://localhost:8080/api/v1/health](http://localhost:8080/api/v1/health)             | Lightweight HTTP server liveness check                        |
-| **API Readiness** | [http://localhost:8080/api/v1/health/ready](http://localhost:8080/api/v1/health/ready) | Probes active PostgreSQL database and Redis cache connections |
-
-### Testing & Quality Commands
+## Tests and checks
 
 ```bash
-# Code style & formatting verification
 npm run lint
-npm run format:write
+npm run format
 
-# Server backend tests (Vitest)
 npm test -w @veriworkly/server
-
-# Application unit & contract test suites (Vitest)
-npm run test:contracts -w @veriworkly/studio
-npm run test:browser -w @veriworkly/studio
 npm run test:contracts -w @veriworkly/site
 npm test -w @veriworkly/portfolio
+npm test -w @veriworkly/ui
 
-# PDF / Preview Parity Test Suite (requires Playwright Chromium)
+npm run test:contracts -w @veriworkly/studio
+npm run test:browser -w @veriworkly/studio
 npm run test:parity -w @veriworkly/studio
 
-# Verify complete monorepo build pipeline
 npm run build
 ```
 
----
+The studio's browser and parity suites drive your installed Chrome (or Edge), not Playwright's bundled Chromium. See [`apps/studio/README.md`](apps/studio/README.md#tests).
 
-## 📖 Documentation Directory
+## Documentation
 
-| Topic                     | Description                                                            | Link / Location                                                                                                      |
-| :------------------------ | :--------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------- |
-| **System Overview**       | Architecture overview, export pipeline, and technical specs.           | [docs.veriworkly.com/docs/overview](https://docs.veriworkly.com/docs/overview)                                       |
-| **Monorepo Architecture** | Application layout, routing proxy, and private template submodule.     | [docs.veriworkly.com/docs/architecture/monorepo](https://docs.veriworkly.com/docs/architecture/monorepo)             |
-| **API Reference**         | OpenAPI 3.0 specification & interactive developer reference endpoints. | [docs.veriworkly.com/api-reference](https://docs.veriworkly.com/api-reference)                                       |
-| **Local Setup Guide**     | Environment variables, database initialization, and dev servers.       | [docs.veriworkly.com/docs/getting-started/local-setup](https://docs.veriworkly.com/docs/getting-started/local-setup) |
-| **Docker Operations**     | Orchestration, Docker Compose, and deployment parameters.              | [README.Docker.md](README.Docker.md)                                                                                 |
-| **Contributing Protocol** | Issue claiming, PR naming conventions, and repository standards.       | [CONTRIBUTING.md](CONTRIBUTING.md)                                                                                   |
+| Topic        | Where                                                                                                                |
+| :----------- | :------------------------------------------------------------------------------------------------------------------- |
+| Overview     | [docs.veriworkly.com/docs/overview](https://docs.veriworkly.com/docs/overview)                                       |
+| Architecture | [docs.veriworkly.com/docs/architecture/monorepo](https://docs.veriworkly.com/docs/architecture/monorepo)             |
+| API          | [docs.veriworkly.com/api-reference](https://docs.veriworkly.com/api-reference)                                       |
+| Local setup  | [docs.veriworkly.com/docs/getting-started/local-setup](https://docs.veriworkly.com/docs/getting-started/local-setup) |
+| Docker       | [README.Docker.md](README.Docker.md)                                                                                 |
+| Contributing | [CONTRIBUTING.md](CONTRIBUTING.md)                                                                                   |
 
----
+## Contributing
 
-## 🤝 Contributing
+1. Star the repository.
+2. Claim an issue: comment on it and wait to be assigned before you start.
+3. Name commits with conventional prefixes (`feat:`, `fix:`, `docs:`, `refactor:`).
+4. Read [CONTRIBUTING.md](CONTRIBUTING.md) before you open a pull request.
 
-We welcome community contributions! Please follow our guidelines when getting involved:
+## Security and privacy
 
-> [!IMPORTANT]
->
-> 1. 🌟 **Star the repository** to support open-source development.
-> 2. 📋 **Claim an issue** by commenting on it and waiting to be officially assigned before starting work.
-> 3. 📝 Follow conventional commit naming standards (`feat:`, `fix:`, `docs:`, `refactor:`).
-> 4. Read the full **[Contributing Guidelines](CONTRIBUTING.md)** prior to opening a Pull Request.
+- Guest documents are stored only in your browser. Signed-in users can keep any document local only.
+- No heatmaps, mouse tracking or third-party behavioural tracking. Product metrics are aggregate only.
+- Report security issues to `info@veriworkly.com`, not in a public issue. See [SECURITY.md](SECURITY.md).
 
----
+## License
 
-## 🔒 Security & Privacy
-
-- **Local-First Privacy**: Your document data remains stored in your local browser environment by default.
-- **Zero Behavioral Tracking**: No heatmaps, mouse tracking, or third-party behavioral telemetry. Aggregate-only product telemetry is used exclusively for service performance analysis.
-- **Responsible Disclosure**: If you find a security vulnerability, please email `info@veriworkly.com` directly instead of opening a public issue. Review [SECURITY.md](SECURITY.md) for complete details.
-
----
-
-## 📄 License
-
-VeriWorkly is open-source software licensed under the [MIT License](LICENSE).
-
-<div align="center">
-  <br />
-  <h3>Built with ❤️ by the VeriWorkly Team and our open-source community</h3>
-</div>
+VeriWorkly is open-source software under the [MIT License](LICENSE).

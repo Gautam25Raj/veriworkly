@@ -9,7 +9,7 @@
  * rather than emitting N of their own.
  */
 
-export const CHART_SERIES = [1, 2, 3, 4, 5, 6] as const;
+const CHART_SERIES = [1, 2, 3, 4, 5, 6] as const;
 
 export type ChartSeries = (typeof CHART_SERIES)[number];
 

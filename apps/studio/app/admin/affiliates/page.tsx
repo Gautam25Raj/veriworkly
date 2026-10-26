@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import AdminFilterBar from "@/components/admin/AdminFilterBar";
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import AdminPagination from "@/components/admin/AdminPagination";
 import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
-import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
+import AdminListPage from "@/components/admin/AdminListPage";
+import type { AdminTableColumn } from "@/components/admin/AdminTable";
 import { AffiliateStandingActions } from "@/app/admin/affiliates/AffiliateActions";
 
 import {
@@ -147,74 +145,60 @@ export default async function AdminAffiliatesPage({
   const pendingCommissions = summary.commissionsByStatus.PENDING;
 
   return (
-    <div className="space-y-5">
-      <AdminPageHeader
-        eyebrow="Revenue"
-        title="Affiliate program"
-        description="Moderate affiliate standing, review commissions, and work the payout queue."
-        actions={
-          <div className="flex flex-wrap items-center gap-3 text-sm font-semibold">
-            <Link href="/admin/affiliates/commissions" className="text-accent">
-              Commissions
-            </Link>
-            <Link href="/admin/affiliates/withdrawals" className="text-accent">
-              Withdrawals
-            </Link>
-            <Link href="/admin/affiliates/referrals" className="text-accent">
-              Referrals
-            </Link>
-          </div>
-        }
-      />
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <AdminStatCard
-          label="Active affiliates"
-          value={formatNumber(summary.affiliatesByStatus.ACTIVE ?? 0)}
-          hint={`${formatNumber(summary.affiliatesByStatus.SUSPENDED ?? 0)} suspended`}
-        />
-        <AdminStatCard
-          label="Owed to affiliates"
-          value={formatCents(summary.wallets.pendingCents + summary.wallets.availableCents)}
-          hint={`${formatCents(summary.wallets.availableCents)} withdrawable now`}
-        />
-        <AdminStatCard
-          label="Withdrawals waiting"
-          value={formatNumber(summary.pendingWithdrawals.count)}
-          hint={formatCents(summary.pendingWithdrawals.amountCents)}
-          tone={summary.pendingWithdrawals.count > 0 ? "warning" : "default"}
-          href="/admin/affiliates/withdrawals?status=REQUESTED"
-        />
-        <AdminStatCard
-          label="Commissions to review"
-          value={formatNumber(pendingCommissions?.count ?? 0)}
-          hint={formatCents(pendingCommissions?.amountCents ?? 0)}
-          tone={(pendingCommissions?.count ?? 0) > 0 ? "warning" : "default"}
-          href="/admin/affiliates/commissions?status=PENDING"
-        />
-      </section>
-
-      <AdminFilterBar
-        basePath="/admin/affiliates"
-        searchPlaceholder="Email, name, affiliate code, or user id"
-        selects={FILTERS}
-      />
-
-      <AdminTable
-        columns={columns}
-        rows={data.items}
-        rowKey={(row) => row.id}
-        emptyMessage="No affiliates match these filters."
-        caption={`${formatNumber(summary.totalClicks)} tracked clicks across the program.`}
-      />
-
-      <AdminPagination
-        total={data.total}
-        limit={data.limit}
-        offset={data.offset}
-        basePath="/admin/affiliates"
-        params={params}
-      />
-    </div>
+    <AdminListPage
+      eyebrow="Revenue"
+      title="Affiliate program"
+      description="Moderate affiliate standing, review commissions, and work the payout queue."
+      actions={
+        <div className="flex flex-wrap items-center gap-3 text-sm font-semibold">
+          <Link href="/admin/affiliates/commissions" className="text-accent">
+            Commissions
+          </Link>
+          <Link href="/admin/affiliates/withdrawals" className="text-accent">
+            Withdrawals
+          </Link>
+          <Link href="/admin/affiliates/referrals" className="text-accent">
+            Referrals
+          </Link>
+        </div>
+      }
+      summary={
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <AdminStatCard
+            label="Active affiliates"
+            value={formatNumber(summary.affiliatesByStatus.ACTIVE ?? 0)}
+            hint={`${formatNumber(summary.affiliatesByStatus.SUSPENDED ?? 0)} suspended`}
+          />
+          <AdminStatCard
+            label="Owed to affiliates"
+            value={formatCents(summary.wallets.pendingCents + summary.wallets.availableCents)}
+            hint={`${formatCents(summary.wallets.availableCents)} withdrawable now`}
+          />
+          <AdminStatCard
+            label="Withdrawals waiting"
+            value={formatNumber(summary.pendingWithdrawals.count)}
+            hint={formatCents(summary.pendingWithdrawals.amountCents)}
+            tone={summary.pendingWithdrawals.count > 0 ? "warning" : "default"}
+            href="/admin/affiliates/withdrawals?status=REQUESTED"
+          />
+          <AdminStatCard
+            label="Commissions to review"
+            value={formatNumber(pendingCommissions?.count ?? 0)}
+            hint={formatCents(pendingCommissions?.amountCents ?? 0)}
+            tone={(pendingCommissions?.count ?? 0) > 0 ? "warning" : "default"}
+            href="/admin/affiliates/commissions?status=PENDING"
+          />
+        </section>
+      }
+      basePath="/admin/affiliates"
+      params={params}
+      searchPlaceholder="Email, name, affiliate code, or user id"
+      filters={FILTERS}
+      page={data}
+      columns={columns}
+      rowKey={(row) => row.id}
+      emptyMessage="No affiliates match these filters."
+      caption={`${formatNumber(summary.totalClicks)} tracked clicks across the program.`}
+    />
   );
 }

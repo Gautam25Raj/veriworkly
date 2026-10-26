@@ -36,7 +36,6 @@ const UserAdminActions = ({ detail }: { detail: AdminUserDetail }) => {
     ADMIN_ENTITLEMENT_KEYS[0],
   );
   const [entitlementEndsAt, setEntitlementEndsAt] = useState("");
-  const [error, setError] = useState("");
 
   const credits = parseCreditAmount(creditAmount);
 
@@ -54,8 +53,6 @@ const UserAdminActions = ({ detail }: { detail: AdminUserDetail }) => {
           Each action records an audit entry against this account.
         </p>
       </div>
-
-      {error ? <p className="text-destructive text-sm">{error}</p> : null}
 
       <div className="space-y-2">
         <label htmlFor="admin-user-role" className="text-muted text-xs font-medium">
@@ -218,14 +215,7 @@ const UserAdminActions = ({ detail }: { detail: AdminUserDetail }) => {
           ) : null}
         </AdminActionDialog>
 
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => {
-            setError("");
-            router.refresh();
-          }}
-        >
+        <Button size="sm" variant="ghost" onClick={() => router.refresh()}>
           Refresh
         </Button>
       </div>

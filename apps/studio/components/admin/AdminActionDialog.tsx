@@ -9,7 +9,7 @@ import type { ButtonVariant } from "@veriworkly/ui";
 
 import { isAdminReasonValid } from "@/components/admin/admin-reason";
 
-export interface AdminActionDialogProps {
+interface AdminActionDialogProps {
   /** Label on the button that opens the dialog. */
   trigger: ReactNode;
   triggerVariant?: ButtonVariant;

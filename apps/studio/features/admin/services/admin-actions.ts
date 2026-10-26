@@ -1,6 +1,8 @@
 import { fetchApiData } from "@/utils/fetchApiData";
 
 import type {
+  AffiliateTier,
+  Role,
   AdminApiKeyRow,
   AdminAmbassadorRow,
   AdminCommissionRow,
@@ -33,7 +35,7 @@ function adminRequest<T>(path: string, method: string, body?: unknown) {
 export interface AdminUserUpdatePayload {
   name?: string | null;
   username?: string | null;
-  role?: "USER" | "AMBASSADOR" | "ADMIN";
+  role?: Role;
   emailVerified?: boolean;
   autoSyncEnabled?: boolean;
   reason: string;
@@ -60,7 +62,7 @@ export function updateAdminAffiliate(
   userId: string,
   payload: {
     status?: "PENDING" | "ACTIVE" | "SUSPENDED";
-    tier?: "TIER_1" | "TIER_2" | "TIER_3";
+    tier?: AffiliateTier;
     reason?: string;
   },
 ) {
@@ -239,10 +241,10 @@ export async function fetchAdminGithubSyncRunning() {
   return status.running;
 }
 
-export function flushAdminCache(
-  prefix: "portfolio:public" | "user:profile" | "affiliate" | "credits" | "changelog" | "roadmap",
-  reason: string,
-) {
+export type AdminCachePrefix =
+  "portfolio:public" | "user:profile" | "affiliate" | "credits" | "changelog" | "roadmap";
+
+export function flushAdminCache(prefix: AdminCachePrefix, reason: string) {
   return adminRequest<{ prefix: string; targets: string[] }>("/system/cache/flush", "POST", {
     prefix,
     reason,

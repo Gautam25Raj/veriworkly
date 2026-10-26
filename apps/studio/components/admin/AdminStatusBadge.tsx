@@ -8,11 +8,8 @@ type Tone = "neutral" | "success" | "warning" | "danger" | "info";
  * Status tones are built from the theme's semantic tokens (`--success`, `--warning`,
  * `--destructive`, `--accent`), not from raw Tailwind palette steps.
  *
- * The previous version hardcoded `emerald-700 / amber-700 / red-700 / sky-700`, which meant the
- * admin ran a second, parallel colour language next to the one `themes.css` defines: retuning
- * the brand's success green left every admin badge on the old hue. Going through the tokens
- * means a theme change reaches here for free, and light/dark are handled by the token
- * definitions rather than by a `dark:` variant on every line.
+ * Going through the tokens means a theme change reaches here for free, and light/dark are
+ * handled by the token definitions rather than by a `dark:` variant on every line.
  */
 const toneStyles: Record<Tone, string> = {
   neutral: "bg-muted/10 text-muted ring-muted/20",

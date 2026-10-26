@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Select } from "@veriworkly/ui";
 
 import AdminActionDialog from "@/components/admin/AdminActionDialog";
+import { ADMIN_INPUT_CLASS } from "@/components/admin/admin-input-class";
 import {
   createAdminCommission,
   updateAdminAffiliate,
@@ -206,27 +207,24 @@ export function CommissionCreateForm() {
   const purchaseAmountCents = Math.round(Number(amountUsd || 0) * 100);
   const ready = referredUserId.trim() && providerPaymentId.trim() && purchaseAmountCents > 0;
 
-  const inputClass =
-    "border-border bg-background h-9 w-full rounded-lg border px-3 text-xs outline-none";
-
   return (
     <div className="space-y-3">
       <input
-        className={inputClass}
+        className={ADMIN_INPUT_CLASS}
         placeholder="Referred user id"
         value={referredUserId}
         onChange={(event) => setReferredUserId(event.target.value)}
       />
 
       <input
-        className={inputClass}
+        className={ADMIN_INPUT_CLASS}
         placeholder="Provider payment id"
         value={providerPaymentId}
         onChange={(event) => setProviderPaymentId(event.target.value)}
       />
 
       <input
-        className={inputClass}
+        className={ADMIN_INPUT_CLASS}
         type="number"
         min="0"
         step="0.01"

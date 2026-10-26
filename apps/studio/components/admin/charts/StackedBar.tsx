@@ -1,8 +1,10 @@
 import { cn } from "@veriworkly/ui";
 
+import { formatNumber } from "@/features/admin/utils/admin-format";
+
 import { chartColor, type ChartSeries } from "./ChartDefs";
 
-export interface StackedSegment {
+interface StackedSegment {
   label: string;
   value: number;
   series: ChartSeries;
@@ -28,7 +30,7 @@ interface StackedBarProps {
  */
 const StackedBar = ({
   segments,
-  formatValue = (value) => value.toLocaleString("en-US"),
+  formatValue = formatNumber,
   emptyMessage = "Nothing recorded yet.",
   className,
 }: StackedBarProps) => {

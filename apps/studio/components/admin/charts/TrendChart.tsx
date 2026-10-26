@@ -4,10 +4,12 @@ import { useMemo, useState } from "react";
 
 import { cn } from "@veriworkly/ui";
 
+import { formatNumber } from "@/features/admin/utils/admin-format";
+
 import { chartColor, chartFillId, type ChartSeries } from "./ChartDefs";
 import { buildAreaPath, buildLinePath, niceMax, toPoints } from "./geometry";
 
-export interface TrendDataset {
+interface TrendDataset {
   label: string;
   values: number[];
   series: ChartSeries;
@@ -49,7 +51,7 @@ const TrendChart = ({
   buckets,
   datasets,
   height = 200,
-  formatValue = (value) => value.toLocaleString("en-US"),
+  formatValue = formatNumber,
   className,
 }: TrendChartProps) => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);

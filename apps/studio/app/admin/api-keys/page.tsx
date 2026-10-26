@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import AdminFilterBar from "@/components/admin/AdminFilterBar";
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import AdminPagination from "@/components/admin/AdminPagination";
 import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
-import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
+import AdminListPage from "@/components/admin/AdminListPage";
+import type { AdminTableColumn } from "@/components/admin/AdminTable";
 import ApiKeyActions from "@/app/admin/api-keys/ApiKeyActions";
 
 import { fetchAdminApiKeySummary, fetchAdminApiKeys } from "@/features/admin/services/admin-server";
@@ -131,45 +129,31 @@ export default async function AdminApiKeysPage({
   const [summary, data] = await Promise.all([fetchAdminApiKeySummary(), fetchAdminApiKeys(params)]);
 
   return (
-    <div className="space-y-5">
-      <AdminPageHeader
-        eyebrow="Platform"
-        title="API keys"
-        description="Every issued key, its scopes, and its quota. Key material is never readable here — only the prefix and suffix are stored in a form this page can show."
-      />
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <AdminStatCard label="Total" value={formatNumber(summary.total)} />
-        <AdminStatCard label="Active" value={formatNumber(summary.active)} tone="positive" />
-        <AdminStatCard label="Revoked" value={formatNumber(summary.revoked)} />
-        <AdminStatCard
-          label="Expired"
-          value={formatNumber(summary.expired)}
-          tone={summary.expired > 0 ? "warning" : "default"}
-        />
-        <AdminStatCard label="Used (7d)" value={formatNumber(summary.usedLast7Days)} />
-      </section>
-
-      <AdminFilterBar
-        basePath="/admin/api-keys"
-        searchPlaceholder="Key name, prefix, or owner email"
-        selects={FILTERS}
-      />
-
-      <AdminTable
-        columns={columns}
-        rows={data.items}
-        rowKey={(row) => row.id}
-        emptyMessage="No API keys match these filters."
-      />
-
-      <AdminPagination
-        total={data.total}
-        limit={data.limit}
-        offset={data.offset}
-        basePath="/admin/api-keys"
-        params={params}
-      />
-    </div>
+    <AdminListPage
+      eyebrow="Platform"
+      title="API keys"
+      description="Every issued key, its scopes, and its quota. Key material is never readable here — only the prefix and suffix are stored in a form this page can show."
+      summary={
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <AdminStatCard label="Total" value={formatNumber(summary.total)} />
+          <AdminStatCard label="Active" value={formatNumber(summary.active)} tone="positive" />
+          <AdminStatCard label="Revoked" value={formatNumber(summary.revoked)} />
+          <AdminStatCard
+            label="Expired"
+            value={formatNumber(summary.expired)}
+            tone={summary.expired > 0 ? "warning" : "default"}
+          />
+          <AdminStatCard label="Used (7d)" value={formatNumber(summary.usedLast7Days)} />
+        </section>
+      }
+      basePath="/admin/api-keys"
+      params={params}
+      searchPlaceholder="Key name, prefix, or owner email"
+      filters={FILTERS}
+      page={data}
+      columns={columns}
+      rowKey={(row) => row.id}
+      emptyMessage="No API keys match these filters."
+    />
   );
 }

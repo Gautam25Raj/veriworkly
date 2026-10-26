@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import AdminAuditList from "@/components/admin/AdminAuditList";
 import AdminPageHeader from "@/components/admin/AdminPageHeader";
 import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
@@ -13,7 +14,6 @@ import {
   apiKeyState,
   formatCents,
   formatDate,
-  formatDateTime,
   formatNumber,
   formatRelativeTime,
   formatSuspensionReason,
@@ -233,25 +233,11 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
             )}
           </Panel>
 
-          <Panel className="space-y-3 rounded-xl p-4">
-            <h3 className="text-foreground font-semibold tracking-tight">Admin history</h3>
-
-            {detail.auditEntries.length === 0 ? (
-              <p className="text-muted text-sm">No admin actions against this account.</p>
-            ) : (
-              <div className="divide-border/50 divide-y">
-                {detail.auditEntries.map((entry) => (
-                  <div key={entry.id} className="space-y-0.5 py-2.5 text-sm">
-                    <p className="text-foreground font-medium">{humanizeKey(entry.action)}</p>
-                    <p className="text-muted text-xs">
-                      {entry.actor?.email ?? "system"} · {formatDateTime(entry.createdAt)}
-                      {entry.reason ? ` · ${entry.reason}` : ""}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Panel>
+          <AdminAuditList
+            title="Admin history"
+            emptyMessage="No admin actions against this account."
+            entries={detail.auditEntries}
+          />
         </div>
 
         <div className="space-y-4">

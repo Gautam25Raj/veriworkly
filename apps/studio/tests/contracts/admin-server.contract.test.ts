@@ -326,3 +326,77 @@ describe("admin mutation contract", () => {
     await expect(fetchAdminGithubSyncRunning()).resolves.toBe(false);
   });
 });
+
+describe("admin route boundaries", () => {
+  async function adminFiles(name: string) {
+    const { readdir } = await import("node:fs/promises");
+    const entries = await readdir(path.join(process.cwd(), "app/admin"), { recursive: true });
+
+    return entries
+      .map((entry) => entry.split(path.sep).join("/"))
+      .filter((entry) => entry === name || entry.endsWith(`/${name}`));
+  }
+
+  function routeOf(file: string) {
+    const folder = path.posix.dirname(file);
+    return folder === "." ? "/admin" : `/admin/${folder}`;
+  }
+
+  it("names every admin page in the route table, static siblings before [id]", async () => {
+    const { resolveAdminRoute } = await import("@/features/admin/config/admin-routes");
+
+    // A redirect-only page never renders, so it needs no surface or skeleton.
+    const pages = (await adminFiles("page.tsx")).filter((page) => page !== "monetization/page.tsx");
+
+    expect(pages.length).toBeGreaterThan(20);
+
+    for (const page of pages) {
+      const route = routeOf(page);
+      const url = route.replaceAll("[id]", "abc123");
+
+      expect(resolveAdminRoute(url).path, page).toBe(route);
+    }
+
+    expect(resolveAdminRoute("/admin/affiliates/commissions").surface).toBe(
+      "the commissions queue",
+    );
+    expect(resolveAdminRoute("/admin/users/abc123").surface).toBe("this user");
+    expect(resolveAdminRoute("/admin/nope/at/all").surface).toBe("this page");
+  });
+
+  it("has one admin error boundary and one shared loading UI", async () => {
+    expect(await adminFiles("error.tsx")).toEqual(["error.tsx"]);
+
+    const loaders = await adminFiles("loading.tsx");
+    expect(loaders).toContain("loading.tsx");
+
+    for (const loader of loaders.filter((file) => file !== "loading.tsx")) {
+      const source = await readFile(path.join(process.cwd(), "app/admin", loader), "utf8");
+      expect(source.trim(), loader).toBe('export { default } from "../loading";');
+    }
+  });
+
+  it("gives each list and detail page a skeleton with its own stat row and side form", async () => {
+    const { resolveAdminRoute } = await import("@/features/admin/config/admin-routes");
+
+    for (const page of await adminFiles("page.tsx")) {
+      const { skeleton, path: route } = resolveAdminRoute(routeOf(page).replaceAll("[id]", "x"));
+      if (route !== routeOf(page)) continue;
+
+      const source = await readFile(path.join(process.cwd(), "app/admin", page), "utf8");
+      const statRow = source.match(/<section className="grid gap-3[^"]*">([\s\S]*?)<\/section>/);
+      const statCount = statRow?.[1].match(/<AdminStatCard\b/g)?.length;
+
+      if (skeleton.kind === "list") {
+        expect(skeleton.stats, page).toBe(statCount);
+        expect(Boolean(skeleton.aside), page).toBe(source.includes("aside={"));
+      }
+
+      if (skeleton.kind === "detail") {
+        expect(skeleton.stats, page).toBe(statCount);
+      }
+    }
+
+    expect(resolveAdminRoute("/admin/roadmap").skeleton.kind).toBe("kanban");
+  });
+});

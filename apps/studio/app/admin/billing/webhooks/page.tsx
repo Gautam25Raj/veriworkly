@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import AdminFilterBar from "@/components/admin/AdminFilterBar";
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import AdminPagination from "@/components/admin/AdminPagination";
 import AdminStatCard from "@/components/admin/AdminStatCard";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
-import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
+import AdminListPage from "@/components/admin/AdminListPage";
+import type { AdminTableColumn } from "@/components/admin/AdminTable";
 import { WebhookReplayAction } from "@/app/admin/billing/BillingActions";
 
 import {
@@ -111,56 +109,42 @@ export default async function AdminWebhooksPage({
   ]);
 
   return (
-    <div className="space-y-5">
-      <AdminPageHeader
-        eyebrow="Revenue"
-        title="Billing webhooks"
-        description="The provider event log. A failed event usually means an account did not get the access it paid for — replay it once the underlying cause is fixed."
-        actions={
-          <Link href="/admin/billing" className="text-accent text-sm font-semibold">
-            ← Billing
-          </Link>
-        }
-      />
-
-      <section className="grid gap-3 sm:grid-cols-3">
-        <AdminStatCard
-          label="Failed"
-          value={formatNumber(summary.webhooks.byStatus.FAILED ?? 0)}
-          tone={(summary.webhooks.byStatus.FAILED ?? 0) > 0 ? "critical" : "default"}
-        />
-        <AdminStatCard
-          label="Processing"
-          value={formatNumber(summary.webhooks.byStatus.PROCESSING ?? 0)}
-          tone={(summary.webhooks.byStatus.PROCESSING ?? 0) > 0 ? "warning" : "default"}
-        />
-        <AdminStatCard
-          label="Processed"
-          value={formatNumber(summary.webhooks.byStatus.PROCESSED ?? 0)}
-          tone="positive"
-        />
-      </section>
-
-      <AdminFilterBar
-        basePath="/admin/billing/webhooks"
-        searchPlaceholder="Provider event id, error text, or account email"
-        selects={FILTERS}
-      />
-
-      <AdminTable
-        columns={columns}
-        rows={data.items}
-        rowKey={(row) => row.id}
-        emptyMessage="No webhook events match these filters."
-      />
-
-      <AdminPagination
-        total={data.total}
-        limit={data.limit}
-        offset={data.offset}
-        basePath="/admin/billing/webhooks"
-        params={params}
-      />
-    </div>
+    <AdminListPage
+      eyebrow="Revenue"
+      title="Billing webhooks"
+      description="The provider event log. A failed event usually means an account did not get the access it paid for — replay it once the underlying cause is fixed."
+      actions={
+        <Link href="/admin/billing" className="text-accent text-sm font-semibold">
+          ← Billing
+        </Link>
+      }
+      summary={
+        <section className="grid gap-3 sm:grid-cols-3">
+          <AdminStatCard
+            label="Failed"
+            value={formatNumber(summary.webhooks.byStatus.FAILED ?? 0)}
+            tone={(summary.webhooks.byStatus.FAILED ?? 0) > 0 ? "critical" : "default"}
+          />
+          <AdminStatCard
+            label="Processing"
+            value={formatNumber(summary.webhooks.byStatus.PROCESSING ?? 0)}
+            tone={(summary.webhooks.byStatus.PROCESSING ?? 0) > 0 ? "warning" : "default"}
+          />
+          <AdminStatCard
+            label="Processed"
+            value={formatNumber(summary.webhooks.byStatus.PROCESSED ?? 0)}
+            tone="positive"
+          />
+        </section>
+      }
+      basePath="/admin/billing/webhooks"
+      params={params}
+      searchPlaceholder="Provider event id, error text, or account email"
+      filters={FILTERS}
+      page={data}
+      columns={columns}
+      rowKey={(row) => row.id}
+      emptyMessage="No webhook events match these filters."
+    />
   );
 }

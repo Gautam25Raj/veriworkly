@@ -10,11 +10,9 @@ interface AdminPageHeaderProps {
 /**
  * The title block at the top of every admin page.
  *
- * Plain markup rather than a card. The previous version wrapped this in a `rounded-4xl` panel
- * with a blurred accent orb behind it, which cost roughly 130px of vertical space above the
- * fold on every page before a single row of data appeared. On an operations tool the first
- * screenful should be the work, not the chrome — the breadcrumb in the topbar already says
- * where you are, so this only needs to name the page and hold its actions.
+ * Plain markup rather than a card: on an operations tool the first screenful should be the
+ * work, not the chrome. The breadcrumb in the topbar already says where you are, so this only
+ * needs to name the page and hold its actions.
  */
 const AdminPageHeader = ({ eyebrow, title, description, actions }: AdminPageHeaderProps) => (
   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">

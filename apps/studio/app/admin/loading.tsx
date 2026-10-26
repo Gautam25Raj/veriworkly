@@ -1,61 +1,18 @@
-import {
-  SkeletonBlock,
-  SkeletonCard,
-  SkeletonPage,
-  SkeletonPanel,
-} from "@/components/admin/AdminSkeleton";
+"use client";
+
+import { usePathname } from "next/navigation";
+
+import AdminSkeleton from "@/components/admin/AdminSkeleton";
+import { resolveAdminRoute } from "@/features/admin/config/admin-routes";
 
 /**
- * Mirrors the dashboard's real grid — queue strip, four KPIs, the growth chart beside the role
- * breakdown — so nothing shifts position when the data lands. The dashboard fans out to three
- * admin endpoints, one of which runs every domain summary aggregate, so this is the skeleton
- * most likely to actually be seen.
+ * The one admin loading UI; the skeleton matching the destination page is chosen from the URL.
+ *
+ * A `loading.tsx` wraps each child segment of its own folder, so this file covers the routes one
+ * level under `/admin`. Folders with nested routes (`affiliates`, `ambassadors`, `billing`,
+ * `portfolios`, `roadmap`, `users`) re-export it so a navigation between their own pages gets a
+ * fresh boundary and shows the skeleton too.
  */
-export default function Loading() {
-  return (
-    <SkeletonPage label="Loading dashboard">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <SkeletonBlock className="h-6 w-36" />
-          <SkeletonBlock className="mt-2 h-3 w-72 max-w-full" />
-        </div>
-
-        <SkeletonBlock className="h-8 w-40 rounded-lg" />
-      </div>
-
-      <SkeletonBlock className="h-14 w-full rounded-xl" />
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }, (_, index) => (
-          <SkeletonCard key={index} />
-        ))}
-      </div>
-
-      <div className="grid gap-3 lg:grid-cols-3">
-        <div className="border-border bg-card rounded-xl border lg:col-span-2">
-          <div className="border-border border-b px-4 py-3">
-            <SkeletonBlock className="h-3 w-24" />
-          </div>
-
-          <div className="p-4">
-            <SkeletonBlock className="h-[220px] w-full rounded-lg" />
-          </div>
-        </div>
-
-        <SkeletonPanel rows={5} />
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }, (_, index) => (
-          <SkeletonCard key={index} />
-        ))}
-      </div>
-
-      <div className="grid gap-3 lg:grid-cols-3">
-        <SkeletonPanel rows={5} />
-        <SkeletonPanel rows={5} />
-        <SkeletonPanel rows={5} />
-      </div>
-    </SkeletonPage>
-  );
+export default function AdminLoading() {
+  return <AdminSkeleton skeleton={resolveAdminRoute(usePathname()).skeleton} />;
 }

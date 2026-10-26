@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 
-import AdminFilterBar from "@/components/admin/AdminFilterBar";
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import AdminPagination from "@/components/admin/AdminPagination";
-import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
+import AdminListPage from "@/components/admin/AdminListPage";
+import type { AdminTableColumn } from "@/components/admin/AdminTable";
 
 import {
   fetchAdminAuditEntries,
@@ -107,33 +105,18 @@ export default async function AdminAuditPage({
   ];
 
   return (
-    <div className="space-y-5">
-      <AdminPageHeader
-        eyebrow="Platform"
-        title="Admin audit log"
-        description="Every mutating admin action, who ran it, and the reason they gave. This is the record of what operators did — it is append-only and cannot be edited from the dashboard."
-      />
-
-      <AdminFilterBar
-        basePath="/admin/audit"
-        searchPlaceholder="Action, target id, or reason text"
-        selects={selects}
-      />
-
-      <AdminTable
-        columns={columns}
-        rows={data.items}
-        rowKey={(entry) => entry.id}
-        emptyMessage="No audit entries match these filters."
-      />
-
-      <AdminPagination
-        total={data.total}
-        limit={data.limit}
-        offset={data.offset}
-        basePath="/admin/audit"
-        params={params}
-      />
-    </div>
+    <AdminListPage
+      eyebrow="Platform"
+      title="Admin audit log"
+      description="Every mutating admin action, who ran it, and the reason they gave. This is the record of what operators did — it is append-only and cannot be edited from the dashboard."
+      basePath="/admin/audit"
+      params={params}
+      searchPlaceholder="Action, target id, or reason text"
+      filters={selects}
+      page={data}
+      columns={columns}
+      rowKey={(entry) => entry.id}
+      emptyMessage="No audit entries match these filters."
+    />
   );
 }

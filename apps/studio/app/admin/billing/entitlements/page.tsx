@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import AdminFilterBar from "@/components/admin/AdminFilterBar";
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import AdminPagination from "@/components/admin/AdminPagination";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
-import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
-import Panel from "@/components/admin/Panel";
+import AdminListPage from "@/components/admin/AdminListPage";
+import type { AdminTableColumn } from "@/components/admin/AdminTable";
 import { EntitlementGrantForm, EntitlementRevokeAction } from "@/app/admin/billing/BillingActions";
 
 import { fetchAdminEntitlements } from "@/features/admin/services/admin-server";
@@ -130,50 +127,28 @@ export default async function AdminEntitlementsPage({
   const data = await fetchAdminEntitlements(params);
 
   return (
-    <div className="space-y-5">
-      <AdminPageHeader
-        eyebrow="Revenue"
-        title="Entitlements"
-        description="Feature access grants, whether they came from a subscription or a manual override. Revoking one takes effect immediately."
-        actions={
-          <Link href="/admin/billing" className="text-accent text-sm font-semibold">
-            ← Billing
-          </Link>
-        }
-      />
-
-      <div className="grid gap-3 lg:grid-cols-[1fr_20rem]">
-        <div className="space-y-4">
-          <AdminFilterBar basePath="/admin/billing/entitlements" selects={FILTERS} />
-
-          <AdminTable
-            columns={columns}
-            rows={data.items}
-            rowKey={(row) => row.id}
-            emptyMessage="No entitlement grants match these filters."
-          />
-
-          <AdminPagination
-            total={data.total}
-            limit={data.limit}
-            offset={data.offset}
-            basePath="/admin/billing/entitlements"
-            params={params}
-          />
-        </div>
-
-        <Panel className="h-fit space-y-4 rounded-xl p-4">
-          <div>
-            <h3 className="text-foreground font-semibold tracking-tight">Grant entitlement</h3>
-            <p className="text-muted mt-1 text-xs leading-5">
-              A manual grant sits alongside subscription-derived access rather than replacing it.
-              Leave the date empty for a permanent grant.
-            </p>
-          </div>
-
-          <EntitlementGrantForm />
-        </Panel>
-      </div>
-    </div>
+    <AdminListPage
+      eyebrow="Revenue"
+      title="Entitlements"
+      description="Feature access grants, whether they came from a subscription or a manual override. Revoking one takes effect immediately."
+      actions={
+        <Link href="/admin/billing" className="text-accent text-sm font-semibold">
+          ← Billing
+        </Link>
+      }
+      aside={{
+        title: "Grant entitlement",
+        description:
+          "A manual grant sits alongside subscription-derived access rather than replacing it. Leave the date empty for a permanent grant.",
+        form: <EntitlementGrantForm />,
+      }}
+      basePath="/admin/billing/entitlements"
+      params={params}
+      filters={FILTERS}
+      page={data}
+      columns={columns}
+      rowKey={(row) => row.id}
+      emptyMessage="No entitlement grants match these filters."
+    />
   );
 }

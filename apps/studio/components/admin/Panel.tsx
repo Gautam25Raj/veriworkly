@@ -15,7 +15,7 @@ import { cn } from "@veriworkly/ui";
 
 interface PanelProps extends HTMLAttributes<HTMLElement> {
   as?: ElementType;
-  /** `flush` removes padding for panels whose child manages its own edges (tables, charts). */
+  /** `none` removes padding for panels whose child manages its own edges (tables, charts). */
   padding?: "none" | "sm" | "md" | "lg";
 }
 
@@ -26,7 +26,7 @@ const paddingStyles = {
   lg: "p-5",
 } as const;
 
-export function Panel({ className, as: Component = "div", padding = "md", ...props }: PanelProps) {
+function Panel({ className, as: Component = "div", padding = "md", ...props }: PanelProps) {
   return (
     <Component
       className={cn(

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Select } from "@veriworkly/ui";
 
 import AdminActionDialog from "@/components/admin/AdminActionDialog";
+import { ADMIN_INPUT_CLASS } from "@/components/admin/admin-input-class";
 import {
   ADMIN_ENTITLEMENT_KEYS,
   adjustAdminCredits,
@@ -19,9 +20,6 @@ import {
 import type { SubscriptionStatus } from "@/features/admin/types/admin-types";
 
 import { parseCreditAmount } from "./credit-amount";
-
-const inputClass =
-  "border-border bg-background h-9 w-full rounded-lg border px-3 text-xs outline-none";
 
 /**
  * Edits to our copy of a subscription.
@@ -114,14 +112,14 @@ export function CreditAdjustmentForm() {
   return (
     <div className="space-y-3">
       <input
-        className={inputClass}
+        className={ADMIN_INPUT_CLASS}
         placeholder="User id"
         value={userId}
         onChange={(event) => setUserId(event.target.value)}
       />
 
       <input
-        className={inputClass}
+        className={ADMIN_INPUT_CLASS}
         type="number"
         step={1}
         placeholder="Credits (negative to claw back)"
@@ -167,7 +165,7 @@ export function EntitlementGrantForm() {
   return (
     <div className="space-y-3">
       <input
-        className={inputClass}
+        className={ADMIN_INPUT_CLASS}
         placeholder="User id"
         value={userId}
         onChange={(event) => setUserId(event.target.value)}
@@ -186,7 +184,7 @@ export function EntitlementGrantForm() {
       </Select>
 
       <input
-        className={inputClass}
+        className={ADMIN_INPUT_CLASS}
         type="date"
         aria-label="Expiry date (optional)"
         value={endsAt}

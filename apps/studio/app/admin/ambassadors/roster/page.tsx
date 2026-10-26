@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import AdminFilterBar from "@/components/admin/AdminFilterBar";
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import AdminPagination from "@/components/admin/AdminPagination";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
-import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
+import AdminListPage from "@/components/admin/AdminListPage";
+import type { AdminTableColumn } from "@/components/admin/AdminTable";
 
 import { fetchAdminAmbassadorRoster } from "@/features/admin/services/admin-server";
 import type { AdminAmbassadorRosterRow } from "@/features/admin/types/admin-types";
@@ -93,37 +91,22 @@ export default async function AdminAmbassadorRosterPage({
   const data = await fetchAdminAmbassadorRoster(params);
 
   return (
-    <div className="space-y-5">
-      <AdminPageHeader
-        eyebrow="People"
-        title="Ambassador roster"
-        description="Everyone currently holding the AMBASSADOR role, with the campus they represent and how many referrals they have driven."
-        actions={
-          <Link href="/admin/ambassadors" className="text-accent text-sm font-semibold">
-            ← Back to applications
-          </Link>
-        }
-      />
-
-      <AdminFilterBar
-        basePath="/admin/ambassadors/roster"
-        searchPlaceholder="Name, email, or college"
-      />
-
-      <AdminTable
-        columns={columns}
-        rows={data.items}
-        rowKey={(row) => row.id}
-        emptyMessage="No active ambassadors yet."
-      />
-
-      <AdminPagination
-        total={data.total}
-        limit={data.limit}
-        offset={data.offset}
-        basePath="/admin/ambassadors/roster"
-        params={params}
-      />
-    </div>
+    <AdminListPage
+      eyebrow="People"
+      title="Ambassador roster"
+      description="Everyone currently holding the AMBASSADOR role, with the campus they represent and how many referrals they have driven."
+      actions={
+        <Link href="/admin/ambassadors" className="text-accent text-sm font-semibold">
+          ← Back to applications
+        </Link>
+      }
+      basePath="/admin/ambassadors/roster"
+      params={params}
+      searchPlaceholder="Name, email, or college"
+      page={data}
+      columns={columns}
+      rowKey={(row) => row.id}
+      emptyMessage="No active ambassadors yet."
+    />
   );
 }

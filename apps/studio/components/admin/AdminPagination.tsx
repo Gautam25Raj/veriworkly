@@ -3,6 +3,8 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { cn } from "@veriworkly/ui";
 
+import { formatNumber } from "@/features/admin/utils/admin-format";
+
 interface AdminPaginationProps {
   total: number;
   limit: number;
@@ -58,7 +60,7 @@ const AdminPagination = ({ total, limit, offset, basePath, params = {} }: AdminP
       <p className="text-muted admin-numeric text-xs">
         <span className="text-foreground font-medium">{rangeStart}</span>–
         <span className="text-foreground font-medium">{rangeEnd}</span> of{" "}
-        <span className="text-foreground font-medium">{total.toLocaleString("en-US")}</span>
+        <span className="text-foreground font-medium">{formatNumber(total)}</span>
         <span className="mx-1.5 opacity-50">·</span>
         page {page} of {pageCount}
       </p>

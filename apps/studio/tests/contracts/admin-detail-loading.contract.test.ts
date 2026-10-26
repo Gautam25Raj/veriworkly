@@ -40,9 +40,8 @@ afterEach(() => {
 /**
  * Admin detail pages (`/admin/users/[id]`, `/admin/affiliates/[id]`, `/admin/portfolios/[id]`,
  * `/admin/ambassadors/[id]`) must distinguish "this record does not exist" from "the API is
- * broken". They previously wrote `fetchX(id).catch(() => null)` and then `notFound()`, which
- * rendered a 404 for a 500, an expired session or an unreachable API — telling an operator that
- * a user who plainly exists does not, and leaving each `[id]/error.tsx` unreachable.
+ * broken": a 500, an expired session or an unreachable API must reach the admin error boundary,
+ * not render a 404 for a record that exists.
  */
 describe("admin detail loading contract", () => {
   it("carries the upstream status on the thrown error", async () => {

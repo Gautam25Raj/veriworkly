@@ -1,12 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import AdminFilterBar from "@/components/admin/AdminFilterBar";
-import AdminPageHeader from "@/components/admin/AdminPageHeader";
-import AdminPagination from "@/components/admin/AdminPagination";
 import AdminStatusBadge from "@/components/admin/AdminStatusBadge";
-import AdminTable, { type AdminTableColumn } from "@/components/admin/AdminTable";
-import Panel from "@/components/admin/Panel";
+import AdminListPage from "@/components/admin/AdminListPage";
+import type { AdminTableColumn } from "@/components/admin/AdminTable";
 import { CommissionActions, CommissionCreateForm } from "@/app/admin/affiliates/AffiliateActions";
 
 import { fetchAdminCommissions } from "@/features/admin/services/admin-server";
@@ -107,51 +104,29 @@ export default async function AdminCommissionsPage({
   const data = await fetchAdminCommissions(params);
 
   return (
-    <div className="space-y-5">
-      <AdminPageHeader
-        eyebrow="Revenue"
-        title="Affiliate commissions"
-        description="Release pending commissions once the underlying payment has settled, or reverse them if it was refunded."
-        actions={
-          <Link href="/admin/affiliates" className="text-accent text-sm font-semibold">
-            ← Affiliates
-          </Link>
-        }
-      />
-
-      <div className="grid gap-3 lg:grid-cols-[1fr_20rem]">
-        <div className="space-y-4">
-          <AdminFilterBar basePath="/admin/affiliates/commissions" selects={FILTERS} />
-
-          <AdminTable
-            columns={columns}
-            rows={data.items}
-            rowKey={(row) => row.id}
-            emptyMessage="No commissions match these filters."
-            caption={`${data.total} matching commission(s); ${formatCents(data.totalAmountCents)} of them in USD (other currencies are not added in).`}
-          />
-
-          <AdminPagination
-            total={data.total}
-            limit={data.limit}
-            offset={data.offset}
-            basePath="/admin/affiliates/commissions"
-            params={params}
-          />
-        </div>
-
-        <Panel className="h-fit space-y-4 rounded-xl p-4">
-          <div>
-            <h3 className="text-foreground font-semibold tracking-tight">Manual commission</h3>
-            <p className="text-muted mt-1 text-xs leading-5">
-              For a payment that never produced a webhook. The referral must already exist and the
-              affiliate must be active.
-            </p>
-          </div>
-
-          <CommissionCreateForm />
-        </Panel>
-      </div>
-    </div>
+    <AdminListPage
+      eyebrow="Revenue"
+      title="Affiliate commissions"
+      description="Release pending commissions once the underlying payment has settled, or reverse them if it was refunded."
+      actions={
+        <Link href="/admin/affiliates" className="text-accent text-sm font-semibold">
+          ← Affiliates
+        </Link>
+      }
+      aside={{
+        title: "Manual commission",
+        description:
+          "For a payment that never produced a webhook. The referral must already exist and the affiliate must be active.",
+        form: <CommissionCreateForm />,
+      }}
+      basePath="/admin/affiliates/commissions"
+      params={params}
+      filters={FILTERS}
+      page={data}
+      columns={columns}
+      rowKey={(row) => row.id}
+      emptyMessage="No commissions match these filters."
+      caption={`${data.total} matching commission(s); ${formatCents(data.totalAmountCents)} of them in USD (other currencies are not added in).`}
+    />
   );
 }

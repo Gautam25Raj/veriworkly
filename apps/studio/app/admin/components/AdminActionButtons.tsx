@@ -8,12 +8,7 @@ import { Button } from "@veriworkly/ui";
 
 import { triggerAdminGithubSync } from "@/features/admin/services/admin-actions";
 
-/**
- * Dashboard-level actions.
- *
- * Sign-out used to live here too. It now sits in the shell's topbar, where it is reachable from
- * every admin page rather than only from `/admin`.
- */
+/** Dashboard-level actions. Sign-out lives in the shell's topbar, on every admin page. */
 const AdminActionButtons = () => {
   const router = useRouter();
 

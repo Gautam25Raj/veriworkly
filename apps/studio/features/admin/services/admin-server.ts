@@ -7,6 +7,7 @@ import { serverFetch } from "@/lib/server-fetch";
 import { fetchCurrentUser } from "@/features/auth/services/current-user";
 
 import type { RoadmapFeature } from "@/features/roadmap/services/roadmap-backend";
+import type { ApiSuccessResponse } from "@/utils/fetchApiData";
 
 import type {
   AdminActionQueue,
@@ -47,19 +48,6 @@ import type {
   AdminWithdrawalRow,
 } from "@/features/admin/types/admin-types";
 
-interface ApiSuccessResponse<T> {
-  success: boolean;
-  message: string;
-  data: T;
-}
-
-export interface AdminSession {
-  user?: {
-    email?: string;
-    name?: string;
-  };
-}
-
 /**
  * Frontend defense-in-depth for `/admin/*`: fails closed (404, not a leaky 403) if the
  * signed-in user isn't the configured admin. This must never be the ONLY check — the
@@ -95,7 +83,7 @@ function fetchWithSession(path: string, options?: RequestInit) {
 }
 
 /** Drops empty/undefined params so `?status=` never reaches a strict enum validator. */
-export function buildAdminQuery(params: Record<string, string | number | boolean | undefined>) {
+function buildAdminQuery(params: Record<string, string | number | boolean | undefined>) {
   const search = new URLSearchParams();
 
   for (const [key, value] of Object.entries(params)) {
@@ -112,8 +100,7 @@ export function buildAdminQuery(params: Record<string, string | number | boolean
  *
  * Callers need to tell "this record does not exist" (404) apart from "the API is broken"
  * (401/403/500/network), because those want opposite UI: a not-found page versus an error
- * boundary the operator can retry from. Before this, the status was only readable by
- * substring-matching the message, so no caller did it.
+ * boundary the operator can retry from.
  */
 export class AdminApiError extends Error {
   readonly status: number;
@@ -153,10 +140,8 @@ async function fetchAdmin<T>(path: string, options?: RequestInit): Promise<T> {
  * Detail-page loader: resolves to `null` only when the record genuinely does not exist, and
  * rethrows everything else so the route's `error.tsx` can explain it.
  *
- * The detail pages used to write `fetchX(id).catch(() => null)` and then `notFound()`, which
- * turned *every* failure — a 500, an expired session, an unreachable API — into "this record
- * does not exist". That sent an operator looking for a user that was plainly there off to
- * check the id, and it made each `[id]/error.tsx` unreachable dead code.
+ * Treating every failure as missing would turn a 500, an expired session or an unreachable API
+ * into "this record does not exist" and send the operator off to check an id that is fine.
  */
 export async function loadAdminDetail<T>(request: Promise<T>): Promise<T | null> {
   try {

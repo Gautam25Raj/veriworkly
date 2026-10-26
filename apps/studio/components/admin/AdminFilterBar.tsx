@@ -5,7 +5,7 @@ import { Search, X } from "lucide-react";
 
 import { Button, Select } from "@veriworkly/ui";
 
-export interface AdminFilterOption {
+interface AdminFilterOption {
   label: string;
   value: string;
 }

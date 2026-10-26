@@ -143,10 +143,8 @@ export default async function AdminPage({
   const commissionInWindow = series.commissionCents.reduce((sum, value) => sum + value, 0);
 
   return (
-    // Section gap is deliberately double the gap inside a grid row (24px vs 12px). At the
-    // previous 20px vs 12px the two were close enough that nothing grouped: the page read as
-    // one uniform field of forty boxes instead of six labelled bands, which is most of why it
-    // felt unstructured regardless of how any individual card looked.
+    // Section gap is deliberately double the gap inside a grid row (24px vs 12px), so the page
+    // reads as labelled bands rather than one uniform field of boxes.
     <div className="space-y-6">
       <AdminPageHeader
         title="Dashboard"
@@ -161,8 +159,8 @@ export default async function AdminPage({
 
       {/*
         Anything needing a human decision is surfaced above every metric on the page. A queue
-        that renders below the fold, under eight equally-weighted stat cards, is a queue that
-        does not get drained — which is what the previous layout did.
+        that renders below the fold, under eight equally-weighted stat cards, does not get
+        drained.
 
         Both states sit on the card surface with a coloured border rather than a coloured fill.
         `--warning` is a deep amber (#b45309), and a 5% wash of it over the warm page background

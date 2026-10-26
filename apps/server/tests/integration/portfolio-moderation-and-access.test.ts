@@ -5,7 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { app } from "#app";
 import { prisma } from "#lib/prisma";
-import { suspendExpiredGracePeriods } from "#jobs/portfolioAccessJob";
+import { settleLapsedPortfolios } from "#jobs/portfolioAccessJob";
+import { PortfolioAssetService } from "#services/portfolioAssetService";
+import { PortfolioService } from "#services/portfolioService";
 
 import { STUDIO_ORIGIN } from "./env.js";
 import { createUserWithSession, type TestUser } from "./helpers/auth.js";
@@ -13,9 +15,11 @@ import { signDodoWebhook } from "./helpers/webhook.js";
 
 const { mailMock } = vi.hoisted(() => ({
   mailMock: {
-    sendSubscriptionPurchasedEmail: vi.fn().mockResolvedValue(undefined),
+    sendPurchaseConfirmationEmail: vi.fn().mockResolvedValue(undefined),
+    sendPaymentFailedEmail: vi.fn().mockResolvedValue(undefined),
     sendSubscriptionCancelledEmail: vi.fn().mockResolvedValue(undefined),
     sendPortfolioUpdatedEmail: vi.fn().mockResolvedValue(undefined),
+    sendPortfolioFreeTierEmail: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -97,6 +101,43 @@ async function seedPublication(
 
 async function publicationOf(userId: string) {
   return prisma.portfolioPublication.findUniqueOrThrow({ where: { userId } });
+}
+
+/**
+ * Decision 6: a lapsed premium portfolio stays online on a free template with the badge. The row
+ * is LIVE, the stored template and the snapshot's own `templateId` agree, the badge and the paid
+ * SEO block are gone, and the public read serves it as a free site.
+ */
+async function expectDroppedToFree(userId: string, templateId: "signal" | "atelier") {
+  const row = await publicationOf(userId);
+  expect(row.status).toBe("LIVE");
+  expect(row.suspensionReason).toBeNull();
+  expect(row.templateId).toBe(templateId);
+
+  const snapshot = row.snapshot as {
+    templateId: string;
+    removeWatermark?: boolean;
+    seo: { title: string };
+  };
+  expect(snapshot.templateId).toBe(templateId);
+  expect(snapshot.removeWatermark).toBe(false);
+  expect(snapshot.seo.title).toBe("");
+
+  const served = await publicGet(`/api/v1/portfolios/public/${row.subdomain}`);
+  expect(served.status).toBe(200);
+  expect(served.body.data.templateId).toBe(templateId);
+  expect(served.body.data.isPaid).toBe(false);
+  expect(served.body.data.isPremiumTemplate).toBe(false);
+  expect(served.body.data.isPremium).toBe(false);
+
+  return row;
+}
+
+async function expectUntouchedSignal(userId: string) {
+  const row = await publicationOf(userId);
+  expect(row.status).toBe("LIVE");
+  expect(row.templateId).toBe("signal");
+  expect((row.snapshot as { seo: { title: string } }).seo.title).toBe("Test Person");
 }
 
 function subscriptionEvent(input: {
@@ -200,6 +241,30 @@ describe("V-039 sticky moderation", () => {
     expect(row.suspensionReason).toMatch(/^moderation:/);
   });
 
+  it("a force-unpublish cannot be undone by the owner publishing again", async () => {
+    const user = await createUserWithSession();
+    const { document, publication } = await seedPublication(user.id, "signal");
+
+    const takedown = await asUser(
+      await admin(),
+      request(app).delete(`/api/v1/admin/portfolios/${publication.id}`),
+    ).send({ reason: "Phishing page" });
+    expect(takedown.status, JSON.stringify(takedown.body)).toBe(200);
+
+    const publish = await asUser(user, request(app).post("/api/v1/portfolios/publish")).send({
+      documentId: document.id,
+      subdomain: publication.subdomain,
+      revision: document.revision,
+    });
+
+    expect(publish.status, JSON.stringify(publish.body)).toBe(403);
+    expect(publish.body.message ?? publish.body.error).toMatch(/taken down by a moderator/i);
+    expect(await prisma.portfolioPublication.count({ where: { userId: user.id } })).toBe(0);
+    expect(
+      (await prisma.document.findUniqueOrThrow({ where: { id: document.id } })).visibility,
+    ).toBe("PRIVATE");
+  });
+
   it("is lifted by the admin setting LIVE, after which the user can publish again", async () => {
     const user = await createUserWithSession();
     const { document, publication } = await seedPublication(user.id, "signal");
@@ -255,7 +320,7 @@ describe("V-041 section schema", () => {
   });
 });
 
-describe("V-042 lapse suspends premium templates only", () => {
+describe("V-042 / decision 6: a lapse moves premium templates only, to the free tier", () => {
   /**
    * A paying subscriber whose paid period has since run out: activated 40 days ago for a
    * 30-day period (the row is edited directly because an `active` event with a past period
@@ -283,7 +348,7 @@ describe("V-042 lapse suspends premium templates only", () => {
     return { user, subscriptionId, ...seeded };
   }
 
-  it("expired past the paid period: Signal stays LIVE, Nimbus is SUSPENDED", async () => {
+  it("expired past the paid period: Signal is untouched, Nimbus drops to Atelier and stays LIVE", async () => {
     const signal = await lapsedSubscriber("signal");
     const nimbus = await lapsedSubscriber("nimbus");
 
@@ -299,13 +364,13 @@ describe("V-042 lapse suspends premium templates only", () => {
       );
     }
 
-    await suspendExpiredGracePeriods();
+    await settleLapsedPortfolios();
 
-    expect((await publicationOf(signal.user.id)).status).toBe("LIVE");
-    expect((await publicationOf(nimbus.user.id)).status).toBe("SUSPENDED");
+    await expectUntouchedSignal(signal.user.id);
+    await expectDroppedToFree(nimbus.user.id, "atelier");
   });
 
-  it("on_hold then grace expiry through the job: Signal stays LIVE, Nimbus is SUSPENDED", async () => {
+  it("on_hold then grace expiry through the job: Signal is untouched, Nimbus drops to Atelier and stays LIVE", async () => {
     const signal = await lapsedSubscriber("signal");
     const nimbus = await lapsedSubscriber("nimbus");
 
@@ -328,10 +393,64 @@ describe("V-042 lapse suspends premium templates only", () => {
     expect((await publicationOf(signal.user.id)).status).toBe("LIVE");
     expect((await publicationOf(nimbus.user.id)).status).toBe("GRACE");
 
-    await suspendExpiredGracePeriods();
+    await settleLapsedPortfolios();
 
-    expect((await publicationOf(signal.user.id)).status).toBe("LIVE");
-    expect((await publicationOf(nimbus.user.id)).status).toBe("SUSPENDED");
+    await expectUntouchedSignal(signal.user.id);
+    await expectDroppedToFree(nimbus.user.id, "atelier");
+  });
+
+  it("the expiry webhook itself drops the premium site to the free tier: no offline gap until the job", async () => {
+    const nimbus = await lapsedSubscriber("nimbus");
+    // The public read is cached while the site is premium; the drop must clear it.
+    const before = await publicGet(`/api/v1/portfolios/public/${nimbus.publication.subdomain}`);
+    expect(before.body.data.isPaid).toBe(true);
+
+    await deliver(
+      subscriptionEvent({
+        userId: nimbus.user.id,
+        subscriptionId: nimbus.subscriptionId,
+        status: "expired",
+        at: new Date(Date.now() - 5 * DAY_MS),
+        nextBillingDate: null,
+      }),
+    );
+
+    // No settleLapsedPortfolios() here: the webhook did it.
+    await expectDroppedToFree(nimbus.user.id, "atelier");
+  });
+
+  it("the webhook leaves a moderated premium site down, and a grace window running", async () => {
+    const moderated = await lapsedSubscriber("nimbus");
+    await adminSuspend(moderated.publication.id);
+    const graced = await lapsedSubscriber("nimbus");
+
+    await deliver(
+      subscriptionEvent({
+        userId: moderated.user.id,
+        subscriptionId: moderated.subscriptionId,
+        status: "expired",
+        at: new Date(Date.now() - 5 * DAY_MS),
+        nextBillingDate: null,
+      }),
+    );
+    await deliver(
+      subscriptionEvent({
+        userId: graced.user.id,
+        subscriptionId: graced.subscriptionId,
+        status: "on_hold",
+        at: new Date(Date.now() - 5 * DAY_MS),
+        nextBillingDate: null,
+      }),
+    );
+
+    const down = await publicationOf(moderated.user.id);
+    expect(down.status).toBe("SUSPENDED");
+    expect(down.templateId).toBe("nimbus");
+    expect(down.suspensionReason).toContain("Impersonation reported by the trademark owner");
+
+    const grace = await publicationOf(graced.user.id);
+    expect(grace.status).toBe("GRACE");
+    expect(grace.templateId).toBe("nimbus");
   });
 });
 
@@ -399,7 +518,7 @@ describe("V-075 admin billing edits reconcile access", () => {
     expect(pub.body.data.isPremium).toBe(true);
   });
 
-  it("revoking the only publish grant suspends a premium publication and leaves a free one LIVE", async () => {
+  it("revoking the only publish grant drops a premium publication to the free tier at once and leaves a free one untouched", async () => {
     const premium = await createUserWithSession();
     const free = await createUserWithSession();
     await seedPublication(premium.id, "cipher");
@@ -426,8 +545,11 @@ describe("V-075 admin billing edits reconcile access", () => {
       expect(revoke.status).toBe(200);
     }
 
-    expect((await publicationOf(premium.id)).status).toBe("SUSPENDED");
-    expect((await publicationOf(free.id)).status).toBe("LIVE");
+    // Decision 6: no offline gap until the hourly job; Cipher goes to Signal and stays LIVE.
+    await expectDroppedToFree(premium.id, "signal");
+    const freeRow = await publicationOf(free.id);
+    expect(freeRow.status).toBe("LIVE");
+    expect(freeRow.templateId).toBe("atelier");
   });
 
   it("admin credit adjustments record the acting admin and dedupe on an Idempotency-Key", async () => {
@@ -641,7 +763,7 @@ describe("pass and comp expiry through the access job", () => {
     });
   }
 
-  it("an expired pass moves a premium publication to GRACE, then SUSPENDED after the grace days; a live pass and a free template are untouched", async () => {
+  it("an expired pass moves a premium publication to GRACE, then to the free tier after the grace days; a live pass and a free template are untouched", async () => {
     const expired = await createUserWithSession();
     const live = await createUserWithSession();
     const free = await createUserWithSession();
@@ -652,27 +774,27 @@ describe("pass and comp expiry through the access job", () => {
     await withGrant(live.id, new Date(Date.now() + DAY_MS));
     await withGrant(free.id, new Date(Date.now() - DAY_MS));
 
-    await suspendExpiredGracePeriods();
+    await settleLapsedPortfolios();
 
     expect((await publicationOf(expired.id)).status).toBe("GRACE");
     expect((await publicationOf(live.id)).status).toBe("LIVE");
     expect((await publicationOf(free.id)).status).toBe("LIVE");
 
-    // Still inside the window: served, and as premium.
+    // Still inside the window: served, and as paid.
     const served = await publicGet(`/api/v1/portfolios/public/${publication.subdomain}`);
     expect(served.status).toBe(200);
     expect(served.body.data.isPremium).toBe(true);
+    expect(served.body.data.isPaid).toBe(true);
 
-    await suspendExpiredGracePeriods();
+    await settleLapsedPortfolios();
     expect((await publicationOf(expired.id)).status).toBe("GRACE");
 
     // The window is measured from the GRACE transition (no subscription clock exists).
     await prisma.$executeRaw`UPDATE "PortfolioPublication" SET "updatedAt" = now() - interval '8 days' WHERE "id" = ${publication.id}`;
-    await suspendExpiredGracePeriods();
+    await settleLapsedPortfolios();
 
-    const row = await publicationOf(expired.id);
-    expect(row.status).toBe("SUSPENDED");
-    expect(row.suspensionReason).toBe("grace_expired");
+    await expectDroppedToFree(expired.id, "atelier");
+    expect((await publicationOf(live.id)).templateId).toBe("cipher");
   });
 });
 
@@ -750,5 +872,466 @@ describe("V-137 portfolio status codes", () => {
       revision: document.revision,
     });
     expect(response.status).toBe(402);
+  });
+});
+
+async function grantPass(userId: string, endsAt: Date | null) {
+  await prisma.entitlementGrant.create({
+    data: {
+      userId,
+      key: "portfolio_publish",
+      source: "SYSTEM",
+      sourceId: randomUUID(),
+      startsAt: new Date(Date.now() - 10 * DAY_MS),
+      endsAt,
+      metadata: { pass: true },
+    },
+  });
+}
+
+describe("V-174 / V-187 public read: isPaid and isPremiumTemplate, no status", () => {
+  it("a paying owner on a free template is paid (no badge, no redirect, sub-pages) and the template is not premium", async () => {
+    const user = await createUserWithSession();
+    const { publication } = await seedPublication(user.id, "signal");
+    await grantPass(user.id, new Date(Date.now() + DAY_MS));
+
+    const response = await publicGet(`/api/v1/portfolios/public/${publication.subdomain}`);
+    expect(response.status).toBe(200);
+    expect(response.body.data.isPaid).toBe(true);
+    expect(response.body.data.isPremiumTemplate).toBe(false);
+    expect(response.body.data).not.toHaveProperty("status");
+  });
+
+  it("a free owner on a premium template row is not paid, and the template is premium", async () => {
+    const user = await createUserWithSession();
+    const { publication } = await seedPublication(user.id, "nimbus");
+
+    const response = await publicGet(`/api/v1/portfolios/public/${publication.subdomain}`);
+    expect(response.status).toBe(200);
+    expect(response.body.data.isPaid).toBe(false);
+    expect(response.body.data.isPremiumTemplate).toBe(true);
+    expect(response.body.data.isPremium).toBe(false);
+    expect(response.body.data).not.toHaveProperty("status");
+  });
+
+  it("the sitemap list holds exactly the rows the public read serves", async () => {
+    const live = await createUserWithSession();
+    const servedGrace = await createUserWithSession();
+    const hiddenGrace = await createUserWithSession();
+    const suspended = await createUserWithSession();
+
+    const liveRow = await seedPublication(live.id, "signal");
+    const servedGraceRow = await seedPublication(servedGrace.id, "nimbus", { status: "GRACE" });
+    const hiddenGraceRow = await seedPublication(hiddenGrace.id, "cipher", { status: "GRACE" });
+    await seedPublication(suspended.id, "nimbus", {
+      status: "SUSPENDED",
+      suspensionReason: "user_unpublished",
+    });
+
+    // The served GRACE row's subscription grace still runs; the hidden one's has lapsed.
+    for (const [user, graceEndsAt] of [
+      [servedGrace, new Date(Date.now() + 3 * DAY_MS)],
+      [hiddenGrace, new Date(Date.now() - DAY_MS)],
+    ] as const) {
+      await prisma.subscription.create({
+        data: {
+          userId: user.id,
+          provider: "dodo",
+          providerSubId: `sub_${randomUUID()}`,
+          providerCustomerId: "cus_x",
+          productKey: "portfolio_pro",
+          interval: "MONTHLY",
+          status: "PAST_DUE",
+          rawStatus: "on_hold",
+          currentPeriodEnd: new Date(Date.now() - 5 * DAY_MS),
+          graceEndsAt,
+        },
+      });
+    }
+
+    const list = await publicGet("/api/v1/portfolios/public");
+    expect(list.status).toBe(200);
+    const listed = (list.body.data as Array<{ subdomain: string }>).map((row) => row.subdomain);
+
+    for (const { publication } of [liveRow, servedGraceRow, hiddenGraceRow]) {
+      const read = await publicGet(`/api/v1/portfolios/public/${publication.subdomain}`);
+      expect(listed.includes(publication.subdomain)).toBe(read.status === 200);
+    }
+
+    expect(listed).toContain(liveRow.publication.subdomain);
+    expect(listed).toContain(servedGraceRow.publication.subdomain);
+    expect(listed).not.toContain(hiddenGraceRow.publication.subdomain);
+  });
+});
+
+describe("decision 6: a lapsed premium portfolio drops to the free tier and stays online", () => {
+  it("Cipher drops to Signal: publication and draft switch, the badge returns, the images stay, and it is idempotent", async () => {
+    const user = await createUserWithSession();
+    const { publication, document } = await seedPublication(user.id, "cipher", {
+      status: "GRACE",
+    });
+
+    // The snapshot shows an avatar the draft does not: only the live page protects it.
+    const avatar = await prisma.portfolioAsset.create({
+      data: {
+        userId: user.id,
+        key: `portfolio/${user.id}/${randomUUID()}.png`,
+        kind: "AVATAR",
+        mimeType: "image/png",
+        sizeBytes: 1024,
+        status: "READY",
+      },
+    });
+    const snapshot = {
+      ...validContent("cipher"),
+      identity: {
+        ...validContent("cipher").identity,
+        avatar: { id: avatar.id, url: "https://cdn.example.test/a.png" },
+      },
+      removeWatermark: true,
+    };
+    await prisma.portfolioPublication.update({
+      where: { id: publication.id },
+      data: { snapshot },
+    });
+    await prisma.$executeRaw`UPDATE "PortfolioPublication" SET "updatedAt" = now() - interval '8 days' WHERE "id" = ${publication.id}`;
+    await prisma.$executeRaw`UPDATE "PortfolioAsset" SET "updatedAt" = now() - interval '2 days' WHERE "id" = ${avatar.id}`;
+
+    await settleLapsedPortfolios();
+
+    const row = await expectDroppedToFree(user.id, "signal");
+    expect((row.snapshot as typeof snapshot).identity.avatar?.id).toBe(avatar.id);
+    expect(row.publishedRevision).toBe(publication.publishedRevision);
+
+    const draft = await prisma.document.findUniqueOrThrow({ where: { id: document.id } });
+    expect(draft.templateId).toBe("signal");
+    expect((draft.content as { templateId: string }).templateId).toBe("signal");
+    expect(draft.revision).toBe(document.revision + 1);
+    expect(draft.visibility).toBe("PUBLIC");
+
+    // The stale sweep keeps the image the live page shows (no R2 call, the row survives).
+    await PortfolioAssetService.cleanupStaleAssets();
+    expect(await prisma.portfolioAsset.count({ where: { id: avatar.id } })).toBe(1);
+
+    // A second run changes nothing.
+    const before = await publicationOf(user.id);
+    await settleLapsedPortfolios();
+    const after = await publicationOf(user.id);
+    expect(after.updatedAt.getTime()).toBe(before.updatedAt.getTime());
+    const draftAfter = await prisma.document.findUniqueOrThrow({ where: { id: document.id } });
+    expect(draftAfter.revision).toBe(draft.revision);
+
+    // A free owner can republish the switched draft straight away.
+    const republish = await asUser(user, request(app).post("/api/v1/portfolios/publish")).send({
+      documentId: document.id,
+      subdomain: row.subdomain,
+      revision: draft.revision,
+    });
+    expect(republish.status).toBe(201);
+  });
+
+  it("a row billing suspended (no grant, no grace) comes back on the free tier", async () => {
+    const user = await createUserWithSession();
+    await seedPublication(user.id, "nimbus", { status: "SUSPENDED", suspensionReason: "CANCELED" });
+
+    await settleLapsedPortfolios();
+
+    await expectDroppedToFree(user.id, "atelier");
+  });
+
+  it("moderation and the user's own unpublish stay down; a paying owner's premium site is untouched", async () => {
+    const moderated = await createUserWithSession();
+    const unpublished = await createUserWithSession();
+    const paying = await createUserWithSession();
+    await seedPublication(moderated.id, "nimbus", {
+      status: "SUSPENDED",
+      suspensionReason: "moderation:spam",
+    });
+    await seedPublication(unpublished.id, "cipher", {
+      status: "SUSPENDED",
+      suspensionReason: "user_unpublished",
+    });
+    await seedPublication(paying.id, "nimbus", {
+      status: "SUSPENDED",
+      suspensionReason: "CANCELED",
+    });
+    await grantPass(paying.id, new Date(Date.now() + DAY_MS));
+
+    await settleLapsedPortfolios();
+
+    expect(await publicationOf(moderated.id)).toMatchObject({
+      status: "SUSPENDED",
+      templateId: "nimbus",
+    });
+    expect(await publicationOf(unpublished.id)).toMatchObject({
+      status: "SUSPENDED",
+      templateId: "cipher",
+    });
+    expect((await publicationOf(paying.id)).templateId).toBe("nimbus");
+  });
+
+  it("the draft is left alone when it has moved on from the published premium template", async () => {
+    const user = await createUserWithSession();
+    const { document } = await seedPublication(user.id, "nimbus", {
+      status: "SUSPENDED",
+      suspensionReason: "grace_expired",
+    });
+    await prisma.document.update({
+      where: { id: document.id },
+      data: {
+        templateId: "signal",
+        content: validContent("signal"),
+        revision: { increment: 1 },
+      },
+    });
+
+    await settleLapsedPortfolios();
+
+    await expectDroppedToFree(user.id, "atelier");
+    const draft = await prisma.document.findUniqueOrThrow({ where: { id: document.id } });
+    expect(draft.templateId).toBe("signal");
+    expect(draft.revision).toBe(document.revision + 1);
+  });
+});
+
+describe("final review: deleted portfolios stay down, restores are bounded and announced", () => {
+  async function trash(user: TestUser, documentId: string) {
+    const response = await asUser(user, request(app).delete(`/api/v1/documents/${documentId}`));
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+  }
+
+  it("a billing-suspended portfolio its owner trashed is never brought back", async () => {
+    const user = await createUserWithSession();
+    const { document } = await seedPublication(user.id, "nimbus", {
+      status: "SUSPENDED",
+      suspensionReason: "CANCELED",
+    });
+
+    await trash(user, document.id);
+    expect((await publicationOf(user.id)).suspensionReason).toBe("user_unpublished");
+
+    await settleLapsedPortfolios();
+    await PortfolioService.settleLapsedPortfolioFor(user.id);
+
+    const row = await publicationOf(user.id);
+    expect(row.status).toBe("SUSPENDED");
+    expect(row.templateId).toBe("nimbus");
+    expect(mailMock.sendPortfolioFreeTierEmail).not.toHaveBeenCalledWith(
+      user.email,
+      expect.anything(),
+    );
+  });
+
+  it("never brings back a publication whose document is deleted or purged", async () => {
+    const user = await createUserWithSession();
+    const { document } = await seedPublication(user.id, "cipher", {
+      status: "SUSPENDED",
+      suspensionReason: "CANCELED",
+    });
+    // Trashed outside deleteDocument (the retention purge, an old row): only the document says so.
+    await prisma.document.update({ where: { id: document.id }, data: { deletedAt: new Date() } });
+
+    await settleLapsedPortfolios();
+    await PortfolioService.settleLapsedPortfolioFor(user.id);
+
+    const row = await publicationOf(user.id);
+    expect(row.status).toBe("SUSPENDED");
+    expect(row.templateId).toBe("cipher");
+  });
+
+  it("the public read and the sitemap leave out a publication whose document is deleted", async () => {
+    const user = await createUserWithSession();
+    const { document, publication } = await seedPublication(user.id, "signal");
+    await prisma.document.update({ where: { id: document.id }, data: { deletedAt: new Date() } });
+
+    expect((await publicGet(`/api/v1/portfolios/public/${publication.subdomain}`)).status).toBe(
+      404,
+    );
+    const list = await publicGet("/api/v1/portfolios/public");
+    const listed = (list.body.data as Array<{ subdomain: string }>).map((row) => row.subdomain);
+    expect(listed).not.toContain(publication.subdomain);
+  });
+
+  it("restores a recent billing suspension on the free template and emails the owner once", async () => {
+    const user = await createUserWithSession();
+    const { publication } = await seedPublication(user.id, "nimbus", {
+      status: "SUSPENDED",
+      suspensionReason: "CANCELED",
+    });
+    await prisma.portfolioPublication.update({
+      where: { id: publication.id },
+      data: { suspendedAt: new Date(Date.now() - 10 * DAY_MS) },
+    });
+
+    await settleLapsedPortfolios();
+    await expectDroppedToFree(user.id, "atelier");
+
+    const sentToUser = () =>
+      mailMock.sendPortfolioFreeTierEmail.mock.calls.filter(([email]) => email === user.email);
+    await vi.waitFor(() => expect(sentToUser().length).toBe(1));
+    expect(sentToUser()[0]![1]).toMatchObject({ freeTemplateName: "Atelier" });
+
+    await settleLapsedPortfolios();
+    await PortfolioService.settleLapsedPortfolioFor(user.id);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(sentToUser().length).toBe(1);
+  });
+
+  it("leaves a billing suspension older than 30 days offline until the owner republishes", async () => {
+    const user = await createUserWithSession();
+    const { publication } = await seedPublication(user.id, "nimbus", {
+      status: "SUSPENDED",
+      suspensionReason: "CANCELED",
+    });
+    await prisma.portfolioPublication.update({
+      where: { id: publication.id },
+      data: { suspendedAt: new Date(Date.now() - 60 * DAY_MS) },
+    });
+
+    await settleLapsedPortfolios();
+
+    const row = await publicationOf(user.id);
+    expect(row.status).toBe("SUSPENDED");
+    expect(row.templateId).toBe("nimbus");
+    expect(mailMock.sendPortfolioFreeTierEmail).not.toHaveBeenCalledWith(
+      user.email,
+      expect.anything(),
+    );
+  });
+
+  it("names everything that unlocks a premium template in the publish error", async () => {
+    const user = await createUserWithSession();
+    const document = await prisma.document.create({
+      data: {
+        userId: user.id,
+        type: "PORTFOLIO",
+        title: "Portfolio",
+        slug: `nimbus-${randomUUID().slice(0, 8)}`,
+        templateId: "nimbus",
+        content: validContent("nimbus"),
+      },
+    });
+
+    const response = await asUser(user, request(app).post("/api/v1/portfolios/publish")).send({
+      documentId: document.id,
+      subdomain: document.slug,
+      revision: document.revision,
+    });
+
+    expect(response.status).toBe(402);
+    expect(response.body.message).toContain("Creator Pro, the Job Hunter Bundle or a pass");
+    expect(response.body.message).not.toMatch(/Creator Pro subscription/);
+  });
+});
+
+describe("last verification: suspensions keep their date, takedowns keep their lock", () => {
+  it("trashing a portfolio keeps any moderation reason, even one without the moderation prefix", async () => {
+    const user = await createUserWithSession();
+    const { document } = await seedPublication(user.id, "signal", {
+      status: "SUSPENDED",
+      suspensionReason: "dmca_takedown",
+    });
+
+    const response = await asUser(user, request(app).delete(`/api/v1/documents/${document.id}`));
+    expect(response.status).toBe(200);
+
+    const row = await publicationOf(user.id);
+    expect(row.status).toBe("SUSPENDED");
+    expect(row.suspensionReason).toBe("dmca_takedown");
+  });
+
+  it("a six-month-old billing suspension stays offline after a redelivered event and admin edits", async () => {
+    const user = await createUserWithSession();
+    const { publication } = await seedPublication(user.id, "nimbus", {
+      status: "SUSPENDED",
+      suspensionReason: "CANCELED",
+    });
+    const suspendedAt = new Date(Date.now() - 180 * DAY_MS);
+    await prisma.portfolioPublication.update({
+      where: { id: publication.id },
+      data: { suspendedAt },
+    });
+    const subscriptionId = `sub_${randomUUID()}`;
+    const eventAt = new Date(Date.now() - 180 * DAY_MS);
+    await prisma.subscription.create({
+      data: {
+        userId: user.id,
+        provider: "dodo",
+        providerSubId: subscriptionId,
+        productKey: "portfolio_pro",
+        interval: "MONTHLY",
+        status: "CANCELED",
+        rawStatus: "cancelled",
+        currentPeriodEnd: eventAt,
+        lastWebhookAt: eventAt,
+      },
+    });
+
+    // The same cancellation, delivered again.
+    await deliver(
+      subscriptionEvent({
+        userId: user.id,
+        subscriptionId,
+        status: "cancelled",
+        at: eventAt,
+        nextBillingDate: eventAt,
+      }),
+    );
+    // Admin edits that reconcile the account's access.
+    const adminUser = await admin();
+    const credit = await asUser(adminUser, request(app).post("/api/v1/admin/billing/credits")).send(
+      { userId: user.id, amount: 10, reason: "Support goodwill" },
+    );
+    expect(credit.status).toBe(200);
+    const grant = await asUser(
+      adminUser,
+      request(app).post("/api/v1/admin/billing/entitlements"),
+    ).send({ userId: user.id, key: "analytics", reason: "Support goodwill" });
+    expect(grant.status).toBe(200);
+
+    expect((await publicationOf(user.id)).suspendedAt?.getTime()).toBe(suspendedAt.getTime());
+    await settleLapsedPortfolios();
+    const row = await publicationOf(user.id);
+    expect(row.status).toBe("SUSPENDED");
+    expect(row.templateId).toBe("nimbus");
+  });
+
+  it("tells a portfolio that never went offline that it moved to the free template, not that it is back", async () => {
+    const user = await createUserWithSession();
+    const { publication } = await seedPublication(user.id, "cipher", { status: "GRACE" });
+    await prisma.$executeRaw`UPDATE "PortfolioPublication" SET "updatedAt" = now() - interval '8 days' WHERE "id" = ${publication.id}`;
+
+    await settleLapsedPortfolios();
+    await expectDroppedToFree(user.id, "signal");
+
+    await vi.waitFor(() =>
+      expect(mailMock.sendPortfolioFreeTierEmail).toHaveBeenCalledWith(
+        user.email,
+        expect.objectContaining({ wasOffline: false, freeTemplateName: "Signal" }),
+      ),
+    );
+  });
+
+  it("names the premium template by its display name in the publish error", async () => {
+    const user = await createUserWithSession();
+    const document = await prisma.document.create({
+      data: {
+        userId: user.id,
+        type: "PORTFOLIO",
+        title: "Portfolio",
+        slug: `nimbus-${randomUUID().slice(0, 8)}`,
+        templateId: "nimbus",
+        content: validContent("nimbus"),
+      },
+    });
+
+    const response = await asUser(user, request(app).post("/api/v1/portfolios/publish")).send({
+      documentId: document.id,
+      subdomain: document.slug,
+      revision: document.revision,
+    });
+
+    expect(response.status).toBe(402);
+    expect(response.body.message).toContain('"Nimbus"');
   });
 });

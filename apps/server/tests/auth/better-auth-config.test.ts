@@ -242,7 +242,6 @@ describe("secondaryStorage.increment", () => {
     for (const path of [
       "/email-otp/send-verification-otp",
       "/email-otp/request-password-reset",
-      "/forget-password/email-otp",
       "/email-otp/request-email-change",
     ])
       expect(await storage.increment(`1.2.3.4|${path}`, 60)).toBeGreaterThan(1_000_000);

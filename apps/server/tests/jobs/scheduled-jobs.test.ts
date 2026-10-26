@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => {
     usage: job(),
     portfolio: job(),
     credit: job(),
+    annual: job(),
     retention: job(),
   };
 });
@@ -47,6 +48,10 @@ vi.mock("#jobs/usageMetricsJob", () => ({
 vi.mock("#jobs/portfolioAccessJob", () => ({
   startPortfolioAccessJob: mocks.portfolio.start,
   stopPortfolioAccessJob: mocks.portfolio.stop,
+}));
+vi.mock("#jobs/annualCreditJob", () => ({
+  startAnnualCreditJob: mocks.annual.start,
+  stopAnnualCreditJob: mocks.annual.stop,
 }));
 vi.mock("#jobs/creditSweepJob", () => ({
   startCreditSweepJob: mocks.credit.start,
@@ -84,6 +89,7 @@ describe("the scheduled job table", () => {
     mocks.retention.enabled.mockReturnValue(false);
 
     expect([...enabledJobs()].sort()).toEqual([
+      "annual-credits",
       "changelog-sync",
       "credit-sweep",
       "portfolio-access",

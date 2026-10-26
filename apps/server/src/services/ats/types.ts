@@ -13,14 +13,18 @@ export type AtsQuotaSummary = {
   used: number;
   remaining: number;
   resetsAt: string;
+  /** The balance covers a resume conversion (credits from any source, owner decision 1). */
   canConvertResume: boolean;
+  /** A parse-repair route is configured and the balance covers it (V-178). */
+  canRepair: boolean;
+  /** `null` when the ATS AI policy could not be loaded (V-185); AI actions are then off. */
   pricing: {
     analysisCredits: { min: number; max: number };
     jobUrlAnalysisCredits: { min: number; max: number };
     resumeConversionCredits: number;
     /** Credits for the optional AI parse repair; `null` when this deployment does not offer it. */
     parseRepairCredits: number | null;
-  };
+  } | null;
   extract: {
     limit: number;
     used: number;

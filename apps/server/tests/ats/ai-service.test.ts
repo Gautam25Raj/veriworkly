@@ -176,7 +176,7 @@ describe("ATS AI service", () => {
     expect(context.metadata).not.toHaveProperty("model");
   });
 
-  it("requires Pro access and returns validated structured resume data", async () => {
+  it("needs only credits, not the ai_credits grant, and returns validated structured resume data", async () => {
     api.fetch.mockResolvedValue(
       chatResponse(
         {
@@ -206,11 +206,8 @@ describe("ATS AI service", () => {
       "Avery Shah, Product Engineer. avery@example.com",
     );
 
-    expect(requireEntitlement).toHaveBeenCalledWith(
-      "user_1",
-      "ai_credits",
-      expect.stringContaining("active AI Credits"),
-    );
+    // Owner decision 1 (V-179): credits from any source pay for conversion; no plan check.
+    expect(requireEntitlement).not.toHaveBeenCalled();
     expect(reserve).toHaveBeenCalledWith("user_1", 25, "ats_resume_conversion", "request_convert");
     expect(result.resume.basics.fullName).toBe("Avery Shah");
     expect(result.creditsSpent).toBe(25);

@@ -86,12 +86,18 @@ vi.mock("#services/creditService", () => ({
   CreditService: { reserve: vi.fn(), commitReservation: vi.fn(), releaseReservation: vi.fn() },
 }));
 vi.mock("#services/entitlementService", () => ({
-  EntitlementService: { require: vi.fn(), has: vi.fn(async () => true) },
+  EntitlementService: {
+    require: vi.fn(),
+    has: vi.fn(async () => true),
+    isPaid: vi.fn(async () => true),
+  },
 }));
 vi.mock("#lib/prisma", () => ({ prisma: {} }));
 
 import { AtsAiService } from "#services/ats/ai";
 import { AtsRepairService } from "#services/ats/repair";
+import { DocumentService } from "#services/documentService";
+import { ProfileImportQuotaService } from "#services/profileImportQuotaService";
 import { ProfileImportService } from "#services/profileImportService";
 
 // An analysis with something in it: the engine reads an all-empty one as no answer.
@@ -146,11 +152,10 @@ describe("ATS AI wire format", () => {
    */
   it("sends the profile import as the conversion task", async () => {
     api.fetch.mockResolvedValue(chatResponse(converted));
-    await (
-      ProfileImportService as unknown as { parseTextToResumeSchema(t: string): Promise<unknown> }
-    )
-      .parseTextToResumeSchema(resumeText)
-      .catch(() => undefined);
+    vi.spyOn(ProfileImportQuotaService, "assertQuotaAvailable").mockResolvedValue(undefined);
+    vi.spyOn(DocumentService, "assertFreeTierCapacity").mockResolvedValue(undefined);
+    // The write after the call fails against the stub database; the request body is what matters.
+    await ProfileImportService.importFromLinkedin("u", resumeText, false).catch(() => undefined);
 
     const before = recorded.bodies.profileImport;
     const conversion = recorded.bodies.convertResume;

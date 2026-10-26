@@ -3,7 +3,9 @@ import { createHmac } from "node:crypto";
 import { config } from "#config";
 import { publicAtsPolicy } from "#services/ats/aiPolicy";
 import type { AtsQuotaSummary } from "#services/ats/types";
+import { CreditService } from "#services/creditService";
 import { ApiError } from "#lib/errors";
+import { logger } from "#lib/logger";
 import { prisma } from "#lib/prisma";
 import { getRedis } from "#lib/redis";
 import { addressBucket } from "#utils/requestIp";
@@ -49,10 +51,13 @@ function anchoredUtcDate(year: number, month: number, day: number) {
 }
 
 /**
- * The subscriber's current scan period: a month-long window anchored on the day of the month
- * the active `ai_credits` grant row was created, whatever granted it — subscription, admin,
- * promotion. `createdAt` rather than `startsAt`: every billing webhook upserts the grant and
- * rewrites `startsAt`, which would move the anchor (and the key) with each renewal.
+ * The paid scan period of an account that holds credits (owner decision 1: credits from any
+ * source unlock the 300-scan tier; the `ai_credits` grant only places the window). It is a
+ * month-long window anchored on the day of the month the active `ai_credits` grant row was
+ * created, whatever granted it — subscription, admin, promotion — and, for credits without
+ * such a grant (a pack, a pass that ended, goodwill), the calendar month. `createdAt` rather
+ * than `startsAt`: every billing webhook upserts the grant and rewrites `startsAt`, which would
+ * move the anchor (and the key) with each renewal.
  *
  * It used to anchor on an ACTIVE subscription row and, without one (a manual grant, a cancelled
  * but still entitled plan, PAST_DUE), on `now`: a new key every day, so 300 per period became
@@ -62,6 +67,10 @@ function anchoredUtcDate(year: number, month: number, day: number) {
  */
 async function paidPeriod(userId: string) {
   const now = new Date();
+  const calendarMonth = () => ({
+    key: `ats:quota:subscriber:${userId}:${now.toISOString().slice(0, 7)}`,
+    end: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)),
+  });
   const grant = await prisma.entitlementGrant.findFirst({
     where: {
       userId,
@@ -73,13 +82,7 @@ async function paidPeriod(userId: string) {
     orderBy: { createdAt: "asc" },
     select: { createdAt: true },
   });
-  if (!grant) return null;
-
-  const anchorTime = grant.createdAt.getTime();
-  if (Number.isNaN(anchorTime)) {
-    const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
-    return { key: `ats:quota:subscriber:${userId}:${now.toISOString().slice(0, 7)}`, end };
-  }
+  if (!grant || Number.isNaN(grant.createdAt.getTime())) return calendarMonth();
 
   const anchorDay = grant.createdAt.getUTCDate();
   let end = anchoredUtcDate(now.getUTCFullYear(), now.getUTCMonth(), anchorDay);
@@ -91,6 +94,8 @@ async function paidPeriod(userId: string) {
 type QuotaContext = {
   tier: AtsQuotaSummary["tier"];
   paid: boolean;
+  /** Spendable credits, any source; 0 for an anonymous caller. */
+  availableCredits: number;
   key: string;
   extractKey: string;
   limit: number;
@@ -110,7 +115,8 @@ type QuotaContext = {
  * the response from the counter the increment already returned removes all of that.
  */
 async function resolveContext(userId: string | undefined, ip: string): Promise<QuotaContext> {
-  const paid = userId ? await paidPeriod(userId) : null;
+  const availableCredits = userId ? (await CreditService.getWallet(userId)).available : 0;
+  const paid = availableCredits > 0 ? await paidPeriod(userId!) : null;
   const tier = paid ? "subscriber" : userId ? "free" : "anonymous";
   const identity = userId ?? anonymousId(addressBucket(ip));
   const windowSeconds = userId ? FREE_WINDOW_SECONDS : ANONYMOUS_WINDOW_SECONDS;
@@ -118,6 +124,7 @@ async function resolveContext(userId: string | undefined, ip: string): Promise<Q
   return {
     tier,
     paid: Boolean(paid),
+    availableCredits,
     key: paid?.key ?? `ats:quota:${tier}:${identity}`,
     extractKey: paid?.key ? `${paid.key}:extract` : `ats:extract-quota:${tier}:${identity}`,
     limit: paid ? PAID_LIMIT : userId ? 2 : 1,
@@ -148,6 +155,7 @@ async function summarize(
   ]);
 
   const ttl = rawTtl > 0 ? rawTtl : ctx.windowSeconds;
+  const pricing = pricingOrNull();
 
   return {
     tier: ctx.tier,
@@ -155,14 +163,33 @@ async function summarize(
     used: scanUsed,
     remaining: Math.max(0, ctx.limit - scanUsed),
     resetsAt: new Date(Date.now() + ttl * 1000).toISOString(),
-    canConvertResume: ctx.paid,
-    pricing: publicAtsPolicy(),
+    canConvertResume: Boolean(pricing) && ctx.availableCredits >= pricing!.resumeConversionCredits,
+    // V-178: the client offers the repair pass only when this is true.
+    canRepair:
+      pricing?.parseRepairCredits != null && ctx.availableCredits >= pricing.parseRepairCredits,
+    pricing,
     extract: {
       limit: ctx.extractLimit,
       used: extractUsed,
       remaining: Math.max(0, ctx.extractLimit - extractUsed),
     },
   };
+}
+
+/**
+ * V-185: the summary is built after the scan counter moved, so a policy that fails to load must
+ * not turn it into a 503 (the scan would be spent and the response lost). Prices are left out
+ * instead, which also switches conversion and repair off, and the cause is logged.
+ */
+function pricingOrNull(): AtsQuotaSummary["pricing"] {
+  try {
+    return publicAtsPolicy();
+  } catch (error) {
+    logger.error("ATS quota summary sent without pricing: the ATS AI policy did not load", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
 }
 
 async function increment(key: string, limit: number, ttlSeconds: number) {

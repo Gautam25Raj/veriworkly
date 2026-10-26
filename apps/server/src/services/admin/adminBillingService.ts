@@ -5,8 +5,14 @@ import type { z } from "zod";
 import { prisma } from "#lib/prisma";
 import { ApiError } from "#lib/errors";
 
-import { BillingService } from "#services/billingService";
+import {
+  BillingService,
+  lockUserForBilling,
+  syncSubscriptionGrants,
+} from "#services/billingService";
 import { CreditService } from "#services/creditService";
+import { isProductKey } from "#services/productCatalog";
+import { withAccountPlaceholder } from "#services/admin/deletedAccountPlaceholder";
 import { writeAdminAudit, type AdminAuditInput } from "#services/admin/adminAuditService";
 
 import type {
@@ -147,15 +153,28 @@ export async function listSubscriptions(query: SubscriptionListQuery) {
     prisma.subscription.count({ where }),
   ]);
 
-  return listPage(items, total, query);
+  return listPage(items.map(withAccountPlaceholder), total, query);
 }
 
 /**
- * Edits the provider mirror only: the Subscription row is what the next webhook will overwrite,
- * and this never creates or revokes entitlement grants. Access (publishing, AI credits) follows
- * the grants, so changing what a user can do goes through `grantEntitlement`/`revokeEntitlement`.
- * `reconcileAccess` runs afterwards only so the publication and caches reflect the grace/period
- * fields that were edited.
+ * Support's override for a subscription whose webhook was lost, with two rules the old version
+ * broke:
+ *
+ * - Cancel at period end (and its undo) is a provider action (V-169). Dodo charges the card, so
+ *   the change is made there first and the row takes the provider's answer; if the provider call
+ *   fails, nothing is written and the admin sees a 502. Should the local write fail after the
+ *   provider accepted, the provider's own `subscription.updated` webhook brings the row in line.
+ *   A row the provider never knew (no `providerSubId`) cannot be cancelled this way.
+ * - Ending a provider subscription locally (CANCELED or INACTIVE) needs the provider to agree:
+ *   its current state is fetched first, and the label is refused (409) unless the provider
+ *   reports the same, so a local-only label can never stop the deletion guard from seeing a
+ *   subscription Dodo still bills. The provider's raw status is stored with it.
+ * - A status, period or grace edit moves the access with it (V-170): the subscription's
+ *   entitlements are granted or revoked through the webhook's own `syncSubscriptionGrants`, in
+ *   the same transaction as the row and the audit entry, so the label never says ACTIVE while
+ *   the user stays on the free plan (or the reverse).
+ *
+ * `reconcileAccess` runs afterwards for the publication and the caches.
  */
 export async function updateSubscription(
   subscriptionId: string,
@@ -164,18 +183,63 @@ export async function updateSubscription(
 ) {
   const existing = await prisma.subscription.findUnique({
     where: { id: subscriptionId },
-    select: { id: true, userId: true, status: true, cancelAtPeriodEnd: true },
+    select: {
+      id: true,
+      userId: true,
+      status: true,
+      cancelAtPeriodEnd: true,
+      providerSubId: true,
+      productKey: true,
+    },
   });
 
   if (!existing) throw new ApiError(404, "Subscription not found.");
+  // Kept after account deletion as a billing record (V-183); there is no account to edit it for.
+  if (!existing.userId)
+    throw new ApiError(409, "This subscription belongs to a deleted account and is read-only.");
+  const userId = existing.userId;
+
+  let providerRawStatus: string | undefined;
+  if ((input.status === "CANCELED" || input.status === "INACTIVE") && existing.providerSubId) {
+    const provider = await BillingService.getProviderSubscriptionState(existing.providerSubId);
+    if (provider.status !== input.status)
+      throw new ApiError(
+        409,
+        `The billing provider still reports this subscription as "${provider.rawStatus}", so it cannot be marked ${input.status} here. Cancel it at the provider (Cancel at period end, or the Dodo dashboard); its webhook updates this row.`,
+        { providerStatus: provider.rawStatus },
+      );
+    providerRawStatus = provider.rawStatus;
+  }
+
+  let providerCancelAtPeriodEnd: boolean | undefined;
+  if (input.cancelAtPeriodEnd !== undefined) {
+    if (!existing.providerSubId)
+      throw new ApiError(
+        409,
+        "This subscription has no provider subscription id, so it cannot be cancelled at the billing provider.",
+      );
+    providerCancelAtPeriodEnd = (
+      await BillingService.setProviderCancelAtPeriodEnd(
+        existing.providerSubId,
+        input.cancelAtPeriodEnd,
+      )
+    ).cancelAtPeriodEnd;
+  }
+
+  const touchesAccess =
+    input.status !== undefined ||
+    input.currentPeriodEnd !== undefined ||
+    input.graceEndsAt !== undefined;
 
   const updated = await prisma.$transaction(async (tx) => {
+    await lockUserForBilling(tx, userId);
     const subscription = await tx.subscription.update({
       where: { id: subscriptionId },
       data: {
         ...(input.status !== undefined ? { status: input.status } : {}),
-        ...(input.cancelAtPeriodEnd !== undefined
-          ? { cancelAtPeriodEnd: input.cancelAtPeriodEnd }
+        ...(providerRawStatus !== undefined ? { rawStatus: providerRawStatus } : {}),
+        ...(providerCancelAtPeriodEnd !== undefined
+          ? { cancelAtPeriodEnd: providerCancelAtPeriodEnd }
           : {}),
         ...(input.currentPeriodEnd !== undefined
           ? { currentPeriodEnd: input.currentPeriodEnd ? new Date(input.currentPeriodEnd) : null }
@@ -186,14 +250,31 @@ export async function updateSubscription(
       },
       include: { user: { select: SUBSCRIBER_SELECT } },
     });
+    if (touchesAccess && isProductKey(subscription.productKey))
+      await syncSubscriptionGrants(tx, {
+        userId,
+        sourceId: subscription.providerSubId ?? subscription.id,
+        productKey: subscription.productKey,
+        status: subscription.status,
+        currentPeriodEnd: subscription.currentPeriodEnd,
+        graceEndsAt: subscription.graceEndsAt,
+        at: new Date(),
+      });
     await writeAdminAudit(tx, {
       ...audit,
-      metadata: { ...audit.metadata, userId: existing.userId, previousStatus: existing.status },
+      metadata: {
+        ...audit.metadata,
+        userId,
+        previousStatus: existing.status,
+        ...(providerCancelAtPeriodEnd !== undefined
+          ? { providerCancelAtPeriodEnd, previousCancelAtPeriodEnd: existing.cancelAtPeriodEnd }
+          : {}),
+      },
     });
     return subscription;
   });
 
-  await BillingService.reconcileAccess(existing.userId);
+  await BillingService.reconcileAccess(userId);
 
   return { subscription: updated, previous: existing };
 }
@@ -227,7 +308,7 @@ export async function listCreditWallets(query: WalletListQuery) {
     prisma.creditWallet.count({ where }),
   ]);
 
-  return listPage(items, total, query);
+  return listPage(items.map(withAccountPlaceholder), total, query);
 }
 
 /** Without a client key, identical adjustments this close together are one double submit. */
@@ -353,7 +434,7 @@ export async function listEntitlements(query: EntitlementListQuery) {
     prisma.entitlementGrant.count({ where }),
   ]);
 
-  return listPage(items, total, query);
+  return listPage(items.map(withAccountPlaceholder), total, query);
 }
 
 export async function grantEntitlement(input: {
@@ -406,7 +487,16 @@ export async function revokeEntitlement(
   const grant = await prisma.entitlementGrant.findUnique({ where: { id: grantId } });
 
   if (!grant) throw new ApiError(404, "Entitlement grant not found.");
+  // Kept after account deletion as a billing record (V-183).
+  if (!grant.userId)
+    throw new ApiError(409, "This entitlement belongs to a deleted account and is read-only.");
   if (grant.revokedAt) throw new ApiError(409, "This entitlement is already revoked.");
+  // A subscription's grants follow the subscription: the next webhook would grant this again.
+  if (grant.source === "SUBSCRIPTION")
+    throw new ApiError(
+      409,
+      "This entitlement comes from a subscription and its next billing event would restore it. Change or cancel the subscription instead.",
+    );
 
   const revoked = await prisma.$transaction(async (tx) => {
     const updated = await tx.entitlementGrant.update({

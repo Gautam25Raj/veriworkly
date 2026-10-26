@@ -1,5 +1,6 @@
 import request from "supertest";
 import { createHash, randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { sendMail } = vi.hoisted(() => ({ sendMail: vi.fn() }));
@@ -29,7 +30,14 @@ async function seedProtectedShare({ idLike = false } = {}) {
   const slug = `resume-${suffix}`;
 
   const document = await prisma.document.create({
-    data: { userId: user.id, title: "Resume", slug, content: { basics: { name: "Owner" } } },
+    data: {
+      userId: user.id,
+      title: "Resume",
+      slug,
+      content: { basics: { name: "Owner" } },
+      // Shared through the API, which unlists the document (V-171).
+      visibility: "UNLISTED",
+    },
   });
 
   const shareLink = await prisma.shareLink.create({
@@ -253,8 +261,6 @@ describe("OTP recipient cap through better-auth", () => {
     for (const [path, email] of [
       ["/email-otp/request-password-reset", registered.email],
       ["/email-otp/request-password-reset", unknown],
-      ["/forget-password/email-otp", registered.email],
-      ["/forget-password/email-otp", unknown],
     ] as const) {
       const res = await auth(path, { email });
       expect(res.status, `${path} ${email}`).toBe(200);
@@ -263,8 +269,16 @@ describe("OTP recipient cap through better-auth", () => {
     expect(sendMail).not.toHaveBeenCalled();
     // The registered address was counted (and refused) inside sendVerificationOTP; the unknown
     // one never reached it.
-    expect(await getRedis().get(recipientKey(registered.email))).toBe("7");
+    expect(await getRedis().get(recipientKey(registered.email))).toBe("6");
     expect(await getRedis().get(recipientKey(unknown))).toBe("5");
+  });
+
+  it("does not serve better-auth's deprecated /forget-password/email-otp (V-191)", async () => {
+    const registered = await createUserWithSession({ email: "deprecated-reset@example.test" });
+
+    const res = await auth("/forget-password/email-otp", { email: registered.email });
+    expect(res.status).toBe(404);
+    expect(sendMail).not.toHaveBeenCalled();
   });
 
   it("answers a capped sign-in code request with 429, since sign-in mails any address", async () => {
@@ -334,5 +348,336 @@ describe("share link list (V-030)", () => {
 
     const after = await list(user.cookie, documentId);
     expect(after.body.data).toMatchObject({ items: [], total: 0 });
+  });
+});
+
+describe("V-171 share links follow the document's visibility", () => {
+  let adminPromise: Promise<Awaited<ReturnType<typeof createUserWithSession>>> | null = null;
+  const admin = () => (adminPromise ??= createUserWithSession({ email: "admin@example.test" }));
+
+  const publicRead = (username: string, slug: string) =>
+    request(app).get(`/api/v1/shares/public/${username}/${slug}`).set("Origin", STUDIO_ORIGIN);
+
+  async function adminSetVisibility(documentId: string, visibility: "PRIVATE" | "UNLISTED") {
+    const response = await request(app)
+      .patch(`/api/v1/admin/documents/${documentId}`)
+      .set("Origin", STUDIO_ORIGIN)
+      .set("Cookie", (await admin()).cookie)
+      .send({ visibility, reason: "Reported as impersonation" });
+    expect(response.status).toBe(200);
+  }
+
+  async function shareThroughApi(cookie: string, documentId: string) {
+    return request(app)
+      .post("/api/v1/shares")
+      .set("Origin", STUDIO_ORIGIN)
+      .set("Cookie", cookie)
+      .send({ documentId, snapshot: { basics: { name: "Owner" } }, noExpiry: true });
+  }
+
+  async function ownerWithDocument() {
+    const letters = Array.from(randomBytes(6), (b) => String.fromCharCode(97 + (b % 26))).join("");
+    const user = await createUserWithSession({ username: `vis${letters}` });
+    const document = await prisma.document.create({
+      data: { userId: user.id, title: "Resume", slug: `cv-${letters}`, content: {} },
+    });
+    return { user, username: `vis${letters}`, document };
+  }
+
+  it("sharing a default (private) document makes it unlisted, so the link resolves", async () => {
+    const { user, username, document } = await ownerWithDocument();
+    expect(document.visibility).toBe("PRIVATE");
+
+    const created = await shareThroughApi(user.cookie, document.id);
+    expect(created.status).toBe(201);
+
+    const row = await prisma.document.findUniqueOrThrow({ where: { id: document.id } });
+    expect(row.visibility).toBe("UNLISTED");
+    expect((await publicRead(username, created.body.data.slug)).status).toBe(200);
+  });
+
+  it("Make private stops a cached link at once (404 like a missing link); unlisting restores it", async () => {
+    const { user, username, document } = await ownerWithDocument();
+    const created = await shareThroughApi(user.cookie, document.id);
+    const slug = created.body.data.slug as string;
+
+    // Warm the public cache first: the change must not wait for it to expire.
+    expect((await publicRead(username, slug)).status).toBe(200);
+
+    await adminSetVisibility(document.id, "PRIVATE");
+
+    const hidden = await publicRead(username, slug);
+    const missing = await publicRead(username, "no-such-link");
+    expect(hidden.status).toBe(404);
+    expect(hidden.body.message).toBe(missing.body.message);
+    const verifyHidden = await verify(`/api/v1/shares/public/${username}/${slug}/verify`, {
+      password: "anything",
+    });
+    expect(verifyHidden.status).toBe(404);
+
+    // The owner cannot undo the moderator by sharing again.
+    const reshare = await shareThroughApi(user.cookie, document.id);
+    expect(reshare.status).toBe(403);
+    expect((await publicRead(username, slug)).status).toBe(404);
+
+    // The link itself was kept: making the document reachable again brings the same URL back.
+    expect(await prisma.shareLink.count({ where: { documentId: document.id } })).toBe(1);
+    await adminSetVisibility(document.id, "UNLISTED");
+    expect((await publicRead(username, slug)).status).toBe(200);
+  });
+
+  async function ownerPatchVisibility(
+    cookie: string,
+    documentId: string,
+    visibility: "PRIVATE" | "UNLISTED" | "PUBLIC",
+  ) {
+    const { revision } = await prisma.document.findUniqueOrThrow({
+      where: { id: documentId },
+      select: { revision: true },
+    });
+    return request(app)
+      .patch(`/api/v1/documents/${documentId}`)
+      .set("Origin", STUDIO_ORIGIN)
+      .set("Cookie", cookie)
+      .send({ visibility, revision });
+  }
+
+  it("the owner's own Make private stops a cached link at once, and unlisting brings it back", async () => {
+    const { user, username, document } = await ownerWithDocument();
+    const created = await shareThroughApi(user.cookie, document.id);
+    const slug = created.body.data.slug as string;
+    expect((await publicRead(username, slug)).status).toBe(200);
+
+    expect((await ownerPatchVisibility(user.cookie, document.id, "PRIVATE")).status).toBe(200);
+    expect((await publicRead(username, slug)).status).toBe(404);
+
+    expect((await ownerPatchVisibility(user.cookie, document.id, "UNLISTED")).status).toBe(200);
+    expect((await publicRead(username, slug)).status).toBe(200);
+  });
+
+  it("the owner cannot undo a moderator's Make private through the document PATCH", async () => {
+    const { user, username, document } = await ownerWithDocument();
+    const created = await shareThroughApi(user.cookie, document.id);
+    const slug = created.body.data.slug as string;
+    await adminSetVisibility(document.id, "PRIVATE");
+
+    for (const visibility of ["UNLISTED", "PUBLIC"] as const) {
+      const response = await ownerPatchVisibility(user.cookie, document.id, visibility);
+      expect(response.status, visibility).toBe(403);
+    }
+    const row = await prisma.document.findUniqueOrThrow({ where: { id: document.id } });
+    expect(row.visibility).toBe("PRIVATE");
+    expect((await publicRead(username, slug)).status).toBe(404);
+
+    // Saving it as private, or editing anything else, is still the owner's to do.
+    expect((await ownerPatchVisibility(user.cookie, document.id, "PRIVATE")).status).toBe(200);
+
+    // Once the moderator lifts it, the owner's own choice applies again.
+    await adminSetVisibility(document.id, "UNLISTED");
+    expect((await ownerPatchVisibility(user.cookie, document.id, "PRIVATE")).status).toBe(200);
+    expect((await ownerPatchVisibility(user.cookie, document.id, "UNLISTED")).status).toBe(200);
+    expect((await publicRead(username, slug)).status).toBe(200);
+  });
+
+  async function portfolioOwner() {
+    const owner = await ownerWithDocument();
+    const document = await prisma.document.update({
+      where: { id: owner.document.id },
+      data: { type: "PORTFOLIO" },
+    });
+    return { ...owner, document };
+  }
+
+  it("refuses a share link on a portfolio document with 400 and leaves it private", async () => {
+    const { user, document } = await portfolioOwner();
+
+    const created = await shareThroughApi(user.cookie, document.id);
+
+    expect(created.status, JSON.stringify(created.body)).toBe(400);
+    expect(await prisma.shareLink.count({ where: { documentId: document.id } })).toBe(0);
+    const row = await prisma.document.findUniqueOrThrow({ where: { id: document.id } });
+    expect(row.visibility).toBe("PRIVATE");
+  });
+
+  it("a force-unpublished portfolio cannot be made visible again by its owner", async () => {
+    const { user, document } = await portfolioOwner();
+    await prisma.document.update({ where: { id: document.id }, data: { visibility: "PUBLIC" } });
+    const publication = await prisma.portfolioPublication.create({
+      data: {
+        userId: user.id,
+        documentId: document.id,
+        subdomain: document.slug,
+        templateId: "signal",
+        snapshot: {},
+      },
+    });
+
+    const takedown = await request(app)
+      .delete(`/api/v1/admin/portfolios/${publication.id}`)
+      .set("Origin", STUDIO_ORIGIN)
+      .set("Cookie", (await admin()).cookie)
+      .send({ reason: "Phishing page" });
+    expect(takedown.status, JSON.stringify(takedown.body)).toBe(200);
+
+    for (const visibility of ["UNLISTED", "PUBLIC"] as const) {
+      const response = await ownerPatchVisibility(user.cookie, document.id, visibility);
+      expect(response.status, visibility).toBe(403);
+    }
+    expect(
+      (await prisma.document.findUniqueOrThrow({ where: { id: document.id } })).visibility,
+    ).toBe("PRIVATE");
+  });
+
+  it("the backfill names the document on takedowns recorded before documentId was kept", async () => {
+    const { user, document } = await portfolioOwner();
+    const old = await prisma.adminAuditEntry.create({
+      data: {
+        action: "portfolio.unpublish",
+        targetType: "PortfolioPublication",
+        targetId: `pub_${randomBytes(4).toString("hex")}`,
+        reason: "Phishing page",
+        metadata: { subdomain: document.slug },
+      },
+    });
+    // Two portfolios with the slug of an old takedown's subdomain: which one is ambiguous.
+    const twinSlug = `twin-${randomBytes(4).toString("hex")}`;
+    for (let i = 0; i < 2; i += 1) {
+      const owner = await portfolioOwner();
+      await prisma.document.update({ where: { id: owner.document.id }, data: { slug: twinSlug } });
+    }
+    const ambiguous = await prisma.adminAuditEntry.create({
+      data: {
+        action: "portfolio.unpublish",
+        targetType: "PortfolioPublication",
+        targetId: `pub_${randomBytes(4).toString("hex")}`,
+        reason: "Spam",
+        metadata: { subdomain: twinSlug },
+      },
+    });
+
+    const sql = readFileSync(
+      new URL(
+        "../../prisma/migrations/20261026150000_backfill_takedown_document_ids/migration.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    for (let run = 0; run < 2; run += 1) await prisma.$executeRawUnsafe(sql);
+
+    const metadataOf = async (id: string) =>
+      (await prisma.adminAuditEntry.findUniqueOrThrow({ where: { id } })).metadata as Record<
+        string,
+        unknown
+      >;
+    expect(await metadataOf(old.id)).toEqual({ subdomain: document.slug, documentId: document.id });
+    expect((await metadataOf(ambiguous.id)).documentId).toBeUndefined();
+
+    const reopen = await ownerPatchVisibility(user.cookie, document.id, "UNLISTED");
+    expect(reopen.status).toBe(403);
+  });
+
+  it("Make private is not applied when its audit entry cannot be written", async () => {
+    const { user, document } = await ownerWithDocument();
+    const created = await shareThroughApi(user.cookie, document.id);
+    expect(created.status).toBe(201);
+
+    await prisma.$executeRawUnsafe(`
+      CREATE OR REPLACE FUNCTION test_refuse_audit() RETURNS trigger AS $$
+      BEGIN RAISE EXCEPTION 'audit store unavailable'; END $$ LANGUAGE plpgsql`);
+    await prisma.$executeRawUnsafe(
+      `CREATE TRIGGER test_refuse_audit BEFORE INSERT ON "AdminAuditEntry" FOR EACH ROW EXECUTE FUNCTION test_refuse_audit()`,
+    );
+    try {
+      const response = await request(app)
+        .patch(`/api/v1/admin/documents/${document.id}`)
+        .set("Origin", STUDIO_ORIGIN)
+        .set("Cookie", (await admin()).cookie)
+        .send({ visibility: "PRIVATE", reason: "Reported as impersonation" });
+      expect(response.status).toBe(500);
+    } finally {
+      await prisma.$executeRawUnsafe(
+        `DROP TRIGGER IF EXISTS test_refuse_audit ON "AdminAuditEntry"`,
+      );
+      await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS test_refuse_audit()`);
+    }
+
+    // No takedown without its record: the document is as it was.
+    const row = await prisma.document.findUniqueOrThrow({ where: { id: document.id } });
+    expect(row.visibility).toBe("UNLISTED");
+  });
+
+  it("the migration unlists shared private documents, but not one a moderator made private", async () => {
+    const shared = await ownerWithDocument();
+    const moderated = await ownerWithDocument();
+    const unshared = await ownerWithDocument();
+    const coverLetter = await ownerWithDocument();
+    await prisma.document.update({
+      where: { id: coverLetter.document.id },
+      data: { type: "COVER_LETTER" },
+    });
+    // A portfolio (shared before sharing was limited to résumés and cover letters, or forced
+    // private by a takedown) is never unlisted by the migration.
+    const portfolio = await portfolioOwner();
+
+    for (const { user, document } of [shared, moderated, coverLetter, portfolio]) {
+      await prisma.shareLink.create({
+        data: { userId: user.id, documentId: document.id, slug: document.slug, snapshot: {} },
+      });
+    }
+    await prisma.adminAuditEntry.create({
+      data: {
+        action: "document.visibility.change",
+        targetType: "Document",
+        targetId: moderated.document.id,
+        reason: "Reported",
+        metadata: { previousVisibility: "UNLISTED", visibility: "PRIVATE" },
+      },
+    });
+
+    const sql = readFileSync(
+      new URL(
+        "../../prisma/migrations/20261026130000_shared_documents_are_unlisted/migration.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    await prisma.$executeRawUnsafe(sql);
+
+    const visibilityOf = async (id: string) =>
+      (await prisma.document.findUniqueOrThrow({ where: { id } })).visibility;
+    expect(await visibilityOf(shared.document.id)).toBe("UNLISTED");
+    expect(await visibilityOf(moderated.document.id)).toBe("PRIVATE");
+    expect(await visibilityOf(unshared.document.id)).toBe("PRIVATE");
+    expect(await visibilityOf(coverLetter.document.id)).toBe("UNLISTED");
+    expect(await visibilityOf(portfolio.document.id)).toBe("PRIVATE");
+  });
+});
+
+describe("V-188 owner share view counts", () => {
+  it("the view flush refreshes the owner's cached share list", async () => {
+    const letters = Array.from(randomBytes(6), (b) => String.fromCharCode(97 + (b % 26))).join("");
+    const user = await createUserWithSession({ username: `views${letters}` });
+    const document = await prisma.document.create({
+      data: { userId: user.id, title: "Resume", slug: "resume", content: {} },
+    });
+    const created = await request(app)
+      .post("/api/v1/shares")
+      .set("Origin", STUDIO_ORIGIN)
+      .set("Cookie", user.cookie)
+      .send({ documentId: document.id, snapshot: {}, noExpiry: true });
+    expect(created.status).toBe(201);
+
+    const list = () =>
+      request(app)
+        .get(`/api/v1/shares/documents/${document.id}`)
+        .set("Origin", STUDIO_ORIGIN)
+        .set("Cookie", user.cookie);
+
+    expect((await list()).body.data.items[0].viewCount).toBe(0);
+
+    await ShareService.recordShareView(created.body.data.id, "203.0.113.9", "test-agent");
+    await ShareService.flushShareViews();
+
+    expect((await list()).body.data.items[0].viewCount).toBe(1);
   });
 });

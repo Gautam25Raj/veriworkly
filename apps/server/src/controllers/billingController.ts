@@ -90,10 +90,14 @@ export class BillingController {
     }
   }
 
+  /**
+   * Not behind the payments gate (V-182): the portal is where an existing customer cancels,
+   * downloads receipts and fixes a failed card, and the delete-blocked 409 sends them here. It
+   * sells nothing new.
+   */
   static async portal(req: Request, res: Response, next: NextFunction) {
     try {
       const user = requireAuthUser(req);
-      BillingController.assertPaymentsEnabled(user);
 
       res.json(createSuccessResponse(await BillingService.createPortal(user.id)));
     } catch (error) {

@@ -36,22 +36,13 @@ export const AdminDocumentController = {
     const { id } = adminIdParamSchema.parse(req.params);
     const input = adminDocumentVisibilitySchema.parse(req.body);
 
-    const { document, previousVisibility } = await AdminDocumentService.updateDocumentVisibility(
-      id,
-      input.visibility,
-    );
-
-    await recordAdminAudit({
+    // The audit entry is written by the service, in the same transaction as the change.
+    const { document } = await AdminDocumentService.updateDocumentVisibility(id, input.visibility, {
       actorId,
       action: ADMIN_AUDIT_ACTIONS.documentVisibility,
       targetType: "Document",
       targetId: id,
       reason: input.reason,
-      metadata: {
-        previousVisibility,
-        visibility: input.visibility,
-        ownerId: document.user.id,
-      },
     });
 
     return document;

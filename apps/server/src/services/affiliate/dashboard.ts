@@ -6,8 +6,10 @@ import {
   AFFILIATE_DASHBOARD_TTL_SECONDS,
   AFFILIATE_MINIMUM_WITHDRAWAL_CENTS,
   AFFILIATE_TIERS,
+  nextTierConversions,
 } from "#services/affiliate/constants";
 import { dashboardCacheKey } from "#services/affiliate/cache";
+import { cleanConversionsWhere } from "#services/affiliate/commissions";
 
 async function buildDashboard(userId: string) {
   const [
@@ -16,6 +18,7 @@ async function buildDashboard(userId: string) {
     clicks,
     totalReferrals,
     convertedReferrals,
+    tierConversions,
     referrals,
     commissions,
     withdrawals,
@@ -33,6 +36,8 @@ async function buildDashboard(userId: string) {
     prisma.affiliateClick.count({ where: { affiliateId: userId } }),
     prisma.affiliateReferral.count({ where: { affiliateId: userId } }),
     prisma.affiliateReferral.count({ where: { affiliateId: userId, status: "CONVERTED" } }),
+    // What promotion counts: reversed and shared-address conversions do not (V-180).
+    prisma.affiliateReferral.count({ where: cleanConversionsWhere(userId) }),
     prisma.affiliateReferral.findMany({
       where: { affiliateId: userId },
       select: { id: true, status: true, createdAt: true, convertedAt: true },
@@ -65,9 +70,8 @@ async function buildDashboard(userId: string) {
     wallet: wallet ?? { pendingCents: 0, availableCents: 0, paidCents: 0 },
     minimumWithdrawalCents: AFFILIATE_MINIMUM_WITHDRAWAL_CENTS,
     tierProgress: {
-      currentConversions: convertedReferrals,
-      nextTierConversions:
-        user.affiliateTier === "TIER_1" ? 10 : user.affiliateTier === "TIER_2" ? 50 : null,
+      currentConversions: tierConversions,
+      nextTierConversions: nextTierConversions(user.affiliateTier),
     },
     tiers: AFFILIATE_TIERS,
   };

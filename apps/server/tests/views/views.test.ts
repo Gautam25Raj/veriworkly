@@ -3,7 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const prismaMock = {
   portfolioPublication: {
     findUnique: vi.fn(),
+    findFirst: vi.fn(),
     findMany: vi.fn(),
+  },
+
+  // The public read asks whether the owner is paid (`EntitlementService.isPaid`).
+  entitlementGrant: {
+    findMany: vi.fn(() => Promise.resolve([])),
   },
 
   portfolioViewDaily: {
@@ -172,7 +178,8 @@ vi.mock("#services/mail/portfolioMail", () => ({
 }));
 
 vi.mock("#services/mail/billingMail", () => ({
-  sendSubscriptionPurchasedEmail: vi.fn().mockResolvedValue(undefined),
+  sendPurchaseConfirmationEmail: vi.fn().mockResolvedValue(undefined),
+  sendPaymentFailedEmail: vi.fn().mockResolvedValue(undefined),
   sendSubscriptionCancelledEmail: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -211,6 +218,7 @@ describe("Views tracking buffering and flushing", () => {
     vi.restoreAllMocks();
     mockRedisStore.clear();
     prismaMock.portfolioPublication.findUnique.mockReset();
+    prismaMock.portfolioPublication.findFirst.mockReset();
     prismaMock.portfolioPublication.findMany.mockReset();
     prismaMock.portfolioViewDaily.upsert.mockReset();
     prismaMock.shareView.createMany.mockReset();
@@ -231,14 +239,13 @@ describe("Views tracking buffering and flushing", () => {
     it("buffers portfolio view count in Redis on recordView", async () => {
       const { PortfolioService } = await import("../../src/services/portfolioService");
 
-      prismaMock.portfolioPublication.findUnique.mockResolvedValue({
+      prismaMock.portfolioPublication.findFirst.mockResolvedValue({
         id: "pub_123",
+        userId: "user_123",
         subdomain: "testsub",
+        status: "LIVE",
         updatedAt: new Date(),
-        user: {
-          subscriptions: [],
-          entitlementGrants: [],
-        },
+        user: { subscriptions: [] },
       });
 
       await PortfolioService.recordView("testsub", "https://google.com");

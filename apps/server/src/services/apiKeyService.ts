@@ -618,6 +618,29 @@ export class ApiKeyService {
     await markKeyRevoked(existing.keyHash);
   }
 
+  /**
+   * Undoes `markRevokedById` for an admin re-enable (V-188): without this the marker from the
+   * disable keeps refusing the key for up to its TTL after the row is active again. Only a key
+   * that is live in the row (active, never revoked) is cleared; a revoked key stays terminal.
+   * Call it after the row update has committed.
+   */
+  static async clearRevokedMarkerById(keyId: string) {
+    const existing = await prisma.apiKey.findUnique({
+      where: { id: keyId },
+      select: { keyHash: true, isActive: true, revokedAt: true },
+    });
+
+    if (!existing || !existing.isActive || existing.revokedAt) return;
+
+    try {
+      await getRedis().unlink([revokedMarkerKey(existing.keyHash)]);
+    } catch (error) {
+      logger.warn("Failed to clear API key revoked marker", error);
+    }
+
+    await invalidateAuthCache(existing.keyHash);
+  }
+
   static async deleteKey(userId: string, keyId: string) {
     const existing = await prisma.apiKey.findFirst({
       where: { id: keyId, userId },

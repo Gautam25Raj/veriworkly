@@ -1,5 +1,6 @@
 import { config } from "#config";
 import { publicAiActionPolicy } from "#services/aiPolicy";
+import { CREDIT_PACK_NAMES, PRODUCT_NAMES } from "#services/productNames";
 
 export const PRODUCT_KEYS = ["ai_credits", "portfolio_pro", "bundle"] as const;
 export type ProductKey = (typeof PRODUCT_KEYS)[number];
@@ -22,13 +23,13 @@ export function isCatalogInterval(value: string): value is CatalogInterval {
 
 export const creditPackCatalog = {
   credit_pack_250: {
-    name: "250 extra credits",
+    name: CREDIT_PACK_NAMES.credit_pack_250,
     credits: 250,
     expiresInDays: 90,
     providerProductId: () => config.dodo.creditPack250ProductId,
   },
   credit_pack_500: {
-    name: "500 extra credits",
+    name: CREDIT_PACK_NAMES.credit_pack_500,
     credits: 500,
     expiresInDays: 90,
     providerProductId: () => config.dodo.creditPack500ProductId,
@@ -41,6 +42,21 @@ export function isCreditPackKey(value: string): value is CreditPackKey {
   // Own keys only: `in` would also accept prototype names such as "constructor" (V-152).
   return Object.hasOwn(creditPackCatalog, value);
 }
+
+/**
+ * Subscription credits reset monthly and nothing rolls over: monthly and annual plans both grant
+ * 1,000 credits each month, and whatever is unused expires at the end of that month when the next
+ * 1,000 replaces it. Annual plans deliver theirs month by month (owner decision 4):
+ * `creditAllowance.annual` is the year's total, granted as `ANNUAL_MONTHLY_CREDITS` at the start of
+ * each of the twelve months (`services/annualCreditService`). Credit packs are separate: their
+ * credits keep their own 90-day validity and are never reset.
+ */
+export const ANNUAL_MONTHLY_CREDITS = 1_000;
+export const ANNUAL_CREDIT_MONTHS = 12;
+const MONTHLY_CREDIT_NOTE =
+  "1,000 credits each month. Credits reset monthly: unused credits expire at the end of the month and do not roll over.";
+const ANNUAL_CREDIT_NOTE =
+  "1,000 credits each month for 12 months. Credits reset monthly: unused credits expire at the end of the month and do not roll over.";
 
 const portfolioEntitlements: EntitlementKey[] = [
   ENTITLEMENT_KEYS.PORTFOLIO_PUBLISH,
@@ -57,24 +73,33 @@ export const productCatalog: Record<
     prices: Partial<Record<CatalogInterval, number>>;
     recommended?: boolean;
     creditAllowance?: Partial<Record<CatalogInterval, number>>;
+    /** How the allowance is delivered, per interval, in words a pricing page can show. */
+    creditNotes?: Partial<Record<CatalogInterval, string>>;
   }
 > = {
   ai_credits: {
-    name: "AI Credits",
+    name: PRODUCT_NAMES.ai_credits,
     entitlements: [ENTITLEMENT_KEYS.AI_CREDITS],
     prices: { monthly: 599, annual: 5_990 },
-    creditAllowance: { monthly: 1_000, annual: 12_000 },
+    creditAllowance: { monthly: 1_000, annual: ANNUAL_MONTHLY_CREDITS * ANNUAL_CREDIT_MONTHS },
+    creditNotes: { monthly: MONTHLY_CREDIT_NOTE, annual: ANNUAL_CREDIT_NOTE },
   },
   portfolio_pro: {
-    name: "Creator Pro",
+    name: PRODUCT_NAMES.portfolio_pro,
     entitlements: portfolioEntitlements,
     prices: { monthly: 999, annual: 9_588 },
   },
   bundle: {
-    name: "Job Hunter Bundle",
+    name: PRODUCT_NAMES.bundle,
     entitlements: [ENTITLEMENT_KEYS.AI_CREDITS, ...portfolioEntitlements],
     prices: { one_day: 299, seven_day: 599, monthly: 1_499, annual: 14_388 },
-    creditAllowance: { one_day: 150, seven_day: 400, monthly: 1_000, annual: 12_000 },
+    creditAllowance: {
+      one_day: 150,
+      seven_day: 400,
+      monthly: 1_000,
+      annual: ANNUAL_MONTHLY_CREDITS * ANNUAL_CREDIT_MONTHS,
+    },
+    creditNotes: { monthly: MONTHLY_CREDIT_NOTE, annual: ANNUAL_CREDIT_NOTE },
     recommended: true,
   },
 };

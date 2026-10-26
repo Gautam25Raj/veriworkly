@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import request from "supertest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -6,8 +8,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
  * Only the outbound AI call and `fetch` (GitHub's API) are replaced at the module boundary.
  */
 
-const { convertResume } = vi.hoisted(() => ({
+const { convertResume, CONVERSION_CREDITS } = vi.hoisted(() => ({
   convertResume: vi.fn(),
+  /** The ATS resume conversion price; the LinkedIn import charges the same (owner decision). */
+  CONVERSION_CREDITS: 12,
 }));
 
 vi.mock("#services/ats/atsAi", async (importOriginal) => ({
@@ -23,6 +27,7 @@ vi.mock("#services/ats/aiPolicy", async (importOriginal) => ({
       maxOutputTokens: 100,
       temperature: 0,
       structuredOutputs: false,
+      credits: CONVERSION_CREDITS,
     },
     prompts: { resumeConversion: "convert" },
   }),
@@ -30,6 +35,7 @@ vi.mock("#services/ats/aiPolicy", async (importOriginal) => ({
 
 import { app } from "#app";
 import { prisma } from "#lib/prisma";
+import { CreditService } from "#services/creditService";
 import { buildResumeShell } from "#services/profileImportService";
 
 import { STUDIO_ORIGIN } from "./env.js";
@@ -73,6 +79,22 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+async function grantCredits(userId: string, amount: number) {
+  const id = randomUUID();
+  await CreditService.grant(userId, amount, {
+    requestId: `grant:${id}`,
+    source: "integration",
+    sourceId: id,
+  });
+}
+
+async function wallet(userId: string) {
+  return prisma.creditWallet.findUniqueOrThrow({
+    where: { userId },
+    select: { balance: true, reserved: true },
+  });
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   convertResume.mockReset();
@@ -108,8 +130,9 @@ describe("POST /profiles/import/linkedin side effects (V-022)", () => {
     expect(await prisma.document.count({ where: { userId: user.id } })).toBe(1);
   });
 
-  it("an AI failure after the quota check leaves the quota unconsumed", async () => {
+  it("an AI failure after the quota check leaves the quota unconsumed and the credits returned", async () => {
     const user = await createUserWithSession();
+    await grantCredits(user.id, 50);
     convertResume.mockRejectedValueOnce(new Error("provider down"));
 
     const response = await asUser(user)
@@ -120,11 +143,78 @@ describe("POST /profiles/import/linkedin side effects (V-022)", () => {
     const row = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
     expect(row.lastLinkedinImportAt).toBeNull();
     expect(await prisma.document.count({ where: { userId: user.id } })).toBe(0);
+    expect(await wallet(user.id)).toEqual({ balance: 50, reserved: 0 });
+    expect(await prisma.creditReservation.findFirst({ where: { userId: user.id } })).toMatchObject({
+      status: "RELEASED",
+    });
   });
 
-  it("a successful import consumes the quota, replaces the profile and creates the document together", async () => {
+  it("output that is not a usable profile is a 502 that returns the credits", async () => {
+    const user = await createUserWithSession();
+    await grantCredits(user.id, 50);
+    convertResume.mockResolvedValueOnce({
+      result: { basics: { fullName: "x".repeat(5_000) } },
+      rejected: [],
+    });
+
+    const response = await asUser(user)
+      .post("/api/v1/profiles/import/linkedin")
+      .send({ profileText: PROFILE_TEXT, replaceMaster: false });
+
+    expect(response.status).toBe(502);
+    expect(await wallet(user.id)).toEqual({ balance: 50, reserved: 0 });
+    expect(await prisma.document.count({ where: { userId: user.id } })).toBe(0);
+  });
+
+  it("without enough credits: 402 naming what sells them, before the AI call, quota untouched", async () => {
+    const user = await createUserWithSession();
+    await grantCredits(user.id, CONVERSION_CREDITS - 1);
+
+    const response = await asUser(user)
+      .post("/api/v1/profiles/import/linkedin")
+      .send({ profileText: PROFILE_TEXT, replaceMaster: false });
+
+    expect(response.status).toBe(402);
+    expect(response.body.message).toBe(
+      "Not enough AI credits. Credits come with a credit pack, a pass, AI Credits or the Job Hunter Bundle.",
+    );
+    expect(convertResume).not.toHaveBeenCalled();
+    expect(await wallet(user.id)).toEqual({ balance: CONVERSION_CREDITS - 1, reserved: 0 });
+    const row = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    expect(row.lastLinkedinImportAt).toBeNull();
+  });
+
+  it("a paid user spends the same credits but no free quota", async () => {
+    const user = await createUserWithSession();
+    await prisma.entitlementGrant.create({
+      data: { userId: user.id, key: "ai_credits", source: "MANUAL", sourceId: randomUUID() },
+    });
+    await grantCredits(user.id, 50);
+    convertResume.mockResolvedValue({
+      result: { basics: { fullName: "Jane Doe" }, summary: "Builds things." },
+      rejected: [],
+    });
+
+    for (const expectedBalance of [50 - CONVERSION_CREDITS, 50 - 2 * CONVERSION_CREDITS]) {
+      const response = await asUser(user)
+        .post("/api/v1/profiles/import/linkedin")
+        .send({ profileText: PROFILE_TEXT, replaceMaster: false });
+      expect(response.status).toBe(200);
+      expect(await wallet(user.id)).toEqual({ balance: expectedBalance, reserved: 0 });
+    }
+
+    const row = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    expect(row.lastLinkedinImportAt).toBeNull();
+    const charge = await prisma.creditTransaction.findFirst({
+      where: { userId: user.id, amount: -CONVERSION_CREDITS },
+    });
+    expect(charge?.reason).toBe("AI LinkedIn import");
+  });
+
+  it("a successful import consumes the quota, spends the conversion credits, replaces the profile and creates the document together", async () => {
     const user = await createUserWithSession();
     const api = asUser(user);
+    await grantCredits(user.id, 50);
     await prisma.masterProfile.create({
       data: { userId: user.id, content: storedProfile("Original Name") },
     });
@@ -147,6 +237,7 @@ describe("POST /profiles/import/linkedin side effects (V-022)", () => {
     const row = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
     expect(row.lastLinkedinImportAt).toBeInstanceOf(Date);
     expect(await prisma.document.count({ where: { userId: user.id, deletedAt: null } })).toBe(1);
+    expect(await wallet(user.id)).toEqual({ balance: 50 - CONVERSION_CREDITS, reserved: 0 });
 
     // The profile cache was invalidated by the import, not left holding the old content.
     const fetched = await api.get("/api/v1/profiles/master");

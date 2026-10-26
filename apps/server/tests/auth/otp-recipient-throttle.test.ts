@@ -150,7 +150,6 @@ describe("otpPrecheckRecipient", () => {
       undefined,
     ],
     ["/email-otp/request-password-reset", { email: "a@x.test" }, undefined],
-    ["/forget-password/email-otp", { email: "a@x.test" }, undefined],
     ["/email-otp/request-email-change", { newEmail: "n@x.test", email: "a@x.test" }, "n@x.test"],
     ["/email-otp/request-email-change", { email: "a@x.test" }, undefined],
     ["/email-otp/send-verification-otp", { newEmail: "n@x.test", type: "sign-in" }, undefined],

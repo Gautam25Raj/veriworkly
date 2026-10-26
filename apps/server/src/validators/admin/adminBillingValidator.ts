@@ -25,9 +25,10 @@ export const adminSubscriptionListQuerySchema = adminPaginationSchema
   });
 
 /**
- * A manual subscription edit only ever writes fields VeriWorkly owns — never the provider's
- * ids. The provider (Dodo) remains the source of truth for billing itself; this exists so
- * support can unblock an account whose webhook was lost, and the next webhook will correct it.
+ * A manual subscription edit never writes the provider's ids. `cancelAtPeriodEnd` is applied at
+ * the provider first (V-169) and the row takes the provider's answer; status, period and grace
+ * are local overrides for an account whose webhook was lost, and move the entitlements with them
+ * (V-170). The provider (Dodo) remains the source of truth; its next webhook overwrites the row.
  */
 export const adminSubscriptionUpdateSchema = z
   .object({

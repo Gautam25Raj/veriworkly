@@ -5,6 +5,7 @@ import {
   startChangelogSyncJob,
   stopChangelogSyncJob,
 } from "./changelogSyncJob.js";
+import { startAnnualCreditJob, stopAnnualCreditJob } from "./annualCreditJob.js";
 import { startCreditSweepJob, stopCreditSweepJob } from "./creditSweepJob.js";
 import { isGitHubSyncJobEnabled, startGitHubSyncJob, stopGitHubSyncJob } from "./githubSyncJob.js";
 import { startPortfolioAccessJob, stopPortfolioAccessJob } from "./portfolioAccessJob.js";
@@ -51,6 +52,12 @@ export const SCHEDULED_JOBS: ReadonlyArray<{
     enabled: always,
   },
   { name: "credit-sweep", start: startCreditSweepJob, stop: stopCreditSweepJob, enabled: always },
+  {
+    name: "annual-credits",
+    start: startAnnualCreditJob,
+    stop: stopAnnualCreditJob,
+    enabled: always,
+  },
   {
     name: "retention",
     start: startRetentionJob,

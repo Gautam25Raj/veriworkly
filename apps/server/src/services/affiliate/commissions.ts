@@ -1,11 +1,108 @@
+import type { Prisma } from "@prisma/client";
+
 import { ApiError } from "#lib/errors";
+import { logger } from "#lib/logger";
 import { prisma } from "#lib/prisma";
 
-import { AFFILIATE_TIER_RATE_BPS, AFFILIATE_WALLET_CURRENCY } from "#services/affiliate/constants";
+import {
+  AFFILIATE_TIER_RATE_BPS,
+  AFFILIATE_WALLET_CURRENCY,
+  affiliateTierRank,
+  tierEarnedBy,
+  type AffiliateTierKey,
+} from "#services/affiliate/constants";
 import { invalidateAffiliate } from "#services/affiliate/cache";
-import { writeAdminAudit, type AdminAuditInput } from "#services/admin/adminAuditService";
+import {
+  ADMIN_AUDIT_ACTIONS,
+  writeAdminAudit,
+  type AdminAuditInput,
+} from "#services/admin/adminAuditService";
 
 export const SHARED_ADDRESS_REASON = "Shared address with affiliate; review before release";
+
+/**
+ * The conversions that count towards a tier: a converted referral with at least one clean
+ * commission, meaning not REVERSED and not held for a shared address (a PENDING commission with
+ * `SHARED_ADDRESS_REASON`; once an admin releases it, it counts). A refunded purchase or a
+ * self-referral pattern therefore never promotes an affiliate. Migration
+ * 20261026140000_promote_affiliates_to_earned_tiers applies the same rule in SQL.
+ */
+export function cleanConversionsWhere(
+  affiliateId: string,
+  convertedBefore?: Date,
+): Prisma.AffiliateReferralWhereInput {
+  return {
+    affiliateId,
+    status: "CONVERTED",
+    ...(convertedBefore ? { convertedAt: { lte: convertedBefore } } : {}),
+    commissions: {
+      some: {
+        OR: [
+          { status: { in: ["AVAILABLE", "PAID"] } },
+          {
+            status: "PENDING",
+            OR: [{ reason: null }, { reason: { not: SHARED_ADDRESS_REASON } }],
+          },
+        ],
+      },
+    },
+  };
+}
+
+/**
+ * Tier auto-promotion (V-180): the studio and the site promise Growth at 10 conversions and
+ * Partner at 50 (`AFFILIATE_TIERS`). Runs in the transaction that converts a referral, after
+ * that transaction locked the affiliate's row: two conversions landing together count one after
+ * the other, so neither misses the threshold the pair crosses.
+ *
+ * - Counts clean conversions only (`cleanConversionsWhere`).
+ * - Promotes only: a tier is never lowered here, whatever the count says.
+ * - Idempotent: the write is a compare-and-set on the tier it read, and a count that earns
+ *   nothing new writes nothing.
+ * - An admin's tier decision (the latest `affiliate.update` audit entry that set a tier) holds
+ *   until a threshold is crossed after it: promotion needs a tier above both the current one and
+ *   the one the conversions at the time of that decision had earned. A demotion therefore sticks
+ *   until the next milestone, and an early promotion still reaches Partner at 50.
+ */
+async function promoteForConversions(tx: Prisma.TransactionClient, affiliateId: string) {
+  const affiliate = await tx.user.findUnique({
+    where: { id: affiliateId },
+    select: { affiliateTier: true },
+  });
+  if (!affiliate) return null;
+
+  const current = affiliate.affiliateTier as AffiliateTierKey;
+  const conversions = await tx.affiliateReferral.count({
+    where: cleanConversionsWhere(affiliateId),
+  });
+  const earned = tierEarnedBy(conversions);
+  if (affiliateTierRank(earned) <= affiliateTierRank(current)) return null;
+
+  // Filtered on the tier key in the query: any number of other edits may follow the decision.
+  const [decision] = await tx.$queryRaw<Array<{ createdAt: Date }>>`
+    SELECT "createdAt" FROM "AdminAuditEntry"
+    WHERE "action" = ${ADMIN_AUDIT_ACTIONS.affiliateUpdate}
+      AND "targetType" = 'User'
+      AND "targetId" = ${affiliateId}
+      AND jsonb_typeof("metadata" -> 'tier') = 'string'
+    ORDER BY "createdAt" DESC
+    LIMIT 1`;
+
+  if (decision) {
+    const conversionsAtDecision = await tx.affiliateReferral.count({
+      where: cleanConversionsWhere(affiliateId, decision.createdAt),
+    });
+    if (affiliateTierRank(earned) <= affiliateTierRank(tierEarnedBy(conversionsAtDecision)))
+      return null;
+  }
+
+  const promoted = await tx.user.updateMany({
+    where: { id: affiliateId, affiliateTier: current },
+    data: { affiliateTier: earned },
+  });
+
+  return promoted.count === 1 ? { from: current, to: earned, conversions } : null;
+}
 
 function normalizeCurrency(value: string | undefined) {
   const currency = (value ?? AFFILIATE_WALLET_CURRENCY).trim().toUpperCase();
@@ -60,7 +157,10 @@ export async function createCommission(
     reason = SHARED_ADDRESS_REASON;
   }
 
-  const result = await prisma.$transaction(async (tx) => {
+  const { commission: result, promotion } = await prisma.$transaction(async (tx) => {
+    // First, before anything is written: the tier count below must see every conversion that
+    // committed before this one (see `promoteForConversions`).
+    await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${referral.affiliateId} FOR UPDATE`;
     const commission = await tx.affiliateCommission.create({
       data: {
         affiliateId: referral.affiliateId,
@@ -101,6 +201,7 @@ export async function createCommission(
       where: { id: referral.id },
       data: { status: "CONVERTED", convertedAt: referral.convertedAt ?? new Date() },
     });
+    const promotion = await promoteForConversions(tx, referral.affiliateId);
     if (inWalletCurrency)
       await tx.affiliateWallet.upsert({
         where: { userId: referral.affiliateId },
@@ -121,8 +222,10 @@ export async function createCommission(
         targetId: commission.id,
         metadata: { ...audit.metadata, amountCents, currency, status },
       });
-    return commission;
+    return { commission, promotion };
   });
+  if (promotion)
+    logger.info("Affiliate tier promoted", { affiliateId: referral.affiliateId, ...promotion });
   await invalidateAffiliate(referral.affiliateId, true);
   return result;
 }

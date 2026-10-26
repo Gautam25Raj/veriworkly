@@ -89,12 +89,13 @@ describe("the numbers on the site match the server's constants", () => {
     );
     const pro = numbers(
       catalog,
-      /name: "Creator Pro",[\s\S]*?prices: \{ monthly: ([\d_]+), annual: ([\d_]+) \}/,
+      // Keyed on the catalog entry: the display names come from `productNames.ts` (V-189).
+      /\bportfolio_pro: \{[\s\S]*?prices: \{ monthly: ([\d_]+), annual: ([\d_]+) \}/,
       "Creator Pro prices",
     );
     const ai = numbers(
       catalog,
-      /name: "AI Credits",[\s\S]*?prices: \{ monthly: ([\d_]+), annual: ([\d_]+) \}/,
+      /\bai_credits: \{[\s\S]*?prices: \{ monthly: ([\d_]+), annual: ([\d_]+) \}/,
       "AI Credits prices",
     );
 

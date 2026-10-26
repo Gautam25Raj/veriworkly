@@ -29,23 +29,33 @@ const policySchema = z.partialRecord(z.enum(AI_ACTION_KEYS), actionPolicySchema)
 
 let cachedPolicy: z.infer<typeof policySchema> | null = null;
 
+/**
+ * What the client is told when the policy cannot be used (V-184). The cause (zod issues, a JSON
+ * parse error, a missing action) is an operator's concern and goes to the log only: the message
+ * reaches a toast.
+ */
+const POLICY_UNAVAILABLE = "AI generation is unavailable right now. Please try again later.";
+
 function loadPolicy() {
   if (cachedPolicy) return cachedPolicy;
 
   try {
-    cachedPolicy = policySchema.parse(getAiActionsPolicyJson());
-    for (const action of AI_ACTION_KEYS) {
-      if (!cachedPolicy[action]) throw new ApiError(503, `AI policy is missing action: ${action}.`);
-    }
+    const parsed = policySchema.parse(getAiActionsPolicyJson());
+    const missing = AI_ACTION_KEYS.find((action) => !parsed[action]);
+    if (missing) throw new Error(`AI policy is missing action: ${missing}.`);
+    cachedPolicy = parsed;
     return cachedPolicy;
   } catch (error) {
-    if (error instanceof ApiError) throw error;
     if (error instanceof z.ZodError) {
       logger.error("AI actions policy failed validation", {
         issues: error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).slice(0, 10),
       });
+    } else {
+      logger.error("AI actions policy could not be loaded", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
-    throw new ApiError(503, `AI generation policy is invalid: ${(error as Error).message}`);
+    throw new ApiError(503, POLICY_UNAVAILABLE);
   }
 }
 
@@ -66,7 +76,8 @@ export function publicAiActionPolicy() {
   return Object.fromEntries(
     AI_ACTION_KEYS.map((action) => {
       const item = policy[action];
-      if (!item) throw new ApiError(503, `AI policy is missing action: ${action}.`);
+      // Unreachable after `loadPolicy` checked every action; generic for the same reason.
+      if (!item) throw new ApiError(503, POLICY_UNAVAILABLE);
       return [
         action,
         {

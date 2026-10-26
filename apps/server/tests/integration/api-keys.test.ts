@@ -497,6 +497,32 @@ describe("API keys through the real stack", () => {
     expect((await requestWithKey(limitedKey.key)).status).toBe(200);
   });
 
+  it("(h2) admin Enable after Disable clears the revoked marker, so the key works at once (V-188)", async () => {
+    const user = await createUserWithSession();
+    const created = await createKey(user, { name: "admin-toggled" });
+    const keyHash = hashKey(created.key);
+    expect((await requestWithKey(created.key)).status).toBe(200);
+
+    await updateApiKey(created.id, { isActive: false, reason: "integration disable" });
+    expect(await revokedMarker(keyHash)).not.toBeNull();
+    expect((await requestWithKey(created.key)).status).toBe(401);
+
+    await updateApiKey(created.id, { isActive: true, reason: "integration enable" });
+    expect(await revokedMarker(keyHash)).toBeNull();
+    expect((await requestWithKey(created.key)).status).toBe(200);
+  });
+
+  it("(h3) admin Enable on a revoked key keeps it dead and keeps the marker", async () => {
+    const user = await createUserWithSession();
+    const created = await createKey(user, { name: "admin-revoked-then-enabled" });
+    const keyHash = hashKey(created.key);
+
+    await revokeApiKey(created.id);
+    await updateApiKey(created.id, { isActive: true, reason: "integration enable" });
+    expect(await revokedMarker(keyHash)).not.toBeNull();
+    expect((await requestWithKey(created.key)).status).toBe(401);
+  });
+
   it("(i) a revoked key is deleted with the marker already in place", async () => {
     const user = await createUserWithSession();
     const created = await createKey(user);

@@ -41,3 +41,23 @@ export const AFFILIATE_TIERS = [
     perks: ["5% commission", "Priority support", "Partner campaigns"],
   },
 ] as const;
+
+export type AffiliateTierKey = (typeof AFFILIATE_TIERS)[number]["key"];
+
+/** Position in `AFFILIATE_TIERS`, lowest first: the order promotion moves in. */
+export function affiliateTierRank(tier: AffiliateTierKey) {
+  return AFFILIATE_TIERS.findIndex((entry) => entry.key === tier);
+}
+
+/** The highest tier `conversions` earns by the thresholds the studio and site advertise. */
+export function tierEarnedBy(conversions: number): AffiliateTierKey {
+  let earned: AffiliateTierKey = AFFILIATE_TIERS[0].key;
+  for (const entry of AFFILIATE_TIERS)
+    if (conversions >= entry.requiredConversions) earned = entry.key;
+  return earned;
+}
+
+/** Conversions the tier above `tier` needs, or `null` at the top tier. */
+export function nextTierConversions(tier: AffiliateTierKey): number | null {
+  return AFFILIATE_TIERS[affiliateTierRank(tier) + 1]?.requiredConversions ?? null;
+}

@@ -1,4 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { randomUUID } from "node:crypto";
+
+import type { AtsAiResult, AtsConvertedResume } from "@veriworkly/ats-engine/ai";
 import {
   createEmptyMasterProfile,
   sanitizeImportedPhone,
@@ -14,11 +17,20 @@ import { bumpGeneration } from "#lib/cacheGeneration";
 import { cacheNamespaces, masterProfileCacheKey } from "#lib/cacheKeys";
 import { masterProfileContentSchema } from "#validators/masterProfileValidator";
 import { getAtsAiPolicy } from "#services/ats/aiPolicy";
-import { aiFailure, createServerAtsAi, taskRoute } from "#services/ats/atsAi";
+import {
+  aiFailure,
+  createServerAtsAi,
+  runReserved,
+  taskRoute,
+  type HeldResult,
+} from "#services/ats/atsAi";
 import { DocumentService } from "#services/documentService";
 import { ProfileService } from "#services/profileService";
 import { ProfileImportQuotaService } from "#services/profileImportQuotaService";
 import { EntitlementService } from "#services/entitlementService";
+import { NOT_ENOUGH_CREDITS } from "#services/productNames";
+
+const IMPORT_FAILED = "Failed to parse profile data using AI. Please try again.";
 
 /** GitHub's own rule: 1–39 alphanumerics or hyphens, not starting with a hyphen. */
 const GITHUB_USERNAME = /^[a-z\d](?:[a-z\d-]{0,38})$/i;
@@ -410,7 +422,13 @@ export class ProfileImportService {
   }
 
   /**
-   * Import LinkedIn profile from raw copy-pasted text/PDF content (still needs AI).
+   * Import a LinkedIn profile from raw copy-pasted text/PDF content (still needs AI).
+   *
+   * Billed like the ATS resume conversion it is (owner decision, 2026-10-26): the same task, the
+   * same price, from the one credit pool (owner decision 1). The free import quota applies on top
+   * for users without paid access. The credits are reserved before the model is called (a short
+   * balance is a 402 and nothing runs), and are charged only once the import has committed: a
+   * provider failure, unusable output or a failed write releases them.
    */
   static async importFromLinkedin(userId: string, profileText: string, replaceMaster: boolean) {
     const isPaid = await EntitlementService.isPaid(userId);
@@ -419,24 +437,11 @@ export class ProfileImportService {
     await ProfileImportQuotaService.assertQuotaAvailable(userId, "linkedin");
     await DocumentService.assertFreeTierCapacity(userId, "RESUME");
 
-    const resumeJson = await this.parseTextToResumeSchema(profileText);
-
-    return this.commitImport(userId, {
-      isPaid,
-      provider: "linkedin",
-      title: "LinkedIn Import",
-      content: resumeJson,
-      replaceMaster,
-    });
-  }
-
-  /**
-   * Helper using LLM to parse raw text into resume schema structure.
-   */
-  private static async parseTextToResumeSchema(text: string) {
     const policy = getAtsAiPolicy();
     const route = policy.resumeConversion;
+    const requestId = `linkedin-import:${randomUUID()}`;
 
+    let held: HeldResult<AtsConvertedResume>;
     try {
       /*
        * The same task as the ATS resume conversion, and grounded the same way: an identity
@@ -444,39 +449,85 @@ export class ProfileImportService {
        * an email address — is blanked. An empty employer field is visible and fixable in the
        * editor; a fabricated one is not.
        */
-      const outcome = await createServerAtsAi("profile-import").convertResume(
-        { resumeText: text },
-        taskRoute(route, policy.prompts.resumeConversion),
-      );
-      if (outcome.rejected.length) {
-        logger.warn("AI profile import returned ungrounded values", {
-          rejectedValues: outcome.rejected.length,
-          paths: outcome.rejected.map((violation) => violation.path).slice(0, 20),
-        });
-      }
-      const mapped = mapParsedToResumeData(outcome.result);
-
-      /*
-       * The task checks the model's own output shape; this checks that what
-       * we built from it is a master profile the studio can actually load. The model can
-       * return anything — a date as "Jan 2020", a 400-character role — and persisting that
-       * used to leave the user with a profile that silently failed to parse on read.
-       */
-      const validated = masterProfileContentSchema.safeParse(mapped);
-
-      if (!validated.success) {
-        logger.warn("AI-parsed profile failed master profile validation", {
-          issues: validated.error.issues,
-        });
-
-        throw new ApiError(502, "Imported profile data was incomplete. Please try again.");
-      }
-
-      return validated.data;
+      held = await runReserved({
+        userId,
+        requestId,
+        credits: route.credits,
+        action: "linkedin_import",
+        reason: "AI LinkedIn import",
+        failure: IMPORT_FAILED,
+        run: () =>
+          createServerAtsAi(requestId).convertResume(
+            { resumeText: profileText },
+            taskRoute(route, policy.prompts.resumeConversion),
+          ),
+      });
     } catch (error) {
+      if (error instanceof ApiError && error.statusCode === 402)
+        throw new ApiError(402, NOT_ENOUGH_CREDITS);
       if (error instanceof ApiError) throw error;
-      logger.error("AI profile import failed", aiFailure(error));
-      throw new ApiError(502, "Failed to parse profile data using AI. Please try again.");
+      // The reservation is already released; a reply that filled nothing is still a failed import.
+      throw new ApiError(502, IMPORT_FAILED);
     }
+
+    let document;
+    try {
+      document = await this.commitImport(userId, {
+        isPaid,
+        provider: "linkedin",
+        title: "LinkedIn Import",
+        content: this.toMasterProfile(held.outcome),
+        replaceMaster,
+      });
+    } catch (error) {
+      await held.release();
+      throw error;
+    }
+
+    try {
+      await held.commit();
+    } catch {
+      // The import is committed and delivered; `commit` released the reservation and logged
+      // why it could not be charged. Failing the request now would only invite a duplicate.
+    }
+
+    return document;
+  }
+
+  /**
+   * The model's conversion as a master profile the studio can load, or a 502.
+   *
+   * The task checks the model's own output shape; this checks that what we built from it is a
+   * master profile the studio can actually load. The model can return anything — a date as
+   * "Jan 2020", a 400-character role — and persisting that used to leave the user with a profile
+   * that silently failed to parse on read.
+   */
+  private static toMasterProfile(outcome: AtsAiResult<AtsConvertedResume>) {
+    if (outcome.rejected.length) {
+      logger.warn("AI profile import returned ungrounded values", {
+        rejectedValues: outcome.rejected.length,
+        paths: outcome.rejected.map((violation) => violation.path).slice(0, 20),
+      });
+    }
+
+    let mapped: unknown;
+    try {
+      mapped = mapParsedToResumeData(outcome.result);
+    } catch (error) {
+      logger.error("AI profile import failed", aiFailure(error));
+      throw new ApiError(502, IMPORT_FAILED);
+    }
+
+    const validated = masterProfileContentSchema.safeParse(mapped);
+
+    if (!validated.success) {
+      logger.warn("AI-parsed profile failed master profile validation", {
+        issues: validated.error.issues,
+      });
+
+      throw new ApiError(502, "Imported profile data was incomplete. Please try again.");
+    }
+
+    return validated.data;
   }
 }

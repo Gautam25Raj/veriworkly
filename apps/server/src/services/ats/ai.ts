@@ -1,9 +1,6 @@
 import { getAtsAiPolicy, type AtsComplexity } from "#services/ats/aiPolicy";
 import { createServerAtsAi, runBilled, taskRoute } from "#services/ats/atsAi";
 import type { AtsAiInsights, AtsReport } from "#services/ats/types";
-import { EntitlementService } from "#services/entitlementService";
-import { enforcedEntitlement } from "#services/entitlementEnforcement";
-import { ENTITLEMENT_KEYS } from "#services/productCatalog";
 import { logger } from "#lib/logger";
 
 /**
@@ -25,8 +22,6 @@ function complexity(report: AtsReport, resumeChars: number, jobChars: number): A
   if (jobChars > 5_000 || lostShare >= 18) return "detailed";
   return "standard";
 }
-
-const AI_CREDITS = enforcedEntitlement(ENTITLEMENT_KEYS.AI_CREDITS, "AtsAiService.convertResume");
 
 /** Most to least capable. Also the order `chooseRoute` walks when a tier prices itself out. */
 const TIER_LADDER: AtsComplexity[] = ["expert", "advanced", "detailed", "standard"];
@@ -151,12 +146,8 @@ export class AtsAiService {
     resumeText: string,
     signal?: AbortSignal,
   ) {
-    await EntitlementService.require(
-      userId,
-      AI_CREDITS,
-      "Resume conversion requires an active AI Credits or Bundle plan.",
-    );
-
+    // Credits only (owner decision 1, V-179): the reservation below answers 402 when the
+    // balance, from any plan, pass or pack, cannot cover the conversion.
     const policy = getAtsAiPolicy();
     const route = policy.resumeConversion;
     const outcome = await runBilled({

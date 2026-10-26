@@ -96,6 +96,7 @@ export const JOB_SCHEDULES = {
   "changelog-sync": 24 * 3600,
   "portfolio-access": 3600,
   "credit-sweep": 3600,
+  "annual-credits": 3600,
   retention: 24 * 3600,
 } as const satisfies Record<string, number>;
 

@@ -16,6 +16,7 @@ import {
 } from "#services/admin/adminAuditService";
 import {
   deleteUserCascade,
+  findChargeableSubscription,
   purgeDeletedUserCaches,
   readDeletedUserCacheTargets,
 } from "#services/userService";
@@ -386,6 +387,16 @@ export async function deleteUser(userId: string, confirmEmail: string, audit: Ad
 
   if (target.email.trim().toLowerCase() !== confirmEmail.trim().toLowerCase())
     throw new ApiError(400, "The confirmation email does not match this account.");
+
+  // Same guard as self-service deletion (V-168): deleting the account does not stop Dodo
+  // charging the card, and nothing here can cancel the subscription at the provider.
+  const liveSubscription = await findChargeableSubscription(userId);
+
+  if (liveSubscription)
+    throw new ApiError(
+      409,
+      `This account has a subscription that can still be charged (${liveSubscription.id}, ${liveSubscription.productKey}, ${liveSubscription.status}${liveSubscription.cancelAtPeriodEnd ? ", cancelling at period end" : ""}${liveSubscription.currentPeriodEnd ? `, period ends ${liveSubscription.currentPeriodEnd.toISOString().slice(0, 10)}` : ""}). Cancel it in the Dodo dashboard and wait for the cancellation webhook, or for the period to end, before deleting the account.`,
+    );
 
   // The cascade would drop a withdrawal that is still being paid; the admin resolves it first.
   const openWithdrawal = await prisma.affiliateWithdrawal.findFirst({

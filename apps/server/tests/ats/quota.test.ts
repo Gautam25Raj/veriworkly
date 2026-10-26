@@ -25,13 +25,23 @@ const findActiveGrant = vi.fn(async (): Promise<{ createdAt: Date } | null> => n
 vi.mock("#lib/prisma", () => ({
   prisma: { entitlementGrant: { findFirst: findActiveGrant } },
 }));
-vi.mock("#services/ats/aiPolicy", () => ({
-  publicAtsPolicy: vi.fn(() => ({
+const publicAtsPolicy = vi.fn(
+  (): {
+    analysisCredits: { min: number; max: number };
+    jobUrlAnalysisCredits: { min: number; max: number };
+    resumeConversionCredits: number;
+    parseRepairCredits: number | null;
+  } => ({
     analysisCredits: { min: 5, max: 25 },
     jobUrlAnalysisCredits: { min: 10, max: 50 },
     resumeConversionCredits: 25,
-  })),
-}));
+    parseRepairCredits: 10,
+  }),
+);
+vi.mock("#services/ats/aiPolicy", () => ({ publicAtsPolicy }));
+/** Spendable credits from any source (owner decision 1); none by default. */
+const getWallet = vi.fn(async () => ({ available: 0 }));
+vi.mock("#services/creditService", () => ({ CreditService: { getWallet } }));
 
 describe("ATS quota — extraction and scanning are independent budgets", () => {
   beforeEach(() => {
@@ -102,6 +112,8 @@ describe("ATS quota — the paid period follows the grant, not the calendar day"
 
   afterEach(() => vi.useRealTimers());
 
+  beforeEach(() => getWallet.mockResolvedValue({ available: 100 }));
+
   it("keeps one period key across days for a grant with no subscription row", async () => {
     const { AtsQuotaService } = await import("../../src/services/ats/quota");
     findActiveGrant.mockResolvedValue({ createdAt: new Date("2026-10-10T09:30:00Z") });
@@ -145,5 +157,78 @@ describe("ATS quota — the paid period follows the grant, not the calendar day"
 
     expect(dayTwo.used).toBe(2);
     expect([...store.keys()]).toEqual(["ats:quota:subscriber:user_9:2026-10"]);
+  });
+});
+
+/**
+ * Owner decision 1 (V-179): every AI feature runs on credits from any source. The 300-scan tier,
+ * conversion and repair follow a spendable balance, never the `ai_credits` grant, and the
+ * summary says whether repair is possible (V-178).
+ */
+describe("ATS quota — credits, not the ai_credits grant, unlock the paid tier", () => {
+  beforeEach(() => {
+    store.clear();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-25T12:00:00Z"));
+    findActiveGrant.mockResolvedValue(null);
+  });
+
+  afterEach(() => vi.useRealTimers());
+
+  it("gives a credit-pack buyer with no grant the paid tier, conversion and repair", async () => {
+    const { AtsQuotaService } = await import("../../src/services/ats/quota");
+    getWallet.mockResolvedValue({ available: 250 });
+
+    const summary = await AtsQuotaService.consume("pack_buyer", "203.0.113.60");
+
+    expect(summary.tier).toBe("subscriber");
+    expect(summary.limit).toBe(300);
+    expect(summary.canConvertResume).toBe(true);
+    expect(summary.canRepair).toBe(true);
+    // No grant to anchor on: one window per calendar month, never per day.
+    expect([...store.keys()]).toEqual(["ats:quota:subscriber:pack_buyer:2026-10"]);
+    expect(summary.resetsAt).toBe("2026-11-01T00:00:00.000Z");
+  });
+
+  it("keeps a grant holder with an empty wallet on the free tier, unable to convert or repair", async () => {
+    const { AtsQuotaService } = await import("../../src/services/ats/quota");
+    findActiveGrant.mockResolvedValue({ createdAt: new Date("2026-10-10T09:30:00Z") });
+    getWallet.mockResolvedValue({ available: 0 });
+
+    const summary = await AtsQuotaService.summary("drained", "203.0.113.61");
+
+    expect(summary.tier).toBe("free");
+    expect(summary.canConvertResume).toBe(false);
+    expect(summary.canRepair).toBe(false);
+  });
+
+  it("says repair is not possible when the balance cannot cover it or no route is configured", async () => {
+    const { AtsQuotaService } = await import("../../src/services/ats/quota");
+    getWallet.mockResolvedValue({ available: 8 });
+    expect((await AtsQuotaService.summary("low", "203.0.113.62")).canRepair).toBe(false);
+
+    getWallet.mockResolvedValue({ available: 500 });
+    publicAtsPolicy.mockReturnValue({
+      analysisCredits: { min: 5, max: 25 },
+      jobUrlAnalysisCredits: { min: 10, max: 50 },
+      resumeConversionCredits: 25,
+      parseRepairCredits: null,
+    });
+    expect((await AtsQuotaService.summary("rich", "203.0.113.62")).canRepair).toBe(false);
+  });
+
+  it("answers with pricing: null, not a 503, when the ATS AI policy is invalid (V-185)", async () => {
+    const { AtsQuotaService } = await import("../../src/services/ats/quota");
+    const { ApiError } = await import("../../src/lib/errors");
+    publicAtsPolicy.mockImplementation(() => {
+      throw new ApiError(503, "AI ATS policy is invalid.");
+    });
+
+    const summary = await AtsQuotaService.consume("user_policy", "203.0.113.63");
+
+    expect(summary.pricing).toBeNull();
+    expect(summary.used).toBe(1);
+    expect(summary.canConvertResume).toBe(false);
+    expect(summary.canRepair).toBe(false);
   });
 });

@@ -585,6 +585,7 @@ describe("POST /ats/analyze — credits and quota survive failures", () => {
 
 describe("POST /ats/analyze — the balance gate and the scan refund, revisited", () => {
   it("counts the requested repair in the gate, so the scan is never lost to the repair's 402", async () => {
+    needsRepairMock.mockReturnValue(true);
     // Covers the analysis (5) but not analysis + repair (5 + 2).
     getWallet.mockResolvedValue({ available: 6 });
     const next = vi.fn() as unknown as NextFunction;
@@ -657,5 +658,46 @@ describe("POST /ats/analyze — the balance gate and the scan refund, revisited"
     expect(analyze).not.toHaveBeenCalled();
     expect(refund).toHaveBeenCalledTimes(1);
     expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 504 }));
+  });
+});
+
+/** V-178: repair is priced and charged only when it can actually run and be delivered. */
+describe("POST /ats/analyze — parse repair is charged only when it is delivered", () => {
+  it("leaves the repair price out of the gate when the parse needs no repair", async () => {
+    needsRepairMock.mockReturnValue(false);
+    // Covers the analysis (5) but not analysis + repair (5 + 2): enough, as no repair will run.
+    getWallet.mockResolvedValue({ available: 6 });
+    const next = vi.fn() as unknown as NextFunction;
+
+    await AtsAiController.analyze(
+      requestFor({
+        ...baseBody,
+        fetchJobUrl: false,
+        jobDescription: "pasted description",
+        repairParse: true,
+      }),
+      responseSpy().res,
+      next,
+    );
+
+    expect(next).not.toHaveBeenCalled();
+    expect(consume).toHaveBeenCalledTimes(1);
+    expect(repairMock).not.toHaveBeenCalled();
+  });
+
+  it("releases the repair, and reports it unspent, when no analysis model could be routed", async () => {
+    needsRepairMock.mockReturnValue(true);
+    const outcome = repairOutcome();
+    repairMock.mockResolvedValue(outcome);
+    analyze.mockResolvedValue({ ai: null, creditsSpent: 0, routed: false });
+    const { res, json } = responseSpy();
+
+    await AtsAiController.analyze(requestFor({ ...baseBody, repairParse: true }), res, vi.fn());
+
+    expect(outcome.release).toHaveBeenCalledTimes(1);
+    expect(outcome.commit).not.toHaveBeenCalled();
+    expect(json.mock.calls[0][0].data.aiStatus).toBe("unavailable");
+    expect(json.mock.calls[0][0].data.repair.creditsSpent).toBe(0);
+    expect(refund).toHaveBeenCalledTimes(1);
   });
 });

@@ -108,7 +108,12 @@ export function loggingMiddleware(req: Request, res: Response, next: NextFunctio
     if (res.statusCode >= 400) {
       const duration = Math.round(performance.now() - startTime);
 
-      logger.error(`[ERROR] ${req.method} ${req.path} ${res.statusCode} ${duration}ms`);
+      // A 4xx is the caller's mistake (an expired session, a missing route, a conflict, a rate
+      // limit): warn, so real failures stand out at error level (V-190). The logger adds the
+      // level tag itself; the line carries none of its own.
+      const line = `${req.method} ${req.path} ${res.statusCode} ${duration}ms`;
+      if (res.statusCode >= 500) logger.error(line);
+      else logger.warn(line);
 
       if (persistenceEnabled() && !UNAUDITED_STATUSES.has(res.statusCode)) {
         enqueueAuditLog({

@@ -44,6 +44,7 @@ const prismaMock = {
   user: { findUnique: vi.fn() },
   subscription: {
     findFirst: vi.fn(),
+    findMany: vi.fn(),
     findUnique: vi.fn(),
     updateMany: vi.fn(),
     create: vi.fn(),
@@ -73,8 +74,11 @@ vi.mock("#services/affiliate/index", () => ({ AffiliateService: { createCommissi
 vi.mock("#services/creditService", () => ({
   CreditService: { grant: vi.fn(), getWallet: vi.fn() },
 }));
+// billingService imports the deleted-account check from userService, which pulls in better-auth.
+vi.mock("#services/userService", () => ({ isDeletedAccount: vi.fn().mockResolvedValue(false) }));
 vi.mock("#services/mail/billingMail", () => ({
-  sendSubscriptionPurchasedEmail: vi.fn().mockResolvedValue(undefined),
+  sendPurchaseConfirmationEmail: vi.fn().mockResolvedValue(undefined),
+  sendPaymentFailedEmail: vi.fn().mockResolvedValue(undefined),
   sendSubscriptionCancelledEmail: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("dodopayments", () => ({
@@ -118,6 +122,7 @@ beforeEach(() => {
   dodoMock.clientOptions.length = 0;
   prismaMock.user.findUnique.mockResolvedValue({ id: USER, email: "u@example.test", name: "U" });
   prismaMock.subscription.findFirst.mockResolvedValue(null);
+  prismaMock.subscription.findMany.mockResolvedValue([]);
   prismaMock.subscription.count.mockResolvedValue(0);
   let n = 0;
   dodoMock.create.mockImplementation(async () => {

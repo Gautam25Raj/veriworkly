@@ -4,22 +4,11 @@
 // reachable from server components.
 "use client";
 
-import { pdf } from "@react-pdf/renderer";
-
 import type { BaseDocument, ExportFormat } from "@/features/documents/core/types";
 import type { CoverLetterContent } from "@/features/cover-letter/types";
 
 import { downloadBlob } from "@/features/documents/export/download";
-import { exportDocumentAsDocx } from "@/features/documents/export/export-docx";
 import { getDocumentFileBaseName } from "./export-file-names";
-
-import { createCoverLetterPdfElement } from "@/templates/cover-letter/pdf";
-import { registerPdfFontById } from "@/templates/pdf/fonts";
-import {
-  buildCoverLetterHtml,
-  buildCoverLetterMarkdown,
-  buildCoverLetterText,
-} from "@/templates/cover-letter/web";
 
 function assertNever(value: never, context: string): never {
   throw new Error(`${context}: unhandled case ${JSON.stringify(value)}`);
@@ -27,7 +16,9 @@ function assertNever(value: never, context: string): never {
 
 /**
  * Cover letter export handlers. Reached only through
- * `DocumentDefinition.loadExporter`'s dynamic `import()` — see resume-exporters.tsx.
+ * `DocumentDefinition.loadExporter`'s dynamic `import()`. Like resume-exporters.tsx, each format
+ * imports its own module when it runs, so JSON, Markdown and text never download
+ * `@react-pdf/renderer` or `docx`.
  */
 export async function exportCoverLetterDocument(
   document: BaseDocument,
@@ -44,24 +35,36 @@ export async function exportCoverLetterDocument(
       );
       return;
     }
-    case "docx":
+    case "docx": {
+      const { exportDocumentAsDocx } = await import("@/features/documents/export/export-docx");
       return exportDocumentAsDocx(document);
+    }
     case "html": {
+      const { buildCoverLetterHtml } = await import("@/templates/cover-letter/web");
       const html = await buildCoverLetterHtml(content, document.templateId);
       downloadBlob(new Blob([html], { type: "text/html;charset=utf-8" }), `${fileBase}.html`);
       return;
     }
     case "markdown": {
+      const { buildCoverLetterMarkdown } = await import("@/templates/cover-letter/web");
       const text = buildCoverLetterMarkdown(content);
       downloadBlob(new Blob([text], { type: "text/plain;charset=utf-8" }), `${fileBase}.md`);
       return;
     }
     case "txt": {
+      const { buildCoverLetterText } = await import("@/templates/cover-letter/web");
       const text = buildCoverLetterText(content);
       downloadBlob(new Blob([text], { type: "text/plain;charset=utf-8" }), `${fileBase}.txt`);
       return;
     }
     case "pdf": {
+      const [{ pdf }, { createCoverLetterPdfElement }, { registerPdfFontById }] = await Promise.all(
+        [
+          import("@react-pdf/renderer"),
+          import("@/templates/cover-letter/pdf"),
+          import("@/templates/pdf/fonts"),
+        ],
+      );
       registerPdfFontById(content.appearance?.fontFamily);
       const renderer = await createCoverLetterPdfElement({
         content,

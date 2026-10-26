@@ -4,6 +4,7 @@ import type { ResumeLinkDisplayMode, ResumeLinkItem, ResumeLinkType } from "@/ty
 
 import { normalizeFontFamilyId } from "@/features/documents/constants/fonts";
 import { documentSyncStatusSchema } from "@/features/resume/schemas/resume-storage-schema";
+import { clampCoverLetterNumber, isHexColor } from "@/templates/cover-letter/shared";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -13,8 +14,9 @@ function asText(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-function asNumber(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+/** Colours reach CSS and PDF styles verbatim, so only a plain hex colour is accepted. */
+function asHexColor(value: unknown, fallback: string): string {
+  return isHexColor(value) ? value.trim() : fallback;
 }
 
 const LINK_TYPES: ResumeLinkType[] = [
@@ -106,16 +108,20 @@ export function parseCoverLetterContent(input: unknown): CoverLetterContent {
 
     appearance: {
       fontFamily: normalizeFontFamilyId(asText(appearanceRaw.fontFamily)),
-      pageMargin: asNumber(appearanceRaw.pageMargin, 44),
-      paragraphSpacing: asNumber(appearanceRaw.paragraphSpacing, 12),
-      lineHeight: asNumber(appearanceRaw.lineHeight, 1.55),
-      accentColor: asText(appearanceRaw.accentColor) || "#2563eb",
+      pageMargin: clampCoverLetterNumber("pageMargin", appearanceRaw.pageMargin, 44),
+      paragraphSpacing: clampCoverLetterNumber(
+        "paragraphSpacing",
+        appearanceRaw.paragraphSpacing,
+        12,
+      ),
+      lineHeight: clampCoverLetterNumber("lineHeight", appearanceRaw.lineHeight, 1.55),
+      accentColor: asHexColor(appearanceRaw.accentColor, "#2563eb"),
       // Must match createDefaultCoverLetter(): a dark fallback here produced a
       // near-black rail behind rail text for any document saved before the
       // field existed.
-      sidebarColor: asText(appearanceRaw.sidebarColor) || "#f8fafc",
-      pageColor: asText(appearanceRaw.pageColor) || "#ffffff",
-      textColor: asText(appearanceRaw.textColor) || "#18181b",
+      sidebarColor: asHexColor(appearanceRaw.sidebarColor, "#f8fafc"),
+      pageColor: asHexColor(appearanceRaw.pageColor, "#ffffff"),
+      textColor: asHexColor(appearanceRaw.textColor, "#18181b"),
       hiddenSections: parseHiddenSections(appearanceRaw.hiddenSections),
     },
   };

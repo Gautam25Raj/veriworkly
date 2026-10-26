@@ -8,16 +8,12 @@ import { getPdfFontStack } from "@/features/documents/constants/fonts";
 import { pxToPt } from "@/features/resume/constants/resume-layout";
 import { pdfFixedWidth } from "@/templates/shared/box";
 import { pdfText } from "@/templates/shared/text-tokens";
-import { COVER_LETTER_SCALE as S, createCoverLetterTokens } from "../tokens";
+import { COVER_LETTER_SCALE as S } from "../tokens";
 
 import {
-  buildCoverLetterFlowContent,
   buildProfessionalFlowItems,
-  getCoverLetterFlowSenderName,
-  getCoverLetterPalette,
-  getCoverLetterLinks,
-  getCoverLetterLinkDisplayMode,
-  isCoverLetterSectionVisible,
+  getCoverLetterDocumentTitle,
+  getCoverLetterState,
   type ProfessionalFlowItem,
 } from "../shared";
 
@@ -135,51 +131,38 @@ function createStyles(palette: CoverLetterPalette, tokens: CoverLetterTokens, pa
 }
 
 export function MinimalistCoverLetterPdf({ content }: { content: CoverLetterContent }) {
-  const appearance = content.appearance;
-  const palette = getCoverLetterPalette(appearance);
-  const tokens = createCoverLetterTokens(appearance, palette);
+  const state = getCoverLetterState(content);
+  const {
+    appearance,
+    palette,
+    tokens,
+    senderName,
+    senderTitle,
+    contact,
+    date,
+    recipient,
+    subject,
+  } = state;
   const styles = createStyles(palette, tokens, appearance.pageMargin);
 
-  const showProfile = isCoverLetterSectionVisible(content, "profile");
-  const showLinks = isCoverLetterSectionVisible(content, "links");
-  const showTarget = isCoverLetterSectionVisible(content, "target");
-
   const paragraphSpacing = { marginBottom: pxToPt(appearance.paragraphSpacing) };
-  const senderName = getCoverLetterFlowSenderName(content);
+  const links = state.renderedLinks;
+  const linkDisplayMode = state.linkDisplayMode;
 
-  const contact = showProfile
-    ? [
-        content.senderEmail,
-        content.senderPhone,
-        content.senderLocation,
-        content.senderWebsite,
-      ].filter(Boolean)
-    : [];
+  const flowItems = buildProfessionalFlowItems(state.flow);
 
-  const links = showLinks ? getCoverLetterLinks(content) : [];
-  const linkDisplayMode = getCoverLetterLinkDisplayMode(content);
-
-  const recipient = showTarget
-    ? [
-        content.recipientName,
-        content.recipientTitle,
-        content.companyName,
-        content.companyLocation,
-      ].filter(Boolean)
-    : [];
-
-  const flowItems = buildProfessionalFlowItems(buildCoverLetterFlowContent(content), senderName);
-
+  /** Rows never split; the list breaks between them. See `../measure.ts`. */
   function renderList(items: string[], key: string) {
     return (
       <View key={key} style={[styles.list, paragraphSpacing]}>
         {items.map((item, index) => (
           <View
-            key={`${key}-${index}`}
+            key={index}
             style={[
               styles.bulletRow,
               index === 0 ? {} : { marginTop: pxToPt(S.bulletRowGap) },
             ].flat()}
+            wrap={false}
           >
             <View style={styles.bulletMarkerColumn}>
               <Text style={styles.bulletMarker}>{MINIMAL_MARKER}</Text>
@@ -194,15 +177,23 @@ export function MinimalistCoverLetterPdf({ content }: { content: CoverLetterCont
   function renderFlowItem(item: ProfessionalFlowItem) {
     if (item.type === "greeting") {
       return (
-        <Text key={item.id} style={[styles.greeting, paragraphSpacing]}>
+        <Text key={item.id} style={[styles.greeting, paragraphSpacing]} wrap={false}>
           {item.text}
         </Text>
       );
     }
 
-    if (item.type === "paragraph" || item.type === "closing") {
+    if (item.type === "paragraph") {
       return (
         <Text key={item.id} style={[styles.paragraph, paragraphSpacing]}>
+          {item.text}
+        </Text>
+      );
+    }
+
+    if (item.type === "closing") {
+      return (
+        <Text key={item.id} style={[styles.paragraph, paragraphSpacing]} wrap={false}>
           {item.text}
         </Text>
       );
@@ -214,7 +205,7 @@ export function MinimalistCoverLetterPdf({ content }: { content: CoverLetterCont
 
     if (item.type === "signature") {
       return (
-        <Text key={item.id} style={styles.signature}>
+        <Text key={item.id} style={styles.signature} wrap={false}>
           {item.text}
         </Text>
       );
@@ -222,13 +213,13 @@ export function MinimalistCoverLetterPdf({ content }: { content: CoverLetterCont
 
     return (
       <Text key={item.id} style={styles.postscript}>
-        P.S. {item.text}
+        {item.text}
       </Text>
     );
   }
 
   return (
-    <Document>
+    <Document title={getCoverLetterDocumentTitle(state)} language="en">
       <Page
         size={[PAGE_WIDTH_PT, PAGE_HEIGHT_PT]}
         style={[
@@ -242,14 +233,14 @@ export function MinimalistCoverLetterPdf({ content }: { content: CoverLetterCont
       >
         <View style={styles.header}>
           <Text style={styles.label}>Cover Letter</Text>
-          <Text style={styles.name}>{senderName}</Text>
+          {senderName ? <Text style={styles.name}>{senderName}</Text> : null}
 
-          {content.senderTitle ? <Text style={styles.title}>{content.senderTitle}</Text> : null}
+          {senderTitle ? <Text style={styles.title}>{senderTitle}</Text> : null}
 
           {contact.length > 0 ? (
             <View style={styles.contactRow}>
               {contact.map((item, index) => (
-                <View key={item} style={styles.contactItem}>
+                <View key={index} style={styles.contactItem}>
                   <Text style={styles.contactText}>{item}</Text>
                   {index < contact.length - 1 ? <Text style={styles.contactSep}>·</Text> : null}
                 </View>
@@ -283,17 +274,14 @@ export function MinimalistCoverLetterPdf({ content }: { content: CoverLetterCont
         </View>
 
         <View style={styles.meta}>
-          {content.date ? <Text style={styles.metaDate}>{content.date}</Text> : null}
+          {date ? <Text style={styles.metaDate}>{date}</Text> : null}
 
           {recipient.length > 0 ? (
             <View
-              style={[
-                styles.metaTo,
-                content.date ? { marginTop: pxToPt(S.metaRowGap * 2) } : {},
-              ].flat()}
+              style={[styles.metaTo, date ? { marginTop: pxToPt(S.metaRowGap * 2) } : {}].flat()}
             >
-              {recipient.map((line) => (
-                <Text key={line} style={styles.metaLine}>
+              {recipient.map((line, index) => (
+                <Text key={index} style={styles.metaLine}>
                   {line}
                 </Text>
               ))}
@@ -301,10 +289,10 @@ export function MinimalistCoverLetterPdf({ content }: { content: CoverLetterCont
           ) : null}
         </View>
 
-        {showTarget && (content.subject || content.jobTitle) ? (
+        {subject ? (
           <View style={styles.subject}>
             <Text style={styles.subjectLabel}>Re</Text>
-            <Text style={styles.subjectText}>{content.subject || content.jobTitle}</Text>
+            <Text style={styles.subjectText}>{subject}</Text>
           </View>
         ) : null}
 

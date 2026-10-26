@@ -8,6 +8,7 @@ import type { LayoutNode } from "./pdf-layout";
 import { PARITY_FIXTURE_IDS, PARITY_FIXTURES, type ParityFixtureId } from "./fixtures";
 import { launchParityBrowser } from "./browser";
 import { layoutPages } from "./pdf-layout";
+import { recordReport } from "./report";
 import { startParityServer } from "./server";
 import { ptToPx } from "./geometry";
 
@@ -15,53 +16,37 @@ import { COVER_LETTER_SCALE } from "@/templates/cover-letter/tokens";
 import { coverLetterTemplateRegistry } from "@/templates/cover-letter/registry";
 
 /**
- * Cover letters paginate themselves rather than letting one engine flow the
- * content, so the thing that must agree is the page split. These tests compare
+ * The PDF flows the letter and the preview replays react-pdf's page breaks, so the
+ * thing that must agree is the page split. These tests compare
  * the preview's pages with the exported ones and fail when either the count or
  * the page box differs — and when the export drops content off the bottom.
  */
 
-const TEMPLATES = [
-  "professional",
-  "veriworkly-special",
-  "minimalist",
-  "executive",
-  "ats-essential",
-] as const;
+const TEMPLATES = coverLetterTemplateRegistry.ids;
 
 /** CJK cannot be set in the PDF at all; see `tests/contracts/font-coverage.contract.test.ts`. */
-const MEASURABLE_FIXTURES = PARITY_FIXTURE_IDS.filter((id) => id !== "cjk");
+// `overflow` is a resume fixture; its cover letter is the default one.
+const MEASURABLE_FIXTURES = PARITY_FIXTURE_IDS.filter((id) => id !== "cjk" && id !== "overflow");
 
 /**
- * Splits the two renderers are known to disagree on, and why.
+ * Splits the two renderers are known to disagree on, and why. Asserted in reverse, so an
+ * entry cannot outlive its cause.
  *
- * Unlike the resume — where both sides fill a page until the next block no
- * longer fits — the VeriWorkly cover letter paginates twice over, with two
- * different algorithms:
+ * The page split itself agrees by construction: the PDF is one flowing page that
+ * react-pdf breaks, and the preview replays react-pdf's breaking rules against measured
+ * boxes (`templates/cover-letter/measure.ts`). What still differs is how the two engines
+ * break a paragraph into *lines*, and on the long fixture that moves the P.S. across the
+ * page foot:
  *
- *   preview  templates/cover-letter/veriworkly/web.tsx  paginateIncremental
- *   PDF      templates/cover-letter/veriworkly/pdf.tsx  paginateWeightedItems
- *   HTML     the same file, different page limits again
- *
- * `paginateIncremental` reads real boxes out of a hidden probe.
- * `paginateWeightedItems` estimates from character counts
- * (`Math.ceil(text.length / 82)` and friends) against a flat budget of 24 units
- * a page. The estimate is deliberately conservative, so on dense copy it starts
- * a page early and the export runs longer than the preview.
- *
- * Closing this needs the export to use the measured split — it runs in the
- * browser, so it can — rather than tuning the estimate, which can only ever be
- * approximately right. Recorded here so the gap is tracked and any *new*
- * disagreement still fails.
+ * - textkit breaks lines with Knuth–Plass and may shrink spaces by a third, so the sample
+ *   bullet "Built React and TypeScript document workflows…" (659px of text in a 650px
+ *   column) stays on one line in the PDF and wraps in the browser (+22.5px);
+ * - the 87-character website is broken at every character in the PDF
+ *   (`templates/pdf/fonts.ts`, S-104) but only at its hyphens in the browser (+21px).
  */
 const KNOWN_PAGINATION_DIFFERENCES: Record<string, string> = {
-  "veriworkly-special/dense":
-    "preview measures 2 pages; the PDF's character-count estimate reserves 3",
-  // The neutral sample letter put the long fixture on a page edge: the preview's measured split
-  // starts a second page, react-pdf fits one. Both go when the export uses the measured split
-  // (studio audit Phase 4 item 1, S-026/S-106).
-  "professional/long": "preview measures 2 pages; the PDF fits 1",
-  "ats-essential/long": "preview measures 2 pages; the PDF fits 1",
+  "professional/long": "preview wraps two header/list lines the PDF does not; 2 pages vs 1",
+  "ats-essential/long": "preview wraps two header/list lines the PDF does not; 2 pages vs 1",
 };
 
 let server: ParityServer;
@@ -136,6 +121,14 @@ describe("cover letter preview and PDF produce the same pages", () => {
         const preview = await readPreview(templateId, fixture);
 
         const known = KNOWN_PAGINATION_DIFFERENCES[`${templateId}/${fixture}`];
+
+        recordReport(
+          `cover letter pagination ${templateId}/${fixture}`,
+          preview.pages === pdfPages.length
+            ? ""
+            : `preview ${preview.pages} page(s) vs pdf ${pdfPages.length}`,
+          { preview: preview.pages, pdf: pdfPages.length, known: Boolean(known) },
+        );
 
         if (known) {
           // Asserted in reverse, so the entry cannot outlive the problem.

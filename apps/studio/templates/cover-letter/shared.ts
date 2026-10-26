@@ -1,13 +1,14 @@
 import type { ResumeLinkDisplayMode, ResumeLinkItem } from "@/types/resume";
-import type {
-  CoverLetterContent,
-  CoverLetterSectionId,
-  CoverLetterTemplateId,
-} from "@/features/cover-letter/types";
+import type { CoverLetterContent, CoverLetterSectionId } from "@/features/cover-letter/types";
+import type { FlowSplitKind } from "./measure";
+
+import { DEFAULT_COVER_LETTER_APPEARANCE } from "@veriworkly/profile-core";
+
 import { normalizeFontFamilyId } from "@/features/documents/constants/fonts";
 import { createCoverLetterTokens } from "./tokens";
 
 import {
+  cleanResumeText,
   normalizeLinkHref,
   getLinkDisplayText,
 } from "@/features/documents/rendering/resume-rendering";
@@ -19,6 +20,10 @@ export type CoverLetterFlowContent = Pick<
   "body" | "closing" | "greeting" | "highlights" | "opening" | "postscript" | "signature"
 >;
 
+/**
+ * `paragraph` and `postscript` text is one line of words — the only items a page break
+ * may cut through (see `measure.ts`). `postscript` carries its own "P.S." prefix.
+ */
 export type ProfessionalFlowItem =
   | { id: string; type: "greeting"; text: string }
   | { id: string; type: "paragraph"; text: string }
@@ -28,31 +33,30 @@ export type ProfessionalFlowItem =
   | { id: string; type: "signature"; text: string }
   | { id: string; type: "postscript"; text: string };
 
+/**
+ * The "Selected Proof" heading travels with the first proof item (`heading`), so the
+ * heading can never be left alone at the foot of a page in either renderer.
+ */
 export type VeriworklyFlowItem =
   | { id: string; type: "greeting"; text: string }
   | { id: string; type: "paragraph"; text: string }
   | { id: string; type: "body-list"; items: string[] }
-  | { id: string; type: "proof-heading" }
-  | { id: string; type: "proof-item"; index: number; isLast: boolean; text: string }
-  | { id: string; type: "signoff"; closing?: string; signature: string }
+  | {
+      id: string;
+      type: "proof-item";
+      heading: boolean;
+      index: number;
+      isLast: boolean;
+      text: string;
+    }
+  | { id: string; type: "signoff"; closing: string; signature: string }
   | { id: string; type: "postscript"; text: string };
-
-type ContactLink = {
-  label: string;
-  url: string;
-};
-
-export const COVER_LETTER_VERIWORKLY_ID = "veriworkly-special" satisfies CoverLetterTemplateId;
-
-export const PX_TO_PT = 0.75;
-export const pt = (value: number) => value * PX_TO_PT;
 
 // ---------------------------------------------------------------------------
 // Appearance-derived palette
 //
 // Every cover-letter renderer (preview, HTML export, PDF) reads its colours
-// from here. Before this existed each renderer hardcoded its own zinc/slate
-// values, so the user-facing "Text color" control only moved some of the text.
+// from here, so the user-facing "Text color" control moves all of the text.
 // ---------------------------------------------------------------------------
 
 export interface CoverLetterPalette {
@@ -62,7 +66,7 @@ export interface CoverLetterPalette {
   text: string;
   /** Secondary lines: contact details, recipient block, captions. */
   muted: string;
-  /** Tertiary lines: dates, "continued" markers, small labels. */
+  /** Tertiary lines: dates, small labels. */
   soft: string;
   /** Hairlines and dividers. */
   border: string;
@@ -77,34 +81,43 @@ export interface CoverLetterPalette {
 
 type Rgb = [number, number, number];
 
+const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+/**
+ * Appearance colours are interpolated into the exported HTML's `<style>` and into PDF
+ * styles, so anything but a plain hex colour — a value from an imported or hand-edited
+ * file — is refused rather than escaped.
+ */
+export function isHexColor(value: unknown): value is string {
+  return typeof value === "string" && HEX_COLOR.test(value.trim());
+}
+
+function toSafeHexColor(value: unknown, fallback: string): string {
+  return isHexColor(value) ? value.trim() : fallback;
+}
+
 function parseHexColor(value: string): Rgb | null {
-  const hex = value.trim().replace(/^#/, "");
+  if (!isHexColor(value)) return null;
+
+  const hex = value.trim().slice(1);
 
   if (hex.length === 3) {
     const [r, g, b] = hex.split("");
     return [parseInt(r + r, 16), parseInt(g + g, 16), parseInt(b + b, 16)];
   }
 
-  if (hex.length === 6) {
-    return [
-      parseInt(hex.slice(0, 2), 16),
-      parseInt(hex.slice(2, 4), 16),
-      parseInt(hex.slice(4, 6), 16),
-    ];
-  }
-
-  return null;
+  return [
+    parseInt(hex.slice(0, 2), 16),
+    parseInt(hex.slice(2, 4), 16),
+    parseInt(hex.slice(4, 6), 16),
+  ];
 }
 
 function toHexColor([r, g, b]: Rgb): string {
   return `#${[r, g, b].map((channel) => Math.round(channel).toString(16).padStart(2, "0")).join("")}`;
 }
 
-/**
- * Blend `from` towards `to` by `amount` (0–1). Non-hex inputs (named colours,
- * `rgb()`, gradients) are returned untouched rather than throwing, so a custom
- * value the parser does not understand degrades to "no tint" instead of black.
- */
+/** Blend `from` towards `to` by `amount` (0–1). Both must be hex colours. */
 export function mixColors(from: string, to: string, amount: number): string {
   const start = parseHexColor(from);
   const end = parseHexColor(to);
@@ -140,7 +153,11 @@ export function getCoverLetterPalette(appearance: {
   sidebarColor: string;
   textColor: string;
 }): CoverLetterPalette {
-  const { accentColor, pageColor, sidebarColor, textColor } = appearance;
+  const defaults = DEFAULT_COVER_LETTER_APPEARANCE;
+  const accentColor = toSafeHexColor(appearance.accentColor, defaults.accentColor);
+  const pageColor = toSafeHexColor(appearance.pageColor, defaults.pageColor);
+  const sidebarColor = toSafeHexColor(appearance.sidebarColor, defaults.sidebarColor);
+  const textColor = toSafeHexColor(appearance.textColor, defaults.textColor);
 
   // A dark sidebar needs light text; the document text colour is only safe to
   // reuse when the rail is light enough to carry it.
@@ -168,10 +185,20 @@ export function isCoverLetterSectionVisible(
   return !content.appearance?.hiddenSections?.includes(sectionId);
 }
 
+/** The cover-letter flavour of `cleanResumeText`: emoji stripped, line breaks kept. */
+function cleanText(value: string | null | undefined): string {
+  return cleanResumeText(value).trim();
+}
+
+/** One line of running text: a paragraph's soft line breaks read as spaces. */
+function toRunningText(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
 export function splitParagraphs(value: string): string[] {
   return value
     .split(/\n{2,}/)
-    .map((part) => part.trim())
+    .map(toRunningText)
     .filter(Boolean);
 }
 
@@ -231,94 +258,57 @@ export function splitMarkdownLines(value: string) {
     .map((line) => line.replace(/^[-*]\s+/, ""));
 }
 
-export function splitTextIntoChunks(text: string, wordsPerChunk: number) {
-  const words = text.trim().split(/\s+/).filter(Boolean);
-
-  if (words.length <= wordsPerChunk) return [text];
-
-  const chunks: string[] = [];
-
-  for (let index = 0; index < words.length; index += wordsPerChunk) {
-    chunks.push(words.slice(index, index + wordsPerChunk).join(" "));
-  }
-
-  return chunks;
-}
-
-export function getCoverLetterFlowSenderName(content: CoverLetterContent) {
-  return content.senderName || content.signature || "Your Name";
-}
-
+/**
+ * The letter itself, cleaned, with the hidden "letter" section already applied — the
+ * signature included, since it belongs to the letter rather than the letterhead.
+ */
 export function buildCoverLetterFlowContent(content: CoverLetterContent): CoverLetterFlowContent {
-  const showLetter = isCoverLetterSectionVisible(content, "letter");
+  if (!isCoverLetterSectionVisible(content, "letter")) {
+    return {
+      body: "",
+      closing: "",
+      greeting: "",
+      highlights: "",
+      opening: "",
+      postscript: "",
+      signature: "",
+    };
+  }
 
   return {
-    body: showLetter ? content.body : "",
-    closing: showLetter ? content.closing : "",
-    greeting: showLetter ? content.greeting : "",
-    highlights: showLetter ? content.highlights : "",
-    opening: showLetter ? content.opening : "",
-    postscript: showLetter ? content.postscript : "",
-    signature: showLetter ? content.signature : "",
+    body: cleanText(content.body),
+    closing: cleanText(content.closing),
+    greeting: cleanText(content.greeting),
+    highlights: cleanText(content.highlights),
+    opening: cleanText(content.opening),
+    postscript: toRunningText(cleanText(content.postscript)),
+    signature: cleanText(content.signature) || cleanText(content.senderName),
   };
-}
-
-export function paginateWeightedItems<T>(
-  items: T[],
-  getItemWeight: (item: T) => number,
-  getPageLimit: (pageIndex: number) => number,
-  keepWithNext?: (item: T, nextItem: T | undefined) => boolean,
-) {
-  const pages: T[][] = [[]];
-  let pageIndex = 0;
-  let used = 0;
-
-  for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
-    const item = items[itemIndex];
-    const nextItem = items[itemIndex + 1];
-    const weight = getItemWeight(item);
-    const keepWithNextWeight =
-      keepWithNext?.(item, nextItem) && nextItem ? getItemWeight(nextItem) : 0;
-
-    if (
-      pages[pageIndex].length > 0 &&
-      used + weight + keepWithNextWeight > getPageLimit(pageIndex)
-    ) {
-      pages.push([]);
-      pageIndex += 1;
-      used = 0;
-    }
-
-    pages[pageIndex].push(item);
-    used += weight;
-  }
-
-  return pages.filter((page) => page.length > 0);
 }
 
 export function getFlowPageKey<T>(pages: T[][]) {
   return pages.map((page) => page.map((item) => JSON.stringify(item)).join(",")).join("|");
 }
 
-export function buildProfessionalFlowItems(
-  content: CoverLetterFlowContent,
-  senderName: string,
-  paragraphChunkWords = 70,
-) {
+function buildBodyBlocks(content: CoverLetterFlowContent): RichTextBlock[] {
+  return [
+    ...splitParagraphs(content.opening).map((text) => ({ type: "paragraph" as const, text })),
+    ...splitRichTextBlocks(content.body),
+  ];
+}
+
+function formatPostscript(postscript: string) {
+  return postscript ? `P.S. ${postscript}` : "";
+}
+
+export function buildProfessionalFlowItems(content: CoverLetterFlowContent) {
   const items: ProfessionalFlowItem[] = [];
 
   if (content.greeting) items.push({ id: "greeting", type: "greeting", text: content.greeting });
 
-  const bodyBlocks: RichTextBlock[] = [
-    ...splitParagraphs(content.opening).map((text) => ({ type: "paragraph" as const, text })),
-    ...splitRichTextBlocks(content.body),
-  ];
-
-  bodyBlocks.forEach((block, blockIndex) => {
+  buildBodyBlocks(content).forEach((block, blockIndex) => {
     if (block.type === "paragraph") {
-      splitTextIntoChunks(block.text, paragraphChunkWords).forEach((text, chunkIndex) => {
-        items.push({ id: `body-${blockIndex}-${chunkIndex}`, type: "paragraph", text });
-      });
+      items.push({ id: `body-${blockIndex}`, type: "paragraph", text: block.text });
       return;
     }
 
@@ -332,48 +322,29 @@ export function buildProfessionalFlowItems(
   }
 
   if (content.closing) items.push({ id: "closing", type: "closing", text: content.closing });
-
-  items.push({ id: "signature", type: "signature", text: content.signature || senderName });
+  if (content.signature) {
+    items.push({ id: "signature", type: "signature", text: content.signature });
+  }
 
   if (content.postscript) {
-    splitTextIntoChunks(content.postscript, 55).forEach((text, index) => {
-      items.push({ id: `postscript-${index}`, type: "postscript", text });
+    items.push({
+      id: "postscript",
+      type: "postscript",
+      text: formatPostscript(content.postscript),
     });
   }
 
   return items;
 }
 
-export function getProfessionalFlowItemWeight(item: ProfessionalFlowItem) {
-  if (item.type === "body-list" || item.type === "proof-list") {
-    return 2 + item.items.reduce((total, listItem) => total + Math.ceil(listItem.length / 78), 0);
-  }
-
-  if (item.type === "postscript") return 2 + Math.ceil(item.text.length / 110);
-  if (item.type === "closing" || item.type === "signature" || item.type === "greeting") return 1;
-
-  return Math.max(1, Math.ceil(item.text.length / 92));
-}
-
-export function buildVeriworklyFlowItems(
-  content: CoverLetterFlowContent,
-  senderName: string,
-  paragraphChunkWords = 62,
-) {
+export function buildVeriworklyFlowItems(content: CoverLetterFlowContent) {
   const items: VeriworklyFlowItem[] = [];
 
   if (content.greeting) items.push({ id: "greeting", type: "greeting", text: content.greeting });
 
-  const bodyBlocks: RichTextBlock[] = [
-    ...splitParagraphs(content.opening).map((text) => ({ type: "paragraph" as const, text })),
-    ...splitRichTextBlocks(content.body),
-  ];
-
-  bodyBlocks.forEach((block, blockIndex) => {
+  buildBodyBlocks(content).forEach((block, blockIndex) => {
     if (block.type === "paragraph") {
-      splitTextIntoChunks(block.text, paragraphChunkWords).forEach((text, chunkIndex) => {
-        items.push({ id: `body-${blockIndex}-${chunkIndex}`, type: "paragraph", text });
-      });
+      items.push({ id: `body-${blockIndex}`, type: "paragraph", text: block.text });
       return;
     }
 
@@ -382,73 +353,43 @@ export function buildVeriworklyFlowItems(
 
   const highlights = splitMarkdownLines(content.highlights);
 
-  if (highlights.length > 0) {
-    items.push({ id: "proof-heading", type: "proof-heading" });
-    highlights.forEach((text, index) => {
-      items.push({
-        id: `proof-${index}`,
-        type: "proof-item",
-        index,
-        isLast: index === highlights.length - 1,
-        text,
-      });
+  highlights.forEach((text, index) => {
+    items.push({
+      id: `proof-${index}`,
+      type: "proof-item",
+      heading: index === 0,
+      index,
+      isLast: index === highlights.length - 1,
+      text,
+    });
+  });
+
+  if (content.closing || content.signature) {
+    items.push({
+      id: "signoff",
+      type: "signoff",
+      closing: content.closing,
+      signature: content.signature,
     });
   }
 
-  items.push({
-    id: "signoff",
-    type: "signoff",
-    closing: content.closing || undefined,
-    signature: content.signature || senderName,
-  });
-
   if (content.postscript) {
-    splitTextIntoChunks(content.postscript, 50).forEach((text, index) => {
-      items.push({ id: `postscript-${index}`, type: "postscript", text });
+    items.push({
+      id: "postscript",
+      type: "postscript",
+      text: formatPostscript(content.postscript),
     });
   }
 
   return items;
 }
 
-export function getVeriworklyFlowItemWeight(item: VeriworklyFlowItem) {
-  if (item.type === "body-list") {
-    return 2 + item.items.reduce((total, listItem) => total + Math.ceil(listItem.length / 70), 0);
-  }
+/** Where a page break may fall inside an item; see `measure.ts`. */
+export function getFlowSplitKind(item: ProfessionalFlowItem | VeriworklyFlowItem): FlowSplitKind {
+  if (item.type === "paragraph" || item.type === "postscript") return "text";
+  if (item.type === "body-list" || item.type === "proof-list") return "rows";
 
-  if (item.type === "proof-heading") return 2;
-  if (item.type === "proof-item") return Math.max(1, Math.ceil(item.text.length / 70));
-  if (item.type === "postscript") return 2 + Math.ceil(item.text.length / 100);
-  if (item.type === "signoff") return item.closing ? 2 : 1;
-  if (item.type === "greeting") return 1;
-
-  return Math.max(1, Math.ceil(item.text.length / 82));
-}
-
-export function keepVeriworklyProofHeadingWithNext(
-  item: VeriworklyFlowItem,
-  nextItem: VeriworklyFlowItem | undefined,
-) {
-  return item.type === "proof-heading" && Boolean(nextItem);
-}
-
-export function splitContactLinks(value: string): ContactLink[] {
-  return value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [rawLabel, rawUrl] = line.includes("|")
-        ? line.split("|").map((part) => part.trim())
-        : ["", line];
-
-      const url = rawUrl || rawLabel;
-
-      return {
-        label: rawLabel || url.replace(/^https?:\/\//, "").replace(/^www\./, ""),
-        url,
-      };
-    });
+  return "whole";
 }
 
 export function getCoverLetterLinks(content: CoverLetterContent): ResumeLinkItem[] {
@@ -459,98 +400,81 @@ export function getCoverLetterLinkDisplayMode(content: CoverLetterContent): Resu
   return content.links?.displayMode ?? "icon-username";
 }
 
-function blockWeight(block: RichTextBlock) {
-  if (block.type === "list")
-    return 1 + block.items.reduce((total, item) => total + Math.ceil(item.length / 86), 0);
+/**
+ * The ranges the appearance sliders offer. A value outside them only arrives from an
+ * imported or hand-edited file, and an extreme one (a 40x line height, a margin wider
+ * than the page) leaves no room for a single line of text.
+ */
+export const COVER_LETTER_APPEARANCE_RANGES = {
+  pageMargin: [24, 72],
+  paragraphSpacing: [4, 24],
+  lineHeight: [1.25, 1.8],
+} as const;
 
-  return Math.max(1, Math.ceil(block.text.length / 92));
+export function clampCoverLetterNumber(
+  key: keyof typeof COVER_LETTER_APPEARANCE_RANGES,
+  value: unknown,
+  fallback: number,
+): number {
+  const [min, max] = COVER_LETTER_APPEARANCE_RANGES[key];
+  const number = typeof value === "number" && Number.isFinite(value) ? value : fallback;
+
+  return Math.min(max, Math.max(min, number));
 }
 
-export function paginateBlocks(
-  blocks: RichTextBlock[],
-  firstPageLimit: number,
-  nextPageLimit: number,
-) {
-  const pages: RichTextBlock[][] = [[]];
-
-  let used = 0;
-  let limit = firstPageLimit;
-
-  for (const block of blocks) {
-    const weight = blockWeight(block);
-
-    if (pages[pages.length - 1].length > 0 && used + weight > limit) {
-      pages.push([]);
-      limit = nextPageLimit;
-      used = 0;
-    }
-
-    pages[pages.length - 1].push(block);
-    used += weight;
-  }
-
-  return pages;
-}
-
-export function getCoverLetterState(
-  content: CoverLetterContent,
-  limits: { firstPage: number; nextPage: number },
-) {
-  const appearance = content.appearance ?? {
-    fontFamily: "geist",
-    pageMargin: 40,
-    lineHeight: 1.5,
-    paragraphSpacing: 10,
-    pageColor: "#ffffff",
-    textColor: "#18181b",
-    accentColor: "#2563eb",
-    sidebarColor: "#f8fafc",
-    hiddenSections: [],
-  };
+/**
+ * Everything a cover-letter renderer prints, derived once: preview, HTML, PDF, DOCX,
+ * Markdown and plain text all read these fields, so a hidden section, an empty field or a
+ * cleaned value cannot differ between them. Empty fields stay empty — no renderer prints a
+ * placeholder in their place.
+ */
+export function getCoverLetterState(content: CoverLetterContent) {
+  const defaults = DEFAULT_COVER_LETTER_APPEARANCE;
+  const appearance = content.appearance ?? { ...defaults, hiddenSections: [] };
 
   const normalizedAppearance = {
     ...appearance,
     fontFamily: normalizeFontFamilyId(appearance.fontFamily),
+    pageMargin: clampCoverLetterNumber("pageMargin", appearance.pageMargin, defaults.pageMargin),
+    lineHeight: clampCoverLetterNumber("lineHeight", appearance.lineHeight, defaults.lineHeight),
+    paragraphSpacing: clampCoverLetterNumber(
+      "paragraphSpacing",
+      appearance.paragraphSpacing,
+      defaults.paragraphSpacing,
+    ),
+    accentColor: toSafeHexColor(appearance.accentColor, defaults.accentColor),
+    pageColor: toSafeHexColor(appearance.pageColor, defaults.pageColor),
+    sidebarColor: toSafeHexColor(appearance.sidebarColor, defaults.sidebarColor),
+    textColor: toSafeHexColor(appearance.textColor, defaults.textColor),
   };
 
-  const senderName = content.senderName || content.signature || "Your Name";
-  const senderTitle = content.senderTitle || "Role or professional title";
+  const showTarget = isCoverLetterSectionVisible(content, "target");
 
-  const contact = [
-    ...(isCoverLetterSectionVisible(content, "profile")
-      ? [content.senderEmail, content.senderPhone, content.senderLocation, content.senderWebsite]
-      : []),
-  ].filter(Boolean);
+  // The signature stands in for a missing name only while the letter it belongs to shows.
+  const senderName =
+    cleanText(content.senderName) ||
+    (isCoverLetterSectionVisible(content, "letter") ? cleanText(content.signature) : "");
+  const senderTitle = cleanText(content.senderTitle);
+
+  const contact = isCoverLetterSectionVisible(content, "profile")
+    ? [content.senderEmail, content.senderPhone, content.senderLocation, content.senderWebsite]
+        .map(cleanText)
+        .filter(Boolean)
+    : [];
 
   const renderedLinks = isCoverLetterSectionVisible(content, "links")
     ? getCoverLetterLinks(content)
     : [];
   const linkDisplayMode = getCoverLetterLinkDisplayMode(content);
 
-  const recipient = isCoverLetterSectionVisible(content, "target")
-    ? [
-        content.recipientName,
-        content.recipientTitle,
-        content.companyName,
-        content.companyLocation,
-      ].filter(Boolean)
+  const recipient = showTarget
+    ? [content.recipientName, content.recipientTitle, content.companyName, content.companyLocation]
+        .map(cleanText)
+        .filter(Boolean)
     : [];
 
-  const highlights = splitMarkdownLines(content.highlights);
-
-  const bodyBlocks: RichTextBlock[] = [
-    ...(isCoverLetterSectionVisible(content, "letter")
-      ? [
-          ...splitParagraphs(content.opening).map((text) => ({
-            type: "paragraph" as const,
-            text,
-          })),
-          ...splitRichTextBlocks(content.body),
-        ]
-      : []),
-  ];
-
-  const pages = paginateBlocks(bodyBlocks, limits.firstPage, limits.nextPage);
+  const subject = cleanText(content.subject);
+  const jobTitle = cleanText(content.jobTitle);
 
   const palette = getCoverLetterPalette(normalizedAppearance);
 
@@ -563,65 +487,124 @@ export function getCoverLetterState(
     contact,
     linkDisplayMode,
     renderedLinks,
+    date: cleanText(content.date),
     recipient,
-    highlights,
-    pages,
+    /** The "Re" line: the subject, or the role applied for. */
+    subject: showTarget ? subject || jobTitle : "",
+    /** The VeriWorkly rail's target: the role applied for, or the subject. */
+    targetTitle: showTarget ? jobTitle || subject : "",
+    targetCompany: showTarget ? cleanText(content.companyName) : "",
+    flow: buildCoverLetterFlowContent(content),
   };
 }
 
+export type CoverLetterState = ReturnType<typeof getCoverLetterState>;
+
+export function getCoverLetterDocumentTitle(state: CoverLetterState) {
+  return state.senderName ? `${state.senderName} - Cover Letter` : "Cover Letter";
+}
+
+// ---------------------------------------------------------------------------
+// Markdown and plain text
+//
+// Both are built from `getCoverLetterState`, so they print exactly what the preview
+// prints. The Markdown labels every letterhead field so `markdown-import.ts` can read
+// the file back without guessing which line is which.
+// ---------------------------------------------------------------------------
+
+export const COVER_LETTER_MARKDOWN_LABELS = {
+  senderTitle: "Title",
+  senderEmail: "Email",
+  senderPhone: "Phone",
+  senderLocation: "Location",
+  senderWebsite: "Website",
+  link: "Link",
+  date: "Date",
+  recipientName: "Recipient",
+  recipientTitle: "Recipient title",
+  companyName: "Company",
+  companyLocation: "Company location",
+  jobTitle: "Role",
+  subject: "Subject",
+} as const;
+
+function renderLetterBlocks(
+  items: ProfessionalFlowItem[],
+  renderListItem: (item: string) => string,
+): string[] {
+  return items.map((item) =>
+    item.type === "body-list" || item.type === "proof-list"
+      ? item.items.map(renderListItem).join("\n")
+      : item.text,
+  );
+}
+
 export function buildCoverLetterMarkdown(content: CoverLetterContent): string {
-  const links = getCoverLetterLinks(content);
-  const linkDisplayMode = getCoverLetterLinkDisplayMode(content);
+  const state = getCoverLetterState(content);
+  const L = COVER_LETTER_MARKDOWN_LABELS;
+  const showProfile = isCoverLetterSectionVisible(content, "profile");
+  const showTarget = isCoverLetterSectionVisible(content, "target");
+  const field = (label: string, value: string) => (value ? `- **${label}:** ${value}` : "");
 
-  const contact = [
-    content.senderTitle,
-    content.senderEmail,
-    content.senderPhone,
-    content.senderLocation,
-    content.senderWebsite,
-    ...links.map((link) => getLinkDisplayText(link, linkDisplayMode)),
+  const letterhead = [
+    field(L.senderTitle, state.senderTitle),
+    ...(showProfile
+      ? [
+          field(L.senderEmail, cleanText(content.senderEmail)),
+          field(L.senderPhone, cleanText(content.senderPhone)),
+          field(L.senderLocation, cleanText(content.senderLocation)),
+          field(L.senderWebsite, cleanText(content.senderWebsite)),
+        ]
+      : []),
+    ...state.renderedLinks.map((link) =>
+      field(
+        L.link,
+        `[${getLinkDisplayText(link, state.linkDisplayMode)}](${normalizeLinkHref(link.url)})`,
+      ),
+    ),
+    field(L.date, state.date),
+    ...(showTarget
+      ? [
+          field(L.recipientName, cleanText(content.recipientName)),
+          field(L.recipientTitle, cleanText(content.recipientTitle)),
+          field(L.companyName, cleanText(content.companyName)),
+          field(L.companyLocation, cleanText(content.companyLocation)),
+          field(L.jobTitle, cleanText(content.jobTitle)),
+          // The stored subject, not the printed one, which falls back to the role above.
+          field(L.subject, cleanText(content.subject)),
+        ]
+      : []),
   ].filter(Boolean);
-
-  const recipient = [
-    content.recipientName,
-    content.recipientTitle,
-    content.companyName,
-    content.companyLocation,
-  ].filter(Boolean);
-
-  const body = splitRichTextBlocks(content.body)
-    .map((block) =>
-      block.type === "list" ? block.items.map((item) => `- ${item}`).join("\n") : block.text,
-    )
-    .join("\n\n");
 
   const parts = [
-    `# ${content.senderName || "Your Name"}`,
-    contact.length ? contact.join(" | ") : "",
-    content.date,
-    recipient.length ? recipient.join("\n") : "",
-    content.subject ? `**Subject:** ${content.subject}` : "",
-    isCoverLetterSectionVisible(content, "letter") ? content.greeting : "",
-    isCoverLetterSectionVisible(content, "letter") ? content.opening : "",
-    isCoverLetterSectionVisible(content, "letter") ? body : "",
-    isCoverLetterSectionVisible(content, "letter")
-      ? splitMarkdownLines(content.highlights)
-          .map((line) => `- ${line}`)
-          .join("\n")
-      : "",
-    isCoverLetterSectionVisible(content, "letter") ? content.closing : "",
-    isCoverLetterSectionVisible(content, "letter") ? content.signature || content.senderName : "",
-    isCoverLetterSectionVisible(content, "letter") && content.postscript
-      ? `P.S. ${content.postscript}`
-      : "",
+    state.senderName ? `# ${state.senderName}` : "",
+    letterhead.join("\n"),
+    ...renderLetterBlocks(buildProfessionalFlowItems(state.flow), (item) => `- ${item}`),
   ];
 
   return parts.filter(Boolean).join("\n\n").trim();
 }
 
 export function buildCoverLetterText(content: CoverLetterContent): string {
-  return buildCoverLetterMarkdown(content)
-    .replaceAll(/^#{1,6}\s?/gm, "")
-    .replaceAll(/\*\*(.*?)\*\*/g, "$1")
-    .trim();
+  const state = getCoverLetterState(content);
+
+  const parts = [
+    [
+      state.senderName,
+      state.senderTitle,
+      ...state.contact,
+      ...state.renderedLinks.map(
+        (link) =>
+          `${getLinkDisplayText(link, state.linkDisplayMode)}: ${normalizeLinkHref(link.url)}`,
+      ),
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    state.date,
+    state.recipient.join("\n"),
+    state.subject ? `Subject: ${state.subject}` : "",
+    ...renderLetterBlocks(buildProfessionalFlowItems(state.flow), (item) => `- ${item}`),
+  ];
+
+  return parts.filter(Boolean).join("\n\n").trim();
 }

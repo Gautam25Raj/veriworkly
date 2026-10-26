@@ -1,24 +1,26 @@
 /* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { CSSProperties } from "react";
 import type { CoverLetterContent } from "@/features/cover-letter/types";
 import type { CoverLetterTokens } from "../tokens";
 
-import { createCoverLetterPageProbe } from "../measure";
-import { paginateIncremental } from "@/templates/shared/pagination";
+import {
+  getFragmentBoxStyle,
+  getFragmentRows,
+  getFragmentWords,
+  paginateCoverLetterFlow,
+  useCoverLetterFontReady,
+  type FlowFragment,
+} from "../measure";
 
 import {
-  buildCoverLetterFlowContent,
   buildVeriworklyFlowItems,
-  getCoverLetterFlowSenderName,
+  getCoverLetterDocumentTitle,
   getCoverLetterState,
   getFlowPageKey,
-  getVeriworklyFlowItemWeight,
-  isCoverLetterSectionVisible,
-  keepVeriworklyProofHeadingWithNext,
-  paginateWeightedItems,
+  getFlowSplitKind,
   type CoverLetterPalette,
   type VeriworklyFlowItem,
 } from "../shared";
@@ -36,36 +38,44 @@ import { COVER_LETTER_SCALE as S } from "../tokens";
 
 import { SOCIAL_ICON_SRC_BY_TYPE } from "@/templates/shared/social-icons";
 
-const PAGE_HEIGHT = S.pageHeight;
-
 const px = (value: number) => `${value}px`;
 
 function renderFlowItem(
-  item: VeriworklyFlowItem,
+  fragment: FlowFragment<VeriworklyFlowItem>,
   palette: CoverLetterPalette,
   tokens: CoverLetterTokens,
   paragraphSpacing: number,
 ) {
+  const { item } = fragment;
   const spacing = { marginBottom: px(paragraphSpacing) };
+  const cut = getFragmentBoxStyle(fragment);
 
   if (item.type === "greeting")
-    return <p style={{ ...webText(tokens.strong), ...spacing }}>{item.text}</p>;
+    return <p style={{ ...webText(tokens.strong), ...spacing, ...cut }}>{item.text}</p>;
 
-  if (item.type === "paragraph")
-    return <p style={{ ...webText(tokens.body), ...spacing }}>{item.text}</p>;
+  if (item.type === "paragraph") {
+    const text = getFragmentWords(item.text, fragment.range);
+
+    return text ? <p style={{ ...webText(tokens.body), ...spacing, ...cut }}>{text}</p> : null;
+  }
 
   if (item.type === "body-list")
     return (
       <div
         style={{
           backgroundColor: palette.surface,
-          padding: `${px(S.listPadY)} ${px(S.listPadX)}`,
+          paddingBottom: px(S.listPadY),
+          paddingLeft: px(S.listPadX),
+          paddingRight: px(S.listPadX),
+          paddingTop: px(S.listPadY),
           ...spacing,
+          ...cut,
         }}
       >
-        {item.items.map((listItem, index) => (
+        {getFragmentRows(item.items, fragment.range).map(({ row, index }) => (
           <div
-            key={listItem}
+            key={index}
+            data-flow-row=""
             style={{
               columnGap: px(S.bulletGap),
               display: "flex",
@@ -82,47 +92,48 @@ function renderFlowItem(
             >
               {BULLET_MARKER}
             </span>
-            <span style={{ ...webText(tokens.body), ...webFlexible }}>{listItem}</span>
+            <span style={{ ...webText(tokens.body), ...webFlexible }}>{row}</span>
           </div>
         ))}
       </div>
     );
 
-  if (item.type === "proof-heading")
-    return (
-      <p
-        style={{
-          ...webText(tokens.continued),
-          borderTop: `${S.hairline}px solid ${palette.border}`,
-          marginTop: px(S.subjectTop),
-          paddingTop: px(S.railTargetTop),
-        }}
-      >
-        Selected Proof
-      </p>
-    );
-
   if (item.type === "proof-item")
     return (
-      <div
-        style={{
-          borderBottom: item.isLast ? "none" : `${S.hairline}px solid ${palette.border}`,
-          columnGap: "12px",
-          display: "flex",
-          marginTop: px(S.proofRowGap),
-          paddingBottom: px(S.proofPadBottom),
-        }}
-      >
-        <span
+      <div style={cut}>
+        {item.heading ? (
+          <p
+            style={{
+              ...webText(tokens.continued),
+              borderTop: `${S.hairline}px solid ${palette.border}`,
+              marginTop: px(S.subjectTop),
+              paddingTop: px(S.railTargetTop),
+            }}
+          >
+            Selected Proof
+          </p>
+        ) : null}
+
+        <div
           style={{
-            ...webText(tokens.proofIndex),
-            ...webFixedWidth(S.proofIndexWidth),
+            borderBottom: item.isLast ? "none" : `${S.hairline}px solid ${palette.border}`,
+            columnGap: "12px",
+            display: "flex",
+            marginTop: px(S.proofRowGap),
+            paddingBottom: px(S.proofPadBottom),
           }}
         >
-          {String(item.index + 1).padStart(2, "0")}
-        </span>
+          <span
+            style={{
+              ...webText(tokens.proofIndex),
+              ...webFixedWidth(S.proofIndexWidth),
+            }}
+          >
+            {String(item.index + 1).padStart(2, "0")}
+          </span>
 
-        <span style={{ ...webText(tokens.proofText), ...webFlexible }}>{item.text}</span>
+          <span style={{ ...webText(tokens.proofText), ...webFlexible }}>{item.text}</span>
+        </div>
       </div>
     );
 
@@ -134,38 +145,33 @@ function renderFlowItem(
           flexDirection: "column",
           marginTop: px(S.subjectTop),
           rowGap: "8px",
+          ...cut,
         }}
       >
         {item.closing ? <p style={webText(tokens.body)}>{item.closing}</p> : null}
-        <p style={{ ...webText(tokens.strong), fontSize: "16px", lineHeight: "19.2px" }}>
-          {item.signature}
-        </p>
+        {item.signature ? (
+          <p style={{ ...webText(tokens.strong), fontSize: "16px", lineHeight: "19.2px" }}>
+            {item.signature}
+          </p>
+        ) : null}
       </div>
     );
 
-  return (
+  const text = getFragmentWords(item.text, fragment.range);
+
+  return text ? (
     <p
       style={{
         ...webText(tokens.postscript),
         borderTop: `${S.hairline}px solid ${palette.border}`,
         marginTop: px(S.postscriptTop),
         paddingTop: px(S.postscriptPadTop),
+        ...cut,
       }}
     >
-      P.S. {item.text}
+      {text}
     </p>
-  );
-}
-
-function renderGroupedFlowItems(
-  items: VeriworklyFlowItem[],
-  palette: CoverLetterPalette,
-  tokens: CoverLetterTokens,
-  paragraphSpacing: number,
-) {
-  return items.map((item) => (
-    <div key={item.id}>{renderFlowItem(item, palette, tokens, paragraphSpacing)}</div>
-  ));
+  ) : null;
 }
 
 function RecipientMeta({
@@ -197,8 +203,8 @@ function RecipientMeta({
           rowGap: px(S.metaRowGap),
         }}
       >
-        {recipient.map((line) => (
-          <p key={line} style={webText(tokens.contact)}>
+        {recipient.map((line, index) => (
+          <p key={index} style={webText(tokens.contact)}>
             {line}
           </p>
         ))}
@@ -253,13 +259,16 @@ function SubjectBlock({
   );
 }
 
-function paginateVeriworklyHtmlItems(items: VeriworklyFlowItem[]) {
-  return paginateWeightedItems(
-    items,
-    getVeriworklyFlowItemWeight,
-    () => 24,
-    keepVeriworklyProofHeadingWithNext,
-  );
+/**
+ * The letter body is a flex column in every renderer: flex items' margins add up
+ * rather than collapse, which is how Yoga lays out the PDF.
+ */
+function bodyStyle(continued: boolean): CSSProperties {
+  return {
+    display: "flex",
+    flexDirection: "column",
+    marginTop: continued ? 0 : px(S.subjectTop),
+  };
 }
 
 function renderVeriworklyHtmlItem(item: VeriworklyFlowItem) {
@@ -273,21 +282,22 @@ function renderVeriworklyHtmlItem(item: VeriworklyFlowItem) {
       )
       .join("")}</div>`;
   }
-  if (item.type === "proof-heading") return `<p class="proof-label">Selected Proof</p>`;
   if (item.type === "proof-item") {
-    return `<div class="proof-item${item.isLast ? " last" : ""}"><span class="proof-index">${String(
-      item.index + 1,
-    ).padStart(2, "0")}</span><span class="proof-text">${escapeHtml(item.text)}</span></div>`;
+    const index = String(item.index + 1).padStart(2, "0");
+
+    return `<div class="proof">${item.heading ? `<p class="proof-label">Selected Proof</p>` : ""}<div class="proof-item${item.isLast ? " last" : ""}"><span class="proof-index">${index}</span><span class="proof-text">${escapeHtml(item.text)}</span></div></div>`;
   }
   if (item.type === "signoff") {
-    return `<div class="signoff">${item.closing ? `<p>${escapeHtml(item.closing)}</p>` : ""}<p class="signature">${escapeHtml(item.signature)}</p></div>`;
+    return `<div class="signoff">${item.closing ? `<p>${escapeHtml(item.closing)}</p>` : ""}${
+      item.signature ? `<p class="signature">${escapeHtml(item.signature)}</p>` : ""
+    }</div>`;
   }
 
-  return `<p class="postscript">P.S. ${escapeHtml(item.text)}</p>`;
+  return `<p class="postscript">${escapeHtml(item.text)}</p>`;
 }
 
 export function VeriworklyCoverLetterPreview({ content }: { content: CoverLetterContent }) {
-  const state = getCoverLetterState(content, { firstPage: 15, nextPage: 23 });
+  const state = useMemo(() => getCoverLetterState(content), [content]);
 
   const {
     appearance,
@@ -298,39 +308,21 @@ export function VeriworklyCoverLetterPreview({ content }: { content: CoverLetter
     contact,
     linkDisplayMode,
     renderedLinks,
+    date,
     recipient,
+    subject,
+    targetTitle,
+    targetCompany,
   } = state;
   const fontFamily = FONT_FAMILY_MAP[appearance.fontFamily];
-  const flowSenderName = getCoverLetterFlowSenderName(content);
-  const showTarget = isCoverLetterSectionVisible(content, "target");
-  const subject = content.subject || content.jobTitle || "Application";
-  const flowContent = useMemo(() => buildCoverLetterFlowContent(content), [content]);
-  const flowItems = useMemo(
-    () => buildVeriworklyFlowItems(flowContent, flowSenderName),
-    [flowContent, flowSenderName],
-  );
-  const [pages, setPages] = useState<VeriworklyFlowItem[][]>(() => [flowItems]);
+  const flowItems = useMemo(() => buildVeriworklyFlowItems(state.flow), [state.flow]);
+  const [pages, setPages] = useState<FlowFragment<VeriworklyFlowItem>[][]>(() => [
+    flowItems.map((item) => ({ item })),
+  ]);
   const measureRef = useRef<HTMLDivElement | null>(null);
   const firstPrefixRef = useRef<HTMLDivElement | null>(null);
-  const nextPrefixRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef(new Map<string, HTMLDivElement>());
-  const [fontsReady, setFontsReady] = useState(() => typeof document === "undefined");
-
-  // Measuring before the document font has loaded fills the probe with
-  // fallback metrics, producing page breaks the PDF export will not reproduce.
-  useEffect(() => {
-    if (fontsReady) return;
-
-    let cancelled = false;
-
-    document.fonts.ready.then(() => {
-      if (!cancelled) setFontsReady(true);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [fontsReady]);
+  const fontsReady = useCoverLetterFontReady(fontFamily);
 
   const shellStyle: CSSProperties = {
     backgroundColor: appearance.pageColor,
@@ -373,24 +365,19 @@ export function VeriworklyCoverLetterPreview({ content }: { content: CoverLetter
       probe.appendChild(main);
       measureRef.current?.appendChild(probe);
 
-      const nextPages = paginateIncremental(
-        flowItems,
-        createCoverLetterPageProbe<VeriworklyFlowItem>({
-          // The rail is a sibling of `main`, so height is measured on `main`.
-          measureRoot: main,
-          contentRoot: main,
-          pageHeight: PAGE_HEIGHT,
-          getPrefix: (pageIndex) =>
-            pageIndex === 0 ? firstPrefixRef.current : nextPrefixRef.current,
-          getItemNode: (item) => itemRefs.current.get(item.id) ?? null,
-          createBody: () => {
-            const body = document.createElement("section");
-            body.style.marginTop = px(S.subjectTop);
-            return body;
-          },
-        }),
-        keepVeriworklyProofHeadingWithNext,
-      );
+      const nextPages = paginateCoverLetterFlow(flowItems, {
+        // The rail is a sibling of `main`, so the page foot is measured on `main`.
+        measureRoot: main,
+        contentRoot: main,
+        getPrefix: (pageIndex) => (pageIndex === 0 ? firstPrefixRef.current : null),
+        getItemNode: (item) => itemRefs.current.get(item.id) ?? null,
+        getSplitKind: getFlowSplitKind,
+        createBody: (continued) => {
+          const body = document.createElement("section");
+          Object.assign(body.style, bodyStyle(continued));
+          return body;
+        },
+      });
       probe.remove();
       const nextKey = getFlowPageKey(nextPages);
 
@@ -424,8 +411,12 @@ export function VeriworklyCoverLetterPreview({ content }: { content: CoverLetter
         }}
       >
         <p style={webText(tokens.railLabel)}>Candidate</p>
-        <h1 style={{ ...webText(tokens.railName), marginTop: "16px" }}>{senderName}</h1>
-        <p style={{ ...webText(tokens.railTitle), marginTop: "8px" }}>{senderTitle}</p>
+        {senderName ? (
+          <h1 style={{ ...webText(tokens.railName), marginTop: "16px" }}>{senderName}</h1>
+        ) : null}
+        {senderTitle ? (
+          <p style={{ ...webText(tokens.railTitle), marginTop: "8px" }}>{senderTitle}</p>
+        ) : null}
 
         <div
           style={{
@@ -445,8 +436,8 @@ export function VeriworklyCoverLetterPreview({ content }: { content: CoverLetter
             rowGap: "8px",
           }}
         >
-          {contact.map((item) => (
-            <p key={item} style={webText(tokens.railText)}>
+          {contact.map((item, index) => (
+            <p key={index} style={webText(tokens.railText)}>
               {item}
             </p>
           ))}
@@ -491,7 +482,7 @@ export function VeriworklyCoverLetterPreview({ content }: { content: CoverLetter
           ))}
         </div>
 
-        {showTarget ? (
+        {targetTitle || targetCompany ? (
           <div
             style={{
               borderTop: `${S.hairline}px solid ${palette.sidebarBorder}`,
@@ -503,18 +494,18 @@ export function VeriworklyCoverLetterPreview({ content }: { content: CoverLetter
             }}
           >
             <p style={webText(tokens.railLabel)}>Target</p>
-            <p
-              style={{
-                ...webText(tokens.railText),
-                color: palette.sidebarText,
-                fontWeight: 700,
-              }}
-            >
-              {content.jobTitle || content.subject || "Open role"}
-            </p>
-            {content.companyName ? (
-              <p style={webText(tokens.railText)}>{content.companyName}</p>
+            {targetTitle ? (
+              <p
+                style={{
+                  ...webText(tokens.railText),
+                  color: palette.sidebarText,
+                  fontWeight: 700,
+                }}
+              >
+                {targetTitle}
+              </p>
             ) : null}
+            {targetCompany ? <p style={webText(tokens.railText)}>{targetCompany}</p> : null}
           </div>
         ) : null}
       </aside>
@@ -527,27 +518,20 @@ export function VeriworklyCoverLetterPreview({ content }: { content: CoverLetter
         ref={measureRef}
         aria-hidden="true"
         className="pointer-events-none absolute opacity-0"
-        style={{ left: -10000, top: 0, width: 794 }}
+        style={{ left: -10000, top: 0, width: S.pageWidth }}
       >
         <article className="overflow-hidden" style={{ ...shellStyle, ...pageBox }}>
           {renderSidebar()}
 
           <main style={mainStyle}>
             <div ref={firstPrefixRef}>
-              <RecipientMeta
-                date={content.date}
-                palette={palette}
-                recipient={recipient}
-                tokens={tokens}
-              />
-              {showTarget ? (
+              <RecipientMeta date={date} palette={palette} recipient={recipient} tokens={tokens} />
+              {subject ? (
                 <SubjectBlock palette={palette} subject={subject} tokens={tokens} />
               ) : null}
             </div>
 
-            <div ref={nextPrefixRef} />
-
-            <section style={{ marginTop: px(S.subjectTop) }}>
+            <section style={bodyStyle(false)}>
               {flowItems.map((item) => (
                 <div
                   key={item.id}
@@ -556,7 +540,7 @@ export function VeriworklyCoverLetterPreview({ content }: { content: CoverLetter
                     else itemRefs.current.delete(item.id);
                   }}
                 >
-                  {renderFlowItem(item, palette, tokens, appearance.paragraphSpacing)}
+                  {renderFlowItem({ item }, palette, tokens, appearance.paragraphSpacing)}
                 </div>
               ))}
             </section>
@@ -564,7 +548,7 @@ export function VeriworklyCoverLetterPreview({ content }: { content: CoverLetter
         </article>
       </div>
 
-      {pages.map((pageBlocks, pageIndex) => (
+      {pages.map((fragments, pageIndex) => (
         <article
           key={pageIndex}
           className="mx-auto max-w-full overflow-hidden shadow-sm ring-1 ring-zinc-200"
@@ -576,19 +560,23 @@ export function VeriworklyCoverLetterPreview({ content }: { content: CoverLetter
             {pageIndex === 0 ? (
               <>
                 <RecipientMeta
-                  date={content.date}
+                  date={date}
                   palette={palette}
                   recipient={recipient}
                   tokens={tokens}
                 />
-                {showTarget ? (
+                {subject ? (
                   <SubjectBlock palette={palette} subject={subject} tokens={tokens} />
                 ) : null}
               </>
             ) : null}
 
-            <section style={{ marginTop: px(S.subjectTop) }}>
-              {renderGroupedFlowItems(pageBlocks, palette, tokens, appearance.paragraphSpacing)}
+            <section style={bodyStyle(pages.slice(0, pageIndex).some((page) => page.length > 0))}>
+              {fragments.map((fragment) => (
+                <div key={`${fragment.item.id}-${fragment.range?.[0] ?? 0}`}>
+                  {renderFlowItem(fragment, palette, tokens, appearance.paragraphSpacing)}
+                </div>
+              ))}
             </section>
           </main>
         </article>
@@ -598,7 +586,7 @@ export function VeriworklyCoverLetterPreview({ content }: { content: CoverLetter
 }
 
 export function buildVeriworklyCoverLetterHtml(content: CoverLetterContent): string {
-  const state = getCoverLetterState(content, { firstPage: 15, nextPage: 23 });
+  const state = getCoverLetterState(content);
   const {
     appearance,
     palette,
@@ -608,49 +596,46 @@ export function buildVeriworklyCoverLetterHtml(content: CoverLetterContent): str
     contact,
     linkDisplayMode,
     renderedLinks,
+    date,
     recipient,
+    subject,
+    targetTitle,
+    targetCompany,
   } = state;
-  const showTarget = isCoverLetterSectionVisible(content, "target");
-  const subject = escapeHtml(
-    showTarget ? content.subject || content.jobTitle || "Application" : "",
-  );
   const fontFamily = FONT_FAMILY_MAP[appearance.fontFamily];
   const fontHref = getFontStylesheetHref(appearance.fontFamily);
-  const flowItems = buildVeriworklyFlowItems(buildCoverLetterFlowContent(content), senderName);
-  const pages = paginateVeriworklyHtmlItems(flowItems);
+  const flowItems = buildVeriworklyFlowItems(state.flow);
 
   const font = (token: (typeof t)["body"]) =>
     `font-size:${token.fontSize}px;line-height:${token.lineHeight}px;font-weight:${token.fontWeight};color:${token.color};`;
 
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(content.senderName || "Cover Letter")}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${escapeHtml(fontHref)}"><style>
-*{box-sizing:border-box}body{margin:0;padding:32px 16px;background:${palette.surface};color:${palette.text};font-family:${fontFamily}}p,h1,h2{margin:0}.page{width:794px;height:1123px;margin:0 auto 24px;overflow:hidden;background:${appearance.pageColor};box-shadow:0 0 0 1px ${palette.border};page-break-after:always;display:flex}.page:last-child{page-break-after:auto}aside{background:${appearance.sidebarColor};border-right:${S.hairline}px solid ${palette.sidebarBorder};padding:${S.railPadY}px ${S.railPadX}px;display:flex;flex-direction:column;flex:0 0 ${S.railWidth}px;width:${S.railWidth}px}aside h1{${font(t.railName)}margin-top:16px}aside .rail-title{${font(t.railTitle)}margin-top:8px}.rule{background:${palette.accent};height:${S.hairline}px;width:${S.railRuleWidth}px;margin:${S.railBlockTop}px 0}.rail{display:flex;flex-direction:column;margin-top:${S.railBlockTop}px;row-gap:8px}.rail p{${font(t.railText)}}.rail a{${font({ ...t.railText, color: palette.accent })}text-decoration:none;display:block}.target{border-top:${S.hairline}px solid ${palette.sidebarBorder};margin-top:auto;padding-top:${S.railTargetTop}px;display:flex;flex-direction:column;row-gap:8px}.target .title{${font({ ...t.railText, color: palette.sidebarText, fontWeight: 700 })}}main{flex:1 1 auto;min-width:0;background:${appearance.pageColor};padding:${appearance.pageMargin}px}.label{${font(t.railLabel)}letter-spacing:${t.railLabel.letterSpacing}px;text-transform:uppercase}.meta{display:flex;justify-content:space-between;column-gap:${S.metaColumnGap}px;border-bottom:${S.hairline}px solid ${palette.border};padding-bottom:${S.headerPadBottom}px}.meta .to{display:flex;flex-direction:column;flex:1 1 auto;min-width:0;row-gap:${S.metaRowGap}px}.meta .to p{${font(t.contact)}}.meta .date{${font(t.metaDate)}text-align:right;flex-shrink:0}.subject{border-left:${S.subjectBarWidth}px solid ${palette.accent};margin-top:${S.subjectTop}px;padding-left:${S.subjectPadLeft}px}.subject h2{${font(t.railSubject)}margin-top:${S.subjectLabelGap}px}.body{margin-top:${S.subjectTop}px}.body p{${font(t.body)}margin-bottom:${appearance.paragraphSpacing}px}.greeting{${font(t.strong)}}.list{background:${palette.surface};padding:${S.listPadY}px ${S.listPadX}px;margin-bottom:${appearance.paragraphSpacing}px}.bullet{display:flex;column-gap:${S.bulletGap}px}.bullet+.bullet{margin-top:${S.bulletRowGap}px}.bullet .marker{flex:0 0 ${S.bulletIndent - S.bulletGap}px;width:${S.bulletIndent - S.bulletGap}px;text-align:right}.bullet span{${font(t.body)}}.proof-label{${font(t.continued)}letter-spacing:${t.continued.letterSpacing}px;text-transform:uppercase;border-top:${S.hairline}px solid ${palette.border};margin-top:${S.subjectTop}px;padding-top:${S.railTargetTop}px}.proof-item{display:flex;column-gap:12px;border-bottom:${S.hairline}px solid ${palette.border};margin-top:${S.proofRowGap}px;padding-bottom:${S.proofPadBottom}px}.proof-item.last{border-bottom:0}.proof-index{${font(t.proofIndex)}flex:0 0 ${S.proofIndexWidth}px;width:${S.proofIndexWidth}px}.proof-text{${font(t.proofText)}flex:1 1 auto;min-width:0}.signoff{display:flex;flex-direction:column;margin-top:${S.subjectTop}px;row-gap:8px}.signature{${font({ ...t.strong, fontSize: 16, lineHeight: 19.2 })}}.postscript{${font(t.postscript)}border-top:${S.hairline}px solid ${palette.border};margin-top:${S.postscriptTop}px;padding-top:${S.postscriptPadTop}px}@media print{body{padding:0;background:white}.page{box-shadow:none;margin:0}}</style></head><body>${pages
-    .map((blocks, pageIndex) => {
-      const first = pageIndex === 0;
-      const body = blocks.map((item) => renderVeriworklyHtmlItem(item)).join("");
-      return `<article class="page"><aside><p class="label">Candidate</p><h1>${escapeHtml(
-        senderName,
-      )}</h1><p class="rail-title">${escapeHtml(senderTitle)}</p><div class="rule"></div><div class="rail">${contact
-        .map((item) => `<p>${escapeHtml(item)}</p>`)
-        .join("")}${renderedLinks
-        .map(
-          (link) =>
-            `<a href="${escapeHtml(normalizeLinkHref(link.url))}">${escapeHtml(getLinkDisplayText(link, linkDisplayMode))}</a>`,
-        )
-        .join("")}</div>${
-        showTarget
-          ? `<div class="target"><p class="label">Target</p><p class="title">${subject}</p><p>${escapeHtml(content.companyName)}</p></div>`
-          : ""
-      }</aside><main>${
-        first
-          ? `<div class="meta"><div class="to">${recipient
-              .map((line) => `<p>${escapeHtml(line)}</p>`)
-              .join("")}</div><p class="date">${escapeHtml(content.date)}</p></div>${
-              showTarget
-                ? `<section class="subject"><p class="label">Cover Letter</p><h2>${subject}</h2></section>`
-                : ""
-            }`
-          : ""
-      }<section class="body">${body}</section></main></article>`;
-    })
-    .join("")}</body></html>`;
+  const rail = `<aside><p class="label">Candidate</p>${senderName ? `<h1>${escapeHtml(senderName)}</h1>` : ""}${
+    senderTitle ? `<p class="rail-title">${escapeHtml(senderTitle)}</p>` : ""
+  }<div class="rule"></div><div class="rail">${contact
+    .map((item) => `<p>${escapeHtml(item)}</p>`)
+    .join("")}${renderedLinks.length > 0 ? `<div class="divider"></div>` : ""}${renderedLinks
+    .map(
+      (link) =>
+        `<a href="${escapeHtml(normalizeLinkHref(link.url))}">${escapeHtml(getLinkDisplayText(link, linkDisplayMode))}</a>`,
+    )
+    .join("")}</div>${
+    targetTitle || targetCompany
+      ? `<div class="target"><p class="label">Target</p>${
+          targetTitle ? `<p class="title">${escapeHtml(targetTitle)}</p>` : ""
+        }${targetCompany ? `<p>${escapeHtml(targetCompany)}</p>` : ""}</div>`
+      : ""
+  }</aside>`;
+
+  const head = `<div class="meta"><div class="to">${recipient
+    .map((line) => `<p>${escapeHtml(line)}</p>`)
+    .join("")}</div>${date ? `<p class="date">${escapeHtml(date)}</p>` : ""}</div>${
+    subject
+      ? `<section class="subject"><p class="label">Cover Letter</p><h2>${escapeHtml(subject)}</h2></section>`
+      : ""
+  }`;
+
+  // One flowing page whose rail runs its full height: the browser's print engine breaks the
+  // letter with the same rules react-pdf uses, and the screen copy never clips.
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${escapeHtml(getCoverLetterDocumentTitle(state))}</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${escapeHtml(fontHref)}"><style>
+*{box-sizing:border-box}body{margin:0;padding:32px 16px;background:${palette.surface};color:${palette.text};font-family:${fontFamily}}p,h1,h2{margin:0;white-space:pre-line}.page{width:${S.pageWidth}px;min-height:${S.pageHeight}px;margin:0 auto 24px;background:${appearance.pageColor};box-shadow:0 0 0 1px ${palette.border};display:flex}aside{background:${appearance.sidebarColor};border-right:${S.hairline}px solid ${palette.sidebarBorder};padding:${S.railPadY}px ${S.railPadX}px;display:flex;flex-direction:column;flex:0 0 ${S.railWidth}px;width:${S.railWidth}px}aside h1{${font(t.railName)}margin-top:16px}aside .rail-title{${font(t.railTitle)}margin-top:8px}.rule{background:${palette.accent};height:${S.hairline}px;width:${S.railRuleWidth}px;margin:${S.railBlockTop}px 0}.divider{background:${palette.accent};height:${S.hairline}px;width:${S.railRuleWidth}px;margin:16px 0}.rail{display:flex;flex-direction:column;margin-top:${S.railBlockTop}px;row-gap:8px}.rail p{${font(t.railText)}}.rail a{${font({ ...t.railText, color: palette.accent })}text-decoration:none;display:block}.target{border-top:${S.hairline}px solid ${palette.sidebarBorder};margin-top:auto;padding-top:${S.railTargetTop}px;display:flex;flex-direction:column;row-gap:8px}.target p{${font(t.railText)}}.target .title{${font({ ...t.railText, color: palette.sidebarText, fontWeight: 700 })}}main{flex:1 1 auto;min-width:0;background:${appearance.pageColor};padding:${appearance.pageMargin}px}.label{${font(t.railLabel)}letter-spacing:${t.railLabel.letterSpacing}px;text-transform:uppercase}.meta{display:flex;justify-content:space-between;column-gap:${S.metaColumnGap}px;border-bottom:${S.hairline}px solid ${palette.border};padding-bottom:${S.headerPadBottom}px}.meta .to{display:flex;flex-direction:column;flex:1 1 auto;min-width:0;row-gap:${S.metaRowGap}px}.meta .to p{${font(t.contact)}}.meta .date{${font(t.metaDate)}text-align:right;flex:0 0 ${S.metaDateWidth}px;width:${S.metaDateWidth}px}.subject{border-left:${S.subjectBarWidth}px solid ${palette.accent};margin-top:${S.subjectTop}px;padding-left:${S.subjectPadLeft}px}.subject h2{${font(t.railSubject)}margin-top:${S.subjectLabelGap}px}.body{display:flex;flex-direction:column;margin-top:${S.subjectTop}px}.body p{${font(t.body)}margin-bottom:${appearance.paragraphSpacing}px}.body .greeting{${font(t.strong)}}.greeting,.signoff,.proof,.bullet{break-inside:avoid}.list{background:${palette.surface};padding:${S.listPadY}px ${S.listPadX}px;margin-bottom:${appearance.paragraphSpacing}px}.bullet{display:flex;column-gap:${S.bulletGap}px}.bullet+.bullet{margin-top:${S.bulletRowGap}px}.bullet .marker{flex:0 0 ${S.bulletIndent - S.bulletGap}px;width:${S.bulletIndent - S.bulletGap}px;text-align:right}.bullet span{${font(t.body)}}.body .proof-label{${font(t.continued)}letter-spacing:${t.continued.letterSpacing}px;text-transform:uppercase;border-top:${S.hairline}px solid ${palette.border};margin:${S.subjectTop}px 0 0;padding-top:${S.railTargetTop}px}.proof-item{display:flex;column-gap:12px;border-bottom:${S.hairline}px solid ${palette.border};margin-top:${S.proofRowGap}px;padding-bottom:${S.proofPadBottom}px}.proof-item.last{border-bottom:0}.proof-index{${font(t.proofIndex)}flex:0 0 ${S.proofIndexWidth}px;width:${S.proofIndexWidth}px}.proof-text{${font(t.proofText)}flex:1 1 auto;min-width:0}.signoff{display:flex;flex-direction:column;margin-top:${S.subjectTop}px;row-gap:8px}.body .signoff p{margin-bottom:0}.body .signature{${font({ ...t.strong, fontSize: 16, lineHeight: 19.2 })}}.body .postscript{${font(t.postscript)}border-top:${S.hairline}px solid ${palette.border};margin:${S.postscriptTop}px 0 0;padding-top:${S.postscriptPadTop}px}@page{size:${S.pageWidth}px ${S.pageHeight}px;margin:0}@media print{body{padding:0;background:${appearance.pageColor}}.page{box-shadow:none;margin:0}}</style></head><body><article class="page">${rail}<main>${head}<section class="body">${flowItems.map(renderVeriworklyHtmlItem).join("")}</section></main></article></body></html>`;
 }

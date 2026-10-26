@@ -67,6 +67,8 @@ type ApiKeyListRecord = {
   isActive: boolean;
   createdAt: Date;
   lastUsed: Date | null;
+  expiresAt: Date | null;
+  revokedAt: Date | null;
 };
 
 type ApiKeyListQuery = {
@@ -396,6 +398,9 @@ export class ApiKeyService {
           isActive: true,
           createdAt: true,
           lastUsed: true,
+          // V-195: the studio labels a key "Expired" or "Revoked" from these.
+          expiresAt: true,
+          revokedAt: true,
         },
       }),
       prisma.apiKey.count({ where: { userId } }),
@@ -523,7 +528,10 @@ export class ApiKeyService {
           name: input.name?.trim() || current.name,
           scopes,
           userId,
-          rateLimit: normalizeRateLimit(input.rateLimit ?? current.rateLimit),
+          // V-196: the copy keeps the old key's limit as-is, so one an admin raised above the user
+          // maximum survives the rotate; only a limit the caller asks for is clamped.
+          rateLimit:
+            input.rateLimit === undefined ? current.rateLimit : normalizeRateLimit(input.rateLimit),
           expiresAt,
         },
         select: {

@@ -14,22 +14,52 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 // imports/sync for everyone else — this is deliberately generous, not a real usage ceiling.
 const PAID_GITHUB_IMPORT_DAILY_LIMIT = 50;
 
+/** One counter per UTC day, so the cap resets at UTC midnight. */
+function paidGithubImportKey(userId: string) {
+  return `import:paid-github:${userId}:${new Date().toISOString().slice(0, 10)}`;
+}
+
 export class ProfileImportQuotaService {
   /**
    * Check user quota status.
-   * Paid users get unlimited.
-   * Free users get once a month for LinkedIn, once a day for GitHub.
+   * Paid users: no LinkedIn limit (`unlimited`, `limit` and `remaining` null) and the real daily
+   * GitHub cap. Free users get once a month for LinkedIn, once a day for GitHub.
+   * `hasGithubAccount` (GitHub only) says whether a GitHub login is linked, whatever GitHub
+   * answers about its token (V-197).
    */
   static async checkQuota(userId: string, provider: "linkedin" | "github") {
     const isPaid = await EntitlementService.isPaid(userId);
+    const account =
+      provider === "github"
+        ? await prisma.account.findFirst({
+            where: { userId, providerId: "github" },
+            select: { accessToken: true },
+          })
+        : null;
+    const githubLink = provider === "github" ? { hasGithubAccount: Boolean(account) } : {};
 
-    if (isPaid) {
+    if (isPaid && provider === "linkedin") {
       return {
         isPaid: true,
-        remaining: 9999,
-        limit: 9999,
+        unlimited: true,
+        remaining: null,
+        limit: null,
         resetsInSeconds: 0,
         connectedUsername: null,
+      };
+    }
+
+    if (isPaid) {
+      const used = Number(await getRedis().get(paidGithubImportKey(userId))) || 0;
+      const nextUtcMidnight = new Date().setUTCHours(24, 0, 0, 0);
+      return {
+        isPaid: true,
+        unlimited: false,
+        remaining: Math.max(0, PAID_GITHUB_IMPORT_DAILY_LIMIT - used),
+        limit: PAID_GITHUB_IMPORT_DAILY_LIMIT,
+        resetsInSeconds: used > 0 ? Math.ceil((nextUtcMidnight - Date.now()) / 1000) : 0,
+        connectedUsername: null,
+        ...githubLink,
       };
     }
 
@@ -43,10 +73,6 @@ export class ProfileImportQuotaService {
 
     let connectedUsername: string | null = null;
     if (provider === "github") {
-      const account = await prisma.account.findFirst({
-        where: { userId, providerId: "github" },
-        select: { accessToken: true },
-      });
       if (account?.accessToken) {
         try {
           const response = await fetch("https://api.github.com/user", {
@@ -85,10 +111,12 @@ export class ProfileImportQuotaService {
 
     return {
       isPaid: false,
+      unlimited: false,
       remaining,
       limit: 1,
       resetsInSeconds,
       connectedUsername,
+      ...githubLink,
     };
   }
 
@@ -98,8 +126,7 @@ export class ProfileImportQuotaService {
    */
   static async consumePaidGithubImportQuota(userId: string) {
     const redis = getRedis();
-    const dayKey = new Date().toISOString().slice(0, 10);
-    const redisKey = `import:paid-github:${userId}:${dayKey}`;
+    const redisKey = paidGithubImportKey(userId);
 
     // One MULTI (V-114): a crash between INCR and EXPIRE can no longer leave a key with no TTL.
     const [count] = (await redis

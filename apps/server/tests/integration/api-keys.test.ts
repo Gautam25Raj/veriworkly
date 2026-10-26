@@ -542,4 +542,39 @@ describe("API keys through the real stack", () => {
     expect((await requestWithKey(created.key)).status).toBe(401);
     expect(await prisma.apiKey.count({ where: { userId: user.id } })).toBe(0);
   });
+
+  it("(j) the key list carries expiresAt and revokedAt, so an expired or revoked key can be labelled (V-195)", async () => {
+    const user = await createUserWithSession();
+    const future = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const live = await createKey(user, { name: "listed-live", expiresAt: future.toISOString() });
+    const revoked = await createKey(user, { name: "listed-revoked" });
+    await asUser(user).post(`/api/v1/api-keys/${revoked.id}/revoke`).send({});
+
+    const list = await asUser(user).get("/api/v1/api-keys");
+    expect(list.status).toBe(200);
+    const rows = list.body.data.items as Array<Record<string, unknown>>;
+    const liveRow = rows.find((row) => row.id === live.id);
+    const revokedRow = rows.find((row) => row.id === revoked.id);
+
+    expect(liveRow).toHaveProperty("revokedAt", null);
+    expect(new Date(liveRow?.expiresAt as string).getTime()).toBe(future.getTime());
+    expect(typeof revokedRow?.revokedAt).toBe("string");
+    expect(revokedRow).toHaveProperty("expiresAt");
+  });
+
+  it("(k) rotate keeps an admin-raised rate limit unless the caller sends a new one, which is clamped (V-196)", async () => {
+    const user = await createUserWithSession();
+    const created = await createKey(user);
+    await updateApiKey(created.id, { rateLimit: 5_000, reason: "integration raise" });
+
+    const kept = await asUser(user).post(`/api/v1/api-keys/${created.id}/rotate`).send({});
+    expect(kept.status).toBe(201);
+    expect(kept.body.data.rateLimit).toBe(5_000);
+
+    const asked = await asUser(user)
+      .post(`/api/v1/api-keys/${kept.body.data.id}/rotate`)
+      .send({ rateLimit: 5_000 });
+    expect(asked.status).toBe(201);
+    expect(asked.body.data.rateLimit).toBeLessThan(5_000);
+  });
 });

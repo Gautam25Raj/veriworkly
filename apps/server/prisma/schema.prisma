@@ -308,6 +308,11 @@ model CreditReservation {
   cost      Int
   status    CreditReservationStatus @default(PENDING)
   expiresAt DateTime
+  // What the committed request returned (the AI draft), written in the commit's own transaction
+  // so a retry with the same requestId after a lost response gets it back instead of a 409 and
+  // is never charged twice (V-192). Cleared by the retention job after
+  // RETENTION_CREDIT_REPLAY_DAYS; a replay after that answers 409 as before.
+  replay    Json?
   createdAt DateTime                @default(now())
   updatedAt DateTime                @updatedAt
 
@@ -317,7 +322,9 @@ model CreditReservation {
   @@index([status, updatedAt])
   // Also "CreditReservation_sweep_idx" ("expiresAt", "userId") WHERE status = 'PENDING': a
   // partial index for the credit sweep job, hand-written in migration
-  // 20261025160000_admin_query_indexes because Prisma cannot model partial indexes.
+  // 20261025160000_admin_query_indexes because Prisma cannot model partial indexes. Likewise
+  // "CreditReservation_replay_idx" ("updatedAt") WHERE replay IS NOT NULL, for the retention
+  // job's replay clearing (migration 20261026160000_ai_replay_and_billing_event_summary).
 }
 
 model CreditTransaction {
@@ -593,6 +600,12 @@ model BillingWebhookEvent {
   user            User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
   type            String
   payload         Json
+  // What the event was for, as the customer's billing history shows it (V-197). Written when the
+  // event is stored so the row keeps it after the retention job redacts `payload`. Null when the
+  // event names no known product or amount.
+  productName     String?
+  amountCents     Int?
+  currency        String?
   status          BillingWebhookStatus @default(PROCESSING)
   error           String?
   processedAt     DateTime?

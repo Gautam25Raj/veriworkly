@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 import request from "supertest";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -856,6 +858,38 @@ describe("owner decision: subscription credits reset monthly, nothing rolls over
     expect(schedule.stoppedAt).not.toBeNull();
   });
 
+  it("names the refunded product on the refund's billing history row (V-197)", async () => {
+    const { user, payment } = await annualSubscriber("sub_annual_refund_named");
+    const refund = await deliver({
+      type: "refund.succeeded",
+      timestamp: new Date().toISOString(),
+      data: {
+        refund_id: `ref_${randomUUID()}`,
+        payment_id: payment.data.payment_id,
+        status: "succeeded",
+        is_partial: false,
+        amount: 5_990,
+        currency: "USD",
+        created_at: new Date().toISOString(),
+      },
+    });
+    expect(refund.response.status, JSON.stringify(refund.response.body)).toBe(200);
+
+    const history = await request(app)
+      .get("/api/v1/billing/history")
+      .set("Origin", STUDIO_ORIGIN)
+      .set("Cookie", user.cookie);
+    const row = (history.body.data as Array<Record<string, unknown>>).find(
+      (item) => item.providerEventId === refund.eventId,
+    );
+    expect(row).toMatchObject({
+      type: "refund.succeeded",
+      productName: "AI Credits (annual)",
+      amountCents: 5_990,
+      currency: "USD",
+    });
+  });
+
   it("stops when the plan changes to one without credits and continues across an AI-to-bundle upgrade", async () => {
     const upgraded = await annualSubscriber("sub_annual_upgrade");
     await deliver(
@@ -1380,5 +1414,241 @@ describe("review fixes: admin status edits, dunning overlap and billing mail ret
         })
       ).sentAt,
     ).not.toBeNull();
+  });
+});
+
+describe("V-197 billing payloads carry what the studio shows", () => {
+  async function billingHistory(user: TestUser) {
+    const response = await request(app)
+      .get("/api/v1/billing/history")
+      .set("Origin", STUDIO_ORIGIN)
+      .set("Cookie", user.cookie);
+    expect(response.status).toBe(200);
+    return response.body.data as Array<Record<string, unknown>>;
+  }
+
+  it("prices each credit pack in the /billing/me catalog", async () => {
+    const user = await createUserWithSession();
+    const { creditEconomics } = await billingMe(user);
+
+    expect(creditEconomics.packs).toEqual([
+      expect.objectContaining({
+        key: "credit_pack_250",
+        name: "250 extra credits",
+        credits: 250,
+        price: 299,
+        currency: "USD",
+      }),
+      expect.objectContaining({
+        key: "credit_pack_500",
+        name: "500 extra credits",
+        credits: 500,
+        price: 499,
+        currency: "USD",
+      }),
+    ]);
+  });
+
+  it("names the product and amount on each billing history row", async () => {
+    const user = await createUserWithSession();
+    const pass = await deliver(
+      paymentEvent({ userId: user.id, productId: "prod_bundle_seven_day", amount: 599 }),
+    );
+    const pack = await deliver(
+      paymentEvent({
+        userId: user.id,
+        productId: "prod_pack_250",
+        amount: 299,
+        metadata: { veriworkly_user_id: user.id, veriworkly_product: "credit_pack_250" },
+      }),
+    );
+    const subscription = await deliver(
+      subscriptionEvent({
+        userId: user.id,
+        subscriptionId: `sub_${randomUUID()}`,
+        productId: "prod_ai_credits_monthly",
+        status: "active",
+        at: eventTime(1),
+        nextBillingDate: new Date(Date.now() + 30 * DAY_MS),
+      }),
+    );
+    for (const delivered of [pass, pack, subscription])
+      expect(delivered.response.status, JSON.stringify(delivered.response.body)).toBe(200);
+
+    const rows = await billingHistory(user);
+    const byEvent = (eventId: string) => rows.find((row) => row.providerEventId === eventId);
+
+    expect(byEvent(pass.eventId)).toMatchObject({
+      type: "payment.succeeded",
+      productName: "7-Day Hunt Pass",
+      amountCents: 599,
+      currency: "USD",
+    });
+    expect(byEvent(pack.eventId)).toMatchObject({
+      type: "payment.succeeded",
+      productName: "250 extra credits",
+      amountCents: 299,
+      currency: "USD",
+    });
+    expect(byEvent(subscription.eventId)).toMatchObject({
+      type: "subscription.active",
+      productName: "AI Credits (monthly)",
+      amountCents: 599,
+      currency: "USD",
+    });
+    // Additive: the existing fields are all still there, and the raw payload is never sent.
+    for (const row of rows) {
+      expect(row).toEqual(
+        expect.objectContaining({
+          id: expect.any(String),
+          providerEventId: expect.any(String),
+          type: expect.any(String),
+          createdAt: expect.any(String),
+        }),
+      );
+      expect(row).not.toHaveProperty("payload");
+    }
+  });
+
+  it("describes a row stored before the columns existed from its payload, and a redacted one as unknown", async () => {
+    const user = await createUserWithSession();
+    const legacy = paymentEvent({ userId: user.id, productId: "prod_bundle_one_day", amount: 299 });
+    await prisma.billingWebhookEvent.createMany({
+      data: [
+        {
+          providerEventId: `evt_legacy_${randomUUID()}`,
+          userId: user.id,
+          type: legacy.type,
+          payload: legacy,
+          status: "PROCESSED",
+          processedAt: new Date(),
+        },
+        {
+          providerEventId: `evt_redacted_${randomUUID()}`,
+          userId: user.id,
+          type: "payment.succeeded",
+          payload: { redacted: true, type: "payment.succeeded" },
+          status: "PROCESSED",
+          processedAt: new Date(),
+        },
+      ],
+    });
+
+    const rows = await billingHistory(user);
+    expect(rows.find((row) => String(row.providerEventId).startsWith("evt_legacy_"))).toMatchObject(
+      { productName: "3-Day Sprint Pass", amountCents: 299, currency: "USD" },
+    );
+    expect(
+      rows.find((row) => String(row.providerEventId).startsWith("evt_redacted_")),
+    ).toMatchObject({ productName: null, amountCents: null, currency: null });
+  });
+
+  it("the migration backfills intact payloads, names refunds from their payment, and is idempotent", async () => {
+    const migration = readFileSync(
+      path.resolve(
+        __dirname,
+        "../../prisma/migrations/20261026160000_ai_replay_and_billing_event_summary/migration.sql",
+      ),
+      "utf8",
+    );
+    const statements = migration
+      .split(/^-- backfill\r?$/m)
+      .slice(1)
+      .map((part) => part.slice(0, part.lastIndexOf(";") + 1).trim());
+    expect(statements).toHaveLength(2);
+
+    const user = await createUserWithSession();
+    const tag = randomUUID();
+    const pass = paymentEvent({
+      userId: user.id,
+      paymentId: `pay_pass_${tag}`,
+      productId: "prod_bundle_seven_day",
+      amount: 599,
+      metadata: {
+        veriworkly_user_id: user.id,
+        veriworkly_product: "bundle",
+        veriworkly_interval: "seven_day",
+      },
+    });
+    const pack = paymentEvent({
+      userId: user.id,
+      productId: "prod_pack_500",
+      amount: 499,
+      currency: "usd",
+      metadata: { veriworkly_user_id: user.id, veriworkly_product: "credit_pack_500" },
+    });
+    const subscription = subscriptionEvent({
+      userId: user.id,
+      subscriptionId: `sub_${tag}`,
+      productId: "prod_ai_credits_annual",
+      status: "active",
+      at: eventTime(),
+      nextBillingDate: null,
+    });
+    subscription.data.metadata = {
+      veriworkly_user_id: user.id,
+      veriworkly_product: "ai_credits",
+      veriworkly_interval: "annual",
+    } as typeof subscription.data.metadata;
+    const refund = {
+      type: "refund.succeeded",
+      timestamp: new Date().toISOString(),
+      data: { payment_id: `pay_pass_${tag}`, amount: 599, currency: "USD" },
+    };
+    const rows = [
+      ["pass", pass.type, pass, {}],
+      ["pack", pack.type, pack, {}],
+      ["subscription", subscription.type, subscription, {}],
+      ["refund", refund.type, refund, {}],
+      ["redacted", "payment.succeeded", { redacted: true, type: "payment.succeeded" }, {}],
+      ["kept", pack.type, pack, { productName: "Kept as stored" }],
+    ] as const;
+    await prisma.billingWebhookEvent.createMany({
+      data: rows.map(([name, type, payload, columns]) => ({
+        providerEventId: `evt_${name}_${tag}`,
+        userId: user.id,
+        type,
+        payload,
+        status: "PROCESSED" as const,
+        processedAt: new Date(),
+        ...columns,
+      })),
+    });
+
+    for (let run = 0; run < 2; run++)
+      for (const statement of statements) await prisma.$executeRawUnsafe(statement);
+
+    const stored = await prisma.billingWebhookEvent.findMany({
+      where: { providerEventId: { endsWith: `_${tag}` } },
+      select: { providerEventId: true, productName: true, amountCents: true, currency: true },
+    });
+    const byName = (name: string) =>
+      stored.find((row) => row.providerEventId === `evt_${name}_${tag}`);
+    expect(byName("pass")).toMatchObject({
+      productName: "7-Day Hunt Pass",
+      amountCents: 599,
+      currency: "USD",
+    });
+    expect(byName("pack")).toMatchObject({
+      productName: "500 extra credits",
+      amountCents: 499,
+      currency: "USD",
+    });
+    expect(byName("subscription")).toMatchObject({
+      productName: "AI Credits (annual)",
+      amountCents: 599,
+      currency: "USD",
+    });
+    expect(byName("refund")).toMatchObject({
+      productName: "7-Day Hunt Pass",
+      amountCents: 599,
+      currency: "USD",
+    });
+    expect(byName("redacted")).toMatchObject({
+      productName: null,
+      amountCents: null,
+      currency: null,
+    });
+    expect(byName("kept")).toMatchObject({ productName: "Kept as stored", amountCents: 499 });
   });
 });

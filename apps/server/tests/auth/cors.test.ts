@@ -1,6 +1,10 @@
+import express from "express";
+import request from "supertest";
 import { describe, expect, it } from "vitest";
 
-import { isWildcardPortfolioOrigin } from "../../src/middleware/cors";
+import { config } from "../../src/config";
+
+import { corsMiddleware, isWildcardPortfolioOrigin } from "../../src/middleware/cors";
 
 describe("CORS wildcard portfolio origin detection", () => {
   const allowedOrigins = [
@@ -25,5 +29,34 @@ describe("CORS wildcard portfolio origin detection", () => {
 
   it("treats local portfolio preview subdomains as wildcard portfolio origins", () => {
     expect(isWildcardPortfolioOrigin("http://alice.localhost:3004", allowedOrigins)).toBe(true);
+  });
+});
+
+describe("CORS preflight", () => {
+  function preflightApp() {
+    const app = express();
+    app.use(corsMiddleware);
+    app.post("/admin/credits", (_req, res) => {
+      res.json({ ok: true });
+    });
+    return app;
+  }
+
+  it("allows the Idempotency-Key header the admin credit-adjust route documents (V-194)", async () => {
+    const origin = config.allowedOrigins[0];
+    expect(origin).toBeTruthy();
+
+    const response = await request(preflightApp())
+      .options("/admin/credits")
+      .set("Origin", origin)
+      .set("Access-Control-Request-Method", "POST")
+      .set("Access-Control-Request-Headers", "content-type,idempotency-key");
+
+    expect(response.status).toBe(204);
+    const allowed = String(response.headers["access-control-allow-headers"])
+      .split(",")
+      .map((header) => header.trim().toLowerCase());
+    expect(allowed).toContain("idempotency-key");
+    expect(allowed).toContain("content-type");
   });
 });

@@ -47,6 +47,7 @@ describe("retention job", () => {
       "RETENTION_AUDIT_LOG_DAYS",
       "RETENTION_ADMIN_AUDIT_DAYS",
       "RETENTION_CREDIT_RESERVATION_DAYS",
+      "RETENTION_CREDIT_REPLAY_DAYS",
       "RETENTION_FLUSH_BATCH_DAYS",
       "RETENTION_AFFILIATE_CLICK_DAYS",
       "RETENTION_PORTFOLIO_VIEW_DAYS",
@@ -70,9 +71,9 @@ describe("retention job", () => {
 
     expect(summary.failed).toEqual(["expiredSessions"]);
     expect(summary.affected.expiredSessions).toBe(0);
-    // Every other enabled rule still ran: 9 statements (portfolio views and affiliate clicks are
+    // Every other enabled rule still ran: 10 statements (portfolio views and affiliate clicks are
     // off by default).
-    expect(mocks.executeRaw).toHaveBeenCalledTimes(9);
+    expect(mocks.executeRaw).toHaveBeenCalledTimes(10);
     expect(mocks.logger.error).toHaveBeenCalledWith(
       "Retention rule expiredSessions failed",
       expect.objectContaining({ error: "deadlock" }),

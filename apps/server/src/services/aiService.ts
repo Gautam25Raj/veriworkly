@@ -4,12 +4,18 @@ import { createAiClient } from "#services/aiClient";
 import { getAiActionPolicy, getAiModePolicy, publicAiActionPolicy } from "#services/aiPolicy";
 import { aiTimeoutError } from "#services/ats/aiDeadline";
 import { releaseReservationQuietly } from "#services/ats/atsAi";
-import { CreditService } from "#services/creditService";
+import { CreditService, replayFingerprint } from "#services/creditService";
 
 import { ApiError } from "#lib/errors";
 import { logger } from "#lib/logger";
 
 import type { AiGenerateInput } from "#validators/aiValidator";
+
+type GenerateResult = {
+  content: string;
+  usage: { promptTokens: number; completionTokens: number; totalTokens: number } | null;
+  credits: { spent: number; balance: number };
+};
 
 function validateAndNormalizeInput(input: AiGenerateInput) {
   const policy = getAiActionPolicy(input.action);
@@ -51,6 +57,22 @@ export class AiService {
     const normalizedInput = validateAndNormalizeInput(input);
     const actionPolicy = getAiActionPolicy(input.action);
     const modePolicy = getAiModePolicy(input.action, input.mode);
+
+    // V-192: a retry of a request that was already paid for (its response was lost on the way)
+    // gets that response back, with no provider call and no second charge.
+    const fingerprint = replayFingerprint({
+      mode: input.mode,
+      documentId: input.documentId ?? null,
+      input: normalizedInput,
+    });
+    const stored = await CreditService.storedResult(
+      userId,
+      input.requestId,
+      input.action,
+      fingerprint,
+    );
+    if (stored) return { ...(stored as GenerateResult), replayed: true };
+
     const reservation = await CreditService.reserveAction(
       userId,
       input.action,
@@ -82,6 +104,18 @@ export class AiService {
 
       if (!content) throw new ApiError(502, "The AI provider returned an empty response.");
 
+      const usage = completion.usage
+        ? {
+            promptTokens: completion.usage.prompt_tokens,
+            completionTokens: completion.usage.completion_tokens,
+            totalTokens: completion.usage.total_tokens,
+          }
+        : null;
+      const respond = (balance: number): GenerateResult => ({
+        content,
+        usage,
+        credits: { spent: reservation.cost, balance },
+      });
       const transaction = await CreditService.commitReservation(userId, input.requestId, {
         documentId: input.documentId,
         referenceId: completion.id,
@@ -92,22 +126,10 @@ export class AiService {
           totalTokens: completion.usage?.total_tokens ?? null,
           mode: input.mode,
         },
+        replay: { fingerprint, response: (row) => respond(row.balanceAfter) },
       });
 
-      return {
-        content,
-        usage: completion.usage
-          ? {
-              promptTokens: completion.usage.prompt_tokens,
-              completionTokens: completion.usage.completion_tokens,
-              totalTokens: completion.usage.total_tokens,
-            }
-          : null,
-        credits: {
-          spent: reservation.cost,
-          balance: transaction.balanceAfter,
-        },
-      };
+      return respond(transaction.balanceAfter);
     } catch (error) {
       await releaseReservationQuietly(userId, input.requestId, { action: input.action });
       if (error instanceof ApiError) throw error;

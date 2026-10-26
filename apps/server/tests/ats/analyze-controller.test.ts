@@ -18,7 +18,13 @@ vi.mock("#middleware/rateLimit", () => ({
 }));
 
 vi.mock("#services/creditService", () => ({
-  CreditService: { getWallet: (...args: unknown[]) => getWallet(...args) },
+  CreditService: {
+    getWallet: (...args: unknown[]) => getWallet(...args),
+    // No stored analysis: every request here is a first attempt (replays are integration-tested).
+    storedResult: async () => null,
+    attachReplay: async () => undefined,
+  },
+  replayFingerprint: () => "fingerprint",
 }));
 
 vi.mock("#services/ats/aiPolicy", () => ({
@@ -49,6 +55,7 @@ vi.mock("#services/ats/scoring", () => ({
 }));
 
 vi.mock("#services/ats/ai", () => ({
+  ANALYSIS_ACTION: "ats_analysis",
   AtsAiService: { analyze: (...args: unknown[]) => analyze(...args) },
 }));
 

@@ -143,17 +143,18 @@ export function buildAreaPath(points: Point[], height: number) {
  * Percent change between the first and second half of a window.
  *
  * Comparing halves rather than first-point-to-last-point means one freak day at either end
- * cannot invent a trend. Returns null when the earlier half is empty, because "up from zero"
- * has no percentage — the caller renders that as "—" rather than as infinity.
+ * cannot invent a trend. The halves are the same length (an odd window drops its middle day),
+ * so a flat series reads 0%. Returns null when the earlier half is empty, because "up from
+ * zero" has no percentage — the caller renders that as "—" rather than as infinity.
  */
 export function trendFromSeries(values: number[]): number | null {
   if (values.length < 4) return null;
 
-  const midpoint = Math.floor(values.length / 2);
+  const half = Math.floor(values.length / 2);
   const sum = (slice: number[]) => slice.reduce((total, value) => total + value, 0);
 
-  const earlier = sum(values.slice(0, midpoint));
-  const later = sum(values.slice(midpoint));
+  const earlier = sum(values.slice(0, half));
+  const later = sum(values.slice(values.length - half));
 
   if (earlier === 0) return null;
 

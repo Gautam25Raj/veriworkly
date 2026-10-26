@@ -1,9 +1,11 @@
 import { AffiliateNav } from "@/features/affiliate/AffiliateNav";
 import type { AffiliateDashboard } from "@/features/affiliate/types";
-import { getBillingServerData } from "@/features/billing/billing-server";
+import { getProgramServerData, PROGRAM_UNAVAILABLE } from "@/features/billing/billing-server";
+import { ProgramUnavailable } from "@/features/billing/ProgramUnavailable";
 
 export default async function AffiliateReferralsPage() {
-  const data = await getBillingServerData<AffiliateDashboard>("/affiliates/me");
+  const data = await getProgramServerData<AffiliateDashboard>("/affiliates/me");
+  if (data === PROGRAM_UNAVAILABLE) return <ProgramUnavailable program="affiliate" />;
   return (
     <main className="space-y-5">
       <AffiliateNav />

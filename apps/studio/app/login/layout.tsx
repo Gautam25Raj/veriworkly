@@ -5,25 +5,28 @@ import Image from "next/image";
 import { Metadata } from "next";
 
 import { siteConfig } from "@/config/site";
+import { toSafeJsonLd } from "@/lib/json-ld";
 import { Badge, Button } from "@veriworkly/ui";
 
 import ShowcaseCards from "./component/ShowcaseCards";
 
 const pageUrl = `${siteConfig.url}/login`;
 const pageOgImage = `${siteConfig.url}/og/login-page-og.png`;
+const pageDescription =
+  "Sign in to VeriWorkly to back up your resumes and cover letters, run ATS checks, and share your documents.";
 
+/** The one indexable studio page: every other route inherits the root layout's `noindex`. */
 export const metadata: Metadata = {
-  title: "Login | VeriWorkly Career Suite",
-  description:
-    "Access your VeriWorkly account to build ATS-optimized resumes, generate cover letters, and publish portfolio websites on your own subdomain.",
+  title: { absolute: "Login | VeriWorkly Career Suite" },
+  description: pageDescription,
   alternates: {
     canonical: pageUrl,
   },
+  robots: { index: true, follow: true },
 
   openGraph: {
     title: `Login | VeriWorkly Career Suite`,
-    description:
-      "Access your VeriWorkly account to build ATS-optimized resumes, generate cover letters, and publish portfolio websites on your own subdomain.",
+    description: pageDescription,
     url: pageUrl,
     siteName: siteConfig.shortName,
     type: "website",
@@ -40,8 +43,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: `Login | VeriWorkly Career Suite`,
-    description:
-      "Access your VeriWorkly account to build ATS-optimized resumes, generate cover letters, and publish portfolio websites on your own subdomain.",
+    description: pageDescription,
     images: [pageOgImage],
   },
 };
@@ -62,7 +64,7 @@ const AuthLayout = ({ children }: AuthLayoutProps) => {
         applicationCategory: "BusinessApplication",
         operatingSystem: "All",
         description:
-          "A privacy-first, open-source ATS resume builder, cover letter generator, and portfolio builder that helps you create matching professional CVs and publish them to a custom subdomain.",
+          "A privacy-first, open-source ATS resume builder, cover letter generator, and portfolio builder.",
         offers: {
           "@type": "Offer",
           price: "0",
@@ -71,8 +73,8 @@ const AuthLayout = ({ children }: AuthLayoutProps) => {
         featureList: [
           "Free online ATS-friendly resume builder",
           "AI-assisted cover letter generator",
-          "Personal developer and designer portfolios with custom subdomains",
-          "Local-first browser storage with secure database synchronization",
+          "Personal developer and designer portfolios",
+          "Local-first browser storage with optional cloud backup",
         ],
       },
       {
@@ -86,8 +88,7 @@ const AuthLayout = ({ children }: AuthLayoutProps) => {
           name: "VeriWorkly",
           url: siteConfig.links.main,
         },
-        description:
-          "Access your VeriWorkly account to build ATS-optimized resumes, generate cover letters, and publish portfolio websites on your own subdomain.",
+        description: pageDescription,
       },
     ],
   };
@@ -96,7 +97,7 @@ const AuthLayout = ({ children }: AuthLayoutProps) => {
     <main className="surface-grid relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-14 md:py-20">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: toSafeJsonLd(jsonLd) }}
       />
 
       <div className="absolute top-6 right-6 z-50">
@@ -133,9 +134,8 @@ const AuthLayout = ({ children }: AuthLayoutProps) => {
               </h2>
 
               <p className="text-muted max-w-md text-base">
-                All features work directly in your browser. Create an account only if you want
-                secure cloud backups, matched cover letters, and to publish your portfolio to a
-                custom subdomain.
+                Write resumes and cover letters and export them right in your browser. Create an
+                account when you want cloud backups, share links, ATS checks, imports, and AI help.
               </p>
             </div>
 

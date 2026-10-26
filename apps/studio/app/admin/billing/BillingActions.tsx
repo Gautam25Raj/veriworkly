@@ -1,16 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 import { Select } from "@veriworkly/ui";
 
 import AdminActionDialog from "@/components/admin/AdminActionDialog";
 import {
+  ADMIN_ENTITLEMENT_KEYS,
   adjustAdminCredits,
   grantAdminEntitlement,
   replayAdminWebhook,
   revokeAdminEntitlement,
   updateAdminSubscription,
+  type AdminEntitlementKey,
 } from "@/features/admin/services/admin-actions";
 
 import type { SubscriptionStatus } from "@/features/admin/types/admin-types";
@@ -18,21 +21,12 @@ import type { SubscriptionStatus } from "@/features/admin/types/admin-types";
 const inputClass =
   "border-border bg-background h-9 w-full rounded-lg border px-3 text-xs outline-none";
 
-export const ENTITLEMENT_KEYS = [
-  "portfolio_publish",
-  "ai_credits",
-  "custom_subdomain",
-  "seo_controls",
-  "analytics",
-  "watermark_removal",
-];
-
 /**
- * Manual subscription override.
+ * Edits to our copy of a subscription.
  *
- * The payment provider stays the source of truth — this exists for the case where a webhook
- * was lost and an account is stuck without the access it paid for. The next provider webhook
- * will overwrite whatever is set here, which is why the dialog says so out loud.
+ * Neither control reaches the payment provider (Dodo), and neither grants or revokes access:
+ * access follows entitlement grants, and the next provider webhook overwrites these fields. The
+ * dialogs say so, because support reading "cancel" would otherwise believe billing stopped.
  */
 export function SubscriptionActions({
   id,
@@ -65,22 +59,40 @@ export function SubscriptionActions({
         trigger="Apply"
         disabled={nextStatus === status}
         title="Override subscription status"
-        description={`Setting ${email}'s subscription to ${nextStatus}. The payment provider remains authoritative — the next webhook for this subscription will overwrite this value.`}
-        confirmLabel="Apply override"
+        description={
+          <>
+            Changes the status label on {email}&apos;s subscription to {nextStatus}, nothing else:
+            it does not grant or revoke access and does not touch billing at Dodo, and the next
+            webhook overwrites it. To give or remove access, use the grant form on{" "}
+            <Link href="/admin/billing/entitlements" className="text-accent underline">
+              Entitlements
+            </Link>
+            .
+          </>
+        }
+        confirmLabel="Change label"
         onConfirm={async (reason) => {
           await updateAdminSubscription(id, { status: nextStatus, reason });
         }}
       />
 
       <AdminActionDialog
-        trigger={cancelAtPeriodEnd ? "Resume" : "Cancel at period end"}
-        title={cancelAtPeriodEnd ? "Clear the scheduled cancellation" : "Cancel at period end"}
+        trigger={
+          cancelAtPeriodEnd
+            ? "Clear cancel-at-period-end (local flag only)"
+            : "Mark cancel-at-period-end (local flag only — cancel in Dodo)"
+        }
+        title={
+          cancelAtPeriodEnd
+            ? "Clear the local cancel-at-period-end flag"
+            : "Mark cancel-at-period-end (local flag only)"
+        }
         description={
           cancelAtPeriodEnd
-            ? `${email}'s subscription will renew normally again.`
-            : `${email} keeps access until the current period ends, then the subscription lapses.`
+            ? `Clears the flag on our copy of ${email}'s subscription. Nothing changes at Dodo, and the next webhook overwrites the flag.`
+            : `Sets a flag on our copy of ${email}'s subscription only. It does not cancel anything at Dodo: the renewal still charges until the subscription is cancelled in the Dodo dashboard, and the next webhook overwrites this flag.`
         }
-        confirmLabel="Save"
+        confirmLabel="Save flag"
         onConfirm={async (reason) => {
           await updateAdminSubscription(id, { cancelAtPeriodEnd: !cancelAtPeriodEnd, reason });
         }}
@@ -121,8 +133,8 @@ export function CreditAdjustmentForm() {
         title="Adjust a credit balance"
         description={`${parsed > 0 ? "Granting" : "Removing"} ${Math.abs(parsed)} credits.`}
         confirmLabel="Apply"
-        onConfirm={async (reason) => {
-          await adjustAdminCredits(userId.trim(), parsed, reason);
+        onConfirm={async (reason, attemptKey) => {
+          await adjustAdminCredits(userId.trim(), parsed, reason, attemptKey);
           setUserId("");
         }}
       />
@@ -133,7 +145,7 @@ export function CreditAdjustmentForm() {
 /** Manual entitlement grant, optionally time-boxed. */
 export function EntitlementGrantForm() {
   const [userId, setUserId] = useState("");
-  const [key, setKey] = useState(ENTITLEMENT_KEYS[0]);
+  const [key, setKey] = useState<AdminEntitlementKey>(ADMIN_ENTITLEMENT_KEYS[0]);
   const [endsAt, setEndsAt] = useState("");
 
   return (
@@ -145,8 +157,12 @@ export function EntitlementGrantForm() {
         onChange={(event) => setUserId(event.target.value)}
       />
 
-      <Select className="h-9 text-xs" value={key} onChange={(event) => setKey(event.target.value)}>
-        {ENTITLEMENT_KEYS.map((entitlement) => (
+      <Select
+        className="h-9 text-xs"
+        value={key}
+        onChange={(event) => setKey(event.target.value as AdminEntitlementKey)}
+      >
+        {ADMIN_ENTITLEMENT_KEYS.map((entitlement) => (
           <option key={entitlement} value={entitlement}>
             {entitlement.replace(/_/g, " ")}
           </option>

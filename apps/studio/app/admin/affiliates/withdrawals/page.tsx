@@ -39,29 +39,34 @@ const columns: Array<AdminTableColumn<AdminWithdrawalRow>> = [
   {
     key: "affiliate",
     header: "Affiliate",
-    render: (row) => (
-      <div className="min-w-0">
-        <Link
-          href={`/admin/affiliates/${row.user.id}`}
-          className="text-foreground font-medium hover:underline"
-        >
-          {row.user.name || row.user.email}
-        </Link>
-        <p className="text-muted truncate text-xs">
-          {row.user.email} · {row.user.affiliateCode || "no code"}
-        </p>
-      </div>
-    ),
+    render: (row) =>
+      row.user ? (
+        <div className="min-w-0">
+          <Link
+            href={`/admin/affiliates/${row.user.id}`}
+            className="text-foreground font-medium hover:underline"
+          >
+            {row.user.name || row.user.email}
+          </Link>
+          <p className="text-muted truncate text-xs">
+            {row.user.email} · {row.user.affiliateCode || "no code"}
+          </p>
+        </div>
+      ) : (
+        <span className="text-muted text-xs">Deleted account</span>
+      ),
   },
   {
     key: "amount",
     header: "Amount",
     render: (row) => (
       <div>
-        <p className="text-foreground font-medium">{formatCents(row.amountCents)}</p>
-        <p className="text-muted text-xs">
-          {formatCents(row.user.affiliateWallet?.availableCents ?? 0)} still available
-        </p>
+        <p className="text-foreground font-medium">{formatCents(row.amountCents, row.currency)}</p>
+        {row.user ? (
+          <p className="text-muted text-xs">
+            {formatCents(row.user.affiliateWallet?.availableCents ?? 0)} still available
+          </p>
+        ) : null}
       </div>
     ),
   },
@@ -90,7 +95,7 @@ const columns: Array<AdminTableColumn<AdminWithdrawalRow>> = [
         id={row.id}
         status={row.status}
         amountCents={row.amountCents}
-        email={row.user.email}
+        email={row.user?.email ?? "the deleted account"}
       />
     ),
   },

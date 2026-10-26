@@ -22,6 +22,7 @@ import {
   flushPendingSaves,
   listDocuments,
 } from "@/features/documents/services/document-workspace-service";
+import { siteConfig } from "@/config/site";
 import { cn } from "@/lib/utils";
 import { useUserStore } from "@/store/useUserStore";
 
@@ -199,7 +200,15 @@ export function AccountMenu({ collapsed, displayName, email, version }: AccountM
           )}
 
           <div className="text-muted border-border/70 mt-1 border-t px-3 pt-2 text-[11px]">
-            {version} - Terms
+            {version} -{" "}
+            <a
+              href={`${siteConfig.links.main}/terms`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground underline-offset-2 hover:underline"
+            >
+              Terms
+            </a>
           </div>
         </div>
       ) : null}

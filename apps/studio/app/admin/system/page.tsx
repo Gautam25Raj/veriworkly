@@ -219,7 +219,10 @@ export default async function AdminSystemPage() {
           )}
 
           <div className="border-border/60 border-t pt-3">
-            <GithubSyncControls nextSyncAt={github.latestSync?.nextSyncAt ?? null} />
+            <GithubSyncControls
+              running={github.running}
+              nextSyncAt={github.latestSync?.nextSyncAt ?? null}
+            />
           </div>
         </Panel>
       </div>
@@ -299,7 +302,11 @@ export default async function AdminSystemPage() {
           rows={errorLogs.items}
           rowKey={(row) => row.id}
           emptyMessage="No request errors logged."
-          caption="Requests the API answered with an error, newest first."
+          caption={
+            errorLogs.hasMore
+              ? `The ${errorLogs.items.length} newest requests the API answered with an error; older ones exist.`
+              : "Requests the API answered with an error, newest first."
+          }
         />
       </section>
     </div>

@@ -186,6 +186,7 @@ export default function DocumentsWorkspace() {
         onConfirmAction={handleConfirmDelete}
         onCloseAction={() => setDeleteTarget(null)}
         entityName={deleteTarget?.title ?? "document"}
+        cloudBacked={Boolean(deleteTarget?.sync.cloudDocumentId)}
       />
 
       {syncDetailsTarget ? (

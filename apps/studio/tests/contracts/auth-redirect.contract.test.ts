@@ -99,4 +99,83 @@ describe("auth redirect contract", () => {
     expect(isInvalidSessionResponse("/users/me", 404)).toBe(true);
     expect(isInvalidSessionResponse("/documents/missing", 404)).toBe(false);
   });
+
+  it("S-040: lets a signed-in social sign-in reach /login/callback so it can finish", async () => {
+    const response = await proxy(
+      new NextRequest("https://studio.veriworkly.com/login/callback?callbackURL=%2F&ref=FRIEND", {
+        headers: { cookie: "veriworkly-auth.session_token=valid-session" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+  });
+
+  it("S-045: /api-keys is not an /api route and still needs a session or guest mode", async () => {
+    for (const path of ["/api-keys", "/api-keys/create", "/shared-thing", "/parityx"]) {
+      const response = await proxy(new NextRequest(`https://studio.veriworkly.com${path}`));
+
+      expect(response.status, path).toBe(307);
+    }
+  });
+
+  it("S-038: a dotted last segment does not skip the login redirect", async () => {
+    for (const path of ["/admin/users/jane.doe", "/profile/master.json", "/documents/a.b"]) {
+      const response = await proxy(new NextRequest(`https://studio.veriworkly.com${path}`));
+
+      expect(response.status, path).toBe(307);
+    }
+  });
+
+  it("S-038: public machine-readable files stay reachable without cookies", async () => {
+    for (const path of [
+      "/llms.txt",
+      "/openapi.json",
+      "/robots.txt",
+      "/sitemap.xml",
+      "/manifest.json",
+      "/.well-known/security.txt",
+      "/api/health",
+      "/share/jane/resume",
+      "/parity/resume",
+    ]) {
+      const response = await proxy(new NextRequest(`https://studio.veriworkly.com${path}`));
+
+      expect(response.status, path).toBe(200);
+    }
+  });
+
+  it("S-139: the session-expired login page is not bounced while a stale cookie lingers", async () => {
+    const response = await proxy(
+      new NextRequest("https://studio.veriworkly.com/login?session=expired", {
+        headers: { cookie: "veriworkly-auth.session_token=revoked" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+  });
+
+  it("S-139: the session-expired route is reachable without a guest cookie and never a sign-in target", async () => {
+    const response = await proxy(
+      new NextRequest("https://studio.veriworkly.com/auth/session-expired"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(getSafeAuthCallback("/auth/session-expired")).toBe("/");
+    expect(getSafeAuthCallback("/auth/session-expired?x=1")).toBe("/");
+  });
+
+  it("S-040: getSafeAuthCallback rejects backslash, tab and untrusted absolute callbacks", () => {
+    expect(getSafeAuthCallback("/\\evil.com")).toBe("/");
+    expect(getSafeAuthCallback("/\t/evil.com")).toBe("/");
+    expect(getSafeAuthCallback("/\t\\evil.com")).toBe("/");
+    expect(getSafeAuthCallback("http://app.veriworkly.com/x")).toBe("/");
+    expect(getSafeAuthCallback("https://evil.com/x")).toBe("/");
+    expect(getSafeAuthCallback("javascript:alert(1)")).toBe("/");
+  });
+
+  it("S-200: a 401 from a public share never signs the viewer out", () => {
+    expect(isInvalidSessionResponse("/shares/public/jane/resume", 401)).toBe(false);
+    expect(isInvalidSessionResponse("/shares/public/jane/resume/verify?x=1", 401)).toBe(false);
+    expect(isInvalidSessionResponse("/shares", 401)).toBe(true);
+  });
 });

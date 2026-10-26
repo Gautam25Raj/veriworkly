@@ -7,6 +7,12 @@ vi.mock("server-only", () => ({}));
 
 vi.mock("next/headers", () => ({
   cookies: async () => ({ toString: () => "veriworkly-auth.session_token=test-session" }),
+  headers: async () => new Headers(),
+}));
+
+// Every admin read passes the admin gate first; these tests run as the configured admin.
+vi.mock("@/features/auth/services/current-user", () => ({
+  fetchCurrentUser: async () => ({ id: "admin-1", email: "admin@example.com" }),
 }));
 
 const ORIGINAL_FETCH = globalThis.fetch;
@@ -23,6 +29,7 @@ function respondWith(status: number, body: unknown) {
 
 beforeEach(() => {
   process.env.NEXT_PUBLIC_BACKEND_URL ||= "http://localhost:8080/api/v1";
+  process.env.ADMIN_EMAIL = "admin@example.com";
 });
 
 afterEach(() => {

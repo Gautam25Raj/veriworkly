@@ -21,6 +21,8 @@ export type AffiliateDashboard = {
   commissions: Array<{
     id: string;
     amountCents: number;
+    /** ISO 4217; a commission keeps the currency of the purchase it came from. */
+    currency: string;
     rateBps: number;
     status: string;
     createdAt: string;
@@ -28,8 +30,10 @@ export type AffiliateDashboard = {
   withdrawals: Array<{
     id: string;
     amountCents: number;
+    currency: string;
     status: string;
     createdAt: string;
+    /** The admin's rejection reason or payout reference, written to be shown here. */
     payoutNote: string | null;
   }>;
 };

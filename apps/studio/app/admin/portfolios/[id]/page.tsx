@@ -14,6 +14,7 @@ import {
   formatDate,
   formatDateTime,
   formatNumber,
+  formatSuspensionReason,
   humanizeKey,
 } from "@/features/admin/utils/admin-format";
 
@@ -58,7 +59,9 @@ export default async function AdminPortfolioDetailPage({
           <p className="text-destructive text-sm font-medium">
             Suspended {formatDateTime(publication.suspendedAt)}
           </p>
-          <p className="text-muted mt-1 text-sm">{publication.suspensionReason}</p>
+          <p className="text-muted mt-1 text-sm">
+            {formatSuspensionReason(publication.suspensionReason)}
+          </p>
         </Panel>
       ) : null}
 

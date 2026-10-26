@@ -1,35 +1,23 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-
-import { Button } from "@veriworkly/ui";
+import AdminActionDialog from "@/components/admin/AdminActionDialog";
 
 import { deleteRoadmapFeature } from "@/features/roadmap/services/admin-roadmap";
 
+/** The roadmap delete endpoint takes no audit reason, so the dialog does not ask for one. */
 export default function DeleteRoadmapButton({ id, title }: { id: string; title: string }) {
-  const router = useRouter();
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const handleDelete = async () => {
-    const confirmed = window.confirm(`Delete roadmap item \"${title}\"?`);
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      setIsDeleting(true);
-      await deleteRoadmapFeature(id);
-      router.refresh();
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
   return (
-    <Button size="sm" onClick={handleDelete} disabled={isDeleting}>
-      {isDeleting ? "Deleting..." : "Delete"}
-    </Button>
+    <AdminActionDialog
+      trigger="Delete"
+      triggerVariant="ghost"
+      triggerClassName="text-destructive h-7 text-xs"
+      title="Delete this roadmap item"
+      description={`"${title}" is removed from the public roadmap. This cannot be undone.`}
+      confirmLabel="Delete item"
+      askReason={false}
+      onConfirm={async () => {
+        await deleteRoadmapFeature(id);
+      }}
+    />
   );
 }

@@ -178,10 +178,17 @@ describe("fetchApiData session redirect (S-012, S-200)", () => {
   });
 
   it("S-012: every other call still clears an expired session", async () => {
-    await expect(fetchApiData("https://api.example.test/billing/me")).rejects.toMatchObject({
-      status: 401,
-    });
+    // The page is navigating to /login, so the call never settles: no "Request failed: 401"
+    // toast flashes on the way out (S-150).
+    const outcome = Promise.race([
+      fetchApiData("https://api.example.test/billing/me").then(
+        () => "resolved",
+        () => "rejected",
+      ),
+      new Promise((resolve) => setTimeout(() => resolve("pending"), 50)),
+    ]);
 
+    expect(await outcome).toBe("pending");
     expect(clearInvalidSessionAndRedirect).toHaveBeenCalledTimes(1);
   });
 });

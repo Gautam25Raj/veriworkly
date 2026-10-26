@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button, TextArea } from "@veriworkly/ui";
@@ -15,6 +17,7 @@ import {
   type AiActionPolicy,
   type AiMode,
 } from "@/features/ai/ai-api";
+import { useUserStore } from "@/store/useUserStore";
 
 /**
  * Callers render this with `key` set to the entry it edits, so the open panel, the draft and
@@ -38,6 +41,9 @@ export function AiFieldAssist({
   documentId?: string;
   onApply: (content: string) => void;
 }) {
+  const isLoggedIn = useUserStore((state) => state.isLoggedIn);
+  const pathname = usePathname();
+
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<AiMode>("standard");
   const [instructions, setInstructions] = useState("");
@@ -67,7 +73,9 @@ export function AiFieldAssist({
 
   function openPanel() {
     setOpen(true);
-    if (!actions) loadActions();
+    // AI runs on account credits. A guest's request would only come back 401, which signs out
+    // and leaves for /login in the middle of an edit, so the panel asks them to sign in instead.
+    if (isLoggedIn && !actions) loadActions();
   }
 
   const costFor = (option: AiMode) => actions?.[action]?.costs[option];
@@ -114,6 +122,29 @@ export function AiFieldAssist({
       <Button className="mt-2 justify-self-start" onClick={openPanel} size="sm" variant="ghost">
         <Sparkles className="h-3.5 w-3.5" /> {text.trim() ? "Improve with AI" : "Write with AI"}
       </Button>
+    );
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <div
+        className="border-border bg-card mt-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"
+        role="status"
+      >
+        <p className="text-muted text-xs">
+          AI writing uses account credits. Your edits stay in this browser while you sign in.
+        </p>
+        <div className="flex gap-2">
+          <Button asChild size="sm">
+            <Link href={`/login?callbackURL=${encodeURIComponent(pathname)}`}>
+              Sign in to use AI
+            </Link>
+          </Button>
+          <Button onClick={() => setOpen(false)} size="sm" variant="ghost">
+            Not now
+          </Button>
+        </div>
+      </div>
     );
   }
 

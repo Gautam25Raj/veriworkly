@@ -15,6 +15,8 @@ interface DestructiveModalProps {
   confirmText?: string;
   warningText?: string;
   loading?: boolean;
+  /** The item has a cloud copy, which the server erases 30 days after the delete. */
+  cloudBacked?: boolean;
 }
 
 const DestructiveModal = ({
@@ -27,6 +29,7 @@ const DestructiveModal = ({
   confirmText = "DELETE",
   warningText,
   loading = false,
+  cloudBacked = false,
 }: DestructiveModalProps) => {
   const [value, setValue] = useState("");
 
@@ -78,7 +81,9 @@ const DestructiveModal = ({
 
               <p className="text-muted-foreground text-xs leading-relaxed">
                 {description ??
-                  `You are about to permanently remove this ${entityName}. All associated data will be purged from our servers.`}
+                  (cloudBacked
+                    ? "Deleted now; erased from our servers after 30 days."
+                    : "It is removed from this device and cannot be recovered.")}
               </p>
             </div>
           </div>

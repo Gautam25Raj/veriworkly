@@ -1,9 +1,9 @@
 import "server-only";
 
-import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
+import { cache } from "react";
+import { notFound, unstable_rethrow } from "next/navigation";
 
-import { backendApiUrl } from "@/lib/constants";
+import { serverFetch } from "@/lib/server-fetch";
 import { fetchCurrentUser } from "@/features/auth/services/current-user";
 
 import type { RoadmapFeature } from "@/features/roadmap/services/roadmap-backend";
@@ -19,9 +19,11 @@ import type {
   AdminApiKeySummary,
   AdminAuditEntry,
   AdminAuditFilters,
+  AdminBillingSummary,
   AdminCommissionRow,
   AdminCreditWalletRow,
   AdminDocumentRow,
+  AdminDocumentSummary,
   AdminEntitlementRow,
   AdminGithubStatus,
   AdminJobStatus,
@@ -29,9 +31,10 @@ import type {
   AdminPaginatedResponse,
   AdminPortfolioDetail,
   AdminPortfolioRow,
+  AdminPortfolioSummary,
   AdminRecentActivity,
   AdminReferralRow,
-  AdminRequestLogRow,
+  AdminRequestLogPage,
   AdminShareLinkRow,
   AdminSubscriptionRow,
   AdminSystemHealth,
@@ -57,11 +60,6 @@ export interface AdminSession {
   };
 }
 
-async function getCookieHeaderValue() {
-  const cookieStore = await cookies();
-  return cookieStore.toString();
-}
-
 /**
  * Frontend defense-in-depth for `/admin/*`: fails closed (404, not a leaky 403) if the
  * signed-in user isn't the configured admin. This must never be the ONLY check — the
@@ -69,8 +67,13 @@ async function getCookieHeaderValue() {
  * route — but without this, any authenticated user could reach the admin shell UI even
  * if every fetch call inside it then failed. `ADMIN_EMAIL` here is a server-only env
  * var (never `NEXT_PUBLIC_*`), so the admin identity never reaches the client bundle.
+ *
+ * Wrapped in `cache()` so the layout and every admin read in one request share a single
+ * session lookup. Each read awaits it first, so a page's own fetches cannot start before the
+ * gate has passed: layouts and pages render in parallel, and a client navigation inside
+ * `/admin` does not re-run the layout at all.
  */
-export async function requireAdminUser() {
+export const requireAdminUser = cache(async () => {
   const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
 
   if (!adminEmail) {
@@ -85,36 +88,10 @@ export async function requireAdminUser() {
   }
 
   return user;
-}
+});
 
-function normalizeHeaders(headers?: HeadersInit) {
-  return Object.fromEntries(new Headers(headers ?? {}).entries());
-}
-
-function firstPartyServerHeaders(headers?: HeadersInit) {
-  const normalizedHeaders = normalizeHeaders(headers);
-  const siteOrigin = process.env.SITE_URL ? new URL(process.env.SITE_URL).origin : "";
-
-  if (!siteOrigin) return normalizedHeaders;
-
-  return {
-    Origin: siteOrigin,
-    ...normalizedHeaders,
-  };
-}
-
-async function fetchWithSession(path: string, options?: RequestInit) {
-  const cookieHeader = await getCookieHeaderValue();
-
-  return fetch(backendApiUrl(path), {
-    ...options,
-    cache: "no-store",
-    headers: firstPartyServerHeaders({
-      "Content-Type": "application/json",
-      cookie: cookieHeader,
-      ...(options?.headers ?? {}),
-    }),
-  });
+function fetchWithSession(path: string, options?: RequestInit) {
+  return serverFetch(path, options);
 }
 
 /** Drops empty/undefined params so `?status=` never reaches a strict enum validator. */
@@ -156,6 +133,8 @@ export class AdminApiError extends Error {
  * because the zeros look like real data.
  */
 async function fetchAdmin<T>(path: string, options?: RequestInit): Promise<T> {
+  await requireAdminUser();
+
   const response = await fetchWithSession(`/admin${path}`, { method: "GET", ...options });
 
   if (!response.ok) {
@@ -203,25 +182,30 @@ export function fetchAdminTimeSeries(days = 30) {
 }
 
 /**
- * The shell renders queue badges on every admin page, so this runs on every navigation. It
- * intentionally hits the cheap standalone endpoint rather than reading `actionQueue` off the
- * full overview payload, which would run every domain summary aggregate to display six counts.
+ * The shell's queue badges. The admin layout renders on a full load and when a navigation
+ * enters `/admin`; client navigations inside the section reuse it, so the counts refresh with
+ * `router.refresh()` (every admin action does one), not on every click. It hits the cheap
+ * standalone endpoint rather than reading `actionQueue` off the full overview payload, which
+ * would run every domain summary aggregate to display six counts.
  *
- * Unlike every other reader here it swallows failures and returns zeros: the badges are an
- * affordance, and a transient counting error must not take down the navigation of a page whose
- * own data loaded fine.
+ * Unlike every other reader here it does not throw: the badges are an affordance, and a
+ * transient counting error must not take down a page whose own data loaded fine. A failure is
+ * logged and every count comes back `null` (unknown); a zero would claim the queue is empty.
  */
 export async function fetchAdminActionQueue(): Promise<AdminActionQueue> {
   try {
     return await fetchAdmin<AdminActionQueue>("/overview/queue");
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("Admin action queue unavailable", error);
+
     return {
-      pendingAmbassadorApplications: 0,
-      pendingWithdrawals: 0,
-      pendingCommissions: 0,
-      failedWebhooks: 0,
-      suspendedPortfolios: 0,
-      pendingPortfolioAssets: 0,
+      pendingAmbassadorApplications: null,
+      pendingWithdrawals: null,
+      pendingCommissions: null,
+      failedWebhooks: null,
+      suspendedPortfolios: null,
+      pendingPortfolioAssets: null,
     };
   }
 }
@@ -320,11 +304,19 @@ export function fetchAdminPortfolios(params: Record<string, string | number | un
   );
 }
 
+export function fetchAdminPortfolioSummary() {
+  return fetchAdmin<AdminPortfolioSummary>("/portfolios/summary");
+}
+
 export function fetchAdminPortfolioDetail(id: string, days = 30) {
   return fetchAdmin<AdminPortfolioDetail>(`/portfolios/${id}${buildAdminQuery({ days })}`);
 }
 
 /* ── Documents & share links ──────────────────────────────────────────────────────── */
+
+export function fetchAdminDocumentSummary() {
+  return fetchAdmin<AdminDocumentSummary>("/documents/summary");
+}
 
 export function fetchAdminDocuments(params: Record<string, string | number | undefined> = {}) {
   return fetchAdmin<AdminPaginatedResponse<AdminDocumentRow>>(
@@ -341,7 +333,7 @@ export function fetchAdminShareLinks(params: Record<string, string | number | un
 /* ── Billing ──────────────────────────────────────────────────────────────────────── */
 
 export function fetchAdminBillingSummary() {
-  return fetchAdmin<AdminOverview["billing"]>("/billing/summary");
+  return fetchAdmin<AdminBillingSummary>("/billing/summary");
 }
 
 export function fetchAdminSubscriptions(params: Record<string, string | number | undefined> = {}) {
@@ -407,31 +399,46 @@ export function fetchAdminGithubStatus() {
 }
 
 export function fetchAdminRequestLogs(params: Record<string, string | number | undefined> = {}) {
-  return fetchAdmin<AdminPaginatedResponse<AdminRequestLogRow>>(
-    `/system/request-logs${buildAdminQuery(params)}`,
-  );
+  return fetchAdmin<AdminRequestLogPage>(`/system/request-logs${buildAdminQuery(params)}`);
 }
 
 /* ── Roadmap (reads come from the public router) ──────────────────────────────────── */
 
+/** Every roadmap item: the public list is paged (at most 50 a request), so read to the end. */
 export async function fetchAdminRoadmapServer(sort = "newest") {
-  const response = await fetchWithSession(`/roadmap?sort=${sort}&limit=20&offset=0`, {
-    method: "GET",
-  });
+  await requireAdminUser();
 
-  if (!response.ok) {
-    throw new Error(`Roadmap request failed (${response.status})`);
+  const items = new Map<string, RoadmapFeature>();
+  let offset = 0;
+
+  while (true) {
+    const query = buildAdminQuery({ sort, limit: 50, offset });
+    const response = await fetchWithSession(`/roadmap${query}`, { method: "GET" });
+
+    if (!response.ok) {
+      throw new Error(`Roadmap request failed (${response.status})`);
+    }
+
+    const payload = (await response.json()) as ApiSuccessResponse<{
+      items: RoadmapFeature[];
+      hasMore: boolean;
+      pagination: { nextOffset: number | null };
+    }>;
+
+    for (const item of payload.data.items) {
+      if (!items.has(item.id)) items.set(item.id, item);
+    }
+
+    if (!payload.data.hasMore || payload.data.pagination.nextOffset === null) break;
+    offset = payload.data.pagination.nextOffset;
   }
 
-  const payload = (await response.json()) as ApiSuccessResponse<{
-    items: RoadmapFeature[];
-    total: number;
-  }>;
-
-  return payload.data.items;
+  return Array.from(items.values());
 }
 
 export async function fetchAdminRoadmapFeatureServer(id: string) {
+  await requireAdminUser();
+
   const response = await fetchWithSession(`/roadmap/${id}`, {
     method: "GET",
   });

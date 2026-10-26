@@ -9,13 +9,9 @@ import { Shield, Lock, Check } from "lucide-react";
 
 import AuthCard from "./AuthCard";
 
-import { setAllDocumentsSyncEnabled } from "@/features/documents/services/document-sync";
-import { setAutoSyncEnabledInLocalStorage } from "@/features/documents/services/workspace-settings";
-
 import { authClient } from "@/lib/auth-client";
+import { finishSignIn } from "@/lib/sign-in";
 import { getSafeAuthCallback } from "@/lib/auth-redirect";
-
-import { fetchApiData } from "@/utils/fetchApiData";
 
 const OtpForm = ({
   sentTo,
@@ -57,23 +53,10 @@ const OtpForm = ({
 
       toast.success("Successfully signed in!");
 
-      setAutoSyncEnabledInLocalStorage(true);
-      setAllDocumentsSyncEnabled(true);
-
-      await fetchApiData("/users/me/sync", {
-        method: "PUT",
-        body: JSON.stringify({ enabled: true }),
-      }).catch(() => undefined);
+      const { referralError } = await finishSignIn();
+      if (referralError) toast.info(`Referral not applied: ${referralError}`);
 
       const searchParams = new URLSearchParams(window.location.search);
-      const referralCode = searchParams.get("ref");
-
-      if (referralCode)
-        await fetchApiData("/affiliates/referral", {
-          method: "POST",
-          body: JSON.stringify({ code: referralCode }),
-        }).catch(() => undefined);
-
       let callbackURL = searchParams.get("callbackURL");
 
       if (!callbackURL && typeof document !== "undefined" && document.referrer) {
@@ -232,7 +215,7 @@ const OtpForm = ({
           </span>
 
           <span className="flex items-center gap-1">
-            <Shield className="h-3.5 w-3.5 text-blue-500" /> Encrypted Sync
+            <Shield className="h-3.5 w-3.5 text-blue-500" /> Cloud Backup
           </span>
 
           <span className="flex items-center gap-1">

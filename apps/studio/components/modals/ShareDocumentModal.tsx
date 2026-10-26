@@ -13,10 +13,16 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
 import { cn } from "@/lib/utils";
+import {
+  endOfLocalDay,
+  isPastLocalDate,
+  toLocalDateInput,
+  todayLocalDateInput,
+} from "@/lib/local-date";
 
 import { Badge, Modal, Input, Button, Checkbox } from "@veriworkly/ui";
 
@@ -32,7 +38,9 @@ import {
 import { getDocumentDefinition } from "@/features/documents/core/registry";
 
 import { trackUsageEvent } from "@/features/analytics/services/usage-metrics";
+import { prepareShareSnapshot } from "@/features/documents/services/prepare-share";
 import { loadDocumentById } from "@/features/documents/services/document-workspace-service";
+import EditProfileUsernameModal from "@/features/profile/components/EditProfileUsernameModal";
 
 import { useUserStore } from "@/store/useUserStore";
 
@@ -170,16 +178,6 @@ const ActiveLinkRow = ({
   );
 };
 
-function getShareSnapshot(
-  document: DocumentLibraryItem | null | undefined,
-  documentId: string | null,
-  documentType: DocumentType | undefined,
-) {
-  const type = document?.type ?? documentType;
-  const id = document?.id ?? documentId;
-  return id && type ? loadDocumentById(type, id) : null;
-}
-
 const ShareDocumentModal = ({
   documentId: fallbackDocumentId,
   documentTitle: fallbackDocumentTitle,
@@ -187,9 +185,14 @@ const ShareDocumentModal = ({
   document,
   onClose,
 }: ShareDocumentModalProps) => {
-  const router = useRouter();
   const user = useUserStore((state) => state.user);
+  const setUser = useUserStore((state) => state.setUser);
   const isMissingUsername = !user?.username;
+  const [usernameModalOpen, setUsernameModalOpen] = useState(false);
+  const [backupNotice, setBackupNotice] = useState<{
+    message: string;
+    localOnly: boolean;
+  } | null>(null);
   const [busy, setBusy] = useState(false);
   const [expiry, setExpiry] = useState("");
   const [password, setPassword] = useState("");
@@ -216,6 +219,16 @@ const ShareDocumentModal = ({
     return !isSlugMatching(activeLink.token, documentTitle);
   }, [activeLink, documentTitle]);
 
+  // A link serves the snapshot taken when it was last saved, not the live document.
+  const isSnapshotStale = useMemo(() => {
+    if (!activeLink || !documentType || !documentId) return false;
+
+    const updatedAt =
+      document?.updatedAt ?? loadDocumentById(documentType, documentId)?.updatedAt ?? null;
+
+    return updatedAt !== null && Date.parse(updatedAt) > Date.parse(activeLink.updatedAt);
+  }, [activeLink, document?.updatedAt, documentId, documentType]);
+
   // Tracks the most recently *requested* document id so a slow response for a
   // previous document (e.g. the modal was reused for doc A, then doc B, before A's
   // request resolved) can be discarded instead of overwriting doc B's state.
@@ -236,7 +249,7 @@ const ShareDocumentModal = ({
         const link = links[0];
 
         if (link.expiresAt) {
-          setExpiry(new Date(link.expiresAt).toISOString().split("T")[0]);
+          setExpiry(toLocalDateInput(new Date(link.expiresAt)));
           setNoExpiry(false);
         } else {
           setExpiry("");
@@ -268,57 +281,58 @@ const ShareDocumentModal = ({
     void Promise.resolve().then(() => refreshShareLinks(documentId));
   }, [documentId, isMissingUsername, refreshShareLinks]);
 
-  const handleCreate = async () => {
-    if (!documentId || busy) return;
+  /** `backUp` uploads a document the user had kept on this device only. */
+  const handleCreate = async (options: { backUp?: boolean } = {}) => {
+    if (!documentId || !documentType || busy) return;
 
-    const snapshot = getShareSnapshot(document, fallbackDocumentId, documentType);
-
-    if (!snapshot) {
-      toast.error("Document not found. Refresh and try again.");
+    if (!noExpiry && expiry && isPastLocalDate(expiry)) {
+      toast.error("That date has passed. Choose today or a later date.");
       return;
     }
 
     setBusy(true);
+    setBackupNotice(null);
 
-    const promise = createShareLink(snapshot.id, snapshot, {
-      password: password.trim() || undefined,
-      expiresAt: noExpiry ? null : expiry ? new Date(expiry).toISOString() : null,
-      noExpiry,
-      updateSlug,
-      removePassword,
-    });
+    try {
+      const prepared = await prepareShareSnapshot(documentType, documentId, options);
 
-    toast.promise(promise, {
-      loading: hasActiveLink ? "Updating share link..." : "Creating share link...",
+      if (!prepared.ok) {
+        setBackupNotice({ message: prepared.message, localOnly: prepared.reason === "local-only" });
+        return;
+      }
 
-      success: (shareLink) => {
-        const nextShareUrl = `${window.location.origin}/share/${shareLink.username}/${shareLink.token}`;
+      const shareLink = await createShareLink(prepared.document, {
+        password: password.trim() || undefined,
+        expiresAt: noExpiry || !expiry ? null : endOfLocalDay(expiry).toISOString(),
+        noExpiry,
+        updateSlug,
+        removePassword,
+      });
 
-        // Clipboard result is reported independently — the save itself already
-        // succeeded by this point, and a clipboard failure (e.g. insecure context,
-        // denied permission) shouldn't be reported to the user as a save failure.
-        navigator.clipboard
-          .writeText(nextShareUrl)
-          .then(() => toast.success("Link copied to clipboard"))
-          .catch(() => toast.error("Could not copy the link automatically — copy it manually."));
+      toast.success(hasActiveLink ? "Share link updated!" : "Share link created!");
 
-        trackUsageEvent({ event: hasActiveLink ? "share_link_updated" : "share_link_created" });
-        void refreshShareLinks(documentId);
+      const nextShareUrl = `${window.location.origin}/share/${shareLink.username}/${shareLink.token}`;
 
-        setPassword("");
-        setExpiry("");
-        setRemovePassword(false);
-        setUpdateSlug(false);
+      // Clipboard result is reported independently — the save itself already
+      // succeeded by this point, and a clipboard failure (e.g. insecure context,
+      // denied permission) shouldn't be reported to the user as a save failure.
+      navigator.clipboard
+        .writeText(nextShareUrl)
+        .then(() => toast.success("Link copied to clipboard"))
+        .catch(() => toast.error("Could not copy the link automatically — copy it manually."));
 
-        return hasActiveLink ? "Share link updated!" : "Share link created!";
-      },
+      trackUsageEvent({ event: hasActiveLink ? "share_link_updated" : "share_link_created" });
+      void refreshShareLinks(documentId);
 
-      error: (err) => {
-        return err instanceof Error ? err.message : "Unable to save share link.";
-      },
-
-      finally: () => setBusy(false),
-    });
+      setPassword("");
+      setExpiry("");
+      setRemovePassword(false);
+      setUpdateSlug(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Unable to save share link.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleRevoke = async (linkId: string) => {
@@ -377,7 +391,18 @@ const ShareDocumentModal = ({
         </div>
 
         <Modal.Body className="space-y-4 p-4">
-          {isMissingUsername ? (
+          {!user ? (
+            <div className="flex flex-col items-center gap-4 py-6 text-center">
+              <p className="text-muted-foreground mx-auto max-w-xs text-sm leading-relaxed">
+                Share links serve a copy from your account. Sign in to back up this document and
+                share it.
+              </p>
+
+              <Button asChild size="sm" className="w-full">
+                <Link href="/login">Sign in to share</Link>
+              </Button>
+            </div>
+          ) : isMissingUsername ? (
             <div className="flex flex-col items-center gap-4 py-6">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10">
                 <UserRound className="h-7 w-7 text-amber-500" />
@@ -387,8 +412,7 @@ const ShareDocumentModal = ({
                 <h3 className="text-foreground text-base font-bold">Username Required</h3>
 
                 <p className="text-muted-foreground mx-auto max-w-xs text-sm leading-relaxed">
-                  You need to set a username in your profile settings before you can share documents
-                  publicly.
+                  Choose a username before you share documents publicly.
                 </p>
               </div>
 
@@ -408,18 +432,67 @@ const ShareDocumentModal = ({
 
               <Button
                 size="sm"
-                id="go-to-profile-settings-btn"
-                onClick={() => {
-                  onClose();
-                  router.push("/profile");
-                }}
+                id="choose-username-btn"
+                onClick={() => setUsernameModalOpen(true)}
                 className="shadow-accent/10 w-full shadow-md transition-all active:scale-[0.98]"
               >
-                Go to Profile Settings
+                Choose a Username
               </Button>
             </div>
           ) : (
             <>
+              {hasActiveLink && activeLink && (
+                <div
+                  className={cn(
+                    "flex flex-col gap-2 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between",
+                    isSnapshotStale
+                      ? "border-orange-500/25 bg-orange-500/5"
+                      : "border-border bg-muted/20",
+                  )}
+                >
+                  <p className="text-muted-foreground text-[11px] leading-relaxed">
+                    Shared version from {new Date(activeLink.updatedAt).toLocaleString()}.
+                    {isSnapshotStale
+                      ? " You have edited this document since, and the link still shows the older version."
+                      : null}
+                  </p>
+
+                  {isSnapshotStale ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      loading={busy}
+                      onClick={() => void handleCreate()}
+                      className="shrink-0"
+                    >
+                      Update shared version
+                    </Button>
+                  ) : null}
+                </div>
+              )}
+
+              {backupNotice ? (
+                <div className="flex flex-col gap-2 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3">
+                  <div className="flex gap-2.5">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+
+                    <p className="text-[11px] leading-relaxed font-medium text-amber-700 dark:text-amber-400">
+                      {backupNotice.message}
+                    </p>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={busy}
+                    onClick={() => void handleCreate({ backUp: backupNotice.localOnly })}
+                    className="self-end"
+                  >
+                    {backupNotice.localOnly ? "Back up and share" : "Try again"}
+                  </Button>
+                </div>
+              ) : null}
+
               {hasActiveLink && isSlugOutofSync && activeLink && (
                 <div className="flex flex-col gap-2 rounded-xl border border-orange-500/25 bg-orange-500/5 p-3">
                   <div className="flex gap-2.5">
@@ -531,6 +604,7 @@ const ShareDocumentModal = ({
 
                   <Input
                     type="date"
+                    min={todayLocalDateInput()}
                     inputSize="sm"
                     value={expiry}
                     disabled={noExpiry}
@@ -543,7 +617,7 @@ const ShareDocumentModal = ({
               <Button
                 size="sm"
                 loading={busy}
-                onClick={handleCreate}
+                onClick={() => void handleCreate()}
                 className="shadow-accent/10 w-full shadow-md transition-all active:scale-[0.98]"
               >
                 {hasActiveLink ? "Update Share Link" : "Generate Public Link"}
@@ -610,6 +684,14 @@ const ShareDocumentModal = ({
           </Button>
         </Modal.Footer>
       </Modal.Content>
+
+      <EditProfileUsernameModal
+        open={usernameModalOpen}
+        onClose={() => setUsernameModalOpen(false)}
+        onSaved={(username) => {
+          if (user) setUser({ ...user, username });
+        }}
+      />
 
       <ConfirmationModal
         open={confirmRevokeId !== null}

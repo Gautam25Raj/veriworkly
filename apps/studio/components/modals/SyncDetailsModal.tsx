@@ -385,7 +385,7 @@ const SyncDetailsModal = ({
               size="sm"
               variant="secondary"
               className="text-xs font-semibold"
-              onClick={() => router.push("/profile")}
+              onClick={() => router.push("/settings")}
             >
               Cloud Settings
             </Button>

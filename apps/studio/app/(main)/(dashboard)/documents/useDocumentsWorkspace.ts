@@ -57,6 +57,32 @@ export function useDocumentsWorkspace() {
 
   const bump = useCallback(() => setRefreshKey((key) => key + 1), []);
 
+  /**
+   * Runs one sync action for a card. A storage error can reject instead of returning a
+   * failed result, so the spinner is cleared in `finally`, and only if no other card's
+   * action has taken it over meanwhile.
+   */
+  const runSyncAction = useCallback(
+    async (
+      id: string,
+      action: () => Promise<{ ok: boolean; message: string }>,
+      successTone: "success" | "info" = "success",
+    ) => {
+      setSyncingDocumentId(id);
+
+      try {
+        const result = await action();
+        toast[result.ok ? successTone : "error"](result.message);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Sync failed. Please try again.");
+      } finally {
+        setSyncingDocumentId((current) => (current === id ? null : current));
+        bump();
+      }
+    },
+    [bump],
+  );
+
   // Pull cloud changes (other devices' documents and deletions) whenever a signed-in user
   // opens the overview or the library; the service throttles repeat pulls itself.
   useEffect(() => {
@@ -121,16 +147,9 @@ export function useDocumentsWorkspace() {
       const target = docs.find((doc) => doc.id === id);
       if (!target) return;
 
-      setSyncingDocumentId(id);
-
-      const result = await syncDocumentNow(target.type, id);
-
-      toast[result.ok ? "success" : "error"](result.message);
-
-      setSyncingDocumentId(null);
-      bump();
+      await runSyncAction(id, () => syncDocumentNow(target.type, id));
     },
-    [bump, docs, isLoggedIn],
+    [docs, isLoggedIn, runSyncAction],
   );
 
   const handleConfirmDelete = useCallback(async () => {
@@ -157,18 +176,10 @@ export function useDocumentsWorkspace() {
       const target = docs.find((doc) => doc.id === id);
       if (!target) return;
 
-      setSyncingDocumentId(id);
-
-      const result = await keepDocumentLocalOnly(target.type, id);
-
-      toast[result.ok ? "info" : "error"](result.message);
-
-      setSyncingDocumentId(null);
-
+      await runSyncAction(id, () => keepDocumentLocalOnly(target.type, id), "info");
       setSyncDetailsTargetId(null);
-      bump();
     },
-    [bump, docs],
+    [docs, runSyncAction],
   );
 
   const handleResolveUseCloud = useCallback(
@@ -181,16 +192,9 @@ export function useDocumentsWorkspace() {
       const target = docs.find((doc) => doc.id === id);
       if (!target) return;
 
-      setSyncingDocumentId(id);
-
-      const result = await resolveDocumentConflictUseCloud(target.type, id);
-
-      toast[result.ok ? "success" : "error"](result.message);
-
-      setSyncingDocumentId(null);
-      bump();
+      await runSyncAction(id, () => resolveDocumentConflictUseCloud(target.type, id));
     },
-    [bump, docs, isLoggedIn],
+    [docs, isLoggedIn, runSyncAction],
   );
 
   const handleResolveUseLocal = useCallback(
@@ -203,16 +207,9 @@ export function useDocumentsWorkspace() {
       const target = docs.find((doc) => doc.id === id);
       if (!target) return;
 
-      setSyncingDocumentId(id);
-
-      const result = await resolveDocumentConflictUseLocal(target.type, id);
-
-      toast[result.ok ? "success" : "error"](result.message);
-
-      setSyncingDocumentId(null);
-      bump();
+      await runSyncAction(id, () => resolveDocumentConflictUseLocal(target.type, id));
     },
-    [bump, docs, isLoggedIn],
+    [docs, isLoggedIn, runSyncAction],
   );
 
   return {

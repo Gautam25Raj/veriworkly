@@ -3,16 +3,23 @@
  * renders three different ways across the dashboard.
  */
 
-const currencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-});
+const currencyFormatters = new Map<string, Intl.NumberFormat>();
 
 const compactNumberFormatter = new Intl.NumberFormat("en-US", { notation: "compact" });
 
-/** Money is stored in cents everywhere in this codebase. Never format a raw cents value. */
-export function formatCents(cents: number | null | undefined) {
-  return currencyFormatter.format((cents ?? 0) / 100);
+/**
+ * Money is stored in minor units ("cents") everywhere in this codebase. Never format a raw cents
+ * value. Amounts default to USD; an affiliate commission carries its own ISO 4217 currency.
+ */
+export function formatCents(cents: number | null | undefined, currency = "USD") {
+  let formatter = currencyFormatters.get(currency);
+
+  if (!formatter) {
+    formatter = new Intl.NumberFormat("en-US", { style: "currency", currency });
+    currencyFormatters.set(currency, formatter);
+  }
+
+  return formatter.format((cents ?? 0) / 100);
 }
 
 export function formatNumber(value: number | null | undefined) {
@@ -111,4 +118,29 @@ export function humanizeKey(key: string) {
 export function truncate(value: string | null | undefined, length = 60) {
   if (!value) return "—";
   return value.length > length ? `${value.slice(0, length - 1)}…` : value;
+}
+
+/** The server stores an admin suspension as `moderation:<reason>`; show only the reason. */
+export function formatSuspensionReason(value: string | null | undefined) {
+  if (!value) return "—";
+
+  return value.startsWith("moderation:") ? value.slice("moderation:".length).trim() : value;
+}
+
+/** One state for an API key: revoked wins, then an admin disable, then a lapsed expiry. */
+export function apiKeyState(key: {
+  revokedAt: string | null;
+  isActive: boolean;
+  expiresAt: string | null;
+}) {
+  if (key.revokedAt) return "REVOKED";
+  if (!key.isActive) return "DISABLED";
+  if (key.expiresAt && new Date(key.expiresAt).getTime() <= Date.now()) return "EXPIRED";
+
+  return "ACTIVE";
+}
+
+/** A queue count that could not be read is `null`: shown as "—", never as 0. */
+export function formatQueueCount(value: number | null) {
+  return value === null ? "—" : formatNumber(value);
 }

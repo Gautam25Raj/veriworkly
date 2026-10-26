@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 
-import { headers } from "next/headers";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import type { ApiKeyDetailRecord } from "@/features/api-keys/components/ApiKeyTypes";
 
-import { backendApiUrl } from "@/lib/constants";
+import { hasSessionCookie, serverFetchData } from "@/lib/server-fetch";
 
 import ApiKeyDetailView from "@/features/api-keys/components/details/ApiKeyDetailView";
 
@@ -14,35 +13,15 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-async function fetchKeyDetails(id: string): Promise<ApiKeyDetailRecord | null> {
-  try {
-    const requestHeaders = await headers();
-    const cookie = requestHeaders.get("cookie");
-
-    const response = await fetch(backendApiUrl(`/api-keys/${id}`), {
-      method: "GET",
-      cache: "no-store",
-      headers: {
-        "Content-Type": "application/json",
-        ...(cookie ? { cookie } : {}),
-      },
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const json = await response.json();
-    return json.data as ApiKeyDetailRecord;
-  } catch {
-    return null;
-  }
-}
-
 export default async function ApiKeyPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const path = `/api-keys/${encodeURIComponent(id)}`;
 
-  const keyDetails = await fetchKeyDetails(id);
+  // Keys belong to an account: a guest signs in and comes back here.
+  if (!(await hasSessionCookie())) redirect(`/login?callbackURL=${encodeURIComponent(path)}`);
+
+  // Only a real 404 is "not found"; any other failure reaches the error boundary.
+  const keyDetails = await serverFetchData<ApiKeyDetailRecord>(path, { notFoundAsNull: true });
 
   if (!keyDetails) {
     notFound();

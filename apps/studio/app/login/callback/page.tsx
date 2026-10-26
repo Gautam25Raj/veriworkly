@@ -9,12 +9,8 @@ import { Badge } from "@veriworkly/ui";
 
 import AuthCard from "../component/AuthCard";
 
-import { setAllDocumentsSyncEnabled } from "@/features/documents/services/document-sync";
-import { setAutoSyncEnabledInLocalStorage } from "@/features/documents/services/workspace-settings";
-
+import { finishSignIn, rememberReferralCode } from "@/lib/sign-in";
 import { getSafeAuthCallback } from "@/lib/auth-redirect";
-
-import { fetchApiData } from "@/utils/fetchApiData";
 
 const LoginCallbackPage = () => {
   const router = useRouter();
@@ -28,34 +24,17 @@ const LoginCallbackPage = () => {
 
     async function processLogin() {
       try {
-        // 1. Enable client-side document synchronization preferences
-        setAutoSyncEnabledInLocalStorage(true);
-        setAllDocumentsSyncEnabled(true);
-
-        // 2. Notify backend to activate sync
-        await fetchApiData("/users/me/sync", {
-          method: "PUT",
-          body: JSON.stringify({ enabled: true }),
-        }).catch((err) => {
-          console.error("Failed to enable database sync:", err);
-        });
-
-        // 3. Process referral code if it was passed via query parameters
         const searchParams = new URLSearchParams(window.location.search);
-        const referralCode = searchParams.get("ref");
 
-        if (referralCode) {
-          await fetchApiData("/affiliates/referral", {
-            method: "POST",
-            body: JSON.stringify({ code: referralCode }),
-          }).catch((err) => {
-            console.error("Failed to submit affiliate referral:", err);
-          });
-        }
+        // A social sign-in leaves the site, so a code from this URL is remembered before use.
+        const referralCode = searchParams.get("ref");
+        if (referralCode) rememberReferralCode(referralCode);
+
+        const { referralError } = await finishSignIn();
 
         toast.success("Successfully signed in!");
+        if (referralError) toast.info(`Referral not applied: ${referralError}`);
 
-        // 4. Safely redirect the user to the destination path
         const callbackURL = searchParams.get("callbackURL");
         const targetPath = getSafeAuthCallback(callbackURL);
 
@@ -76,13 +55,10 @@ const LoginCallbackPage = () => {
       <div className="space-y-3">
         <Badge className="bg-background/70">Secure Connection</Badge>
 
-        <h1 className="text-foreground text-3xl font-semibold tracking-tight">
-          Securing your workspace
-        </h1>
+        <h1 className="text-foreground text-3xl font-semibold tracking-tight">Finishing sign-in</h1>
 
         <p className="text-muted max-w-md text-sm leading-relaxed md:text-base">
-          We are setting up your encrypted document store, initializing local-first databases, and
-          syncing your resumes.
+          Your account is ready. We are taking you back to where you were.
         </p>
       </div>
 
@@ -98,7 +74,7 @@ const LoginCallbackPage = () => {
 
         <div className="space-y-1 text-center">
           <p className="text-foreground animate-pulse text-sm font-semibold tracking-tight">
-            Configuring sync environment...
+            Signing you in...
           </p>
           <p className="text-muted text-xs">Please keep this tab open</p>
         </div>
@@ -111,7 +87,7 @@ const LoginCallbackPage = () => {
           </span>
 
           <span className="flex items-center gap-1">
-            <Shield className="h-3.5 w-3.5 text-blue-500" /> Encrypted Sync
+            <Shield className="h-3.5 w-3.5 text-blue-500" /> Cloud Backup
           </span>
 
           <span className="flex items-center gap-1">

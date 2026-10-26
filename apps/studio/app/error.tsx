@@ -1,16 +1,16 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@veriworkly/ui";
 
-export default function Error({
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
+export default function AppError({ error, retry }: { error: unknown; retry: () => void }) {
   const router = useRouter();
+
+  useEffect(() => {
+    console.error(error);
+  }, [error]);
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-8 md:px-6 md:py-10">
@@ -31,7 +31,7 @@ export default function Error({
             </p>
 
             <div className="mt-6 flex flex-wrap items-center gap-3">
-              <Button onClick={() => reset()}>Try again</Button>
+              <Button onClick={() => retry()}>Try again</Button>
 
               <Button variant="secondary" onClick={() => router.push("/")}>
                 Go to Dashboard

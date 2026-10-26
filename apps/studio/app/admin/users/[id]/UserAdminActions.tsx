@@ -8,23 +8,16 @@ import { Button, Input, Select } from "@veriworkly/ui";
 import AdminActionDialog from "@/components/admin/AdminActionDialog";
 import Panel from "@/components/admin/Panel";
 import {
+  ADMIN_ENTITLEMENT_KEYS,
   adjustAdminCredits,
   deleteAdminUser,
   grantAdminEntitlement,
   revokeAdminUserSessions,
   updateAdminUser,
+  type AdminEntitlementKey,
 } from "@/features/admin/services/admin-actions";
 
 import type { AdminUserDetail, Role } from "@/features/admin/types/admin-types";
-
-const ENTITLEMENT_KEYS = [
-  "portfolio_publish",
-  "ai_credits",
-  "custom_subdomain",
-  "seo_controls",
-  "analytics",
-  "watermark_removal",
-];
 
 /**
  * Every control on this panel writes to the admin audit log, so each one is wrapped in the
@@ -37,11 +30,17 @@ const UserAdminActions = ({ detail }: { detail: AdminUserDetail }) => {
 
   const [role, setRole] = useState<Role>(user.role);
   const [creditAmount, setCreditAmount] = useState("100");
-  const [entitlementKey, setEntitlementKey] = useState(ENTITLEMENT_KEYS[0]);
+  const [entitlementKey, setEntitlementKey] = useState<AdminEntitlementKey>(
+    ADMIN_ENTITLEMENT_KEYS[0],
+  );
   const [entitlementEndsAt, setEntitlementEndsAt] = useState("");
   const [error, setError] = useState("");
 
   const isProtectedAdmin = user.role === "ADMIN";
+  // Deleting the account here cancels nothing at the payment provider.
+  const hasLiveSubscription = detail.subscriptions.some(
+    (subscription) => subscription.status === "ACTIVE" || subscription.status === "PAST_DUE",
+  );
 
   return (
     <Panel className="space-y-5 rounded-xl p-4">
@@ -105,8 +104,8 @@ const UserAdminActions = ({ detail }: { detail: AdminUserDetail }) => {
             title="Adjust credit balance"
             description={`${Number(creditAmount) > 0 ? "Granting" : "Removing"} ${Math.abs(Number(creditAmount))} credits for ${user.email}.`}
             confirmLabel="Apply adjustment"
-            onConfirm={async (reason) => {
-              await adjustAdminCredits(user.id, Number(creditAmount), reason);
+            onConfirm={async (reason, attemptKey) => {
+              await adjustAdminCredits(user.id, Number(creditAmount), reason, attemptKey);
             }}
           />
         </div>
@@ -122,9 +121,9 @@ const UserAdminActions = ({ detail }: { detail: AdminUserDetail }) => {
             id="admin-user-entitlement"
             className="h-9 w-44 text-xs"
             value={entitlementKey}
-            onChange={(event) => setEntitlementKey(event.target.value)}
+            onChange={(event) => setEntitlementKey(event.target.value as AdminEntitlementKey)}
           >
-            {ENTITLEMENT_KEYS.map((key) => (
+            {ADMIN_ENTITLEMENT_KEYS.map((key) => (
               <option key={key} value={key}>
                 {key.replace(/_/g, " ")}
               </option>
@@ -191,6 +190,14 @@ const UserAdminActions = ({ detail }: { detail: AdminUserDetail }) => {
               ? "Admin accounts cannot be deleted from this panel."
               : "There is no restore path for a deleted account."}
           </p>
+
+          {hasLiveSubscription ? (
+            <p className="text-warning text-xs">
+              This account has a live subscription. Deleting it here does not cancel anything at
+              Dodo, so the card keeps being charged: cancel the subscription in the Dodo dashboard
+              first.
+            </p>
+          ) : null}
         </AdminActionDialog>
 
         <Button

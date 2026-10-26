@@ -1,3 +1,4 @@
+import { siteConfig } from "@/config/site";
 import { backendApiUrl } from "@/lib/constants";
 
 export type RoadmapSort = "newest" | "oldest" | "recently-completed";
@@ -102,16 +103,30 @@ function normalizeHeaders(headers?: HeadersInit) {
   return Object.fromEntries(new Headers(headers ?? {}).entries());
 }
 
+/**
+ * The studio's own origin, sent as `Origin` on server-side reads. A malformed
+ * `NEXT_PUBLIC_APP_URL` is logged and the header left out (the API accepts a missing origin)
+ * rather than failing every page that reads the roadmap.
+ */
+function studioOrigin() {
+  try {
+    return new URL(siteConfig.url).origin;
+  } catch (error) {
+    console.error("Invalid studio URL; sending no Origin header", siteConfig.url, error);
+    return "";
+  }
+}
+
 function firstPartyServerHeaders(headers?: HeadersInit) {
   const normalizedHeaders = normalizeHeaders(headers);
 
   if (typeof window !== "undefined") return normalizedHeaders;
 
-  const siteOrigin = process.env.SITE_URL ? new URL(process.env.SITE_URL).origin : "";
-  if (!siteOrigin) return normalizedHeaders;
+  const origin = studioOrigin();
+  if (!origin) return normalizedHeaders;
 
   return {
-    Origin: siteOrigin,
+    Origin: origin,
     ...normalizedHeaders,
   };
 }

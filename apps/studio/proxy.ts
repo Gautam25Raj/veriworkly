@@ -1,52 +1,75 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getSafeAuthCallback } from "@/lib/auth-redirect";
+import { getSafeAuthCallback, SESSION_COOKIE_NAMES } from "@/lib/auth-redirect";
 
+/**
+ * Framework output and `public/` asset folders never reach the proxy. Everything else does,
+ * so a page route can never skip the login redirect by looking like a file.
+ */
 export const config = {
-  matcher: ["/((?!_next/|favicon.ico).*)"],
+  matcher: ["/((?!_next/|icons/|images/|fonts/|og/|templates/).*)"],
 };
 
 const PROTECTED_PATH_PREFIXES = ["/admin", "/profile/master", "/profile/advanced"];
 const GUEST_COOKIE_NAME = "veriworkly-guest-mode";
 
+/** Routes that answer the same to everyone: API handlers, public shares, the parity harness. */
+const PUBLIC_PATH_PREFIXES = ["/api", "/share", "/parity", "/.well-known"];
+
+/** Root files crawlers, browsers and agents fetch without a session. */
+const PUBLIC_FILES = new Set([
+  // Clears a dead session cookie; a visitor without a guest cookie must reach it too.
+  "/auth/session-expired",
+  "/llms.txt",
+  "/openapi.json",
+  "/robots.txt",
+  "/sitemap.xml",
+  "/manifest.json",
+  "/favicon.ico",
+  "/icon0.svg",
+  "/icon1.png",
+  "/apple-icon.png",
+  "/veriworkly-logo.png",
+  "/web-app-manifest-192x192.png",
+  "/web-app-manifest-512x512.png",
+]);
+
+/** `/login?session=expired` is where a rejected session is sent; it must render while the dead cookie may linger. */
+const SESSION_EXPIRED_PARAM = "session";
+
+function matchesPrefix(pathname: string, prefix: string) {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
 export function isProtectedStudioPath(pathname: string) {
-  return PROTECTED_PATH_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  return PROTECTED_PATH_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix));
+}
+
+function isPublicStudioPath(pathname: string) {
+  return (
+    PUBLIC_FILES.has(pathname) ||
+    PUBLIC_PATH_PREFIXES.some((prefix) => matchesPrefix(pathname, prefix))
   );
 }
 
-export function looksLikeStaticAssetPath(path: string) {
-  const lastSegment = path.split("/").pop() ?? "";
-  return /\.[a-zA-Z0-9]+$/.test(lastSegment);
-}
-
 export default async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const { pathname, searchParams } = request.nextUrl;
 
-  const isBypassed =
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/api") ||
-    pathname.startsWith("/share") ||
-    pathname.startsWith("/parity") ||
-    looksLikeStaticAssetPath(pathname);
+  if (isPublicStudioPath(pathname)) return NextResponse.next();
 
-  if (isBypassed) return NextResponse.next();
-
-  const sessionCookie =
-    request.cookies.get("__Secure-veriworkly-auth.session_token")?.value ||
-    request.cookies.get("veriworkly-auth.session_token")?.value;
-
+  const isAuthenticated = SESSION_COOKIE_NAMES.some((name) => !!request.cookies.get(name)?.value);
   const hasGuestCookie = request.cookies.get(GUEST_COOKIE_NAME)?.value === "true";
-  const isAuthenticated = !!sessionCookie;
 
-  const isLoginPage = pathname === "/login" || pathname.startsWith("/login/");
+  if (matchesPrefix(pathname, "/login")) {
+    // The callback page finishes a social sign-in (referral, return location) with the new
+    // session cookie already set, so it must not be skipped like the sign-in form is.
+    const isCallback = matchesPrefix(pathname, "/login/callback");
+    const isSessionExpired = searchParams.get(SESSION_EXPIRED_PARAM) === "expired";
 
-  if (isLoginPage) {
-    if (isAuthenticated) {
-      const callbackURL = getSafeAuthCallback(request.nextUrl.searchParams.get("callbackURL"));
-      const redirectUrl = new URL(callbackURL, request.url);
+    if (isAuthenticated && !isCallback && !isSessionExpired) {
+      const callbackURL = getSafeAuthCallback(searchParams.get("callbackURL"));
 
-      return NextResponse.redirect(redirectUrl);
+      return NextResponse.redirect(new URL(callbackURL, request.url));
     }
 
     return NextResponse.next();
@@ -54,14 +77,7 @@ export default async function proxy(request: NextRequest) {
 
   const isProtectedPath = isProtectedStudioPath(pathname);
 
-  if (isProtectedPath && !isAuthenticated) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("callbackURL", `${pathname}${request.nextUrl.search}`);
-
-    return NextResponse.redirect(loginUrl);
-  }
-
-  if (!isAuthenticated && !hasGuestCookie) {
+  if ((isProtectedPath && !isAuthenticated) || (!isAuthenticated && !hasGuestCookie)) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackURL", `${pathname}${request.nextUrl.search}`);
 

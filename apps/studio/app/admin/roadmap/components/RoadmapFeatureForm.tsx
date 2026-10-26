@@ -12,10 +12,10 @@ import { Input, Button, Select, TextArea } from "@veriworkly/ui";
 import Panel from "@/components/admin/Panel";
 
 import {
-  type AdminRoadmapPayload,
   createRoadmapFeature,
   updateRoadmapFeature,
 } from "@/features/roadmap/services/admin-roadmap";
+import { buildRoadmapPayload } from "@/app/admin/roadmap/components/roadmap-payload";
 import { Badge } from "@veriworkly/ui";
 
 const STATUS_OPTIONS: Array<{ value: RoadmapStatus; label: string }> = [
@@ -77,33 +77,7 @@ export default function RoadmapFeatureForm({
     try {
       setIsSaving(true);
 
-      let details = null;
-
-      if (formData.detailsJson.trim()) {
-        try {
-          details = JSON.parse(formData.detailsJson);
-        } catch {
-          throw new Error("Invalid Details JSON format");
-        }
-      }
-
-      const payload: AdminRoadmapPayload = {
-        title: formData.title.trim(),
-        description: formData.description.trim(),
-        status: formData.status,
-        eta: formData.eta.trim() || null,
-        tags: formData.tags
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean),
-        fullDescription: formData.fullDescription.trim() || null,
-        whyItMatters: formData.whyItMatters.trim() || null,
-        timeline: formData.timeline.trim() || null,
-        startedAt: formData.startedAt ? new Date(formData.startedAt).toISOString() : null,
-        completedAt: formData.completedAt ? new Date(formData.completedAt).toISOString() : null,
-        completedQuarter: formData.completedQuarter.trim() || null,
-        details,
-      };
+      const payload = buildRoadmapPayload(formData, mode);
 
       if (mode === "create") {
         await createRoadmapFeature(payload);

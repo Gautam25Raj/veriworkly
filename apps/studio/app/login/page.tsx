@@ -1,8 +1,7 @@
 "use client";
 
 import { toast } from "sonner";
-import { useState } from "react";
-import { useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Shield, Lock, Check } from "lucide-react";
 
@@ -12,25 +11,28 @@ import OtpForm from "./component/OtpForm";
 import AuthCard from "./component/AuthCard";
 import SocialAuth from "./component/SocialAuth";
 
+import { siteConfig } from "@/config/site";
 import { authClient } from "@/lib/auth-client";
+import { rememberReferralCode } from "@/lib/sign-in";
 import { getSafeAuthCallback } from "@/lib/auth-redirect";
 
 import { fetchApiData } from "@/utils/fetchApiData";
 
-const LoginPage = () => {
-  const router = useRouter();
+/**
+ * Everything on /login that reads the query string. It sits in its own Suspense boundary so
+ * that the form around it is in the prerendered HTML instead of a client-side bailout.
+ */
+const LoginSearchParamEffects = () => {
   const searchParams = useSearchParams();
-
-  const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
-  const [sentTo, setSentTo] = useState("");
-
-  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const code = searchParams.get("ref");
+    if (!code) return;
 
-    if (!code || sessionStorage.getItem(`affiliate-click:${code}`)) return;
+    // Kept until the first sign-in, even if the visitor continues as a guest first.
+    rememberReferralCode(code);
+
+    if (sessionStorage.getItem(`affiliate-click:${code}`)) return;
 
     sessionStorage.setItem(`affiliate-click:${code}`, "1");
 
@@ -75,10 +77,26 @@ const LoginPage = () => {
         url.pathname + (remainingSearch ? `?${remainingSearch}` : ""),
       );
     }
+
+    if (searchParams.get("session") === "expired") {
+      toast.info("Your session ended. Sign in again to continue.");
+    }
   }, [searchParams]);
 
+  return null;
+};
+
+const LoginForm = () => {
+  const router = useRouter();
+
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+  const [sentTo, setSentTo] = useState("");
+
+  const [isLoading, setIsLoading] = useState(false);
+
   const handleGuestAccess = () => {
-    const callbackURL = searchParams.get("callbackURL");
+    const callbackURL = new URLSearchParams(window.location.search).get("callbackURL");
     const target = getSafeAuthCallback(callbackURL);
 
     const maxAge = 60 * 60 * 24 * 30; // 30 days
@@ -145,8 +163,7 @@ const LoginPage = () => {
 
         <p className="text-muted max-w-md text-sm leading-relaxed md:text-base">
           Sign in is optional. Your data is stored locally in your browser by default. Sign in to
-          enable secure cloud backups, generate cover letters, and publish your portfolio to a
-          custom subdomain.
+          back up your documents to the cloud, share them, and use ATS checks, imports, and AI help.
         </p>
       </div>
 
@@ -181,6 +198,28 @@ const LoginPage = () => {
         </form>
 
         <SocialAuth isLoading={isLoading} setIsLoading={setIsLoading} />
+
+        <p className="text-muted text-center text-xs">
+          By continuing you agree to the{" "}
+          <a
+            href={`${siteConfig.links.main}/terms`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-foreground font-semibold underline-offset-2 hover:underline"
+          >
+            Terms
+          </a>{" "}
+          and{" "}
+          <a
+            href={`${siteConfig.links.main}/privacy`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-foreground font-semibold underline-offset-2 hover:underline"
+          >
+            Privacy Policy
+          </a>
+          .
+        </p>
       </div>
 
       <div className="mt-auto space-y-4 pt-4">
@@ -200,7 +239,7 @@ const LoginPage = () => {
           </span>
 
           <span className="flex items-center gap-1">
-            <Shield className="h-3.5 w-3.5 text-blue-500" /> Encrypted Sync
+            <Shield className="h-3.5 w-3.5 text-blue-500" /> Cloud Backup
           </span>
 
           <span className="flex items-center gap-1">
@@ -211,5 +250,14 @@ const LoginPage = () => {
     </AuthCard>
   );
 };
+
+const LoginPage = () => (
+  <>
+    <Suspense fallback={null}>
+      <LoginSearchParamEffects />
+    </Suspense>
+    <LoginForm />
+  </>
+);
 
 export default LoginPage;

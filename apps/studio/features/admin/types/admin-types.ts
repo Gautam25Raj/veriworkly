@@ -45,82 +45,103 @@ export interface AdminAuditEntry {
   actor: AdminUserRef | null;
 }
 
+/** What an overview section holds when its queries failed; the rest of the overview still loads. */
+export interface AdminSectionError {
+  error: true;
+}
+
+/** An overview section, or `null` when the server could not load it ("unavailable"). */
+export function adminSection<T extends object>(value: T | AdminSectionError): T | null {
+  return "error" in value && value.error === true ? null : (value as T);
+}
+
+export interface AdminPortfolioSummary {
+  live: number;
+  grace: number;
+  suspended: number;
+  total: number;
+  publishedLast30Days: number;
+  views: { total: number; last30Days: number; last7Days: number };
+  topTemplates: Array<{ templateId: string; count: number }>;
+}
+
+export interface AdminDocumentSummary {
+  byType: Partial<Record<DocumentType, number>>;
+  byVisibility: Partial<Record<Visibility, number>>;
+  active: number;
+  softDeleted: number;
+  createdLast30Days: number;
+  shareLinks: number;
+  shareViews: number;
+}
+
+/**
+ * The `/admin` payload. Each domain section is loaded independently on the server, so any one
+ * of them can be `{ error: true }`; read sections through `adminSection`.
+ */
 export interface AdminOverview {
   generatedAt: string;
   windowDays: number;
 
-  users: {
-    total: number;
-    newInWindow: number;
-    previousWindow: number;
-    growthPercent: number | null;
-    byRole: Partial<Record<Role, number>>;
-    verified: number;
-    activeSessions: number;
-  };
+  users:
+    | AdminSectionError
+    | {
+        total: number;
+        newInWindow: number;
+        previousWindow: number;
+        growthPercent: number | null;
+        byRole: Partial<Record<Role, number>>;
+        verified: number;
+        activeSessions: number;
+      };
 
-  billing: {
-    subscriptions: {
-      byStatus: Partial<Record<SubscriptionStatus, number>>;
-      paying: number;
-      byProduct: Record<string, number>;
-      newLast30Days: number;
-      cancelingAtPeriodEnd: number;
-    };
-    credits: {
-      balance: number;
-      reserved: number;
-      lifetimeCredited: number;
-      lifetimeDebited: number;
-      grantedLast30Days: number;
-      spentLast30Days: number;
-    };
-    webhooks: { byStatus: Partial<Record<WebhookStatus, number>>; failed: number };
-    activeEntitlements: number;
-  };
+  billing: AdminSectionError | AdminBillingSummary;
 
-  portfolios: {
-    live: number;
-    grace: number;
-    suspended: number;
-    total: number;
-    publishedLast30Days: number;
-    views: { total: number; last30Days: number; last7Days: number };
-    topTemplates: Array<{ templateId: string; count: number }>;
-  };
-
-  documents: {
-    byType: Partial<Record<DocumentType, number>>;
-    byVisibility: Partial<Record<Visibility, number>>;
-    active: number;
-    softDeleted: number;
-    createdLast30Days: number;
-    shareLinks: number;
-    shareViews: number;
-  };
-
-  affiliates: AdminAffiliateSummary;
-  ambassadors: AdminAmbassadorSummary;
-  apiKeys: AdminApiKeySummary;
-  jobs: AdminJobStatus;
-  health: AdminSystemHealth;
-  recentActivity: AdminAuditEntry[];
+  portfolios: AdminSectionError | AdminPortfolioSummary;
+  documents: AdminSectionError | AdminDocumentSummary;
+  affiliates: AdminSectionError | AdminAffiliateSummary;
+  ambassadors: AdminSectionError | AdminAmbassadorSummary;
+  apiKeys: AdminSectionError | AdminApiKeySummary;
+  jobs: AdminSectionError | AdminJobStatus;
+  health: AdminSectionError | AdminSystemHealth;
+  recentActivity: AdminSectionError | AdminAuditEntry[];
 
   actionQueue: AdminActionQueue;
+}
+
+export interface AdminBillingSummary {
+  subscriptions: {
+    byStatus: Partial<Record<SubscriptionStatus, number>>;
+    paying: number;
+    byProduct: Record<string, number>;
+    newLast30Days: number;
+    cancelingAtPeriodEnd: number;
+  };
+  credits: {
+    balance: number;
+    reserved: number;
+    lifetimeCredited: number;
+    lifetimeDebited: number;
+    grantedLast30Days: number;
+    spentLast30Days: number;
+  };
+  webhooks: { byStatus: Partial<Record<WebhookStatus, number>>; failed: number };
+  activeEntitlements: number;
 }
 
 /**
  * The six queues an operator drains. Served both inside `AdminOverview` and standalone from
  * `/admin/overview/queue`, which the shell uses for its nav badges — the two must stay
  * identical, so `AdminOverview["actionQueue"]` is defined as this type rather than repeating it.
+ * A count is `null` when it could not be read (unknown, never 0).
  */
 export interface AdminActionQueue {
-  pendingAmbassadorApplications: number;
-  pendingWithdrawals: number;
-  pendingCommissions: number;
-  failedWebhooks: number;
-  suspendedPortfolios: number;
-  pendingPortfolioAssets: number;
+  pendingAmbassadorApplications: number | null;
+  pendingWithdrawals: number | null;
+  pendingCommissions: number | null;
+  failedWebhooks: number | null;
+  suspendedPortfolios: number | null;
+  pendingPortfolioAssets: number | null;
 }
 
 export type AdminActionQueueKey = keyof AdminActionQueue;
@@ -320,26 +341,35 @@ export interface AdminAffiliateRow extends AdminUserRef {
 export interface AdminCommissionRow {
   id: string;
   amountCents: number;
+  /** ISO 4217. Only wallet-currency (USD) commissions can be released. */
+  currency: string;
+  /** True for a non-USD commission: it stays PENDING until an admin records it in USD. */
+  requiresManualConversion?: boolean;
   rateBps: number;
   status: CommissionStatus;
   reason: string | null;
   createdAt: string;
-  affiliate: AdminUserRef & { affiliateCode: string | null };
+  /** `null` once the affiliate's account is deleted; the money history outlives it. */
+  affiliate: (AdminUserRef & { affiliateCode: string | null }) | null;
   referral: { id: string; referredUser: { id: string; email: string } } | null;
 }
 
 export interface AdminWithdrawalRow {
   id: string;
   amountCents: number;
+  currency: string;
   status: WithdrawalStatus;
   payoutNote: string | null;
   reviewedAt: string | null;
   paidAt: string | null;
   createdAt: string;
-  user: AdminUserRef & {
-    affiliateCode: string | null;
-    affiliateWallet: { availableCents: number; paidCents: number } | null;
-  };
+  /** `null` once the affiliate's account is deleted. */
+  user:
+    | (AdminUserRef & {
+        affiliateCode: string | null;
+        affiliateWallet: { availableCents: number; paidCents: number } | null;
+      })
+    | null;
 }
 
 export interface AdminReferralRow {
@@ -552,6 +582,8 @@ export interface AdminUsageMetrics {
 }
 
 export interface AdminGithubStatus {
+  /** True while a sync holds the job lock; a manual sync answers 202 and runs in the background. */
+  running: boolean;
   stats: unknown;
   latestSync: {
     id: string;
@@ -579,6 +611,16 @@ export interface AdminRequestLogRow {
   userAgent: string | null;
   error: string | null;
   createdAt: string;
+}
+
+/** The request log is not counted: page with `hasMore` / `nextCursor`. */
+export interface AdminRequestLogPage {
+  items: AdminRequestLogRow[];
+  total: null;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+  nextCursor: string | null;
 }
 
 export interface AdminAuditFilters {

@@ -40,9 +40,20 @@ describe("share links contract", () => {
       }),
     } as Response);
 
-    const result = await createShareLink(defaultResume.id, defaultResume, {
-      noExpiry: true,
-    });
+    const result = await createShareLink(
+      {
+        id: defaultResume.id,
+        type: "RESUME",
+        title: "Jane Doe",
+        templateId: defaultResume.templateId,
+        content: defaultResume,
+        updatedAt: defaultResume.updatedAt,
+        sync: defaultResume.sync,
+      },
+      {
+        noExpiry: true,
+      },
+    );
 
     expect(result.token).toBe("tok_123");
     expect(fetchMock).toHaveBeenCalledWith(

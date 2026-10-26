@@ -1,3 +1,4 @@
+import { siteConfig } from "@/config/site";
 import { backendApiUrl } from "@/lib/constants";
 import { clearInvalidSessionAndRedirect, isInvalidSessionResponse } from "@/lib/invalid-session";
 
@@ -11,17 +12,57 @@ export class ApiRequestError extends Error {
   status: number;
   /** The error body's `details`, e.g. `currentUpdatedAt` on a master-profile 409. */
   details: unknown;
+  /** `details.code` when the server names the failure, e.g. `AUTH_UNAVAILABLE` on a 503. */
+  code: string | undefined;
 
   constructor(message: string, status: number, details?: unknown) {
     super(message);
     this.name = "ApiRequestError";
     this.status = status;
     this.details = details;
+
+    const code = (details as { code?: unknown } | null | undefined)?.code;
+    this.code = typeof code === "string" ? code : undefined;
   }
+}
+
+/** The server's own message wins: it says what actually went wrong ("Username is already taken"). */
+export async function readApiError(response: Response, fallbackMessage?: string) {
+  const body = (await response.json().catch(() => null)) as {
+    message?: unknown;
+    details?: unknown;
+  } | null;
+
+  const message =
+    typeof body?.message === "string" && body.message
+      ? body.message
+      : (fallbackMessage ?? `Request failed: ${response.status}`);
+
+  return new ApiRequestError(message, response.status, body?.details);
 }
 
 function normalizeHeaders(headers?: HeadersInit) {
   return Object.fromEntries(new Headers(headers ?? {}).entries());
+}
+
+let reportedBadOrigin = false;
+
+/**
+ * Studio's own origin, which server-side calls send in place of a browser's. A malformed
+ * `NEXT_PUBLIC_APP_URL` is logged once and the header left out (the API accepts a call with no
+ * Origin) rather than failing every render.
+ */
+export function firstPartyOrigin(): string | undefined {
+  try {
+    return new URL(siteConfig.url).origin;
+  } catch (error) {
+    if (!reportedBadOrigin) {
+      reportedBadOrigin = true;
+      console.error(`Studio URL "${siteConfig.url}" is not a valid URL; sending no Origin.`, error);
+    }
+
+    return undefined;
+  }
 }
 
 function firstPartyServerHeaders(headers?: HeadersInit) {
@@ -29,27 +70,31 @@ function firstPartyServerHeaders(headers?: HeadersInit) {
 
   if (typeof window !== "undefined") return normalizedHeaders;
 
-  const siteOrigin = process.env.SITE_URL ? new URL(process.env.SITE_URL).origin : "";
-  if (!siteOrigin) return normalizedHeaders;
+  const origin = firstPartyOrigin();
 
-  return {
-    Origin: siteOrigin,
-    ...normalizedHeaders,
-  };
+  return origin ? { Origin: origin, ...normalizedHeaders } : normalizedHeaders;
 }
+
+type FetchApiOptions = RequestInit & {
+  /** Shown only when the server's answer carries no message of its own. */
+  errorMessage?: string;
+  nullOnNotFound?: boolean;
+  /**
+   * `false` for calls a guest can make: their 401 means "not signed in", not "session
+   * expired", so it must reach the caller instead of signing out and leaving for /login.
+   */
+  redirectOnInvalidSession?: boolean;
+};
 
 export async function fetchApiData<T>(
   path: string,
-  options: RequestInit & {
-    errorMessage?: string;
-    nullOnNotFound?: boolean;
-    /**
-     * `false` for calls a guest can make: their 401 means "not signed in", not "session
-     * expired", so it must reach the caller instead of signing out and leaving for /login.
-     */
-    redirectOnInvalidSession?: boolean;
-  } = {},
-): Promise<T> {
+  options: FetchApiOptions & { nullOnNotFound: true },
+): Promise<T | null>;
+export async function fetchApiData<T>(path: string, options?: FetchApiOptions): Promise<T>;
+export async function fetchApiData<T>(
+  path: string,
+  options: FetchApiOptions = {},
+): Promise<T | null> {
   const {
     errorMessage,
     nullOnNotFound,
@@ -59,28 +104,33 @@ export async function fetchApiData<T>(
 
   const url = backendApiUrl(path);
 
+  // A GET with a JSON Content-Type is not a "simple" request, so each one cost a CORS preflight.
+  const hasBody = fetchOptions.body !== undefined && fetchOptions.body !== null;
+
   const response = await fetch(url, {
     ...fetchOptions,
     credentials: fetchOptions.credentials ?? "include",
     headers: {
-      "Content-Type": "application/json",
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
       ...firstPartyServerHeaders(fetchOptions.headers),
     },
   });
 
   if (!response.ok) {
-    if (redirectOnInvalidSession && isInvalidSessionResponse(path, response.status)) {
-      await clearInvalidSessionAndRedirect();
+    if (
+      redirectOnInvalidSession &&
+      typeof window !== "undefined" &&
+      isInvalidSessionResponse(path, response.status)
+    ) {
+      // The page is leaving for /login. Settling would hand callers a "Request failed: 401"
+      // to toast over the redirect, so the call simply never finishes.
+      void clearInvalidSessionAndRedirect();
+      return new Promise<never>(() => {});
     }
 
-    if (response.status === 404 && nullOnNotFound) {
-      return null as unknown as T;
-    }
+    if (response.status === 404 && nullOnNotFound) return null;
 
-    const errorData = await response.json().catch(() => ({}));
-    const message = errorMessage || errorData.message || `Request failed: ${response.status}`;
-
-    throw new ApiRequestError(message, response.status, errorData.details);
+    throw await readApiError(response, errorMessage);
   }
 
   const payload = (await response.json()) as ApiSuccessResponse<T>;

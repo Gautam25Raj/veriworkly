@@ -30,18 +30,18 @@ const PasswordGateModal = ({
           <div className="space-y-6 p-6 md:space-y-8 md:p-8">
             <div className="space-y-1.5 text-center md:space-y-2">
               <Modal.Title className="text-foreground text-xl font-black tracking-tighter md:text-3xl">
-                Locked Protocol
+                Password protected
               </Modal.Title>
 
               <Modal.Description className="text-muted text-xs leading-relaxed font-medium md:text-sm">
-                This document is encrypted. Enter the access key to view and download the document.
+                This document is password-protected. Enter the password to view and download it.
               </Modal.Description>
             </div>
 
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-muted ml-1 text-[9px] font-black tracking-[0.25em] uppercase md:text-[10px]">
-                  Access Key
+                  Password
                 </label>
 
                 <Input

@@ -52,9 +52,13 @@ const STATUS_TONES: Record<string, Tone> = {
   FAILED: "danger",
   REVERSED: "danger",
   CANCELED: "danger",
+  REVOKED: "danger",
+  DELETED: "danger",
   down: "danger",
 
   INACTIVE: "neutral",
+  DISABLED: "neutral",
+  EXPIRED: "neutral",
   NOT_ENROLLED: "neutral",
   NONE: "neutral",
 

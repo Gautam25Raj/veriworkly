@@ -725,44 +725,11 @@ describe("editor input (Phase 2)", () => {
     ]);
   });
 
+  // Guest throughout, like the rest of this file: a signed-in session comes from the
+  // server-side `fetchCurrentUser`, which `page.route` cannot reach. The signed-in panel's
+  // pricing failure and Retry are covered in `tests/contracts/editor-input.contract.test.ts`.
   describe("AI field assist", () => {
-    let actionsStatus = 200;
-
-    beforeAll(async () => {
-      await page.route("**/ai/actions", async (route) => {
-        const headers = {
-          "access-control-allow-origin": server.origin,
-          "access-control-allow-credentials": "true",
-          "access-control-allow-headers": "content-type",
-        };
-
-        if (route.request().method() === "OPTIONS") {
-          await route.fulfill({ status: 204, headers });
-          return;
-        }
-
-        const costs = { standard: 2, expert: 5 };
-
-        await route.fulfill({
-          status: actionsStatus,
-          headers,
-          contentType: "application/json",
-          body: JSON.stringify(
-            actionsStatus === 200
-              ? {
-                  success: true,
-                  message: "ok",
-                  data: { rewrite_section: { costs }, generate_section: { costs } },
-                }
-              : { success: false, message: "AI service is down" },
-          ),
-        });
-      });
-    });
-
-    afterAll(async () => {
-      await page.unroute("**/ai/actions");
-    });
+    const signIn = () => page.getByRole("link", { name: /sign in to use ai/i });
 
     it("closes the assistant when switching to another entry (S-060)", async () => {
       await ensureExperienceEntries(2);
@@ -775,43 +742,31 @@ describe("editor input (Phase 2)", () => {
       await page.waitForTimeout(250);
 
       await page.getByRole("button", { name: /(improve|write) with ai/i }).click();
-      await page.getByLabel(/instructions for the ai draft/i).fill("Only for entry one");
 
-      expect(await page.getByText("AI writing assistant").count()).toBe(1);
+      expect(await signIn().count()).toBe(1);
 
       await picker.selectOption({ index: 1 });
       await page.waitForTimeout(250);
 
-      expect(await page.getByText("AI writing assistant").count()).toBe(0);
+      expect(await signIn().count()).toBe(0);
       expect(await page.getByRole("button", { name: /(improve|write) with ai/i }).count()).toBe(1);
     });
 
-    it("explains a pricing failure and recovers on Retry instead of disabling Generate (S-066)", async () => {
-      actionsStatus = 500;
-
-      // A fresh page load drops the module-level pricing cache the last test filled.
-      await page.reload({ waitUntil: "networkidle" });
-      await page.waitForTimeout(1_000);
-      await openSection("experience");
-
+    it("asks a guest to sign in, with a link back to this editor (S-200)", async () => {
       await page.getByRole("button", { name: /(improve|write) with ai/i }).click();
-      await page.waitForTimeout(500);
 
-      const failure = page.getByRole("alert").filter({ hasText: /AI is unavailable/i });
+      const editorPath = new URL(page.url()).pathname;
+      const href = await signIn().getAttribute("href");
 
-      expect(await failure.count()).toBe(1);
+      expect(href).toBe(`/login?callbackURL=${encodeURIComponent(editorPath)}`);
 
-      actionsStatus = 200;
-      await page.getByRole("button", { name: /^retry$/i }).click();
-      await page.waitForTimeout(500);
+      await signIn().click();
+      await page.waitForURL((url) => url.pathname === "/login");
 
-      expect(await failure.count()).toBe(0);
-      expect(
-        await page.getByRole("button", { name: /generate draft · 2 credits/i }).isEnabled(),
-      ).toBe(true);
-      expect(
-        await page.getByRole("button", { name: /^standard/i }).getAttribute("aria-pressed"),
-      ).toBe("true");
+      expect(new URL(page.url()).searchParams.get("callbackURL")).toBe(editorPath);
+
+      await page.goto(`${server.origin}${editorPath}`, { waitUntil: "networkidle" });
+      await page.waitForTimeout(1_000);
     });
   });
 

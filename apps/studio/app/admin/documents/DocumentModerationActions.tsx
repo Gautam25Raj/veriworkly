@@ -33,7 +33,7 @@ const DocumentModerationActions = ({
         trigger="Restore"
         triggerVariant="primary"
         title="Restore this document"
-        description={`"${title}" becomes visible to its owner again.`}
+        description={`"${title}" is restored on the server and its share links resolve again. A document whose content was already erased (30 days after deletion) cannot be restored.`}
         confirmLabel="Restore document"
         onConfirm={async (reason) => {
           await restoreAdminDocument(documentId, reason);
@@ -48,7 +48,7 @@ const DocumentModerationActions = ({
         <AdminActionDialog
           trigger="Make private"
           title="Force this document private"
-          description={`"${title}" stops being reachable by anyone but its owner. Existing share links stop resolving.`}
+          description={`"${title}" is set to private and a portfolio published from it is taken offline. Its existing share links keep working: revoke them on the Share links page to stop them.`}
           confirmLabel="Make private"
           onConfirm={async (reason) => {
             await updateAdminDocumentVisibility(documentId, "PRIVATE", reason);
@@ -72,7 +72,7 @@ const DocumentModerationActions = ({
         trigger="Delete"
         triggerClassName="text-destructive"
         title="Delete this document"
-        description={`"${title}" is soft-deleted — it disappears from the owner's workspace but can be restored from this page.`}
+        description={`"${title}" is deleted on the server: its share links stop resolving and a portfolio published from it is taken offline. A copy already in the owner's browser is not removed. It can be restored from this page until its content is erased, 30 days after deletion.`}
         confirmLabel="Delete document"
         onConfirm={async (reason) => {
           await deleteAdminDocument(documentId, reason);

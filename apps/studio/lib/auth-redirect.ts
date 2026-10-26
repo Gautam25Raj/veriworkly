@@ -1,5 +1,14 @@
 import { siteConfig } from "@/config/site";
 
+/** better-auth's session cookie: `__Secure-` prefixed over HTTPS, bare in local development. */
+export const SESSION_COOKIE_NAMES = [
+  "__Secure-veriworkly-auth.session_token",
+  "veriworkly-auth.session_token",
+] as const;
+
+/** Where a session the server no longer accepts is cleared before signing in again. */
+export const SESSION_EXPIRED_PATH = "/auth/session-expired";
+
 const APP_ORIGIN = new URL(siteConfig.links.app).origin;
 
 const TRUSTED_ORIGINS = new Set<string>([
@@ -31,6 +40,8 @@ export function getSafeAuthCallback(rawCallback: string | null, fallback = "/") 
       if (resolved.pathname === "/login" || resolved.pathname.startsWith("/login/")) {
         return fallback;
       }
+      // Landing there after sign-in would clear the session just created.
+      if (resolved.pathname === SESSION_EXPIRED_PATH) return fallback;
       return `${resolved.pathname}${resolved.search}${resolved.hash}`;
     } catch {
       return fallback;

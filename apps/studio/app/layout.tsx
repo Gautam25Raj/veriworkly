@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 import { siteConfig } from "@/config/site";
+import { toSafeJsonLd } from "@/lib/json-ld";
 import { globalFontVariables } from "@veriworkly/ui";
 
 import { Toaster } from "@/components/Toaster";
@@ -29,7 +30,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     url: siteConfig.url,
-    title: "Build resumes, cover letters, portfolios, and link-in-bio pages | VeriWorkly",
+    title: "Build resumes, cover letters and portfolios | VeriWorkly",
     description: siteConfig.description,
     siteName: siteConfig.shortName,
     images: [
@@ -50,12 +51,6 @@ export const metadata: Metadata = {
     creator: siteConfig.twitter.handle,
   },
 
-  icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
-    apple: "/apple-icon.png",
-  },
-
   appleWebApp: {
     title: "VeriWorkly",
     statusBarStyle: "default",
@@ -73,13 +68,6 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
-
-  alternates: {
-    canonical: "/",
-    languages: {
-      "en-US": "/",
-    },
-  },
 };
 
 const RootLayout = ({
@@ -92,7 +80,7 @@ const RootLayout = ({
     "@type": ["WebApplication", "SoftwareApplication"],
 
     name: "VeriWorkly Studio",
-    url: "https://app.veriworkly.com",
+    url: siteConfig.url,
     description: siteConfig.description,
 
     applicationCategory: "BusinessApplication",
@@ -130,19 +118,19 @@ const RootLayout = ({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+            __html: toSafeJsonLd(jsonLd),
           }}
         />
 
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
+            __html: toSafeJsonLd({
               "@context": "https://schema.org",
               "@type": "Organization",
               name: "VeriWorkly",
-              url: "https://app.veriworkly.com",
-              logo: "https://app.veriworkly.com/veriworkly-logo.png",
+              url: siteConfig.links.main,
+              logo: `${siteConfig.url}/veriworkly-logo.png`,
             }),
           }}
         />

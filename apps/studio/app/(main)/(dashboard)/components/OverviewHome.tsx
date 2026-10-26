@@ -7,6 +7,8 @@ import { BookOpen, FolderOpen, ArrowRight, BriefcaseBusiness } from "lucide-reac
 
 import { Card } from "@veriworkly/ui";
 
+import { siteConfig } from "@/config/site";
+
 import DestructiveModal from "@/components/modals/DestructiveModal";
 import SyncDetailsModal from "@/components/modals/SyncDetailsModal";
 import ShareDocumentModal from "@/components/modals/ShareDocumentModal";
@@ -120,7 +122,7 @@ const OverviewHome = () => {
             <div className="grid gap-2">
               <MiniLink href="/profile" icon={BriefcaseBusiness} label="Profile workspace" />
               <MiniLink href="/documents" icon={FolderOpen} label="Document library" />
-              <MiniLink href="/admin/roadmap" icon={BookOpen} label="Roadmap" />
+              <MiniLink href={`${siteConfig.links.main}/roadmap`} icon={BookOpen} label="Roadmap" />
             </div>
           </aside>
         </div>
@@ -132,6 +134,7 @@ const OverviewHome = () => {
         onConfirmAction={handleConfirmDelete}
         onCloseAction={() => setDeleteTarget(null)}
         entityName={deleteTarget?.title ?? "document"}
+        cloudBacked={Boolean(deleteTarget?.sync.cloudDocumentId)}
       />
 
       {syncDetailsTarget ? (

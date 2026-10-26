@@ -8,6 +8,7 @@ import { AtSign, AlertTriangle, Check, Loader2 } from "lucide-react";
 import { Modal, Button, Input } from "@veriworkly/ui";
 
 import {
+  type UsernameAvailability,
   updateAccountUsername,
   checkUsernameAvailability,
 } from "@/features/profile/services/update-profile";
@@ -15,9 +16,19 @@ import {
 interface EditProfileUsernameModalProps {
   open: boolean;
   onClose: () => void;
+  /** Called with the username the server stored, for callers that hold the user in state. */
+  onSaved?: (username: string) => void;
 }
 
-const EditProfileUsernameModal = ({ open, onClose }: EditProfileUsernameModalProps) => {
+const UNAVAILABLE_MESSAGES: Record<NonNullable<UsernameAvailability["reason"]>, string> = {
+  too_short: "Username must be at least 3 characters",
+  too_long: "Username cannot exceed 32 characters",
+  invalid_characters: "Use only lowercase letters, numbers, hyphens, and underscores",
+  reserved: "This username is reserved",
+  taken: "This username is already taken",
+};
+
+const EditProfileUsernameModal = ({ open, onClose, onSaved }: EditProfileUsernameModalProps) => {
   const router = useRouter();
 
   const [username, setUsername] = React.useState("");
@@ -25,6 +36,7 @@ const EditProfileUsernameModal = ({ open, onClose }: EditProfileUsernameModalPro
   const [isSaving, setIsSaving] = React.useState(false);
   const [isChecking, setIsChecking] = React.useState(false);
   const [isAvailable, setIsAvailable] = React.useState<boolean | null>(null);
+  const [normalizedUsername, setNormalizedUsername] = React.useState<string | null>(null);
   const [validationError, setValidationError] = React.useState<string | null>(null);
 
   if (open !== prevOpen) {
@@ -34,10 +46,18 @@ const EditProfileUsernameModal = ({ open, onClose }: EditProfileUsernameModalPro
       setUsername("");
       setValidationError(null);
       setIsAvailable(null);
+      setNormalizedUsername(null);
       setIsSaving(false);
       setIsChecking(false);
     }
   }
+
+  // The server folds stray and repeated hyphens before storing, and the username can never
+  // change afterwards, so the user confirms the handle that will actually be stored.
+  const willNormalize =
+    isAvailable === true &&
+    normalizedUsername !== null &&
+    normalizedUsername !== username.trim().toLowerCase();
 
   const validateUsernameFormat = (val: string): string | null => {
     if (!val) return "Username cannot be empty";
@@ -58,11 +78,12 @@ const EditProfileUsernameModal = ({ open, onClose }: EditProfileUsernameModalPro
       try {
         const response = await checkUsernameAvailability(trimmed);
         setIsAvailable(response.available);
+        setNormalizedUsername(response.normalizedUsername);
         if (!response.available) {
           setValidationError(
-            response.reason === "taken"
-              ? "This username is already taken"
-              : "This username is reserved or invalid",
+            response.reason
+              ? UNAVAILABLE_MESSAGES[response.reason]
+              : "This username cannot be used",
           );
         }
       } catch {
@@ -88,7 +109,7 @@ const EditProfileUsernameModal = ({ open, onClose }: EditProfileUsernameModalPro
     // Must be exactly `true` (confirmed available) — not just "not explicitly false".
     // Pressing Enter while the debounced availability check is still pending (isAvailable
     // === null) must not fall through to submitting an unverified username.
-    if (isAvailable !== true) {
+    if (isAvailable !== true || !normalizedUsername) {
       return;
     }
 
@@ -96,9 +117,11 @@ const EditProfileUsernameModal = ({ open, onClose }: EditProfileUsernameModalPro
       setIsSaving(true);
       setValidationError(null);
 
-      await updateAccountUsername(trimmed);
+      const profile = await updateAccountUsername(normalizedUsername);
+      const savedUsername = profile.username ?? normalizedUsername;
 
-      toast.success("Username configured successfully");
+      toast.success(`Username set to ${savedUsername}`);
+      onSaved?.(savedUsername);
       router.refresh();
       onClose();
     } catch (err) {
@@ -192,6 +215,12 @@ const EditProfileUsernameModal = ({ open, onClose }: EditProfileUsernameModalPro
                 >
                   {validationError}
                 </p>
+              ) : willNormalize ? (
+                <p className="pl-1 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                  It will be saved as{" "}
+                  <code className="text-foreground font-mono">{normalizedUsername}</code>. Check
+                  this is the username you want.
+                </p>
               ) : isAvailable ? (
                 <p className="pl-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                   Username is available!
@@ -224,7 +253,7 @@ const EditProfileUsernameModal = ({ open, onClose }: EditProfileUsernameModalPro
               id="save-edit-username-btn"
               className="bg-accent text-accent-foreground w-full text-xs font-semibold tracking-wide transition-all duration-200 active:scale-[0.98] sm:w-auto"
             >
-              Set Username
+              {willNormalize ? `Set Username "${normalizedUsername}"` : "Set Username"}
             </Button>
           </div>
         </form>

@@ -1,21 +1,15 @@
 "use client";
 
-import Link from "next/link";
 import { Loader2, AlertCircle } from "lucide-react";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 
-import { Button } from "@veriworkly/ui";
-
-import type { ResumeData } from "@/types/resume";
 import type { TemplateComponent } from "@/types/template";
-
-import type { BaseDocument } from "@/features/documents/core/types";
-import type { CoverLetterContent } from "@/features/cover-letter/types";
 
 import { loadTemplateComponentById } from "@/templates";
 
 import {
   type ShareLinkPayload,
+  readShareSnapshot,
   verifyShareLinkByUsernameAndSlug,
 } from "@/features/documents/services/share-service";
 import { CoverLetterPreview } from "@/templates/cover-letter/web";
@@ -29,7 +23,7 @@ import {
 } from "../../components";
 
 interface TemplateState {
-  loading: boolean;
+  templateId: string | null;
   error: string | null;
   component: TemplateComponent | null;
 }
@@ -41,22 +35,15 @@ const ShareDocumentClient = ({
 }: {
   username: string;
   slug: string;
-  initialData: ShareLinkPayload<ResumeData | BaseDocument>;
+  initialData: ShareLinkPayload;
 }) => {
   const sharePreviewId = `share-document-preview-${username}-${slug}`;
 
-  const [dataState, setDataState] = useState<{
-    loading: boolean;
-    error: string | null;
-    payload: ShareLinkPayload<ResumeData | BaseDocument>;
-  }>({
-    loading: false,
-    error: null,
-    payload: initialData,
-  });
+  const [payload, setPayload] = useState<ShareLinkPayload>(initialData);
+  const [unlockError, setUnlockError] = useState<string | null>(null);
 
   const [templateState, setTemplateState] = useState<TemplateState>({
-    loading: false,
+    templateId: null,
     error: null,
     component: null,
   });
@@ -64,44 +51,32 @@ const ShareDocumentClient = ({
   const [password, setPassword] = useState("");
   const [verifying, setVerifying] = useState(false);
 
-  const snapshot = dataState.payload?.snapshot;
-  const isBaseDocument =
-    snapshot && typeof snapshot === "object" && "type" in snapshot && "content" in snapshot;
-
-  const sharedDocument = isBaseDocument ? (snapshot as BaseDocument) : null;
-  const resume = sharedDocument
-    ? sharedDocument.type === "RESUME"
-      ? (sharedDocument.content as ResumeData)
-      : null
-    : (snapshot as ResumeData | undefined);
+  const shared = useMemo(() => readShareSnapshot(payload.snapshot), [payload.snapshot]);
+  const resume = shared.kind === "resume" ? shared.resume : null;
+  const templateId = resume?.templateId ?? null;
 
   useEffect(() => {
-    if (dataState.payload.passwordRequired) {
-      document.title = "Protected Resume | VeriWorkly";
-    } else if (dataState.payload.documentTitle) {
-      document.title = `${dataState.payload.documentTitle} | VeriWorkly Shared`;
+    if (!payload.passwordRequired && payload.documentTitle) {
+      document.title = `${payload.documentTitle} | VeriWorkly`;
     }
-  }, [dataState.payload]);
+  }, [payload]);
 
   useEffect(() => {
+    if (!templateId) return;
+
     let isActive = true;
 
-    if (!resume) {
-      setTemplateState({ loading: false, error: null, component: null });
-      return;
-    }
-
-    setTemplateState((prev) => ({ ...prev, loading: true, error: null }));
-
-    loadTemplateComponentById(resume.templateId)
+    loadTemplateComponentById(templateId)
       .then((component) => {
-        if (isActive) setTemplateState({ loading: false, error: null, component });
+        if (isActive) setTemplateState({ templateId, error: null, component });
       })
-      .catch(() => {
+      .catch((error: unknown) => {
+        console.error("Shared resume template failed to load", error);
+
         if (isActive) {
           setTemplateState({
-            loading: false,
-            error: "This resume's template could not be loaded.",
+            templateId,
+            error: "This resume could not be displayed. Reload the page to try again.",
             component: null,
           });
         }
@@ -110,36 +85,28 @@ const ShareDocumentClient = ({
     return () => {
       isActive = false;
     };
-  }, [resume]);
+  }, [templateId]);
 
   const handleUnlock = useCallback(async () => {
     if (!password) return;
 
     setVerifying(true);
-    setDataState((prev) => ({ ...prev, error: null }));
+    setUnlockError(null);
 
     try {
-      const payload = await verifyShareLinkByUsernameAndSlug<ResumeData | BaseDocument>(
-        username,
-        slug,
-        password,
-      );
-      setDataState({ loading: false, error: null, payload });
+      setPayload(await verifyShareLinkByUsernameAndSlug(username, slug, password));
     } catch (err: unknown) {
-      setDataState((prev) => ({
-        ...prev,
-        error: err instanceof Error ? err.message : "Invalid password",
-      }));
+      setUnlockError(err instanceof Error ? err.message : "Could not unlock this document.");
     } finally {
       setVerifying(false);
     }
   }, [username, slug, password]);
 
-  if (dataState.payload.passwordRequired) {
+  if (payload.passwordRequired) {
     return (
       <PasswordGateModal
         password={password}
-        error={dataState.error}
+        error={unlockError}
         verifying={verifying}
         onUnlock={handleUnlock}
         onPasswordChange={setPassword}
@@ -147,81 +114,69 @@ const ShareDocumentClient = ({
     );
   }
 
-  if (!snapshot) {
+  if (shared.kind === "empty") {
     return (
-      <FullScreenMessage title="Empty Content" description="Shared document data is missing." />
+      <FullScreenMessage
+        title="Nothing to show"
+        description="This shared document has no content."
+      />
     );
   }
 
-  if (sharedDocument) {
+  if (shared.kind === "unsupported") {
     return (
-      <main className="bg-background surface-grid selection:bg-accent/20 relative min-h-screen">
-        <ShareHeaderBar
-          title={dataState.payload.documentTitle}
-          expiresAt={dataState.payload.expiresAt}
-        />
+      <FullScreenMessage
+        title="This document can't be shown here"
+        description="Ask the person who shared it to send it as a PDF instead."
+      />
+    );
+  }
+
+  if (shared.kind === "cover-letter") {
+    return (
+      <main className="bg-background relative min-h-screen">
+        <ShareHeaderBar title={payload.documentTitle} expiresAt={payload.expiresAt} />
 
         <section className="mx-auto max-w-5xl px-4 py-8">
-          {sharedDocument.type === "COVER_LETTER" ? (
-            <CoverLetterPreview
-              content={sharedDocument.content as CoverLetterContent}
-              templateId={sharedDocument.templateId}
-            />
-          ) : (
-            <div className="bg-card text-foreground rounded-2xl border p-6 shadow-sm">
-              <h1 className="text-xl font-semibold">{sharedDocument.title}</h1>
-
-              <pre className="text-muted mt-4 text-sm whitespace-pre-wrap">
-                {JSON.stringify(sharedDocument.content, null, 2)}
-              </pre>
-            </div>
-          )}
+          <CoverLetterPreview content={shared.content} templateId={shared.templateId} />
         </section>
       </main>
     );
   }
 
-  if (!resume) {
-    return <FullScreenMessage title="Empty Content" description="Resume data is missing." />;
-  }
+  const template = templateState.templateId === templateId ? templateState : null;
 
-  if (templateState.error) {
+  if (template?.error) {
     return (
       <FullScreenMessage
-        title="Template Error"
-        description={templateState.error}
+        title="This resume could not be displayed"
+        description={template.error}
         icon={<AlertCircle className="text-destructive" />}
-        action={
-          <Button asChild variant="secondary" className="rounded-xl">
-            <Link href="/">Return to Dashboard</Link>
-          </Button>
-        }
       />
     );
   }
 
-  if (templateState.loading || !templateState.component) {
+  if (!resume || !template?.component) {
     return (
       <FullScreenMessage
-        title="Loading Template"
-        description="Preparing the selected template architecture..."
+        title="Loading resume"
         icon={<Loader2 className="text-accent animate-spin" />}
       />
     );
   }
 
   return (
-    <main className="bg-background surface-grid selection:bg-accent/20 relative min-h-screen">
+    <main className="bg-background relative min-h-screen">
       <ShareHeaderBar
-        title={dataState.payload.documentTitle}
-        expiresAt={dataState.payload.expiresAt}
+        title={payload.documentTitle}
+        expiresAt={payload.expiresAt}
         actions={<DownloadActions resume={resume} sharePreviewId={sharePreviewId} />}
       />
 
       <ResumeCanvas
         resume={resume}
         sharePreviewId={sharePreviewId}
-        templateComponent={templateState.component}
+        templateComponent={template.component}
       />
     </main>
   );

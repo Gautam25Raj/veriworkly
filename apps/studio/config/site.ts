@@ -18,10 +18,11 @@ export const siteConfig = {
 
   creator: "Gautam Raj",
 
-  url: process.env.SITE_URL || "https://app.veriworkly.com",
+  /** The studio's own origin, for metadata, sitemap and robots. `SITE_URL` is the marketing site's. */
+  url: process.env.NEXT_PUBLIC_APP_URL || links.app,
 
   description:
-    "Free, open-source, and privacy-first studio for resumes, cover letters, portfolios, link-in-bio pages, ATS checks, and AI-assisted content.",
+    "Free, open-source, and privacy-first studio for resumes, cover letters, portfolios, ATS checks, and AI-assisted content.",
 
   tagline: "Build career assets. No login. 100% private.",
 

@@ -32,7 +32,7 @@ export function ShareToolkit({ siteUrl }: { siteUrl: string }) {
     {
       id: "story",
       channel: "Instagram / story",
-      body: `resume season survival kit 🧰\nfree, no login needed, ATS check included\n${siteUrl}`,
+      body: `resume season survival kit 🧰\nfree, no login needed to start, ATS check with a free account\n${siteUrl}`,
     },
     {
       id: "club",

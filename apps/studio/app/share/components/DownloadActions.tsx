@@ -57,29 +57,44 @@ export const DownloadActions = ({ resume, sharePreviewId }: DownloadActionsProps
     }
   }
 
-  async function downloadMarkdown() {
-    const { exportResumeAsMarkdown } = await import("@/features/documents/export/export-markdown");
-    exportResumeAsMarkdown(resume);
-    toast.success("Markdown downloaded successfully");
+  /**
+   * A page left open across a deploy can no longer fetch its old exporter chunks, so the
+   * import itself can fail; that and an exporter error both reach the reader as a toast.
+   */
+  async function runExport(label: string, run: () => Promise<void>) {
+    try {
+      await run();
+      toast.success(`${label} downloaded successfully`);
+    } catch (error) {
+      console.error(`${label} export failed`, error);
+      toast.error(`Could not download ${label}. Reload the page and try again.`);
+    }
   }
 
-  async function downloadHtml() {
-    const { exportResumeAsHtml } = await import("@/features/documents/export/export-html");
-    exportResumeAsHtml(resume, sharePreviewId);
-    toast.success("HTML downloaded successfully");
-  }
+  const downloadMarkdown = () =>
+    runExport("Markdown", async () => {
+      const { exportResumeAsMarkdown } =
+        await import("@/features/documents/export/export-markdown");
+      exportResumeAsMarkdown(resume);
+    });
 
-  async function downloadText() {
-    const { exportResumeAsText } = await import("@/features/documents/export/export-text");
-    exportResumeAsText(resume);
-    toast.success("Plain text downloaded successfully");
-  }
+  const downloadHtml = () =>
+    runExport("HTML", async () => {
+      const { exportResumeAsHtml } = await import("@/features/documents/export/export-html");
+      exportResumeAsHtml(resume, sharePreviewId);
+    });
 
-  async function downloadJson() {
-    const { exportResumeAsJson } = await import("@/features/documents/export/export-json");
-    exportResumeAsJson(resume);
-    toast.success("JSON downloaded successfully");
-  }
+  const downloadText = () =>
+    runExport("Plain text", async () => {
+      const { exportResumeAsText } = await import("@/features/documents/export/export-text");
+      exportResumeAsText(resume);
+    });
+
+  const downloadJson = () =>
+    runExport("JSON", async () => {
+      const { exportResumeAsJson } = await import("@/features/documents/export/export-json");
+      exportResumeAsJson(resume);
+    });
 
   return (
     <Menu

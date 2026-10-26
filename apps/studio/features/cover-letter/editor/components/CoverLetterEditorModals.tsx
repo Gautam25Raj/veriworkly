@@ -92,6 +92,7 @@ const CoverLetterEditorModals = ({
         onCloseAction={onDeleteModalClose}
         loading={isDeleting}
         entityName={document.title || "cover letter"}
+        cloudBacked={Boolean(document.sync.cloudDocumentId)}
         title="Delete Cover Letter?"
       />
     </>

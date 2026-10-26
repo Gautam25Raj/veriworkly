@@ -84,7 +84,8 @@ const EditorModals = memo(function EditorModals({
         onConfirmAction={onDeleteResume}
         onCloseAction={onDeleteModalClose}
         loading={isDeleting}
-        entityName={resume.basics.fullName || "resume"}
+        entityName={resume.title || "resume"}
+        cloudBacked={Boolean(resume.sync.cloudDocumentId)}
         title="Delete Resume?"
       />
     </>

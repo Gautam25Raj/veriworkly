@@ -17,6 +17,8 @@ import {
 
 import { Modal, Button, Input } from "@veriworkly/ui";
 
+import { siteConfig } from "@/config/site";
+
 import {
   clearLocalAccountData,
   downloadWorkspaceBackup,
@@ -80,7 +82,7 @@ export const DeleteAccountModal = ({ open, onClose, userEmail }: DeleteAccountMo
       // The account is gone, so this device must not keep its documents, outbox or
       // guest flag for the next person to inherit.
       clearLocalAccountData();
-      window.location.href = "https://veriworkly.com";
+      window.location.href = siteConfig.links.main;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to delete account";
       setError(message);

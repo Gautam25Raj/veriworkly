@@ -1,6 +1,5 @@
-import { headers } from "next/headers";
-
-import { backendApiUrl } from "@/lib/constants";
+import { hasSessionCookie, serverFetchData } from "@/lib/server-fetch";
+import { ApiRequestError } from "@/utils/fetchApiData";
 
 export type AccountProfile = {
   id: string;
@@ -18,30 +17,14 @@ export type AccountProfile = {
   };
 };
 
+/** `null` for a guest or a rejected session; an outage throws to the error boundary. */
 export async function fetchAccountProfile(): Promise<AccountProfile | null> {
+  if (!(await hasSessionCookie())) return null;
+
   try {
-    const requestHeaders = await headers();
-    const cookie = requestHeaders.get("cookie");
-
-    if (!cookie || !cookie.includes("veriworkly-auth")) {
-      return null;
-    }
-
-    const response = await fetch(backendApiUrl("/users/me"), {
-      method: "GET",
-      cache: "no-store",
-      headers: {
-        "Content-Type": "application/json",
-        ...(cookie ? { cookie } : {}),
-      },
-    });
-
-    if (!response.ok) return null;
-
-    const payload = (await response.json()) as { data?: AccountProfile };
-
-    return payload.data ?? null;
-  } catch {
-    return null;
+    return await serverFetchData<AccountProfile>("/users/me");
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 401) return null;
+    throw error;
   }
 }

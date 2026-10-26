@@ -22,6 +22,7 @@ import {
   recordPurchaseBaseline,
   takePurchaseBaseline,
 } from "@/features/billing/purchase-baseline";
+import { isPaymentsClosedError, PAYMENTS_OPEN_SOON } from "@/features/billing/checkout-rules";
 import { cn } from "@/lib/utils";
 import { ApiRequestError, fetchApiData } from "@/utils/fetchApiData";
 
@@ -42,7 +43,13 @@ async function waitForPurchaseToApply(before: string): Promise<boolean> {
   return false;
 }
 
-function toBillingError(cause: unknown, fallbackMessage: string) {
+type BillingError = { message: string; isCheckoutLockConflict: boolean; isNotice?: boolean };
+
+function toBillingError(cause: unknown, fallbackMessage: string): BillingError {
+  if (isPaymentsClosedError(cause)) {
+    return { message: PAYMENTS_OPEN_SOON, isCheckoutLockConflict: false, isNotice: true };
+  }
+
   return {
     message: cause instanceof Error ? cause.message : fallbackMessage,
     isCheckoutLockConflict:
@@ -75,9 +82,7 @@ export function BillingPage({
   history: BillingActivity[];
 }) {
   const [loading, setLoading] = useState("");
-  const [error, setError] = useState<{ message: string; isCheckoutLockConflict: boolean } | null>(
-    null,
-  );
+  const [error, setError] = useState<BillingError | null>(null);
   const [clearingLock, setClearingLock] = useState(false);
   const [finalizingPurchase, setFinalizingPurchase] = useState(false);
   const searchParams = useSearchParams();
@@ -86,8 +91,8 @@ export function BillingPage({
   const { user } = useUserStore();
 
   // Whether payments are actually blocked for this user is decided authoritatively by
-  // the backend (BillingController.assertPaymentsEnabled), which returns a clear 403
-  // message that surfaces via the `error` state below. We deliberately do not try to
+  // the backend (BillingController.assertPaymentsEnabled), whose 403 shows as the
+  // "Payments open soon" notice below. We deliberately do not try to
   // replicate that admin check on the client — doing so would require shipping an
   // admin identity into the public bundle and would only ever be an unreliable guess.
 
@@ -232,7 +237,15 @@ export function BillingPage({
         ) : null}
 
         {error ? (
-          <div className="border-destructive/30 bg-destructive/5 text-destructive flex flex-wrap items-center justify-between gap-4 rounded-xl border p-4 text-sm">
+          <div
+            role={error.isNotice ? "status" : "alert"}
+            className={cn(
+              "flex flex-wrap items-center justify-between gap-4 rounded-xl border p-4 text-sm",
+              error.isNotice
+                ? "border-accent/30 bg-accent-soft text-accent"
+                : "border-destructive/30 bg-destructive/5 text-destructive",
+            )}
+          >
             <p className="flex-1">{error.message}</p>
             {error.isCheckoutLockConflict && (
               <Button

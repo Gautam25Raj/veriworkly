@@ -14,7 +14,6 @@ import {
   FolderInput,
   ChevronDown,
 } from "lucide-react";
-import { toast } from "sonner";
 import { useState } from "react";
 import { useParams } from "next/navigation";
 
@@ -24,6 +23,7 @@ import { cn } from "@/lib/utils";
 
 import ConfirmModal from "@/components/modals/ConfirmModal";
 
+import { toastSignInRequired } from "@/lib/sign-in";
 import { useUserStore } from "@/store/useUserStore";
 
 import { parseDocumentRouteSegment } from "@/features/documents/core/routes";
@@ -230,7 +230,7 @@ const ToolbarActionsMenuTrigger = ({
                 e.preventDefault();
                 e.stopPropagation();
 
-                toast.error("Please log in to share documents.");
+                toastSignInRequired("Sign in to share documents.");
 
                 return;
               }
@@ -252,7 +252,7 @@ const ToolbarActionsMenuTrigger = ({
                 e.preventDefault();
                 e.stopPropagation();
 
-                toast.error("Please log in to back up documents.");
+                toastSignInRequired("Sign in to back up documents.");
 
                 return;
               }

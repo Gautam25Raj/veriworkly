@@ -1,5 +1,6 @@
+import { unstable_rethrow } from "next/navigation";
+
 import { backendApiUrl } from "@/lib/constants";
-import { clearInvalidSessionAndRedirect, isInvalidSessionResponse } from "@/lib/invalid-session";
 
 import type {
   BaseDocument,
@@ -19,6 +20,7 @@ import {
   type WorkspaceBackup,
 } from "@/features/documents/services/import-service";
 import { useUserStore } from "@/store/useUserStore";
+import { ApiRequestError, fetchApiData } from "@/utils/fetchApiData";
 
 export type SessionUser = {
   id: string;
@@ -32,99 +34,74 @@ export type SessionUser = {
   shareResumeCount?: number;
 };
 
-type AccountProfileResponse = {
-  data?: {
-    id: string;
-    email: string;
-    name?: string | null;
-    username?: string | null;
-    createdAt?: string;
-    emailVerified?: boolean;
-    autoSyncEnabled?: boolean;
-    _count?: {
-      shareLinks?: number;
-    };
+type AccountProfileSummary = {
+  id: string;
+  email: string;
+  name?: string | null;
+  username?: string | null;
+  createdAt?: string;
+  emailVerified?: boolean;
+  autoSyncEnabled?: boolean;
+  _count?: {
+    shareLinks?: number;
   };
 };
 
 let memoryCache: SessionUser | null = null;
 
-async function fetchAccountProfileSummary(cookieHeader?: string) {
+function toSessionUser(user: AccountProfileSummary | null | undefined): SessionUser | null {
+  if (!user?.id || !user.email) return null;
+
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name ?? undefined,
+    username: user.username ?? undefined,
+    createdAt: user.createdAt,
+    emailVerified: user.emailVerified,
+    autoSyncEnabled: user.autoSyncEnabled,
+    shareResumeCount: user._count?.shareLinks,
+  };
+}
+
+/**
+ * `null` means a guest: no session cookie, or one the server rejects (401/403). Anything else —
+ * an auth outage (503 `AUTH_UNAVAILABLE`), a 429, a timeout — throws to the error boundary.
+ * Rendering it as "guest" would show a signed-in user an empty, signed-out studio.
+ */
+async function fetchServerSessionUser(): Promise<SessionUser | null> {
+  // Loaded on demand: this module also ships to the browser, which must bundle neither.
+  const [{ cookies, headers }, { hasSessionCookieIn, serverFetchDataFrom }] = await Promise.all([
+    import("next/headers"),
+    import("@/lib/server-fetch-core"),
+  ]);
+  const request = { cookies: await cookies(), headers: await headers() };
+
+  if (!hasSessionCookieIn(request.cookies)) return null;
+
   try {
-    if (
-      typeof window === "undefined" &&
-      cookieHeader !== undefined &&
-      !cookieHeader.includes("veriworkly-auth")
-    )
-      return null;
+    return toSessionUser(await serverFetchDataFrom<AccountProfileSummary>(request, "/users/me"));
+  } catch (error) {
+    unstable_rethrow(error);
 
-    const response = await fetch(backendApiUrl("/users/me"), {
-      method: "GET",
-      headers: cookieHeader ? { Cookie: cookieHeader } : undefined,
-      credentials: cookieHeader ? undefined : "include",
-    });
-
-    if (!response.ok) {
-      if (typeof window !== "undefined" && isInvalidSessionResponse("/users/me", response.status))
-        await clearInvalidSessionAndRedirect();
-
+    if (error instanceof ApiRequestError && (error.status === 401 || error.status === 403)) {
       return null;
     }
 
-    const payload = (await response.json()) as AccountProfileResponse;
-    const user = payload.data;
-
-    if (!user) return null;
-
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name ?? undefined,
-      username: user.username ?? undefined,
-      createdAt: user.createdAt,
-      emailVerified: user.emailVerified,
-      autoSyncEnabled: user.autoSyncEnabled,
-      shareResumeCount: user._count?.shareLinks,
-    } satisfies Partial<SessionUser>;
-  } catch {
-    return null;
+    throw error;
   }
 }
 
 export async function fetchCurrentUser(force = false): Promise<SessionUser | null> {
-  const isServer = typeof window === "undefined";
-
-  if (isServer) {
-    try {
-      const { cookies } = await import("next/headers");
-
-      const cookieStore = await cookies();
-      const cookieHeader = cookieStore.toString();
-      const summary = await fetchAccountProfileSummary(cookieHeader);
-
-      if (!summary?.id || !summary?.email) return null;
-
-      return summary as SessionUser;
-    } catch {
-      return null;
-    }
-  }
+  if (typeof window === "undefined") return fetchServerSessionUser();
 
   if (!force && memoryCache) return memoryCache;
 
-  try {
-    const summary = await fetchAccountProfileSummary();
-    if (!summary?.id || !summary?.email) {
-      memoryCache = null;
-      return null;
-    }
+  memoryCache = toSessionUser(
+    await fetchApiData<AccountProfileSummary>("/users/me", { method: "GET" }),
+  );
 
-    memoryCache = summary as SessionUser;
-
-    return memoryCache;
-  } catch {
-    return null;
-  }
+  return memoryCache;
 }
 
 const DETACHED_SYNC: DocumentSyncState = {

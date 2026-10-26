@@ -1,16 +1,16 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@veriworkly/ui";
 
-const DashboardSegmentError = ({
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) => {
+const DashboardSegmentError = ({ error, retry }: { error: unknown; retry: () => void }) => {
   const router = useRouter();
+
+  useEffect(() => {
+    console.error(error);
+  }, [error]);
 
   return (
     <section className="border-border bg-card relative flex h-full items-center justify-center overflow-hidden rounded-3xl border px-6 py-10 sm:px-10">
@@ -31,7 +31,7 @@ const DashboardSegmentError = ({
         </p>
 
         <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-          <Button variant="primary" onClick={() => reset()}>
+          <Button variant="primary" onClick={() => retry()}>
             Try again
           </Button>
 

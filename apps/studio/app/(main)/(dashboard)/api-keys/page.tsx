@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import type { LucideIcon } from "lucide-react";
 
-import { headers } from "next/headers";
 import { KeyRound, ShieldCheck } from "lucide-react";
 
-import { backendApiUrl } from "@/lib/constants";
+import { hasSessionCookie, serverFetchData } from "@/lib/server-fetch";
 
 import type {
   ApiKeyRecord,
@@ -19,38 +18,15 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+/** A guest has no keys to list; for a signed-in user a failed load throws rather than showing "0 keys". */
 async function fetchInitialApiKeys() {
-  try {
-    const requestHeaders = await headers();
-    const cookie = requestHeaders.get("cookie");
-
-    if (!cookie?.includes("veriworkly-auth")) {
-      return { keys: [] as ApiKeyRecord[], pagination: null, loaded: true };
-    }
-
-    const response = await fetch(backendApiUrl("/api-keys"), {
-      method: "GET",
-      cache: "no-store",
-      headers: {
-        "Content-Type": "application/json",
-        ...(cookie ? { cookie } : {}),
-      },
-    });
-
-    if (!response.ok) {
-      return { keys: [] as ApiKeyRecord[], pagination: null, loaded: false };
-    }
-
-    const payload = (await response.json()) as { data?: OffsetPaginationPayload<ApiKeyRecord> };
-
-    return {
-      keys: payload.data?.items ?? [],
-      pagination: payload.data ?? null,
-      loaded: true,
-    };
-  } catch {
-    return { keys: [] as ApiKeyRecord[], pagination: null, loaded: false };
+  if (!(await hasSessionCookie())) {
+    return { keys: [] as ApiKeyRecord[], pagination: null, loaded: true };
   }
+
+  const page = await serverFetchData<OffsetPaginationPayload<ApiKeyRecord>>("/api-keys");
+
+  return { keys: page.items, pagination: page, loaded: true };
 }
 
 function Metric({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {

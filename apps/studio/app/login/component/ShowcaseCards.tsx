@@ -65,7 +65,7 @@ const ShowcaseCards = () => {
       icon: <Globe className="h-5 w-5" />,
       title: "Personal Subdomain Portfolio",
       description:
-        "Convert your resume into a personal portfolio website instantly. Publish to a public subdomain with one click.",
+        "Turn your resume into a personal portfolio website. Publishing it on your own veriworkly.com subdomain needs a paid plan.",
       mockup: (
         <div className="p-3 select-none">
           <div className="border-border/50 rounded-xl border bg-white/30 p-2 dark:bg-slate-900/30">

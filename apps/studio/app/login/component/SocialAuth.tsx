@@ -5,8 +5,6 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
-import { useSearchParams } from "next/navigation";
-
 import { Button } from "@veriworkly/ui";
 
 import { authClient } from "@/lib/auth-client";
@@ -18,7 +16,6 @@ interface SocialAuthProps {
 }
 
 const SocialAuth = ({ isLoading, setIsLoading }: SocialAuthProps) => {
-  const searchParams = useSearchParams();
   const [activeProvider, setActiveProvider] = useState<"google" | "github" | "linkedin" | null>(
     null,
   );
@@ -29,7 +26,16 @@ const SocialAuth = ({ isLoading, setIsLoading }: SocialAuthProps) => {
     setIsLoading(true);
     setActiveProvider(provider);
 
+    const fail = (message: string) => {
+      toast.error(message);
+      setIsLoading(false);
+      setActiveProvider(null);
+    };
+
     try {
+      // Read at click time rather than through useSearchParams, which would keep /login's
+      // form out of the prerendered HTML.
+      const searchParams = new URLSearchParams(window.location.search);
       const callbackURL = searchParams.get("callbackURL") || "/";
       const ref = searchParams.get("ref");
 
@@ -38,15 +44,15 @@ const SocialAuth = ({ isLoading, setIsLoading }: SocialAuthProps) => {
         (ref ? `&ref=${encodeURIComponent(ref)}` : "");
       const fullCallbackURL = `${siteConfig.links.app}${callbackPath}`;
 
-      await authClient.signIn.social({
+      // On success the browser is already leaving for the provider, so loading stays on.
+      const { error } = await authClient.signIn.social({
         provider,
         callbackURL: fullCallbackURL,
       });
+
+      if (error) fail(error.message || "Social sign-in could not start. Please try again.");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Social authentication failed.";
-      toast.error(message);
-      setIsLoading(false);
-      setActiveProvider(null);
+      fail(err instanceof Error ? err.message : "Social authentication failed.");
     }
   };
 

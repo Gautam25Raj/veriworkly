@@ -21,6 +21,7 @@ import { Menu, MenuItem, MenuSeparator } from "@veriworkly/ui";
 import { getDocumentEditorPath } from "@/features/documents/core/routes";
 import type { DocumentLibraryItem } from "@/features/documents/services/document-library";
 
+import { toastSignInRequired } from "@/lib/sign-in";
 import { useUserStore } from "@/store/useUserStore";
 import { useCreateDocument } from "@/components/dashboard/hooks/useCreateDocument";
 
@@ -130,7 +131,7 @@ export function DocumentActionsMenu({
                   e.preventDefault();
                   e.stopPropagation();
 
-                  toast.error("Please log in to share documents.");
+                  toastSignInRequired("Sign in to share documents.");
 
                   return;
                 }
@@ -153,7 +154,7 @@ export function DocumentActionsMenu({
                 if (!isLoggedIn) {
                   e.preventDefault();
                   e.stopPropagation();
-                  toast.error("Please log in to back up documents.");
+                  toastSignInRequired("Sign in to back up documents.");
                   return;
                 }
                 close();
@@ -174,7 +175,7 @@ export function DocumentActionsMenu({
                 if (!isLoggedIn) {
                   e.preventDefault();
                   e.stopPropagation();
-                  toast.error("Please log in to see backup details.");
+                  toastSignInRequired("Sign in to see backup details.");
                   return;
                 }
                 if (!hasCloudId) {

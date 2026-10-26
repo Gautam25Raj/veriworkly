@@ -21,6 +21,7 @@ import {
 } from "@/features/documents/services/import-service";
 import { useUserStore } from "@/store/useUserStore";
 import { ApiRequestError, fetchApiData } from "@/utils/fetchApiData";
+import { pluralize } from "@/lib/pluralize";
 
 export type SessionUser = {
   id: string;
@@ -125,7 +126,9 @@ export function buildWorkspaceBackup(documents: DocumentMeta[], now = new Date()
   const unreadable = stored.filter((document) => document === null).length;
 
   if (unreadable > 0) {
-    throw new Error(`${unreadable} document(s) could not be read, so no backup was made.`);
+    throw new Error(
+      `${pluralize(unreadable, "document")} could not be read, so no backup was made.`,
+    );
   }
 
   const backup: WorkspaceBackup = {

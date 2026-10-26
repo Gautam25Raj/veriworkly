@@ -30,6 +30,7 @@ import {
 } from "@/features/documents/services/document-workspace-service";
 import { siteConfig } from "@/config/site";
 import { useUserStore } from "@/store/useUserStore";
+import { pluralize } from "@/lib/pluralize";
 
 interface AccountMenuProps {
   collapsed: boolean;
@@ -198,8 +199,8 @@ export function AccountMenu({ collapsed, displayName, email, version }: AccountM
               )}
 
               {isLoggedIn
-                ? item(LogOut, "Logout", handleLogout, true)
-                : item(LogIn, "Log In", () => router.push("/login"))}
+                ? item(LogOut, "Sign out", handleLogout, true)
+                : item(LogIn, "Sign in", () => router.push("/login"))}
 
               <div className="text-muted border-border/70 mt-1 border-t px-3 pt-2 text-[11px]">
                 {version} -{" "}
@@ -228,7 +229,7 @@ export function AccountMenu({ collapsed, displayName, email, version }: AccountM
         title={backupFailure === null ? "Back up before signing out?" : "Download failed"}
         description={
           backupFailure === null
-            ? `${unsyncedDocuments?.length ?? 0} document(s) on this device have changes that are not in the cloud. Signing out removes them from this device, so they will be downloaded as one JSON backup file first.`
+            ? `${pluralize(unsyncedDocuments?.length ?? 0, "document")} on this device ${unsyncedDocuments?.length === 1 ? "has" : "have"} changes that are not in the cloud. Signing out removes them from this device, so they will be downloaded as one JSON backup file first.`
             : `${backupFailure} Signing out now permanently removes the unsynced documents from this device.`
         }
         confirmLabel={backupFailure === null ? "Download and sign out" : "Sign out anyway"}

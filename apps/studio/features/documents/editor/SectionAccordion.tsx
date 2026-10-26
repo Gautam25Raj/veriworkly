@@ -15,7 +15,8 @@ import { cn } from "@veriworkly/ui";
  *
  * The `aria-expanded`/`aria-controls` pairing and the `role="region"` panel are what make
  * this announce correctly; without them a screen reader reads 15+ identical unlabelled
- * buttons with no indication of open state.
+ * buttons with no indication of open state. `aria-controls` is set only while the panel is
+ * mounted, since a reference to an id that is not in the DOM is itself an error.
  */
 const SectionAccordion = ({
   children,
@@ -39,7 +40,7 @@ const SectionAccordion = ({
         type="button"
         id={buttonId}
         aria-expanded={isOpen}
-        aria-controls={panelId}
+        aria-controls={isOpen ? panelId : undefined}
         onClick={() => onToggle(id)}
         className={cn(
           "flex w-full cursor-pointer items-center justify-between px-3 py-3 text-left text-sm font-semibold transition",

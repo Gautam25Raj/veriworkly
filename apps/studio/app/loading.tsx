@@ -1,32 +1,32 @@
-import { Container } from "@veriworkly/ui";
+import { Bone, SkeletonPage } from "@/components/dashboard/skeletons/PageSkeleton";
 
+/**
+ * Shown while a route outside the dashboard (sign-in, editor, checkout) or the session check
+ * in front of every studio page is loading. Neutral on purpose: it cannot know which page is
+ * coming, so it promises a header and content, not a particular layout.
+ */
 const AppLoading = () => {
   return (
-    <div className="surface-grid border-border/50 relative flex items-center justify-center overflow-hidden border">
-      <div className="from-background/0 via-background/20 to-background/80 pointer-events-none absolute inset-0 bg-linear-to-b" />
+    <SkeletonPage label="Loading" className="bg-background min-h-dvh space-y-0">
+      <div className="border-border/70 flex h-16 items-center justify-between border-b px-4 sm:px-6">
+        <Bone className="h-9 w-36 rounded-xl" />
+        <Bone className="h-9 w-24 rounded-xl" />
+      </div>
 
-      <Container className="relative flex flex-col items-center py-20 text-center">
-        <div className="mb-8 flex h-16 w-16 items-center justify-center">
-          <div className="border-accent h-10 w-10 animate-spin rounded-full border-4 border-t-transparent" />
+      <div className="mx-auto w-full max-w-7xl space-y-6 p-4 sm:p-6 xl:p-8">
+        <div className="border-border bg-card rounded-2xl border p-5 sm:p-6">
+          <Bone className="h-4 w-24" />
+          <Bone className="mt-3 h-9 w-72 max-w-full sm:h-10" />
+          <Bone className="mt-2 h-5 w-full max-w-xl" />
         </div>
 
-        <p className="text-accent text-sm font-bold tracking-[0.2em] uppercase">Loading</p>
-
-        <h1 className="text-foreground mt-4 text-4xl font-bold tracking-tight sm:text-6xl">
-          Preparing your experience
-        </h1>
-
-        <p className="text-muted mt-6 max-w-md text-base leading-7">
-          Please wait while we fetch the latest data and prepare the page for you.
-        </p>
-
-        <div className="mt-10 flex w-full max-w-xs flex-col gap-4">
-          <div className="bg-accent/5 h-1.5 w-full overflow-hidden rounded-full">
-            <div className="bg-accent h-full w-1/3 animate-[loading_2s_ease-in-out_infinite]" />
-          </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 3 }, (_, index) => (
+            <Bone key={index} className="h-40 rounded-2xl" />
+          ))}
         </div>
-      </Container>
-    </div>
+      </div>
+    </SkeletonPage>
   );
 };
 

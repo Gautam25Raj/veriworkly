@@ -119,11 +119,11 @@ export default function ApiKeySection({
             <LockKeyhole size={20} />
           </div>
           <h2 className="text-foreground mt-4 text-base font-extrabold">
-            Log in to manage API keys
+            Sign in to manage API keys
           </h2>
           <p className="text-muted-foreground mt-1.5 max-w-sm text-xs leading-5">
             API keys allow you to integrate your resumes and profile data with developer
-            environments. Please log in to manage your access tokens.
+            environments. Sign in to manage your access tokens.
           </p>
           <button
             onClick={() => {
@@ -131,7 +131,7 @@ export default function ApiKeySection({
             }}
             className="bg-accent text-accent-foreground hover:bg-accent/90 mt-5 inline-flex min-h-10 items-center justify-center rounded-lg px-5 text-xs font-bold transition"
           >
-            Log In
+            Sign in
           </button>
         </div>
       ) : null}

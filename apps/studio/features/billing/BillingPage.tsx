@@ -462,11 +462,11 @@ export function BillingPage({
             <LockKeyhole size={20} />
           </div>
           <h2 className="text-foreground mt-4 text-base font-extrabold">
-            Log in to view subscriptions
+            Sign in to view subscriptions
           </h2>
           <p className="text-muted-foreground mt-1.5 max-w-sm text-xs leading-5">
-            Please log in or create an account to view subscription plans, purchase credits, and
-            manage billing history.
+            Sign in or create an account to view subscription plans, purchase credits, and manage
+            billing history.
           </p>
           <button
             onClick={() => {
@@ -474,7 +474,7 @@ export function BillingPage({
             }}
             className="bg-accent text-accent-foreground hover:bg-accent/90 mt-5 inline-flex min-h-10 items-center justify-center rounded-lg px-5 text-xs font-bold transition"
           >
-            Log In
+            Sign in
           </button>
         </div>
       ) : null}

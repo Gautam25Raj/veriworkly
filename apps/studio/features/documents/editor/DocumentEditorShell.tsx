@@ -1,6 +1,6 @@
 "use client";
 
-import type { KeyboardEvent, PointerEvent, ReactNode } from "react";
+import type { KeyboardEvent, PointerEvent, ReactNode, WheelEvent } from "react";
 
 import {
   Move,
@@ -55,6 +55,9 @@ const MIN_ZOOM = 25;
 const MAX_ZOOM = 140;
 /** The desktop starting zoom; a narrower canvas starts at whatever fits its width. */
 const DEFAULT_ZOOM = 78;
+const WHEEL_LINE_PX = 16;
+
+const PAN_VISIBLE_PX = 80;
 
 function clampZoom(zoom: number) {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
@@ -197,6 +200,38 @@ export function DocumentEditorShell({
     if (dragStart?.pointerId === event.pointerId) {
       setDragStart(null);
     }
+  }
+
+  /**
+   * Wheel and trackpad scrolling pan the page, so a mouse user can read down a long document
+   * without dragging. Ctrl+wheel (and trackpad pinch, which arrives as one) is left to the
+   * browser's own zoom. Line-mode deltas (Firefox with a mouse wheel) are converted to pixels.
+   */
+  function handleCanvasWheel(event: WheelEvent<HTMLDivElement>) {
+    if (event.ctrlKey) return;
+
+    const scale = event.deltaMode === 1 ? WHEEL_LINE_PX : 1;
+
+    const canvas = canvasRef.current;
+    const page = pageRef.current;
+
+    setPan((current) => {
+      const next = { x: current.x - event.deltaX * scale, y: current.y - event.deltaY * scale };
+      if (!canvas || !page) return next;
+
+      // Keep at least PAN_VISIBLE_PX of the page inside the canvas: a trackpad flick adds up
+      // to thousands of pixels and would otherwise send the page out of sight.
+      const factor = zoom / 100;
+      const pageWidth = page.offsetWidth * factor;
+      const pageHeight = page.offsetHeight * factor;
+      const maxX = Math.max(0, (canvas.clientWidth + pageWidth) / 2 - PAN_VISIBLE_PX);
+      const maxY = Math.max(0, pageHeight - PAN_VISIBLE_PX);
+
+      return {
+        x: Math.min(maxX, Math.max(-maxX, next.x)),
+        y: Math.min(PAN_VISIBLE_PX, Math.max(-maxY, next.y)),
+      };
+    });
   }
 
   /**
@@ -374,7 +409,7 @@ export function DocumentEditorShell({
 
           <div className="border-border/70 bg-card/88 absolute top-3 right-3 z-20 hidden items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium shadow-sm backdrop-blur lg:flex">
             <Move className="text-muted h-4 w-4" />
-            <span className="text-muted">Drag canvas or use arrow keys</span>
+            <span className="text-muted">Scroll, drag or use arrow keys</span>
             <span className="bg-border h-1 w-1 rounded-full" />
             <span className="text-foreground truncate">{previewTitle}</span>
           </div>
@@ -390,6 +425,7 @@ export function DocumentEditorShell({
               dragStart ? "select-none" : "",
             )}
             onKeyDown={handleCanvasKeyDown}
+            onWheel={handleCanvasWheel}
             onPointerUp={handlePointerEnd}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}

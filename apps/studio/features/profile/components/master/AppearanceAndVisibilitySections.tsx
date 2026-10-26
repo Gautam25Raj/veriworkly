@@ -66,6 +66,7 @@ export function AppearanceAndVisibilitySections({
           <div className="space-y-2">
             <label className="text-sm font-medium">Font Family</label>
             <Select
+              aria-label="Font Family"
               value={localProfile.customization.fontFamily}
               onChange={(event) =>
                 setCustomizationField(
@@ -84,6 +85,7 @@ export function AppearanceAndVisibilitySections({
           <div className="space-y-2">
             <label className="text-sm font-medium">Section Spacing</label>
             <Input
+              aria-label="Section Spacing"
               type="number"
               min={0}
               max={120}
@@ -96,6 +98,7 @@ export function AppearanceAndVisibilitySections({
           <div className="space-y-2">
             <label className="text-sm font-medium">Page Padding</label>
             <Input
+              aria-label="Page Padding"
               type="number"
               min={0}
               max={120}
@@ -106,6 +109,7 @@ export function AppearanceAndVisibilitySections({
           <div className="space-y-2">
             <label className="text-sm font-medium">Body Line Height</label>
             <Input
+              aria-label="Body Line Height"
               type="number"
               step="0.1"
               min={1}
@@ -119,6 +123,7 @@ export function AppearanceAndVisibilitySections({
           <div className="space-y-2">
             <label className="text-sm font-medium">Heading Line Height</label>
             <Input
+              aria-label="Heading Line Height"
               type="number"
               step="0.1"
               min={1}

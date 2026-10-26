@@ -320,12 +320,20 @@ export function ImportProfileModal({
         ) : (
           <>
             {/* Tab Selectors */}
-            <div className="border-border/60 bg-card/40 flex border-b px-4 pt-2">
+            <div
+              role="tablist"
+              aria-label="Import source"
+              className="border-border/60 bg-card/40 flex border-b px-4 pt-2"
+            >
               <button
                 type="button"
+                role="tab"
+                id="import-tab-linkedin"
+                aria-selected={activeTab === "linkedin"}
+                aria-controls="import-tab-panel"
                 disabled={loading}
                 onClick={() => setActiveTab("linkedin")}
-                className={`flex items-center gap-2 border-b-2 px-3 py-2.5 text-xs font-semibold transition outline-none ${
+                className={`focus-visible:ring-accent/40 flex items-center gap-2 border-b-2 px-3 py-2.5 text-xs font-semibold transition outline-none focus-visible:ring-2 ${
                   activeTab === "linkedin"
                     ? "border-accent text-accent"
                     : "text-muted-foreground hover:text-foreground border-transparent"
@@ -336,9 +344,13 @@ export function ImportProfileModal({
               </button>
               <button
                 type="button"
+                role="tab"
+                id="import-tab-github"
+                aria-selected={activeTab === "github"}
+                aria-controls="import-tab-panel"
                 disabled={loading}
                 onClick={() => setActiveTab("github")}
-                className={`flex items-center gap-2 border-b-2 px-3 py-2.5 text-xs font-semibold transition outline-none ${
+                className={`focus-visible:ring-accent/40 flex items-center gap-2 border-b-2 px-3 py-2.5 text-xs font-semibold transition outline-none focus-visible:ring-2 ${
                   activeTab === "github"
                     ? "border-accent text-accent"
                     : "text-muted-foreground hover:text-foreground border-transparent"
@@ -378,7 +390,12 @@ export function ImportProfileModal({
               </div>
             )}
 
-            <div className="p-6">
+            <div
+              role="tabpanel"
+              id="import-tab-panel"
+              aria-labelledby={`import-tab-${activeTab}`}
+              className="p-6"
+            >
               {/* Limit Blocked View */}
               {atDocumentLimit ? (
                 <div className="border-destructive/20 bg-destructive/5 text-destructive space-y-2 rounded-xl border p-4">
@@ -432,9 +449,12 @@ export function ImportProfileModal({
                     <form onSubmit={handleLinkedinSubmit} className="space-y-4">
                       {/* LinkedIn Upload PDF */}
                       <div>
-                        <label className="text-muted-foreground mb-2 block text-xs font-bold uppercase">
+                        <p
+                          id="linkedin-pdf-option"
+                          className="text-muted-foreground mb-2 block text-xs font-bold uppercase"
+                        >
                           Option 1: Upload LinkedIn Profile PDF
-                        </label>
+                        </p>
                         <input
                           type="file"
                           ref={fileInputRef}
@@ -445,6 +465,7 @@ export function ImportProfileModal({
                         />
                         <button
                           type="button"
+                          aria-describedby="linkedin-pdf-option"
                           disabled={loading || uploadingPdf}
                           onClick={() => fileInputRef.current?.click()}
                           className="border-border hover:border-accent/40 bg-card/40 group flex w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed py-6 transition"

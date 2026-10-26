@@ -25,6 +25,7 @@ import {
   humanizeKey,
   truncate,
 } from "@/features/admin/utils/admin-format";
+import { pluralize } from "@/lib/pluralize";
 
 export const metadata: Metadata = {
   title: "Admin · System",
@@ -248,7 +249,7 @@ export default async function AdminSystemPage() {
                     key={date}
                     className="bg-accent/70 hover:bg-accent min-h-[2px] flex-1 rounded-t transition"
                     style={{ height: `${peak ? (count / peak) * 100 : 0}%` }}
-                    title={`${date}: ${count} event(s)`}
+                    title={`${date}: ${pluralize(count, "event")}`}
                   />
                 ))}
               </div>

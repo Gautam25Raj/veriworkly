@@ -88,7 +88,10 @@ const ShareDocumentClient = ({
   }, [templateId]);
 
   const handleUnlock = useCallback(async () => {
-    if (!password) return;
+    if (!password) {
+      setUnlockError("Enter the password to unlock this document.");
+      return;
+    }
 
     setVerifying(true);
     setUnlockError(null);

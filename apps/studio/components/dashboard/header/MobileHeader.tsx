@@ -1,8 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Menu as MenuIcon, X } from "lucide-react";
+import { Menu as MenuIcon, Plus, X } from "lucide-react";
 
-import { NewDocumentButton } from "../modals/NewDocumentModal";
+import { Button } from "@veriworkly/ui";
 
 interface MobileHeaderProps {
   mobileNavOpen: boolean;
@@ -19,7 +19,7 @@ export function MobileHeader({
     <header className="border-border/70 bg-background/90 sticky top-0 z-40 flex items-center justify-between border-b px-4 py-3 backdrop-blur lg:hidden">
       <Link href="/" className="flex items-center gap-3" aria-label="VeriWorkly dashboard">
         <Image
-          priority
+          preload
           width={36}
           height={36}
           alt="VeriWorkly"
@@ -30,7 +30,17 @@ export function MobileHeader({
       </Link>
 
       <div className="flex items-center gap-2">
-        <NewDocumentButton compact onClick={onOpenNewDocument} />
+        {/* Labelled in words: on a phone this is the only create control in the chrome. */}
+        <Button
+          size="sm"
+          variant="primary"
+          onClick={onOpenNewDocument}
+          aria-label="New document"
+          className="h-10 gap-1.5 rounded-xl px-3"
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          <span>New</span>
+        </Button>
 
         <button
           type="button"

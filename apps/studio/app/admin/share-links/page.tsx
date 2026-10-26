@@ -70,7 +70,7 @@ const columns: Array<AdminTableColumn<AdminShareLinkRow>> = [
     render: (row) => (
       <div className="flex flex-wrap items-center gap-1">
         {row.passwordProtected ? (
-          <AdminStatusBadge status="ACTIVE" tone="info" />
+          <AdminStatusBadge status="PASSWORD" tone="info" />
         ) : (
           <span className="text-muted text-xs">Open</span>
         )}

@@ -16,6 +16,7 @@ import { DocumentListRow } from "./components/DocumentListRow";
 import { IconToggle } from "./components/DocumentWorkspaceControls";
 import { DocumentPreviewCard } from "./components/DocumentPreviewCard";
 import { DocumentWorkspaceEmptyState } from "./components/DocumentWorkspaceEmptyState";
+import { CreateDocumentActions } from "./components/CreateDocumentActions";
 
 import {
   type SortMode,
@@ -66,8 +67,12 @@ export default function DocumentsWorkspace() {
             <p className="text-muted mt-2 max-w-2xl text-base">Saved resumes and cover letters.</p>
           </div>
 
-          <div className="text-muted text-sm">
-            {totalCount} saved document{totalCount === 1 ? "" : "s"}
+          <div className="flex items-center gap-4">
+            <span className="text-muted text-sm">
+              {totalCount} saved document{totalCount === 1 ? "" : "s"}
+            </span>
+
+            <CreateDocumentActions />
           </div>
         </div>
       </header>

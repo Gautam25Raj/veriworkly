@@ -55,11 +55,10 @@ export const mainNav: StudioNavItem[] = [
   },
 
   {
-    href: `${siteConfig.links.main}/templates`,
+    href: "/templates",
     label: "Templates",
     icon: FileText,
-    external: true,
-    match: () => false,
+    match: (pathname) => pathname.startsWith("/templates"),
   },
 
   {

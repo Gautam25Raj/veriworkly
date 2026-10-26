@@ -113,6 +113,7 @@ export function CreditAdjustmentForm() {
     <div className="space-y-3">
       <input
         className={ADMIN_INPUT_CLASS}
+        aria-label="User id"
         placeholder="User id"
         value={userId}
         onChange={(event) => setUserId(event.target.value)}
@@ -122,6 +123,7 @@ export function CreditAdjustmentForm() {
         className={ADMIN_INPUT_CLASS}
         type="number"
         step={1}
+        aria-label="Credits (negative to claw back)"
         placeholder="Credits (negative to claw back)"
         aria-invalid={!parsed.ok}
         aria-describedby={parsed.ok ? undefined : "credit-adjustment-error"}
@@ -166,12 +168,14 @@ export function EntitlementGrantForm() {
     <div className="space-y-3">
       <input
         className={ADMIN_INPUT_CLASS}
+        aria-label="User id"
         placeholder="User id"
         value={userId}
         onChange={(event) => setUserId(event.target.value)}
       />
 
       <Select
+        aria-label="Entitlement"
         className="h-9 text-xs"
         value={key}
         onChange={(event) => setKey(event.target.value as AdminEntitlementKey)}

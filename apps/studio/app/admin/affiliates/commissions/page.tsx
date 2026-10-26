@@ -13,6 +13,7 @@ import {
   toSingleValueParams,
   type AdminSearchParams,
 } from "@/features/admin/utils/admin-search-params";
+import { pluralize } from "@/lib/pluralize";
 
 export const metadata: Metadata = {
   title: "Admin · Commissions",
@@ -126,7 +127,7 @@ export default async function AdminCommissionsPage({
       columns={columns}
       rowKey={(row) => row.id}
       emptyMessage="No commissions match these filters."
-      caption={`${data.total} matching commission(s); ${formatCents(data.totalAmountCents)} of them in USD (other currencies are not added in).`}
+      caption={`${pluralize(data.total, "matching commission")}; ${formatCents(data.totalAmountCents)} of them in USD (other currencies are not added in).`}
     />
   );
 }

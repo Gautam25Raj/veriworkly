@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -102,6 +110,8 @@ export function AtsWorkspace() {
   // What the user can spend, shown next to every price. "error" keeps a failed read visible
   // instead of looking like a balance that is still loading.
   const [wallet, setWallet] = useState<CreditWallet | "error" | null>(null);
+  const reportRef = useRef<HTMLElement>(null);
+  const fieldIds = useId();
 
   const refreshWallet = useCallback(() => {
     void fetchApiData<CreditWallet>("/billing/credits")
@@ -120,6 +130,21 @@ export function AtsWorkspace() {
     refreshWallet();
   }, [isLoggedIn, refreshWallet]);
 
+  // Below `xl` the report renders under the form, out of sight: a finished scan or draft would
+  // look like nothing happened, so it is brought into view and focused for screen readers.
+  useEffect(() => {
+    if (!result && !converted) return;
+    if (window.matchMedia("(min-width: 1280px)").matches) return;
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    reportRef.current?.scrollIntoView({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: "start",
+    });
+    reportRef.current?.focus({ preventScroll: true });
+  }, [result, converted]);
+
   const pricing = quota?.pricing;
   const available = wallet && wallet !== "error" ? wallet.available : null;
   const hasResume = Boolean(resume.trim());
@@ -130,7 +155,7 @@ export function AtsWorkspace() {
 
   async function run(withAi: boolean) {
     if (!isLoggedIn) {
-      toast.error("Please log in to scan resumes.");
+      toast.error("Sign in to scan resumes.");
       return;
     }
     if (!hasResume)
@@ -172,7 +197,7 @@ export function AtsWorkspace() {
 
   async function convertResume() {
     if (!isLoggedIn) {
-      toast.error("Please log in to convert resumes.");
+      toast.error("Sign in to convert resumes.");
       return;
     }
     if (!hasResume) {
@@ -266,7 +291,7 @@ export function AtsWorkspace() {
                 disabled={Boolean(busy)}
                 onFile={async (file) => {
                   if (!isLoggedIn) {
-                    toast.error("Please log in to analyze resumes.");
+                    toast.error("Sign in to analyze resumes.");
                     return;
                   }
                   setBusy("extract");
@@ -327,7 +352,11 @@ export function AtsWorkspace() {
                 </select>
               </label>
             </div>
+            <label htmlFor={`${fieldIds}-resume`} className="mt-4 mb-2 block text-sm font-semibold">
+              Resume text
+            </label>
             <textarea
+              id={`${fieldIds}-resume`}
               value={resume}
               disabled={Boolean(busy)}
               onChange={(event) => {
@@ -339,7 +368,7 @@ export function AtsWorkspace() {
               }}
               rows={9}
               placeholder="Or paste resume text here"
-              className="bg-background ring-border focus:ring-accent mt-4 w-full resize-y rounded-xl p-4 text-sm leading-6 ring-1 transition outline-none focus:ring-2"
+              className="bg-background ring-border focus:ring-accent w-full resize-y rounded-xl p-4 text-sm leading-6 ring-1 transition outline-none focus:ring-2"
             />
             {sourceLabel ? (
               <p className="text-muted mt-3 text-xs font-medium">Using: {sourceLabel}</p>
@@ -355,8 +384,12 @@ export function AtsWorkspace() {
                 Review job URL
               </ModeButton>
             </div>
+            <label htmlFor={`${fieldIds}-target`} className="mb-2 block text-sm font-semibold">
+              {useJobUrl ? "Job posting URL" : "Job description"}
+            </label>
             {useJobUrl ? (
               <input
+                id={`${fieldIds}-target`}
                 value={jobUrl}
                 onChange={(event) => setJobUrl(event.target.value)}
                 type="url"
@@ -365,6 +398,7 @@ export function AtsWorkspace() {
               />
             ) : (
               <textarea
+                id={`${fieldIds}-target`}
                 value={jobDescription}
                 onChange={(event) => setJobDescription(event.target.value)}
                 rows={6}
@@ -472,6 +506,7 @@ export function AtsWorkspace() {
                 type="button"
                 onClick={() => void convertResume()}
                 disabled={!hasResume || Boolean(busy) || quota?.canConvertResume === false}
+                aria-describedby={`${fieldIds}-convert-hint`}
                 className="bg-background text-foreground hover:bg-background/90 inline-flex shrink-0 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45"
               >
                 {busy === "convert" ? (
@@ -482,7 +517,8 @@ export function AtsWorkspace() {
                 Prepare draft
               </button>
             </div>
-            <p className="text-background/60 mt-4 text-xs">
+            <p id={`${fieldIds}-convert-hint`} className="text-background/60 mt-4 text-xs">
+              {hasResume ? null : "Add a resume in step 1 to prepare a draft. "}
               {pricing ? `Uses ${pricing.resumeConversionCredits} credits` : "Price loads securely"}
               {available === null ? "" : ` · you have ${available}`} · Nothing is created until you
               confirm
@@ -499,9 +535,12 @@ export function AtsWorkspace() {
         </div>
 
         <aside
+          ref={reportRef}
+          tabIndex={-1}
+          aria-label="ATS report"
           inert={!isLoggedIn}
           className={cn(
-            "space-y-5 xl:sticky xl:top-6 xl:self-start",
+            "scroll-mt-20 space-y-5 outline-none xl:sticky xl:top-6 xl:self-start",
             !isLoggedIn && "pointer-events-none opacity-40 blur-[3px]",
           )}
         >
@@ -525,7 +564,7 @@ export function AtsWorkspace() {
             <div className="bg-accent/10 text-accent flex h-12 w-12 items-center justify-center rounded-full">
               <LockKeyhole size={20} />
             </div>
-            <h2 className="text-foreground mt-4 text-base font-black">Log in to scan resumes</h2>
+            <h2 className="text-foreground mt-4 text-base font-black">Sign in to scan resumes</h2>
             <p className="text-muted mt-1.5 max-w-sm text-xs leading-5">
               ATS scanning, resume conversions, and gap analysis require a VeriWorkly account.
             </p>
@@ -535,7 +574,7 @@ export function AtsWorkspace() {
               }}
               className="bg-accent text-accent-foreground hover:bg-accent/90 mt-5 inline-flex min-h-10 items-center justify-center rounded-lg px-5 text-xs font-bold transition"
             >
-              Log In
+              Sign in
             </button>
           </div>
         ) : null}
@@ -628,6 +667,7 @@ function ModeButton({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
         "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition",
         active ? "bg-foreground text-background" : "bg-background text-muted hover:text-foreground",

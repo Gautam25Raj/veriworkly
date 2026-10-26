@@ -20,6 +20,7 @@ import {
 import type { AdminUserDetail, Role } from "@/features/admin/types/admin-types";
 
 import { parseCreditAmount } from "@/app/admin/billing/credit-amount";
+import { pluralize } from "@/lib/pluralize";
 
 /**
  * Every control on this panel writes to the admin audit log, so each one is wrapped in the
@@ -178,7 +179,7 @@ const UserAdminActions = ({ detail }: { detail: AdminUserDetail }) => {
         <AdminActionDialog
           trigger="Revoke all sessions"
           title="Sign this user out everywhere"
-          description={`${user._count.sessions} active session(s) will be deleted. The user will need to sign in again.`}
+          description={`${pluralize(user._count.sessions, "active session")} will be deleted. The user will need to sign in again.`}
           confirmLabel="Revoke sessions"
           onConfirm={async (reason) => {
             await revokeAdminUserSessions(user.id, reason);

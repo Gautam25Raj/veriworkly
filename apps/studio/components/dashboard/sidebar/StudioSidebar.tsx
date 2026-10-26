@@ -2,6 +2,8 @@
 
 import { Search } from "lucide-react";
 
+import { ShortcutKey } from "@/components/ShortcutKey";
+
 import { StudioSidebarHeader } from "./StudioSidebarHeader";
 import { mainNav, supportNav, bottomNav, NavGroup } from "./StudioNavigation";
 import { NewDocumentButton } from "../modals/NewDocumentModal";
@@ -45,7 +47,9 @@ export function StudioSidebar({
           >
             <Search className="h-4 w-4 shrink-0" />
             <span className="truncate">Search workspace</span>
-            <span className="ml-auto text-[10px]">Ctrl K</span>
+            <kbd className="ml-auto font-sans text-[10px]">
+              <ShortcutKey letter="K" />
+            </kbd>
           </button>
         </div>
       ) : null}

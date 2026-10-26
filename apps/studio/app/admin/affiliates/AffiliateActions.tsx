@@ -211,6 +211,7 @@ export function CommissionCreateForm() {
     <div className="space-y-3">
       <input
         className={ADMIN_INPUT_CLASS}
+        aria-label="Referred user id"
         placeholder="Referred user id"
         value={referredUserId}
         onChange={(event) => setReferredUserId(event.target.value)}
@@ -218,6 +219,7 @@ export function CommissionCreateForm() {
 
       <input
         className={ADMIN_INPUT_CLASS}
+        aria-label="Provider payment id"
         placeholder="Provider payment id"
         value={providerPaymentId}
         onChange={(event) => setProviderPaymentId(event.target.value)}
@@ -228,6 +230,7 @@ export function CommissionCreateForm() {
         type="number"
         min="0"
         step="0.01"
+        aria-label="Purchase amount (USD)"
         placeholder="Purchase amount (USD)"
         value={amountUsd}
         onChange={(event) => setAmountUsd(event.target.value)}

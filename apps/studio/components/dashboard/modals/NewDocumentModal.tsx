@@ -89,11 +89,9 @@ function useNewDocumentSources() {
 
 export function NewDocumentButton({
   collapsed,
-  compact,
   onClick,
 }: {
   collapsed?: boolean;
-  compact?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -102,10 +100,10 @@ export function NewDocumentButton({
       variant="primary"
       onClick={onClick}
       aria-label="Create document"
-      className={compact ? "h-10 w-10 rounded-xl px-0" : "h-9 w-full gap-2 rounded-lg"}
+      className="h-9 w-full gap-2 rounded-lg"
     >
       <Plus className="h-4 w-4" />
-      {!collapsed && !compact ? <span>New Document</span> : null}
+      {!collapsed ? <span>New Document</span> : null}
     </Button>
   );
 }

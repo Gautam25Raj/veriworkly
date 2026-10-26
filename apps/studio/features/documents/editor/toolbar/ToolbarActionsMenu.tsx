@@ -223,6 +223,7 @@ const ToolbarActionsMenuTrigger = ({
             className={cn(
               !isLoggedIn && "opacity-50 hover:bg-transparent focus-visible:bg-transparent",
             )}
+            aria-disabled={!isLoggedIn || undefined}
             onClick={(e) => {
               if (!isLoggedIn) {
                 e.preventDefault();
@@ -239,12 +240,14 @@ const ToolbarActionsMenuTrigger = ({
           >
             <Share2 className="h-4 w-4" />
             Create Share Link
+            {!isLoggedIn ? <span className="text-muted ml-auto text-[10px]">Sign in</span> : null}
           </MenuItem>
 
           <MenuItem
             className={cn(
               !isLoggedIn && "opacity-50 hover:bg-transparent focus-visible:bg-transparent",
             )}
+            aria-disabled={!isLoggedIn || undefined}
             onClick={(e) => {
               if (!isLoggedIn) {
                 e.preventDefault();
@@ -261,6 +264,7 @@ const ToolbarActionsMenuTrigger = ({
           >
             <Cloud className="h-4 w-4" />
             Back up now
+            {!isLoggedIn ? <span className="text-muted ml-auto text-[10px]">Sign in</span> : null}
           </MenuItem>
 
           <MenuSeparator />

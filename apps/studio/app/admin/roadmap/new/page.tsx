@@ -20,9 +20,9 @@ const AdminRoadmapCreatePage = () => {
           <div className="space-y-2">
             <Badge className="bg-background/70">Roadmap Create</Badge>
 
-            <h2 className="text-foreground text-2xl font-semibold md:text-3xl">
+            <h1 className="text-foreground text-2xl font-semibold md:text-3xl">
               Create Roadmap Item
-            </h2>
+            </h1>
 
             <p className="text-muted text-sm md:text-base">
               Fill complete roadmap metadata including narrative fields and structured details JSON.

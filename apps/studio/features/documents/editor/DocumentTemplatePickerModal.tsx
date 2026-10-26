@@ -113,6 +113,7 @@ export function DocumentTemplatePickerModal({
                 <button
                   type="button"
                   key={template.id}
+                  aria-pressed={active}
                   className={[
                     "border-border bg-card hover:border-accent/40 group flex min-w-0 items-center gap-3 rounded-xl border p-2 text-left transition",
                     active ? "border-accent bg-accent/5 ring-accent/20 ring-2" : "",

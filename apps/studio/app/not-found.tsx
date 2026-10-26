@@ -2,8 +2,6 @@ import Link from "next/link";
 
 import { Button, Container } from "@veriworkly/ui";
 
-import { siteConfig } from "@/config/site";
-
 const NotFound = () => {
   return (
     <main className="surface-grid flex min-h-screen items-center justify-center">
@@ -21,11 +19,11 @@ const NotFound = () => {
 
         <div className="mt-10 flex items-center justify-center gap-x-6">
           <Button asChild variant="primary">
-            <Link href="/">Go back to Dashboard</Link>
+            <Link href="/">Go back to the dashboard</Link>
           </Button>
 
           <Button asChild variant="ghost">
-            <Link href={`${siteConfig.links.main}/templates`}>View Templates</Link>
+            <Link href="/templates">View Templates</Link>
           </Button>
         </div>
       </Container>

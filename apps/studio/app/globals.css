@@ -163,7 +163,7 @@ body {
   font-family: "Geist";
   font-style: normal;
   font-weight: 400;
-  font-display: block;
+  font-display: swap;
   src: url("/fonts/geist/Geist-Regular.ttf") format("truetype");
 }
 
@@ -171,7 +171,7 @@ body {
   font-family: "Geist";
   font-style: normal;
   font-weight: 700;
-  font-display: block;
+  font-display: swap;
   src: url("/fonts/geist/Geist-Bold.ttf") format("truetype");
 }
 
@@ -179,7 +179,7 @@ body {
   font-family: "Manrope";
   font-style: normal;
   font-weight: 400;
-  font-display: block;
+  font-display: swap;
   src: url("/fonts/manrope/Manrope-Regular.ttf") format("truetype");
 }
 
@@ -187,7 +187,7 @@ body {
   font-family: "Manrope";
   font-style: normal;
   font-weight: 700;
-  font-display: block;
+  font-display: swap;
   src: url("/fonts/manrope/Manrope-Bold.ttf") format("truetype");
 }
 
@@ -195,7 +195,7 @@ body {
   font-family: "Inter";
   font-style: normal;
   font-weight: 400;
-  font-display: block;
+  font-display: swap;
   src: url("/fonts/inter/Inter_18pt-Regular.ttf") format("truetype");
 }
 
@@ -203,7 +203,7 @@ body {
   font-family: "Inter";
   font-style: normal;
   font-weight: 700;
-  font-display: block;
+  font-display: swap;
   src: url("/fonts/inter/Inter_18pt-Bold.ttf") format("truetype");
 }
 

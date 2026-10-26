@@ -69,6 +69,7 @@ export function AdditionalSections({
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <Input
+                  aria-label="Title"
                   value={item.title}
                   onChange={(event) =>
                     updateRepeatableItem("awards", item.id, (current) => ({
@@ -79,6 +80,7 @@ export function AdditionalSections({
                   placeholder="Title"
                 />
                 <Input
+                  aria-label="Awarder"
                   value={item.awarder}
                   onChange={(event) =>
                     updateRepeatableItem("awards", item.id, (current) => ({
@@ -89,6 +91,7 @@ export function AdditionalSections({
                   placeholder="Awarder"
                 />
                 <Input
+                  aria-label="Date"
                   value={item.date}
                   onChange={(event) =>
                     updateRepeatableItem("awards", item.id, (current) => ({
@@ -99,6 +102,7 @@ export function AdditionalSections({
                   placeholder="Date"
                 />
                 <Input
+                  aria-label="Website"
                   type="url"
                   value={item.website ?? ""}
                   onChange={(event) =>
@@ -160,6 +164,7 @@ export function AdditionalSections({
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <Input
+                  aria-label="Title"
                   value={item.title}
                   onChange={(event) =>
                     updateRepeatableItem("certificates", item.id, (current) => ({
@@ -170,6 +175,7 @@ export function AdditionalSections({
                   placeholder="Title"
                 />
                 <Input
+                  aria-label="Issuer"
                   value={item.issuer}
                   onChange={(event) =>
                     updateRepeatableItem("certificates", item.id, (current) => ({
@@ -180,6 +186,7 @@ export function AdditionalSections({
                   placeholder="Issuer"
                 />
                 <Input
+                  aria-label="Date"
                   value={item.date}
                   onChange={(event) =>
                     updateRepeatableItem("certificates", item.id, (current) => ({
@@ -196,6 +203,7 @@ export function AdditionalSections({
                   place it can be set.
                 */}
                 <Input
+                  aria-label="Credential ID"
                   value={item.referenceId ?? ""}
                   onChange={(event) =>
                     updateRepeatableItem("certificates", item.id, (current) => ({
@@ -206,6 +214,7 @@ export function AdditionalSections({
                   placeholder="Credential ID"
                 />
                 <Input
+                  aria-label="Website"
                   type="url"
                   value={item.website ?? ""}
                   onChange={(event) =>
@@ -270,6 +279,7 @@ export function AdditionalSections({
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <Input
+                  aria-label="Title"
                   value={item.title}
                   onChange={(event) =>
                     updateRepeatableItem("publications", item.id, (current) => ({
@@ -280,6 +290,7 @@ export function AdditionalSections({
                   placeholder="Title"
                 />
                 <Input
+                  aria-label="Publisher"
                   value={item.publisher}
                   onChange={(event) =>
                     updateRepeatableItem("publications", item.id, (current) => ({
@@ -290,6 +301,7 @@ export function AdditionalSections({
                   placeholder="Publisher"
                 />
                 <Input
+                  aria-label="Date"
                   value={item.date}
                   onChange={(event) =>
                     updateRepeatableItem("publications", item.id, (current) => ({
@@ -300,6 +312,7 @@ export function AdditionalSections({
                   placeholder="Date"
                 />
                 <Input
+                  aria-label="Website"
                   type="url"
                   value={item.website ?? ""}
                   onChange={(event) =>
@@ -372,6 +385,7 @@ export function AdditionalSections({
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <Input
+                  aria-label="Organization"
                   value={item.organization}
                   onChange={(event) =>
                     updateRepeatableItem("volunteer", item.id, (current) => ({
@@ -382,6 +396,7 @@ export function AdditionalSections({
                   placeholder="Organization"
                 />
                 <Input
+                  aria-label="Role"
                   value={item.role}
                   onChange={(event) =>
                     updateRepeatableItem("volunteer", item.id, (current) => ({
@@ -392,6 +407,7 @@ export function AdditionalSections({
                   placeholder="Role"
                 />
                 <Input
+                  aria-label="Start date"
                   value={item.startDate}
                   onChange={(event) =>
                     updateRepeatableItem("volunteer", item.id, (current) => ({
@@ -402,6 +418,7 @@ export function AdditionalSections({
                   placeholder="Start date"
                 />
                 <Input
+                  aria-label="End date"
                   value={item.endDate}
                   onChange={(event) =>
                     updateRepeatableItem("volunteer", item.id, (current) => ({
@@ -412,6 +429,7 @@ export function AdditionalSections({
                   placeholder="End date"
                 />
                 <Input
+                  aria-label="Location"
                   value={item.location}
                   onChange={(event) =>
                     updateRepeatableItem("volunteer", item.id, (current) => ({
@@ -481,6 +499,7 @@ export function AdditionalSections({
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <Input
+                  aria-label="Name"
                   value={item.name}
                   onChange={(event) =>
                     updateRepeatableItem("references", item.id, (current) => ({
@@ -491,6 +510,7 @@ export function AdditionalSections({
                   placeholder="Name"
                 />
                 <Input
+                  aria-label="Title"
                   value={item.title}
                   onChange={(event) =>
                     updateRepeatableItem("references", item.id, (current) => ({
@@ -501,6 +521,7 @@ export function AdditionalSections({
                   placeholder="Title"
                 />
                 <Input
+                  aria-label="Organization"
                   value={item.organization}
                   onChange={(event) =>
                     updateRepeatableItem("references", item.id, (current) => ({
@@ -511,6 +532,7 @@ export function AdditionalSections({
                   placeholder="Organization"
                 />
                 <Input
+                  aria-label="Relationship"
                   value={item.relationship}
                   onChange={(event) =>
                     updateRepeatableItem("references", item.id, (current) => ({
@@ -521,6 +543,7 @@ export function AdditionalSections({
                   placeholder="Relationship"
                 />
                 <Input
+                  aria-label="Email"
                   type="email"
                   value={item.email ?? ""}
                   onChange={(event) =>
@@ -545,6 +568,7 @@ export function AdditionalSections({
                   </p>
                 ) : null}
                 <Input
+                  aria-label="Phone"
                   value={item.phone ?? ""}
                   onChange={(event) =>
                     updateRepeatableItem("references", item.id, (current) => ({
@@ -579,6 +603,7 @@ export function AdditionalSections({
               onRemove={() => removeRepeatableItem("achievements", item.id)}
             >
               <Input
+                aria-label="Title"
                 value={item.title}
                 onChange={(event) =>
                   updateRepeatableItem("achievements", item.id, (current) => ({
@@ -626,6 +651,7 @@ export function AdditionalSections({
               >
                 <div className="grid gap-4 md:grid-cols-2">
                   <Input
+                    aria-label="Title"
                     value={item.title}
                     onChange={(event) =>
                       updateRepeatableItem("customSections", item.id, (current) => ({
@@ -660,6 +686,7 @@ export function AdditionalSections({
                     >
                       <div className="grid gap-4 md:grid-cols-2">
                         <Input
+                          aria-label="Name"
                           value={customItem.name}
                           onChange={(event) =>
                             updateRepeatableItem("customSections", item.id, (current) => ({
@@ -673,6 +700,7 @@ export function AdditionalSections({
                           placeholder="Name"
                         />
                         <Input
+                          aria-label="Issuer"
                           value={customItem.issuer}
                           onChange={(event) =>
                             updateRepeatableItem("customSections", item.id, (current) => ({
@@ -686,6 +714,7 @@ export function AdditionalSections({
                           placeholder="Issuer"
                         />
                         <Input
+                          aria-label="Date"
                           value={customItem.date}
                           onChange={(event) =>
                             updateRepeatableItem("customSections", item.id, (current) => ({
@@ -699,6 +728,7 @@ export function AdditionalSections({
                           placeholder="Date"
                         />
                         <Input
+                          aria-label="Link"
                           value={customItem.link}
                           onChange={(event) =>
                             updateRepeatableItem("customSections", item.id, (current) => ({
@@ -712,6 +742,7 @@ export function AdditionalSections({
                           placeholder="Link"
                         />
                         <Input
+                          aria-label="Reference ID"
                           value={customItem.referenceId}
                           onChange={(event) =>
                             updateRepeatableItem("customSections", item.id, (current) => ({

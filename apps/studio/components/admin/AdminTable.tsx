@@ -27,14 +27,10 @@ interface AdminTableProps<T> {
 /**
  * The one table used by every admin list page.
  *
- * Two structural choices worth keeping:
- *
  * The wrapper scrolls horizontally rather than letting a wide table push the page body wide —
  * an admin table with ten columns will always overflow on a laptop, and a horizontally
- * scrolling *page* makes the nav unreachable.
- *
- * The header is `sticky` inside that scroll container. These lists run to 50 rows, and a header
- * that scrolls away turns the bottom of a wide table into unlabelled columns.
+ * scrolling *page* makes the nav unreachable. The header does not stick: a horizontal scroll
+ * container is the sticky boundary, and it never scrolls vertically.
  */
 function AdminTable<T>({
   columns,
@@ -52,7 +48,7 @@ function AdminTable<T>({
 
       <div className="w-full overflow-x-auto">
         <table className="w-full min-w-[46rem] border-collapse text-left text-sm">
-          <thead className="bg-admin-inset sticky top-0 z-10">
+          <thead className="bg-admin-inset">
             <tr>
               {columns.map((column) => (
                 <th

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { FileText, Globe, Check, Lock, ShieldCheck, Link2 } from "lucide-react";
+import { useState, useEffect, useSyncExternalStore } from "react";
+import { FileText, Globe, Check, Lock, ShieldCheck, Link2, Pause, Play } from "lucide-react";
 
 import { cn } from "@veriworkly/ui";
 
@@ -12,8 +12,35 @@ interface Slide {
   mockup: React.ReactNode;
 }
 
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+function subscribeToReducedMotion(onChange: () => void) {
+  const query = window.matchMedia(REDUCED_MOTION_QUERY);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+/** Server render assumes motion is allowed; the client corrects it before the first tick. */
+function usePrefersReducedMotion() {
+  return useSyncExternalStore(
+    subscribeToReducedMotion,
+    () => window.matchMedia(REDUCED_MOTION_QUERY).matches,
+    () => false,
+  );
+}
+
+/**
+ * Auto-rotation stops while the pointer or keyboard focus is inside the carousel, when the
+ * visitor presses pause, and entirely under `prefers-reduced-motion` (WCAG 2.2.2). The dots
+ * still switch slides by hand in every case.
+ */
 const ShowcaseCards = () => {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [pausedByUser, setPausedByUser] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const rotating = !pausedByUser && !prefersReducedMotion;
 
   const slides: Slide[] = [
     {
@@ -134,15 +161,30 @@ const ShowcaseCards = () => {
   ];
 
   useEffect(() => {
+    if (!rotating || hovered || focused) return;
+
     const timer = setInterval(() => {
       setActiveIndex((prev) => (prev + 1) % slides.length);
     }, 5500);
 
     return () => clearInterval(timer);
-  }, [slides.length]);
+  }, [rotating, hovered, focused, slides.length]);
 
   return (
-    <div className="flex h-[250px] flex-col justify-between">
+    <div
+      role="region"
+      aria-roledescription="carousel"
+      aria-label="What VeriWorkly Studio does"
+      data-testid="showcase-carousel"
+      data-rotating={rotating && !hovered && !focused}
+      className="flex h-[250px] flex-col justify-between"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false);
+      }}
+    >
       <div className="relative flex-1 overflow-hidden">
         {slides.map((slide, index) => {
           const isActive = index === activeIndex;
@@ -150,6 +192,9 @@ const ShowcaseCards = () => {
           return (
             <div
               key={slide.title}
+              role="group"
+              aria-roledescription="slide"
+              aria-label={`${index + 1} of ${slides.length}`}
               aria-hidden={!isActive}
               className={cn(
                 "absolute inset-0 flex flex-col justify-between transition-all duration-700 ease-in-out",
@@ -180,12 +225,14 @@ const ShowcaseCards = () => {
         })}
       </div>
 
-      <div className="mt-4 flex justify-center gap-1.5">
+      <div className="mt-4 flex items-center justify-center gap-1.5">
         {slides.map((_, index) => {
           const isActive = index === activeIndex;
           return (
             <button
+              type="button"
               key={index}
+              aria-current={isActive ? "true" : undefined}
               onClick={() => setActiveIndex(index)}
               className={cn(
                 "focus-visible:ring-accent/40 h-1.5 cursor-pointer rounded-full transition-all duration-300 focus-visible:ring-2 focus-visible:outline-none",
@@ -195,6 +242,17 @@ const ShowcaseCards = () => {
             />
           );
         })}
+
+        {prefersReducedMotion ? null : (
+          <button
+            type="button"
+            onClick={() => setPausedByUser((paused) => !paused)}
+            aria-label={pausedByUser ? "Play slideshow" : "Pause slideshow"}
+            className="text-muted hover:text-foreground focus-visible:ring-accent/40 ml-2 grid h-6 w-6 cursor-pointer place-items-center rounded-full transition focus-visible:ring-2 focus-visible:outline-none"
+          >
+            {pausedByUser ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+          </button>
+        )}
       </div>
     </div>
   );

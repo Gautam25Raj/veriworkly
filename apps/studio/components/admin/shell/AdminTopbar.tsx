@@ -1,12 +1,13 @@
 "use client";
 
-import { Fragment, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronRight, LogOut, Menu, RefreshCw, Search } from "lucide-react";
 
 import { cn } from "@veriworkly/ui";
 
+import { ShortcutKey } from "@/components/ShortcutKey";
 import { fetchApiData } from "@/utils/fetchApiData";
 import { buildAdminBreadcrumbs } from "@/features/admin/config/admin-nav";
 
@@ -58,7 +59,10 @@ const AdminTopbar = ({ adminEmail, onOpenSidebar, onOpenPalette }: AdminTopbarPr
             const last = index === crumbs.length - 1;
 
             return (
-              <Fragment key={crumb.href}>
+              <li
+                key={crumb.href}
+                className={cn("min-w-0 items-center gap-1", last ? "flex" : "hidden sm:flex")}
+              >
                 {index > 0 ? (
                   <ChevronRight
                     className="text-muted h-3.5 w-3.5 shrink-0 opacity-60"
@@ -66,21 +70,19 @@ const AdminTopbar = ({ adminEmail, onOpenSidebar, onOpenPalette }: AdminTopbarPr
                   />
                 ) : null}
 
-                <li className={cn("min-w-0", last ? "" : "hidden sm:block")}>
-                  {last ? (
-                    <span aria-current="page" className="text-foreground truncate font-medium">
-                      {crumb.label}
-                    </span>
-                  ) : (
-                    <Link
-                      href={crumb.href}
-                      className="text-muted hover:text-foreground truncate transition"
-                    >
-                      {crumb.label}
-                    </Link>
-                  )}
-                </li>
-              </Fragment>
+                {last ? (
+                  <span aria-current="page" className="text-foreground truncate font-medium">
+                    {crumb.label}
+                  </span>
+                ) : (
+                  <Link
+                    href={crumb.href}
+                    className="text-muted hover:text-foreground truncate transition"
+                  >
+                    {crumb.label}
+                  </Link>
+                )}
+              </li>
             );
           })}
         </ol>
@@ -94,7 +96,7 @@ const AdminTopbar = ({ adminEmail, onOpenSidebar, onOpenPalette }: AdminTopbarPr
         <Search className="h-3.5 w-3.5" aria-hidden="true" />
         <span className="hidden sm:inline">Search…</span>
         <kbd className="border-border hidden rounded border px-1 py-px text-[10px] font-medium sm:inline">
-          ⌘K
+          <ShortcutKey letter="K" />
         </kbd>
       </button>
 

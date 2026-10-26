@@ -66,6 +66,7 @@ export function CoreSections({
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <Input
+                  aria-label="Company"
                   value={item.company}
                   onChange={(event) =>
                     updateRepeatableItem("experience", item.id, (current) => ({
@@ -76,6 +77,7 @@ export function CoreSections({
                   placeholder="Company"
                 />
                 <Input
+                  aria-label="Role"
                   value={item.role}
                   onChange={(event) =>
                     updateRepeatableItem("experience", item.id, (current) => ({
@@ -86,6 +88,7 @@ export function CoreSections({
                   placeholder="Role"
                 />
                 <Input
+                  aria-label="Location"
                   value={item.location}
                   onChange={(event) =>
                     updateRepeatableItem("experience", item.id, (current) => ({
@@ -96,6 +99,7 @@ export function CoreSections({
                   placeholder="Location"
                 />
                 <Input
+                  aria-label="Start date"
                   value={item.startDate}
                   onChange={(event) =>
                     updateRepeatableItem("experience", item.id, (current) => ({
@@ -106,6 +110,7 @@ export function CoreSections({
                   placeholder="Start date"
                 />
                 <Input
+                  aria-label="End date"
                   value={item.endDate}
                   onChange={(event) =>
                     updateRepeatableItem("experience", item.id, (current) => ({
@@ -180,6 +185,7 @@ export function CoreSections({
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <Input
+                  aria-label="School"
                   value={item.school}
                   onChange={(event) =>
                     updateRepeatableItem("education", item.id, (current) => ({
@@ -190,6 +196,7 @@ export function CoreSections({
                   placeholder="School"
                 />
                 <Input
+                  aria-label="Degree"
                   value={item.degree}
                   onChange={(event) =>
                     updateRepeatableItem("education", item.id, (current) => ({
@@ -200,6 +207,7 @@ export function CoreSections({
                   placeholder="Degree"
                 />
                 <Input
+                  aria-label="Field"
                   value={item.field}
                   onChange={(event) =>
                     updateRepeatableItem("education", item.id, (current) => ({
@@ -210,6 +218,7 @@ export function CoreSections({
                   placeholder="Field"
                 />
                 <Input
+                  aria-label="Start date"
                   value={item.startDate}
                   onChange={(event) =>
                     updateRepeatableItem("education", item.id, (current) => ({
@@ -220,6 +229,7 @@ export function CoreSections({
                   placeholder="Start date"
                 />
                 <Input
+                  aria-label="End date"
                   value={item.endDate}
                   onChange={(event) =>
                     updateRepeatableItem("education", item.id, (current) => ({
@@ -294,6 +304,7 @@ export function CoreSections({
 
               <div className="grid gap-4 md:grid-cols-2">
                 <Input
+                  aria-label="Project name"
                   value={item.name}
                   onChange={(event) =>
                     updateRepeatableItem("projects", item.id, (current) => ({
@@ -304,6 +315,7 @@ export function CoreSections({
                   placeholder="Project name"
                 />
                 <Input
+                  aria-label="Role"
                   value={item.role}
                   onChange={(event) =>
                     updateRepeatableItem("projects", item.id, (current) => ({
@@ -314,6 +326,7 @@ export function CoreSections({
                   placeholder="Role"
                 />
                 <Input
+                  aria-label="Link"
                   type="url"
                   value={item.link}
                   onChange={(event) =>
@@ -387,6 +400,7 @@ export function CoreSections({
               onRemove={() => removeRepeatableItem("skills", item.id)}
             >
               <Input
+                aria-label="Group name"
                 value={item.name}
                 onChange={(event) =>
                   updateRepeatableItem("skills", item.id, (current) => ({
@@ -431,6 +445,7 @@ export function CoreSections({
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <Input
+                  aria-label="Language"
                   value={item.language}
                   onChange={(event) =>
                     updateRepeatableItem("languages", item.id, (current) => ({
@@ -441,6 +456,7 @@ export function CoreSections({
                   placeholder="Language"
                 />
                 <Select
+                  aria-label="Fluency"
                   value={item.fluency}
                   onChange={(event) =>
                     updateRepeatableItem("languages", item.id, (current) => ({
@@ -480,6 +496,7 @@ export function CoreSections({
               onRemove={() => removeRepeatableItem("interests", item.id)}
             >
               <Input
+                aria-label="Interest"
                 value={item.name}
                 onChange={(event) =>
                   updateRepeatableItem("interests", item.id, (current) => ({

@@ -108,7 +108,6 @@ function DocumentThumbnailPreview({ doc }: { doc: DocumentLibraryItem }) {
       <div className="absolute inset-0 bg-[color-mix(in_oklab,var(--background)_92%,white)]">
         <Image
           fill
-          priority
           src={doc.previewImage}
           className="object-contain p-3"
           alt={`${doc.templateName} preview`}

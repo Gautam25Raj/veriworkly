@@ -10,6 +10,18 @@ export const checkoutSchema = z.object({
     .optional(),
 });
 
+/**
+ * A plan change on the customer's live subscription (V-202). Only recurring intervals: a pass is
+ * not a subscription. Which changes are allowed (upgrades to the bundle at the same interval) is
+ * the service's decision, so a downgrade gets a coded 409 rather than a validation error.
+ */
+export const planChangeSchema = z.object({
+  productKey: z.enum(["ai_credits", "portfolio_pro", "bundle"]),
+  interval: z.enum(["monthly", "annual"]),
+  /** Body alternative to the `Idempotency-Key` header; the header wins when both are sent. */
+  idempotencyKey: z.string().trim().min(1).max(128).optional(),
+});
+
 export const creditPackCheckoutSchema = z.object({
   packKey: z.enum(["credit_pack_250", "credit_pack_500"]),
   redirectUrl: z
@@ -32,6 +44,8 @@ export const dodoSubscriptionSchema = z.object({
   status: z.string().trim().min(1, "Status is required"),
   cancel_at_next_billing_date: z.boolean(),
   next_billing_date: z.string().trim().nullable().optional(),
+  // Start of the period being billed: anchors the credit schedule a mid-cycle plan change opens.
+  previous_billing_date: z.string().trim().nullable().optional(),
   // When the provider created the subscription: tells a late event about an older subscription
   // apart from one about the checkout that is open now.
   created_at: z.string().trim().nullable().optional(),
@@ -79,6 +93,8 @@ export const dodoPaymentSchema = z
     is_update_payment_method: z.boolean().optional().default(false),
     // Set when the payment was made through a checkout session; matches the open checkout record.
     checkout_session_id: z.string().trim().nullable().optional(),
+    // "plan_change" marks the prorated charge of a plan change, portal-initiated ones included (V-202).
+    charge_type: z.string().trim().nullable().optional(),
     created_at: z.string().trim().nullable().optional(),
     // Recorded on the user so a one-time buyer can open the billing portal (V-175).
     customer: z

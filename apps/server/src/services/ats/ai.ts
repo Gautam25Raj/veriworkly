@@ -5,6 +5,7 @@ import { getAtsAiPolicy, type AtsComplexity } from "#services/ats/aiPolicy";
 import { createServerAtsAi, runBilled, taskRoute } from "#services/ats/atsAi";
 import type { AtsAiInsights, AtsReport } from "#services/ats/types";
 import { CreditService, replayFingerprint } from "#services/creditService";
+import { assertFreeTierCapacity } from "#services/documentCapacity";
 import { logger } from "#lib/logger";
 
 /** The ledger action of a resume conversion, and the key its stored result is replayed under. */
@@ -175,6 +176,12 @@ export class AtsAiService {
         creditsSpent: route.credits,
         replayed: true,
       };
+
+    // V-201: the converted resume becomes a document. An account that cannot keep another one
+    // is refused here, before anything is reserved, with the documents route's own 402; charging
+    // first would leave a paid conversion the sync then rejects. After the replay check above, so
+    // a conversion already paid for is still returned.
+    await assertFreeTierCapacity(userId, "RESUME");
 
     const outcome = await runBilled({
       userId,

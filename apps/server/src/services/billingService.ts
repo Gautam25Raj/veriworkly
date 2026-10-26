@@ -101,6 +101,12 @@ const CHECKOUT_CLAIM_WAIT_MS = 300;
 const CHECKOUT_ACTIVE_MESSAGE =
   "A billing checkout is already active. Complete it or try again soon.";
 /**
+ * `details.code` on every checkout-lock 409 (V-198): the studio tells "a checkout is already open"
+ * apart from the overlap codes (`ALREADY_SUBSCRIBED`, `SUBSCRIPTION_OVERLAP`, ...) by this, not by
+ * the message.
+ */
+const CHECKOUT_IN_PROGRESS = { code: "CHECKOUT_IN_PROGRESS" } as const;
+/**
  * Provider payment states in which money is moving or has moved: a session in one of these is
  * never cleared by `cancelCheckout`; the webhook settles it.
  */
@@ -197,7 +203,9 @@ function overlappingProductKeys(productKey: ProductKey): ProductKey[] {
  * twice is a double charge, the bundle already contains both single products, and AI Credits
  * plus Creator Pro is the bundle at a higher price. The error says what to do instead, and
  * `details` carries the same in machine form for the clients:
- * `{ code, activeProductKey, suggestedProductKey }`.
+ * `{ code, activeProductKey, suggestedProductKey }`. When the live plan can be upgraded to the
+ * bundle in place (V-202), the code is `UPGRADE_AVAILABLE` and `upgrade` names the plan change to
+ * offer: `{ productKey: "bundle", interval }` for `/billing/subscription/change-plan`.
  */
 function checkoutOverlap(
   productKey: ProductKey,
@@ -206,6 +214,8 @@ function checkoutOverlap(
     productKey: string;
     status: PrismaSubscription["status"];
     rawStatus: string | null;
+    interval: PrismaSubscription["interval"];
+    cancelAtPeriodEnd: boolean;
   }>,
 ) {
   const current = live.find((item) => item.status === "PAST_DUE") ?? live[0];
@@ -253,10 +263,142 @@ function checkoutOverlap(
       `You already have an active ${activeName} subscription. For more AI credits, buy a credit pack instead of a pass.`,
       details("SUBSCRIPTION_OVERLAP", null),
     );
+  const upgradeInterval = recurringInterval(current.interval);
+  if (live.length === 1 && !current.cancelAtPeriodEnd && upgradeInterval)
+    return new ApiError(
+      409,
+      `You already have an active ${activeName} subscription. ${PRODUCT_NAMES.ai_credits} and ${PRODUCT_NAMES.portfolio_pro} together are the ${PRODUCT_NAMES.bundle}: upgrade ${activeName} to the ${PRODUCT_NAMES.bundle} instead, and pay only the difference for the rest of this billing period.`,
+      {
+        ...details("UPGRADE_AVAILABLE", "bundle"),
+        upgrade: { productKey: "bundle" as const, interval: upgradeInterval },
+      },
+    );
   return new ApiError(
     409,
     `You already have an active ${activeName} subscription. ${PRODUCT_NAMES.ai_credits} and ${PRODUCT_NAMES.portfolio_pro} together are the ${PRODUCT_NAMES.bundle}: to switch, cancel ${activeName} from Manage billing and subscribe to the ${PRODUCT_NAMES.bundle} when it ends, or contact support to switch now.`,
     details("SUBSCRIPTION_OVERLAP", "bundle"),
+  );
+}
+
+/** The plan-change interval of a recurring subscription; null for a pass. */
+function recurringInterval(interval: PrismaSubscription["interval"]) {
+  if (interval === "MONTHLY") return "monthly" as const;
+  if (interval === "ANNUAL") return "annual" as const;
+  return null;
+}
+
+/**
+ * Plan changes (V-202). `prorated_immediately_keep_cycle` (owner choice) charges the difference
+ * for the rest of the current period now and keeps the renewal date, so the month already granted
+ * and an annual schedule stay aligned with the period. A plan-change charge (Dodo's
+ * `charge_type: "plan_change"`, or the tag this API adds to the changes it requests) never earns
+ * credits itself: the plan-change event grants what the new plan carries (`applyPlanChangeCredits`).
+ */
+type PlanChangeInterval = "monthly" | "annual";
+const PLAN_CHANGE_PRORATION = "prorated_immediately_keep_cycle" as const;
+const PLAN_CHANGE_METADATA_KEY = "veriworkly_plan_change";
+/** Until the webhook lands or the payment fails; long enough for any provider retry. */
+const PLAN_CHANGE_PENDING_TTL_SECONDS = 60 * 60;
+/** How long a retry of the same request gets the stored answer. */
+const PLAN_CHANGE_RESULT_TTL_SECONDS = 24 * 60 * 60;
+/**
+ * How long a double click with the same key waits for the first request's answer: as long as that
+ * request's provider call can take (the bounded checkout client), plus a margin to store it.
+ */
+const PLAN_CHANGE_SAME_KEY_WAIT_ATTEMPTS = Math.ceil(
+  (CHECKOUT_PROVIDER_TIMEOUT_MS + 2_000) / CHECKOUT_CLAIM_WAIT_MS,
+);
+
+type PlanChangeResult = {
+  status: "pending";
+  productKey: ProductKey;
+  interval: PlanChangeInterval;
+  paymentId: string | null;
+  /** False when the provider call timed out or failed in transit: the change may have applied. */
+  confirmed: boolean;
+};
+
+function planChangePendingKey(providerSubId: string) {
+  return `billing:plan-change:${providerSubId}`;
+}
+
+function planChangeResultKey(userId: string, idempotencyKey: string) {
+  return `billing:plan-change:result:${userId}:${idempotencyKey}`;
+}
+
+function parsePlanChangeResult(raw: string | null): PlanChangeResult | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as PlanChangeResult;
+    return parsed.status === "pending" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The claim or pending record on a subscription, with the request (user + key) that holds it. */
+function parsePlanChangePending(raw: string | null): { requestKey?: string } | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as { requestKey?: string };
+  } catch {
+    return null;
+  }
+}
+
+/** The stored answer for this key, as a replay; a 409 when the key was used for another change. */
+async function readPlanChangeReplay(
+  resultKey: string,
+  productKey: ProductKey,
+  interval: PlanChangeInterval,
+) {
+  const replay = parsePlanChangeResult(await getRedis().get(resultKey));
+  if (!replay) return null;
+  if (replay.productKey !== productKey || replay.interval !== interval)
+    throw planChangeError(
+      "IDEMPOTENCY_KEY_REUSED",
+      "This idempotency key was already used for a different plan change.",
+    );
+  return { ...replay, replayed: true };
+}
+
+/** A refused plan change: 409 with `details.code`, the way the checkout overlaps answer. */
+function planChangeError(code: string, message: string) {
+  return new ApiError(409, message, { code });
+}
+
+/** A provider refusal: nothing was changed, and the caller may try again. */
+function providerPlanChangeError(error: unknown, what: string) {
+  if (error instanceof ApiError) return error;
+  return new ApiError(502, `The billing provider ${what}, so nothing was changed. Try again.`, {
+    code: "PROVIDER_UNAVAILABLE",
+    reason: error instanceof Error ? error.message : "provider unavailable",
+  });
+}
+
+/** `instanceof` against an SDK error class, safe where a test double of the SDK leaves it out. */
+function isProviderError(error: unknown, errorClass: unknown) {
+  return typeof errorClass === "function" && error instanceof errorClass;
+}
+
+/**
+ * Whether a failed provider call may still have done what it was asked: a timeout or a dropped
+ * connection (the request may have arrived), or a provider 5xx. A 4xx is a refusal.
+ */
+function providerOutcomeUnknown(error: unknown) {
+  if (isProviderError(error, DodoPayments.APIConnectionError)) return true;
+  if (!isProviderError(error, DodoPayments.APIError)) return false;
+  const status = (error as { status?: number }).status;
+  return status === undefined || status >= 500;
+}
+
+/** Whether a payment is the charge for a plan change: Dodo's charge type, or our own tag. */
+function isPlanChangePayment(payment: {
+  metadata: Record<string, string>;
+  charge_type?: string | null;
+}) {
+  return (
+    payment.charge_type === "plan_change" || payment.metadata[PLAN_CHANGE_METADATA_KEY] === "1"
   );
 }
 
@@ -1088,7 +1230,13 @@ export class BillingService {
           { status: "PAST_DUE" },
         ],
       },
-      select: { productKey: true, status: true, rawStatus: true },
+      select: {
+        productKey: true,
+        status: true,
+        rawStatus: true,
+        interval: true,
+        cancelAtPeriodEnd: true,
+      },
     });
     const overlap = checkoutOverlap(productKey, interval, liveSubscriptions);
     if (overlap) throw overlap;
@@ -1102,7 +1250,7 @@ export class BillingService {
       for (const other of overlappingProductKeys(productKey)) {
         if (other === productKey) continue;
         if (parseCheckoutRecord(await redis.get(checkoutRecordKey(userId, other))))
-          throw new ApiError(409, CHECKOUT_ACTIVE_MESSAGE);
+          throw new ApiError(409, CHECKOUT_ACTIVE_MESSAGE, CHECKOUT_IN_PROGRESS);
       }
 
       const claimed =
@@ -1115,13 +1263,17 @@ export class BillingService {
       const existing = parseCheckoutRecord(await redis.get(recordKey));
       if (existing?.state === "open") {
         if (existing.interval === interval) return { url: existing.url, reused: true };
-        throw new ApiError(409, CHECKOUT_ACTIVE_MESSAGE);
+        throw new ApiError(409, CHECKOUT_ACTIVE_MESSAGE, CHECKOUT_IN_PROGRESS);
       }
       // A claim: a concurrent request is creating the session right now. Wait for it and hand
       // back its URL rather than opening a second one. Gone meanwhile (the other call failed
       // and released it): the loop claims it on the next pass.
       if (attempt >= CHECKOUT_CLAIM_WAIT_ATTEMPTS)
-        throw new ApiError(409, "A checkout is being prepared. Try again in a moment.");
+        throw new ApiError(
+          409,
+          "A checkout is being prepared. Try again in a moment.",
+          CHECKOUT_IN_PROGRESS,
+        );
       await sleep(CHECKOUT_CLAIM_WAIT_MS);
     }
 
@@ -1185,7 +1337,7 @@ export class BillingService {
           productKey,
           sessionId: checkout.session_id,
         });
-        throw new ApiError(409, CHECKOUT_ACTIVE_MESSAGE);
+        throw new ApiError(409, CHECKOUT_ACTIVE_MESSAGE, CHECKOUT_IN_PROGRESS);
       }
 
       return { url: checkout.checkout_url, reused: false };
@@ -1286,6 +1438,344 @@ export class BillingService {
       await redis.eval(compareAndDeleteScript, { keys: [key], arguments: [raw as string] });
     } catch (error) {
       logger.warn("Failed to clear a settled checkout record", { error });
+    }
+  }
+
+  /**
+   * Which plan change a customer may make (V-202), as the live subscription it applies to and the
+   * provider product it moves to. Only upgrades to the bundle at the same interval are offered:
+   * Creator Pro or AI Credits to the Job Hunter Bundle. Downgrades, sideways moves and monthly to
+   * annual (or back) are not decided, so they are refused with a code the studio can explain.
+   * Only the caller's own subscription is ever looked at.
+   */
+  private static async resolvePlanChange(
+    userId: string,
+    productKey: ProductKey,
+    interval: PlanChangeInterval,
+  ) {
+    const now = new Date();
+    const live = await prisma.subscription.findMany({
+      where: {
+        userId,
+        OR: [
+          {
+            status: "ACTIVE",
+            OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gt: now } }],
+          },
+          { status: "PAST_DUE" },
+        ],
+      },
+      select: {
+        providerSubId: true,
+        productKey: true,
+        status: true,
+        rawStatus: true,
+        interval: true,
+        cancelAtPeriodEnd: true,
+      },
+    });
+
+    const current = live.find((item) => item.status === "PAST_DUE") ?? live[0];
+    if (!current || !isProductKey(current.productKey))
+      throw planChangeError(
+        "NO_SUBSCRIPTION",
+        "You have no active subscription to change. Choose a plan to subscribe instead.",
+      );
+    const activeName = PRODUCT_NAMES[current.productKey];
+    if (live.length > 1 || !current.providerSubId)
+      throw planChangeError(
+        "PLAN_CHANGE_UNAVAILABLE",
+        "This plan cannot be changed here. Contact support and we will switch it for you.",
+      );
+    if (current.status === "PAST_DUE")
+      throw current.rawStatus === "paused"
+        ? planChangeError(
+            "SUBSCRIPTION_PAUSED",
+            `Your ${activeName} subscription is paused. Resume it from Manage billing before changing plans.`,
+          )
+        : planChangeError(
+            "PAYMENT_OUTSTANDING",
+            `Your ${activeName} subscription has a payment outstanding. Update your payment method from Manage billing before changing plans.`,
+          );
+
+    const currentInterval = recurringInterval(current.interval);
+    if (current.productKey === productKey && currentInterval === interval)
+      throw planChangeError("ALREADY_SUBSCRIBED", `You already have ${activeName}.`);
+    if (productKey !== "bundle" || current.productKey === "bundle")
+      throw planChangeError(
+        "PLAN_CHANGE_NOT_UPGRADE",
+        `Only an upgrade to the ${PRODUCT_NAMES.bundle} can be made here. To move to a smaller plan, cancel ${activeName} from Manage billing and subscribe again when it ends.`,
+      );
+    if (currentInterval !== interval)
+      throw planChangeError(
+        "PLAN_CHANGE_INTERVAL",
+        `Your ${activeName} plan is billed ${currentInterval === "annual" ? "yearly" : "monthly"}. The upgrade keeps that billing period.`,
+      );
+    if (current.cancelAtPeriodEnd)
+      throw planChangeError(
+        "SUBSCRIPTION_ENDING",
+        `Your ${activeName} subscription is set to end. Resume it from Manage billing before upgrading.`,
+      );
+
+    const providerProductId = getProviderProductId(productKey, interval);
+    if (!providerProductId)
+      throw new ApiError(503, "The selected billing product is not configured.");
+
+    return {
+      providerSubId: current.providerSubId,
+      fromProductKey: current.productKey,
+      providerProductId,
+    };
+  }
+
+  /**
+   * What an upgrade would cost (V-202): the prorated charge taken now and the plan's price from
+   * the next billing date, as Dodo calculates them. Changes nothing.
+   */
+  static async previewPlanChange(
+    userId: string,
+    productKey: ProductKey,
+    interval: PlanChangeInterval,
+  ) {
+    const change = await this.resolvePlanChange(userId, productKey, interval);
+
+    let preview: Awaited<ReturnType<DodoPayments["subscriptions"]["previewChangePlan"]>>;
+    try {
+      preview = await getDodoClient().subscriptions.previewChangePlan(change.providerSubId, {
+        product_id: change.providerProductId,
+        quantity: 1,
+        proration_billing_mode: PLAN_CHANGE_PRORATION,
+      });
+    } catch (error) {
+      throw providerPlanChangeError(error, "could not price the upgrade");
+    }
+
+    return {
+      productKey,
+      interval,
+      dueNow: preview.immediate_charge.summary.total_amount,
+      currency: preview.immediate_charge.summary.currency.toUpperCase(),
+      nextAmount: preview.new_plan.recurring_pre_tax_amount,
+      nextBillingDate: preview.new_plan.next_billing_date,
+    };
+  }
+
+  /**
+   * Upgrades the live subscription at the provider (V-202). Nothing local changes here: Dodo
+   * charges the prorated difference and, once that payment succeeds (`prevent_change`), sends the
+   * plan-change webhook that moves the row, the grants and the credits (`applySubscriptionEvent`).
+   *
+   * Idempotent end to end:
+   * - the same key returns the stored answer without a second provider call, and a double click
+   *   with that key waits briefly for the first request's answer and replays it;
+   * - a second key while a change is in flight or awaiting its webhook is a 409
+   *   `PLAN_CHANGE_PENDING`, as is the provider's own "a plan change is already pending" 409;
+   * - a provider refusal (any other 4xx) releases the claim and stores nothing, so the same key can
+   *   try again (502 `PROVIDER_UNAVAILABLE`);
+   * - a timeout, a dropped connection or a provider 5xx may still have applied the change, so it is
+   *   never reported as "nothing changed": the change is recorded as pending (one hour, or until
+   *   its webhook or failed payment clears it) and answered `confirmed: false`, which the
+   *   controller sends as a 202. Retries with the same key replay that answer.
+   */
+  static async changePlan(
+    userId: string,
+    productKey: ProductKey,
+    interval: PlanChangeInterval,
+    idempotencyKey: string,
+  ) {
+    const redis = getRedis();
+    const resultKey = planChangeResultKey(userId, idempotencyKey);
+    const stored = await readPlanChangeReplay(resultKey, productKey, interval);
+    if (stored) return stored;
+
+    const change = await this.resolvePlanChange(userId, productKey, interval);
+    const pendingKey = planChangePendingKey(change.providerSubId);
+    const requestKey = `${userId}:${idempotencyKey}`;
+    const claim = JSON.stringify({ state: "claimed", token: randomUUID(), requestKey });
+
+    for (let attempt = 0; ; attempt += 1) {
+      const claimed =
+        (await redis.set(pendingKey, claim, { NX: true, EX: CHECKOUT_CLAIM_TTL_SECONDS })) === "OK";
+      if (claimed) break;
+
+      // A double click with the same key: the first request is talking to the provider. Wait for
+      // its answer and replay it, the way a second checkout click waits for the first session.
+      const holder = parsePlanChangePending(await redis.get(pendingKey));
+      if (
+        (holder && holder.requestKey !== requestKey) ||
+        attempt >= PLAN_CHANGE_SAME_KEY_WAIT_ATTEMPTS
+      )
+        throw planChangeError(
+          "PLAN_CHANGE_PENDING",
+          "A plan change for this subscription is already in progress. It completes once the payment is confirmed.",
+        );
+      await sleep(CHECKOUT_CLAIM_WAIT_MS);
+      const replay = await readPlanChangeReplay(resultKey, productKey, interval);
+      if (replay) return replay;
+    }
+
+    let result: PlanChangeResult;
+    try {
+      const response = await getDodoCheckoutClient().subscriptions.changePlan(
+        change.providerSubId,
+        {
+          product_id: change.providerProductId,
+          quantity: 1,
+          proration_billing_mode: PLAN_CHANGE_PRORATION,
+          // No payment, no new plan: the subscription stays as it is until the charge succeeds.
+          on_payment_failure: "prevent_change",
+          metadata: {
+            veriworkly_user_id: userId,
+            veriworkly_product: productKey,
+            veriworkly_interval: interval,
+            [PLAN_CHANGE_METADATA_KEY]: "1",
+          },
+        },
+        { idempotencyKey: `plan-change:${requestKey}` },
+      );
+      result = {
+        status: "pending",
+        productKey,
+        interval,
+        paymentId: response.payment_id ?? null,
+        confirmed: true,
+      };
+    } catch (error) {
+      if (!providerOutcomeUnknown(error)) {
+        await redis
+          .eval(compareAndDeleteScript, { keys: [pendingKey], arguments: [claim] })
+          .catch((releaseError) =>
+            logger.warn("Failed to release a plan-change claim", { userId, error: releaseError }),
+          );
+        if (isProviderError(error, DodoPayments.ConflictError))
+          throw planChangeError(
+            "PLAN_CHANGE_PENDING",
+            "A plan change for this subscription is already waiting for its payment. It completes once the payment is confirmed.",
+          );
+        throw providerPlanChangeError(error, "did not accept the upgrade");
+      }
+      logger.warn("Plan change sent but not confirmed by the provider; holding it as pending", {
+        userId,
+        subscriptionId: change.providerSubId,
+        to: productKey,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      result = { status: "pending", productKey, interval, paymentId: null, confirmed: false };
+    }
+
+    // The pending record keeps a second change off this subscription until the webhook lands (or
+    // the payment fails); the result record answers a retry of this request. Written only over our
+    // own claim: a failed-payment or plan-change webhook that already cleared the key while the
+    // provider call ran must not be undone by a lock that would then stand for an hour.
+    const kept = await redis.eval(compareAndSetScript, {
+      keys: [pendingKey],
+      arguments: [
+        claim,
+        JSON.stringify({ state: "pending", requestKey, ...result }),
+        String(PLAN_CHANGE_PENDING_TTL_SECONDS),
+      ],
+    });
+    if (Number(kept) !== 1)
+      logger.info("Plan change settled by its webhook before the request finished", {
+        userId,
+        subscriptionId: change.providerSubId,
+      });
+    await redis.set(resultKey, JSON.stringify(result), { EX: PLAN_CHANGE_RESULT_TTL_SECONDS });
+    logger.info("Subscription plan change requested", {
+      userId,
+      subscriptionId: change.providerSubId,
+      from: change.fromProductKey,
+      to: productKey,
+      interval,
+      paymentId: result.paymentId,
+      confirmed: result.confirmed,
+    });
+
+    return { ...result, replayed: false };
+  }
+
+  /** The change landed or its payment failed: another one may be requested. Never throws. */
+  private static async clearPendingPlanChange(providerSubId: string) {
+    try {
+      await getRedis().del(planChangePendingKey(providerSubId));
+    } catch (error) {
+      logger.warn("Failed to clear a pending plan change", { providerSubId, error });
+    }
+  }
+
+  /**
+   * The credits a plan change owes (V-202), once the subscription row shows the new plan. A plan
+   * that carries no credits (Creator Pro) moving to one that does (the bundle) gets this month's
+   * 1,000 now, ending with the month like every other subscription month; a plan that already
+   * carried them (AI Credits) keeps the month it has, so nothing is granted twice.
+   *
+   * - Monthly: one grant to the period end, keyed on the period, unless an unexpired subscription
+   *   grant already covers it.
+   * - Annual: the monthly schedule over the paid year, anchored on its start, through the same
+   *   `openAnnualCreditSchedule`/`grantDueMonths` path a payment uses (an AI Credits year already
+   *   has one covering it and gains nothing; the hourly job grants the months that follow).
+   *
+   * A downgrade (owner decision, portal only: Bundle to Creator Pro, Bundle to AI Credits) grants
+   * nothing here: the month already granted was paid for and stays until it ends (no grant is cut
+   * early), and from the next month the new plan's allowance applies (none for Creator Pro: its
+   * renewal payment earns nothing, and an annual schedule stops at its next month because
+   * `monthEligibility` sees a plan without credits).
+   *
+   * Safe to repeat: every delivery about the change (the plan change, its `updated`, a redelivery,
+   * the proration payment) ends here and finds the credits already granted.
+   */
+  private static async applyPlanChangeCredits(input: {
+    userId: string;
+    providerSubId: string;
+    productKey: ProductKey;
+    interval: CatalogInterval;
+    periodStart: Date;
+    periodEnd: Date;
+  }) {
+    const allowance = productCatalog[input.productKey].creditAllowance?.[input.interval] ?? 0;
+    if (allowance <= 0) return;
+
+    if (input.interval === "annual") {
+      const schedule = await openAnnualCreditSchedule({
+        userId: input.userId,
+        providerSubId: input.providerSubId,
+        productKey: input.productKey,
+        // No payment opens it (the proration pays for the plan, not for a year), so it is keyed on
+        // the period it covers.
+        paymentId: `plan-change:${input.providerSubId}:${input.periodStart.toISOString()}`,
+        periodStart: input.periodStart,
+        periodEnd: input.periodEnd,
+        servicePeriodKnown: true,
+      });
+      if (schedule) await grantDueMonths(schedule.id);
+      return;
+    }
+
+    if (input.periodEnd <= new Date()) return;
+    const covered = await prisma.creditGrant.findFirst({
+      where: {
+        userId: input.userId,
+        expiresAt: { gt: new Date() },
+        AND: [await subscriptionCreditGrantsWhere(input.providerSubId)],
+      },
+      select: { id: true },
+    });
+    if (covered) return;
+
+    const period = input.periodEnd.toISOString();
+    try {
+      await CreditService.grant(input.userId, allowance, {
+        requestId: `plan-change-credit:${input.providerSubId}:${period}`,
+        source: CREDIT_SOURCES.subscriptionPayment,
+        // `<subscription id>:` keeps it in `subscriptionCreditGrantsWhere`, so the next renewal's
+        // month replaces it.
+        sourceId: `${input.providerSubId}:plan-change:${period}`,
+        expiresAt: input.periodEnd,
+        reason: `${productCatalog[input.productKey].name} credit allowance`,
+      });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002"))
+        throw error;
     }
   }
 
@@ -1521,6 +2011,7 @@ export class BillingService {
           const userId = await this.applySubscriptionEvent(
             subscriptionData,
             new Date(parsedEvent.timestamp),
+            parsedEvent.type,
           );
           await prisma.billingWebhookEvent.update({
             where: { id: stored.id },
@@ -1635,6 +2126,7 @@ export class BillingService {
   private static async applySubscriptionEvent(
     subscription: z.infer<typeof dodoSubscriptionSchema>,
     eventTime: Date,
+    eventType = "subscription.updated",
   ) {
     const existing = await prisma.subscription.findUnique({
       where: { providerSubId: subscription.subscription_id },
@@ -1803,6 +2295,27 @@ export class BillingService {
         );
       }, BILLING_TRANSACTION_OPTIONS);
     }
+
+    // A plan change (V-202): the transaction above already moved the row and re-synced the grants
+    // (the new plan's entitlements, revoking only what it does not include); the credits the new
+    // plan carries follow here, and the change is no longer pending.
+    const planChanged =
+      eventType === "subscription.plan_changed" ||
+      Boolean(existing && existing.productKey !== productKey);
+    if (planChanged) await this.clearPendingPlanChange(subscription.subscription_id);
+    if (!staleEvent && planChanged && normalizedStatus === "ACTIVE")
+      await this.applyPlanChangeCredits({
+        userId,
+        providerSubId: subscription.subscription_id,
+        productKey,
+        interval: rawInterval,
+        periodStart: subscription.previous_billing_date
+          ? new Date(subscription.previous_billing_date)
+          : rawInterval === "annual"
+            ? addYears(currentPeriodEnd, -1)
+            : addMonths(currentPeriodEnd, -1),
+        periodEnd: currentPeriodEnd,
+      });
 
     // Any outcome settles the open checkout; `pending` is not one yet (the first charge or the
     // mandate is still in flight), and the record must keep a second session closed meanwhile.
@@ -2053,6 +2566,15 @@ export class BillingService {
           paymentId: payment.payment_id,
           subscriptionId: payment.subscription_id,
         });
+      } else if (allowance > 0 && payment.subscription_id && isPlanChangePayment(payment)) {
+        // The prorated charge for a plan change (V-202), requested here or in the customer portal:
+        // the plan-change event grants what the new plan carries for this period
+        // (`applyPlanChangeCredits`), whichever of the two arrives first. Granting here as well
+        // would pay the month twice, or reset a month already partly spent.
+        logger.info("Plan-change payment: credits follow the plan change", {
+          paymentId: payment.payment_id,
+          subscriptionId: payment.subscription_id,
+        });
       } else if (allowance > 0 && interval === "annual" && payment.subscription_id) {
         // Annual plans deliver 1,000 a month, not the year's allowance up front (owner
         // decision 4): the payment opens the schedule for the period it pays for and grants
@@ -2210,6 +2732,14 @@ export class BillingService {
     if (await isDeletedAccount(userId, subscription, { paymentId: payment.payment_id }))
       return null;
     if (!userId || !subscription) return userId ?? null;
+
+    // A declined plan-change charge (V-202) leaves the subscription as it was (`prevent_change`, or
+    // a portal change that never applied):
+    // nothing is overdue, so no dunning mail; the customer may simply try the upgrade again.
+    if (payment.subscription_id && isPlanChangePayment(payment)) {
+      await this.clearPendingPlanChange(payment.subscription_id);
+      return userId;
+    }
 
     const now = new Date();
     const graceEndsAt =

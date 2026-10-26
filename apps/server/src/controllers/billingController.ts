@@ -15,6 +15,7 @@ import {
   checkoutSchema,
   creditPackCheckoutSchema,
   dodoWebhookHeaderSchema,
+  planChangeSchema,
 } from "#validators/billingValidator";
 
 export class BillingController {
@@ -102,6 +103,58 @@ export class BillingController {
       res.json(createSuccessResponse(await BillingService.createPortal(user.id)));
     } catch (error) {
       next(error);
+    }
+  }
+
+  /** V-202: what an upgrade of the live subscription would cost now and from the next bill. */
+  static async previewPlanChange(req: Request, res: Response, next: NextFunction) {
+    try {
+      const input = planChangeSchema.parse(req.body);
+
+      const user = requireAuthUser(req);
+      BillingController.assertPaymentsEnabled(user);
+
+      res.json(
+        createSuccessResponse(
+          await BillingService.previewPlanChange(user.id, input.productKey, input.interval),
+        ),
+      );
+    } catch (error) {
+      next(error instanceof z.ZodError ? handleValidationError(error) : error);
+    }
+  }
+
+  /**
+   * V-202: upgrades the live subscription. An idempotency key is required, from the
+   * `Idempotency-Key` header or the body (the header wins), so a retried click never asks the
+   * provider twice. Answers 200 `{ status: "pending", confirmed: true, ... }` once the provider
+   * accepted the change, or 202 with `confirmed: false` when its answer never arrived.
+   */
+  static async changePlan(req: Request, res: Response, next: NextFunction) {
+    try {
+      const input = planChangeSchema.parse(req.body);
+
+      const user = requireAuthUser(req);
+      BillingController.assertPaymentsEnabled(user);
+
+      const idempotencyKey =
+        req.get("Idempotency-Key")?.trim().slice(0, 128) || input.idempotencyKey;
+      if (!idempotencyKey)
+        throw new ApiError(400, "An idempotency key is required to change plans.", {
+          code: "IDEMPOTENCY_KEY_REQUIRED",
+        });
+
+      const result = await BillingService.changePlan(
+        user.id,
+        input.productKey,
+        input.interval,
+        idempotencyKey,
+      );
+      // 202 when the provider call timed out or failed in transit: the change may have applied
+      // and is held as pending (`confirmed: false`); `/billing/me` shows when it lands.
+      res.status(result.confirmed ? 200 : 202).json(createSuccessResponse(result));
+    } catch (error) {
+      next(error instanceof z.ZodError ? handleValidationError(error) : error);
     }
   }
 

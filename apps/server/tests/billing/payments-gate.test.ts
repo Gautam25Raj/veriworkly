@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   createPortal: vi.fn(),
   createCheckout: vi.fn(),
   createCreditPackCheckout: vi.fn(),
+  previewPlanChange: vi.fn(),
+  changePlan: vi.fn(),
 }));
 
 vi.mock("#config", () => ({ isProduction: true, config: {} }));
@@ -25,7 +27,8 @@ const { BillingController } = await import("#controllers/billingController");
 function call(handler: (req: never, res: never, next: never) => Promise<void>, body = {}) {
   const res = { json: vi.fn() };
   const next = vi.fn();
-  return handler({ body } as never, res as never, next as never).then(() => ({ res, next }));
+  const req = { body, get: () => undefined };
+  return handler(req as never, res as never, next as never).then(() => ({ res, next }));
 }
 
 describe("payments gate", () => {
@@ -51,5 +54,17 @@ describe("payments gate", () => {
 
     expect(next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 403 }));
     expect(mocks.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it("V-202: blocks the plan-change preview and the plan change for non-admins in production", async () => {
+    const body = { productKey: "bundle", interval: "monthly", idempotencyKey: "change-1" };
+
+    const preview = await call(BillingController.previewPlanChange, body);
+    const change = await call(BillingController.changePlan, body);
+
+    expect(preview.next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 403 }));
+    expect(change.next).toHaveBeenCalledWith(expect.objectContaining({ statusCode: 403 }));
+    expect(mocks.previewPlanChange).not.toHaveBeenCalled();
+    expect(mocks.changePlan).not.toHaveBeenCalled();
   });
 });

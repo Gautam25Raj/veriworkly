@@ -410,6 +410,76 @@ describe("owner decision 1 (V-178, V-179): credits from any source pay for every
   });
 });
 
+describe("V-201 resume conversion checks document capacity before charging", () => {
+  const CONVERTED = {
+    basics: { fullName: "Jane Doe", role: "", headline: "", email: "", phone: "", location: "" },
+    links: [],
+    summary: "",
+    experience: [],
+    education: [],
+    projects: [],
+    skills: [],
+  };
+
+  function convert(user: TestUser, requestId: string) {
+    return request(app)
+      .post("/api/v1/ats/convert-resume")
+      .set("Origin", STUDIO_ORIGIN)
+      .set("Cookie", user.cookie)
+      .send({ resume: THIN_RESUME, requestId });
+  }
+
+  async function seedResume(userId: string) {
+    await prisma.document.create({
+      data: { userId, title: "Resume", slug: `resume-${randomUUID().slice(0, 8)}`, content: {} },
+    });
+  }
+
+  it("refuses a free account that already keeps its one resume: 402, no reservation, no charge", async () => {
+    const user = await createUserWithSession();
+    await grantCredits(user.id, 100);
+    await seedResume(user.id);
+    const requestId = `conv-${randomUUID()}`;
+
+    const response = await convert(user, requestId);
+
+    expect(response.status, JSON.stringify(response.body)).toBe(402);
+    expect(response.body.message).toContain("Free accounts can keep 1 active resume");
+    expect(response.body.details).toMatchObject({ code: "DOCUMENT_LIMIT", type: "RESUME" });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await reservationStatus(requestId)).toBeNull();
+    expect(await prisma.creditTransaction.count({ where: { userId: user.id } })).toBe(1);
+    expect(await wallet(user.id)).toEqual({ balance: 100, reserved: 0 });
+  });
+
+  it("the documents route answers the same 402 code", async () => {
+    const user = await createUserWithSession();
+    await seedResume(user.id);
+
+    const response = await request(app)
+      .post("/api/v1/documents")
+      .set("Origin", STUDIO_ORIGIN)
+      .set("Cookie", user.cookie)
+      .send({ title: "Second resume", type: "RESUME" });
+
+    expect(response.status, JSON.stringify(response.body)).toBe(402);
+    expect(response.body.details).toMatchObject({ code: "DOCUMENT_LIMIT", type: "RESUME" });
+  });
+
+  it("converts for an account with paid access even when it already has a resume", async () => {
+    const user = await createUserWithSession();
+    await grantCredits(user.id, 100);
+    await grantEntitlement(user.id);
+    await seedResume(user.id);
+    fetchMock.mockResolvedValueOnce(chatResponse(CONVERTED));
+
+    const response = await convert(user, `conv-${randomUUID()}`);
+
+    expect(response.status, JSON.stringify(response.body)).toBe(200);
+    expect(await wallet(user.id)).toEqual({ balance: 75, reserved: 0 });
+  });
+});
+
 describe("V-038 the AI limiter class and the per-user in-flight cap", () => {
   it("limits /api/v1/ats/analyze with the AI class, not the generic one", async () => {
     const previous = config.ai.rateLimitMaxRequests;

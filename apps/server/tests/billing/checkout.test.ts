@@ -168,6 +168,36 @@ describe("createCheckout idempotency per (user, product)", () => {
     expect(dodoMock.create).toHaveBeenCalledTimes(1);
   });
 
+  it("V-198: every checkout-lock 409 carries CHECKOUT_IN_PROGRESS, apart from the overlap codes", async () => {
+    await BillingService.createCheckout(USER, "portfolio_pro", "monthly");
+
+    // The same product at another interval while its session is open.
+    await expect(
+      BillingService.createCheckout(USER, "portfolio_pro", "annual"),
+    ).rejects.toMatchObject({ statusCode: 409, details: { code: "CHECKOUT_IN_PROGRESS" } });
+    // An overlapping product (the bundle contains Creator Pro) while that session is open.
+    await expect(BillingService.createCheckout(USER, "bundle", "monthly")).rejects.toMatchObject({
+      statusCode: 409,
+      details: { code: "CHECKOUT_IN_PROGRESS" },
+    });
+
+    // A session still being prepared by a concurrent click that never finishes.
+    store.clear();
+    store.set(key("ai_credits"), { value: JSON.stringify({ state: "claimed", token: "t" }) });
+    vi.useFakeTimers();
+    try {
+      const pending = BillingService.createCheckout(USER, "ai_credits", "monthly");
+      const settled = expect(pending).rejects.toMatchObject({
+        statusCode: 409,
+        details: { code: "CHECKOUT_IN_PROGRESS" },
+      });
+      await vi.runAllTimersAsync();
+      await settled;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("treats an open bundle checkout as covering the single products, and vice versa", async () => {
     await BillingService.createCheckout(USER, "bundle", "monthly");
     await expect(

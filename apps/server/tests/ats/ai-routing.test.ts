@@ -78,6 +78,10 @@ vi.mock("#services/creditService", () => ({
   replayFingerprint: () => "fingerprint",
 }));
 
+// The conversion checks document capacity first (V-201); covered by the integration suite.
+vi.mock("#services/documentCapacity", () => ({
+  assertFreeTierCapacity: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock("#services/entitlementService", () => ({
   EntitlementService: { require: vi.fn() },
 }));
